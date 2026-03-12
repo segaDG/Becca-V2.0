@@ -18,18 +18,17 @@ const App = {
 
   /* === Module registry === */
   _modules: {
-    dashboard: DashboardModule,
-    order:     OrderModule,
-    // Modul lain ditambahkan di sini setelah dibuat
-    // invoice:   InvoiceModule,
-    // customer:  CustomerModule,
-    // employee:  EmployeeModule,
-    // inventory: InventoryModule,
-    // kas:       KasModule,
-    // ap:        APModule,
-    // task:      TaskModule,
-    // report:    ReportModule,
-    // settings:  SettingsModule,
+    dashboard : DashboardModule,
+    order     : OrderModule,
+    kas       : KasModule,        // ← BARU
+    inventory : InventoryModule,  // ← BARU
+    employee  : EmployeeModule,   // ← BARU
+    // invoice   : InvoiceModule,
+    // customer  : CustomerModule,
+    // ap        : APModule,
+    // task      : TaskModule,
+    // report    : ReportModule,
+    // settings  : SettingsModule,
   },
 
   /* === Boot Sequence === */
@@ -39,7 +38,6 @@ const App = {
 
     // 2. Cek session
     const loggedIn = Auth.init();
-
     if (!loggedIn) {
       this._showLogin();
       return;
@@ -91,7 +89,6 @@ const App = {
           </svg>
           <span class="notif-badge" id="notif-badge" style="display:none"></span>
         </button>
-
         <div class="dropdown">
           <button class="header-btn" id="btn-user" onclick="App._toggleUserMenu()" title="Akun">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -104,7 +101,7 @@ const App = {
               <div style="font-size:11px;color:var(--text-3)">${Auth.currentUser()?.role}</div>
             </div>
             <button class="dropdown-item" onclick="App.navigate('settings')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06-.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
               Pengaturan
             </button>
             <div class="dropdown-sep"></div>
@@ -148,10 +145,19 @@ const App = {
     // Update sidebar & header
     this._currentPage = pageId;
     Sidebar.setActive(pageId);
+
     const titles = {
-      dashboard:'Dashboard', order:'Order Catering', invoice:'Invoice',
-      customer:'Data Customer', employee:'Karyawan', inventory:'Inventory',
-      kas:'Kas Kecil', ap:'Account Payable', task:'Task', report:'Laporan', settings:'Pengaturan',
+      dashboard : 'Dashboard',
+      order     : 'Order Catering',
+      invoice   : 'Invoice',
+      customer  : 'Data Customer',
+      employee  : 'Karyawan',
+      inventory : 'Inventory',
+      kas       : 'Kas Kecil',
+      ap        : 'Account Payable',
+      task      : 'Task',
+      report    : 'Laporan',
+      settings  : 'Pengaturan',
     };
     const titleEl = document.getElementById('header-page-title');
     if (titleEl) titleEl.textContent = titles[pageId] || pageId;
@@ -171,7 +177,6 @@ const App = {
   },
 
   _renderComingSoon(pageId) {
-    // Buat section jika belum ada
     let page = document.getElementById(`page-${pageId}`);
     if (!page) {
       page = document.createElement('section');
@@ -196,7 +201,8 @@ const App = {
   /* === Logout === */
   async logout() {
     const ok = await Modal.confirm({
-      title: 'Logout', message: 'Yakin ingin keluar dari BECCA?',
+      title: 'Logout',
+      message: 'Yakin ingin keluar dari BECCA?',
       confirmText: 'Ya, Logout',
     });
     if (!ok) return;
