@@ -82,14 +82,19 @@ const InventoryModule = (() => {
     const hdrBtns = document.getElementById('inv-header-btns');
     if (hdrBtns && Auth.can('inventory','edit')) {
       if (tab === 'transaksi') {
-        hdrBtns.innerHTML = '<button class="btn btn-primary btn-sm" onclick="InventoryModule.addLogRow()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d=\"M12 5v14M5 12h14\"/></svg> Baris Baru</button>';
+        hdrBtns.innerHTML = ''; // Button is above table in renderTransaksi
       } else {
         hdrBtns.innerHTML = '<button class="btn btn-primary" onclick="InventoryModule.openItemModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d=\"M12 5v14M5 12h14\"/></svg> Barang Baru</button>';
       }
     }
     ['stok','transaksi','alert'].forEach(t => {
-      document.getElementById(`inv-tab-${t}`)?.classList.toggle('hidden', t !== tab);
-      document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
+      const tabContent = document.getElementById('inv-tab-'+t);
+      if (tabContent) tabContent.classList.toggle('hidden', t !== tab);
+      // Find button by data-tab attribute (more robust)
+      const tabBtn = document.querySelector('.tabs [data-tab="'+t+'"]');
+      if (tabBtn) {
+        tabBtn.classList.toggle('active', t === tab);
+      }
     });
     const renders = { stok: renderStok, transaksi: renderTransaksi, alert: renderAlert };
     renders[tab]?.();
@@ -253,12 +258,18 @@ const InventoryModule = (() => {
     }
 
     document.getElementById('inv-tab-transaksi').innerHTML = `
-      ${canEdit ? '<div style="font-size:11px;color:var(--text-3);padding:2px 0 6px;font-style:italic">Klik baris untuk edit langsung · Enter untuk simpan</div>' : ''}
-      <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
-        ${canEdit ? `<button class="btn btn-primary btn-sm" onclick="InventoryModule.addLogRow()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M12 5v14M5 12h14"/></svg>
-          Baris Baru
-        </button>` : ''}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:11px;color:var(--text-3);font-style:italic">${canEdit ? 'Klik baris untuk edit · Enter untuk simpan' : ''}</span>
+        <div style="display:flex;gap:var(--s2)">
+          ${canEdit ? `
+            <button class="btn btn-ghost btn-sm" onclick="InventoryModule.openOpnameModal()">
+              Stok Opname
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="InventoryModule.addLogRow()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M12 5v14M5 12h14"/></svg>
+              Baris Baru
+            </button>` : ''}
+        </div>
       </div>
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-lg)">
         <table class="iv-tbl" id="inv-grid">
@@ -268,7 +279,6 @@ const InventoryModule = (() => {
             <th style="min-width:160px">Nama Barang</th>
             <th style="width:90px">Jenis</th>
             <th style="width:75px" class="iv-num">Jumlah</th>
-            <th style="width:90px" class="iv-num">Stok Akhir</th>
             <th style="width:100px" class="iv-num">Harga (Rp)</th>
             <th style="width:110px">Supplier</th>
             <th style="min-width:140px">Catatan</th>
@@ -276,7 +286,7 @@ const InventoryModule = (() => {
           </tr></thead>
           <tbody id="inv-tbody">
             ${sorted.length ? sorted.map((r,i)=>_ivRowView(r,i+1,canEdit)).join('') :
-              `<tr><td colspan="${canEdit?10:9}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data. Klik Baris Baru untuk mulai.</td></tr>`}
+              `<tr><td colspan="${canEdit?9:8}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data. Klik Baris Baru untuk mulai.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -292,7 +302,6 @@ const InventoryModule = (() => {
       <td><div class="ivc">${r.itemNama||''}</div></td>
       <td><div class="ivc"><span class="badge" style="background:${jColor}18;color:${jColor};border:1px solid ${jColor}40;font-size:10px">${r.jenis||''}</span></div></td>
       <td class="iv-num"><div class="ivc">${r.jumlah||0}</div></td>
-      <td class="iv-num"><div class="ivc">${r.stokAkhir??'-'}</div></td>
       <td class="iv-num"><div class="ivc">${r.harga?Utils.formatRupiah(r.harga):'-'}</div></td>
       <td><div class="ivc">${r.supplier||''}</div></td>
       <td><div class="ivc">${r.catatan||''}</div></td>
@@ -305,7 +314,7 @@ const InventoryModule = (() => {
 
   function _ivRowEdit(r, rowNum, canEdit) {
     const itemOpts  = _items.map(it=>`<option value="${it.id}" ${r.itemId===it.id?'selected':''}>${it.nama} (${it.satuan||''})</option>`).join('');
-    const jenisOpts = ['MASUK','KELUAR','OPNAME'].map(j=>`<option value="${j}" ${r.jenis===j?'selected':''}>${j}</option>`).join('');
+    const jenisOpts = ['MASUK','KELUAR'].map(j=>`<option value="${j}" ${r.jenis===j?'selected':''}>${j}</option>`).join('');
     return `<tr class="iv-editing" id="iv-row-${r.id}" data-id="${r.id}" onclick="event.stopPropagation()">
       <td><div class="ivc" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
       <td><input class="iv-inp" type="date" value="${r.tgl||''}" id="ivf-tgl-${r.id}"></td>
@@ -313,7 +322,6 @@ const InventoryModule = (() => {
       <td><select class="iv-sel" id="ivf-jenis-${r.id}">${jenisOpts}</select></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.jumlah||0}" id="ivf-jumlah-${r.id}" style="text-align:right"
         onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
-      <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.stokAkhir||0}" id="ivf-stok-${r.id}" style="text-align:right"></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.harga||0}" id="ivf-harga-${r.id}" style="text-align:right"></td>
       <td><input class="iv-inp" type="text" value="${(r.supplier||'').replace(/"/g,'&quot;')}" id="ivf-sup-${r.id}" placeholder="Supplier"></td>
       <td><input class="iv-inp" type="text" value="${(r.catatan||'').replace(/"/g,'&quot;')}" id="ivf-cat-${r.id}" placeholder="Catatan"
@@ -333,7 +341,6 @@ const InventoryModule = (() => {
       itemNama:  itemSel?.options[itemSel?.selectedIndex]?.text?.split(' (')[0] || '',
       jenis:     g('jenis')?.value   || 'MASUK',
       jumlah:    parseFloat(g('jumlah')?.value) || 0,
-      stokAkhir: parseFloat(g('stok')?.value)   || 0,
       harga:     parseFloat(g('harga')?.value)  || 0,
       supplier:  g('sup')?.value     || '',
       catatan:   g('cat')?.value     || '',
@@ -641,6 +648,105 @@ const InventoryModule = (() => {
       </div>`;
   }
 
+
+  /* ===================== STOK OPNAME ===================== */
+  function openOpnameModal() {
+    const itemOpts = _items.map(it => {
+      const stok = it._stok || 0;
+      return `<option value="${it.id}">${it.nama} — Stok: ${stok} ${it.satuan||''}</option>`;
+    }).join('');
+    const mid = Utils.uid();
+    Modal.open({ id: mid,
+      title: 'Stok Opname',
+      size: 'modal-md',
+      body: `
+        <p style="color:var(--text-3);font-size:13px;margin-bottom:var(--s4)">
+          Stok Opname digunakan untuk menyesuaikan stok aktual di gudang. Jumlah yang dimasukkan akan menjadi stok baru.
+        </p>
+        <form id="opname-form">
+          <div class="form-group">
+            <label class="form-label">Tanggal Opname</label>
+            <input name="tgl" type="date" class="form-control" value="${new Date().toISOString().split('T')[0]}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Barang <span class="req">*</span></label>
+            <select name="itemId" class="form-control" id="opname-item-sel" onchange="InventoryModule._onOpnameItemChange()">
+              <option value="">Pilih barang...</option>
+              ${itemOpts}
+            </select>
+          </div>
+          <div id="opname-current-info" style="padding:10px;background:var(--surface2);border-radius:var(--r-md);margin-bottom:var(--s4);font-size:13px;display:none">
+            Stok saat ini: <strong id="opname-current-stok">-</strong>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Stok Aktual (hasil hitung fisik) <span class="req">*</span></label>
+              <input name="jumlah" type="number" min="0" step="0.01" class="form-control" value="0" id="opname-jumlah">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Catatan</label>
+              <input name="catatan" class="form-control" placeholder="Hasil opname tgl...">
+            </div>
+          </div>
+        </form>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="InventoryModule._submitOpname('${mid}')">
+          Simpan Opname
+        </button>`,
+    });
+    return mid;
+  }
+
+  function _onOpnameItemChange() {
+    const sel    = document.getElementById('opname-item-sel');
+    const itemId = sel?.value;
+    const item   = _items.find(i => i.id === itemId);
+    const info   = document.getElementById('opname-current-info');
+    const stokEl = document.getElementById('opname-current-stok');
+    if (item && info && stokEl) {
+      const stok = item._stok || 0;
+      stokEl.textContent = stok + ' ' + (item.satuan||'');
+      stokEl.style.color = stok <= 0 ? 'var(--danger)' : 'var(--success)';
+      info.style.display = 'block';
+      // Pre-fill jumlah with current stok
+      const jumlahEl = document.getElementById('opname-jumlah');
+      if (jumlahEl) jumlahEl.value = stok;
+    }
+  }
+
+  async function _submitOpname(modalId) {
+    const fd     = new FormData(document.getElementById('opname-form'));
+    const data   = Object.fromEntries(fd.entries());
+    if (!data.itemId) { Notify.warning('Pilih barang terlebih dahulu'); return; }
+    const item   = _items.find(i => i.id === data.itemId);
+    if (!item)   { Notify.warning('Barang tidak ditemukan'); return; }
+    const jumlah = parseFloat(data.jumlah) || 0;
+    const prevStok = item._stok || 0;
+    const selisih  = jumlah - prevStok;
+    const log = {
+      tgl:       data.tgl,
+      itemId:    item.id,
+      itemNama:  item.nama,
+      jenis:     'OPNAME',
+      jumlah:    jumlah,
+      stokAkhir: jumlah,
+      harga:     0,
+      supplier:  '',
+      catatan:   data.catatan || ('Opname: '+prevStok+' → '+jumlah+(selisih>=0?' (+'+selisih+')':' ('+selisih+')')),
+    };
+    try {
+      const saved = await DB.saveInventoryLog(log);
+      _logs.unshift(saved);
+      _recalcStok();
+      renderStok();
+      renderTransaksi();
+      Modal.close(modalId);
+      Notify.success(`Stok Opname disimpan! ${item.nama}: ${prevStok} → ${jumlah} ${item.satuan||''}`);
+      DB.logActivity({type:'opname', detail:`Opname ${item.nama}: ${prevStok}→${jumlah}`});
+    } catch(err) { Notify.error('Gagal', err.message); }
+  }
+
   return {
     init,
     switchTab,
@@ -654,6 +760,9 @@ const InventoryModule = (() => {
     commitLogEdit,
     addLogRow,
     deleteLogRow,
+    openOpnameModal,
+    _onOpnameItemChange,
+    _submitOpname,
   };
 
 })();
