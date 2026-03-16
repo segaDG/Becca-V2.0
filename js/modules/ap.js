@@ -212,6 +212,7 @@ const APModule = (() => {
       render();
       Modal.close(modalId);
       Notify.success('AP disimpan');
+      DB.logActivity({type:editId?'edit_ap':'add_ap',detail:`AP Supplier: ${data.supplier}`});
     } catch(err) { Notify.error('Gagal', err.message); }
   }
 
