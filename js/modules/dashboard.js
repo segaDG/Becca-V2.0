@@ -180,7 +180,7 @@ const DashboardModule = (() => {
   /* ===================== WIDGET EDITOR ===================== */
   function openWidgetEditor() {
     const cfg = _getCfg();
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title : 'Edit Widget Dashboard',
       size  : 'modal-md',
       body  : `
