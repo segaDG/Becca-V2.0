@@ -74,7 +74,7 @@ const KasModule = (() => {
       .ks-tbl td{border:1px solid var(--border);padding:0;height:32px;background:var(--surface);vertical-align:middle;}
       .ks-tbl td .ks-cell{display:flex;align-items:center;padding:0 8px;height:32px;cursor:cell;
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
-      .ks-tbl tr.ks-view:hover td{background:var(--surface2);cursor:pointer;}
+      .ks-tbl tr.ks-view:hover td{background:rgba(99,102,241,.1);cursor:pointer;}
       .ks-tbl tr.ks-editing td{background:rgba(99,102,241,.06)!important;outline:1px solid var(--primary);outline-offset:-1px;}
       .ks-inp{width:100%;height:100%;border:none;outline:none;padding:0 6px;background:transparent;
         color:var(--text);font-size:13px;font-family:var(--font);box-sizing:border-box;min-height:32px;}
@@ -160,6 +160,7 @@ const KasModule = (() => {
           <option value="">Semua Status</option>
           <option value="DONE" ${_filter.status==='DONE'?'selected':''}>DONE</option>
           <option value="TBC"  ${_filter.status==='TBC' ?'selected':''}>TBC</option>
+          <option value="-"    ${_filter.status==='-'   ?'selected':''}>- (Kosong)</option>
         </select>
         <button class="btn btn-ghost btn-sm" onclick="KasModule.resetFilter()">↺ Reset</button>
         <span class="text-muted text-small" style="margin-left:auto">${total} baris · ${Utils.formatRupiah(sum)}</span>
@@ -185,7 +186,6 @@ const KasModule = (() => {
             <th style="width:115px" class="ks-num">Total (Rp)</th>
             <th style="width:100px">Penerima</th>
             <th style="width:75px">Status</th>
-            <th style="width:65px">Bulan</th>
             ${canEdit ? '<th style="width:32px"></th>' : ''}
           </tr></thead>
           <tbody id="kas-tbody">
@@ -210,8 +210,13 @@ const KasModule = (() => {
 
   /* ---- VIEW ROW ---- */
   function _rowView(r, rowNum, canEdit) {
-    const sc = r.status==='DONE'?'badge-success':'badge-warning';
-    return `<tr class="ks-view" id="ks-row-${r.id}" data-id="${r.id}"
+    const sc = r.status==='DONE'?'badge-success':r.status==='TBC'?'badge-warning':'badge-neutral';
+    const rowBg = r.status==='DONE'
+      ? 'style="background:rgba(0,0,0,.25)"'
+      : r.status==='TBC'
+      ? 'style="background:rgba(99,102,241,.04)"'
+      : '';
+    return `<tr class="ks-view" id="ks-row-${r.id}" data-id="${r.id}" ${rowBg}
               ${canEdit?`onclick="KasModule.startEdit('${r.id}')"`  :''}>
       <td><div class="ks-cell" style="justify-content:center;color:var(--text-3);font-size:11px">${rowNum}</div></td>
       <td><div class="ks-cell">${r.tgl||''}</div></td>
@@ -224,7 +229,6 @@ const KasModule = (() => {
       <td class="ks-num"><div class="ks-cell"><strong>${Utils.formatRupiah(r.jumlah||0)}</strong></div></td>
       <td><div class="ks-cell">${r.penerima||''}</div></td>
       <td><div class="ks-cell"><span class="badge ${sc}" style="font-size:10px">${r.status||''}</span></div></td>
-      <td><div class="ks-cell">${r.bulan||''}</div></td>
       ${canEdit?`<td><button class="ks-del-btn" onclick="event.stopPropagation();KasModule.deleteRow('${r.id}')" title="Hapus">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
           <polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/>
@@ -235,7 +239,7 @@ const KasModule = (() => {
   /* ---- EDIT ROW ---- */
   function _rowEdit(r, rowNum, canEdit) {
     const typeOpts   = TYPES.map(t=>`<option value="${t}" ${r.type===t?'selected':''}>${t}</option>`).join('');
-    const statusOpts = ['DONE','TBC'].map(s=>`<option value="${s}" ${r.status===s?'selected':''}>${s}</option>`).join('');
+    const statusOpts = ['-','DONE','TBC'].map(s=>`<option value="${s==='-'?'':s}" ${(r.status||'')===(s==='-'?'':s)?'selected':''}>${s}</option>`).join('');
     const bulanOpts  = MONTHS.map(m=>`<option value="${m}" ${r.bulan===m?'selected':''}>${m}</option>`).join('');
     return `<tr class="ks-editing" id="ks-row-${r.id}" data-id="${r.id}" onclick="event.stopPropagation()">
       <td><div class="ks-cell" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
@@ -257,7 +261,6 @@ const KasModule = (() => {
             onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
       <td><input class="ks-inp" type="text" value="${(r.penerima||'').replace(/"/g,'&quot;')}" placeholder="Penerima" id="ks-penerima-${r.id}"></td>
       <td><select class="ks-sel" id="ks-status-${r.id}">${statusOpts}</select></td>
-      <td><select class="ks-sel" id="ks-bulan-${r.id}">${bulanOpts}</select></td>
       ${canEdit?`<td><button class="ks-del-btn" style="color:var(--success);border:1px solid var(--success)"
           onclick="event.stopPropagation();KasModule.commitEdit('${r.id}')" title="Simpan">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
@@ -336,8 +339,7 @@ const KasModule = (() => {
       hargaSatuan: parseFloat(get('harga')?.value)  || 0,
       jumlah:      parseFloat(get('jumlah')?.value) || 0,
       penerima:    get('penerima')?.value    || '',
-      status:      get('status')?.value      || 'TBC',
-      bulan:       get('bulan')?.value       || '',
+      status:      get('status')?.value      || '',
     };
   }
 
@@ -376,9 +378,9 @@ const KasModule = (() => {
     const today = new Date().toISOString().split('T')[0];
     const mo    = parseInt(today.split('-')[1]) - 1;
     const newRow = {
-      tgl:today, nama:'', type:TYPES[0], vendor:'',
+      tgl:today, nama:'', type:'', vendor:'',
       qty:1, satuan:'Pcs', hargaSatuan:0, jumlah:0,
-      penerima:'', status:'TBC', bulan:MONTHS[mo],
+      penerima:'', status:'', bulan:MONTHS[mo],
     };
     try {
       const saved = await DB.saveKas(newRow);
