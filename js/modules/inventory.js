@@ -35,10 +35,11 @@ const InventoryModule = (() => {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
                 <path d="M12 5v14M5 12h14"/>
               </svg>
-              + Barang
+              Barang Baru
             </button>
           ` : ''}
         </div>
+      </div>
 
       <div class="tabs">
         <button class="tab-btn active" data-tab="stok"     onclick="InventoryModule.switchTab('stok')">📦 Stok Barang</button>
@@ -81,9 +82,9 @@ const InventoryModule = (() => {
     const hdrBtns = document.getElementById('inv-header-btns');
     if (hdrBtns && Auth.can('inventory','edit')) {
       if (tab === 'transaksi') {
-        hdrBtns.innerHTML = '<button class="btn btn-primary btn-sm" onclick="InventoryModule.addLogRow()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d=\"M12 5v14M5 12h14\"/></svg> + Baris</button>';
+        hdrBtns.innerHTML = '<button class="btn btn-primary btn-sm" onclick="InventoryModule.addLogRow()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d=\"M12 5v14M5 12h14\"/></svg> Baris Baru</button>';
       } else {
-        hdrBtns.innerHTML = '<button class="btn btn-primary" onclick="InventoryModule.openItemModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d=\"M12 5v14M5 12h14\"/></svg> + Barang</button>';
+        hdrBtns.innerHTML = '<button class="btn btn-primary" onclick="InventoryModule.openItemModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d=\"M12 5v14M5 12h14\"/></svg> Barang Baru</button>';
       }
     }
     ['stok','transaksi','alert'].forEach(t => {
@@ -418,6 +419,227 @@ const InventoryModule = (() => {
     } catch(e) { Notify.error('Gagal', e.message); }
   }
 
+
+
+  /* ===================== MODAL: BARANG ===================== */
+  function openItemModal(editId = null) {
+    const existing = editId ? _items.find(i => i.id === editId) : null;
+    const d = existing || {};
+    const isEdit = !!editId;
+    const mid = Utils.uid();
+    Modal.open({ id: mid,
+      title: isEdit ? 'Edit Barang' : 'Tambah Barang Baru',
+      size:  'modal-md',
+      body: `
+        <form id="inv-item-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Nama Barang <span class="req">*</span></label>
+              <input name="nama" class="form-control" value="${d.nama||''}" required placeholder="Nama bahan/barang">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Kategori</label>
+              <select name="kategori" class="form-control">
+                ${KATEGORIS.map(k=>`<option value="${k}" ${d.kategori===k?'selected':''}>${k}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Satuan <span class="req">*</span></label>
+              <input name="satuan" class="form-control" list="inv-sat-list" value="${d.satuan||''}" required>
+              <datalist id="inv-sat-list">${SATUANS.map(s=>`<option value="${s}">`).join('')}</datalist>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Stok Minimum</label>
+              <input name="stokMin" type="number" min="0" class="form-control" value="${d.stokMin||0}">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Harga Satuan (Rp)</label>
+            <input name="hargaSatuan" type="number" min="0" class="form-control" value="${d.hargaSatuan||0}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Keterangan</label>
+            <input name="keterangan" class="form-control" value="${d.keterangan||''}" placeholder="Opsional">
+          </div>
+        </form>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="InventoryModule._submitItem('${mid}','${editId||''}')">
+          ${isEdit ? 'Simpan' : 'Tambah Barang'}
+        </button>`,
+    });
+    return mid;
+  }
+
+  async function _submitItem(modalId, editId = '') {
+    const fd   = new FormData(document.getElementById('inv-item-form'));
+    const data = Object.fromEntries(fd.entries());
+    if (!data.nama || !data.satuan) { Notify.warning('Nama dan Satuan wajib diisi'); return; }
+    data.stokMin      = parseInt(data.stokMin)     || 0;
+    data.hargaSatuan  = parseInt(data.hargaSatuan) || 0;
+    if (editId) data.id = editId;
+    try {
+      const saved = await DB.saveInventoryItem(data);
+      const idx   = _items.findIndex(i => i.id === saved.id);
+      if (idx >= 0) _items[idx] = saved; else _items.push(saved);
+      _recalcStok();
+      renderStok();
+      Modal.close(modalId);
+      Notify.success(editId ? 'Barang diperbarui' : 'Barang ditambahkan');
+      DB.logActivity({type: editId?'edit_item':'add_item', detail: 'Barang: '+data.nama});
+    } catch(err) { Notify.error('Gagal', err.message); }
+  }
+
+  /* ===================== MODAL: TRANSAKSI STOK ===================== */
+  function openTransaksiModal(preItemId = null, preJenis = '') {
+    const itemOpts = _items.map(it =>
+      `<option value="${it.id}" ${preItemId===it.id?'selected':''}>${it.nama} (${it.satuan||''})</option>`
+    ).join('');
+    const mid = Utils.uid();
+    Modal.open({ id: mid,
+      title: 'Tambah Transaksi Stok',
+      body: `
+        <form id="inv-trx-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Tanggal</label>
+              <input name="tgl" type="date" class="form-control" value="${new Date().toISOString().split('T')[0]}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Jenis <span class="req">*</span></label>
+              <select name="jenis" class="form-control" id="inv-jenis-sel" onchange="InventoryModule._onItemChange(this)">
+                <option value="MASUK"  ${(!preJenis||preJenis==='MASUK') ?'selected':''}>📥 MASUK</option>
+                <option value="KELUAR" ${preJenis==='KELUAR'?'selected':''}>📤 KELUAR</option>
+                <option value="OPNAME" ${preJenis==='OPNAME'?'selected':''}>📋 OPNAME</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Barang <span class="req">*</span></label>
+            <select name="itemId" class="form-control" onchange="InventoryModule._onItemChange(this)" required>
+              <option value="">Pilih barang...</option>
+              ${itemOpts}
+            </select>
+          </div>
+          <div id="inv-stok-info" style="margin-bottom:var(--s3);font-size:12px;color:var(--text-3)"></div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Jumlah <span class="req">*</span></label>
+              <input name="jumlah" type="number" min="0" step="0.01" class="form-control" value="0" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Harga/Unit (Rp)</label>
+              <input name="harga" type="number" min="0" class="form-control" value="0">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Supplier</label>
+              <input name="supplier" class="form-control" placeholder="Nama supplier">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Catatan</label>
+              <input name="catatan" class="form-control" placeholder="Opsional">
+            </div>
+          </div>
+        </form>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="InventoryModule._submitTransaksi('${mid}')">Simpan Transaksi</button>`,
+    });
+    if (preItemId) setTimeout(() => InventoryModule._onItemChange(null), 100);
+    return mid;
+  }
+
+  function _onItemChange(sel) {
+    const form    = document.getElementById('inv-trx-form');
+    if (!form) return;
+    const itemId  = form.querySelector('[name="itemId"]')?.value;
+    const item    = _items.find(i => i.id === itemId);
+    const infoEl  = document.getElementById('inv-stok-info');
+    if (infoEl && item) {
+      infoEl.innerHTML = `Stok saat ini: <strong style="color:${(item._stok||0)<=0?'var(--danger)':'var(--success)'}">${item._stok||0} ${item.satuan||''}</strong>`;
+    }
+  }
+
+  async function _submitTransaksi(modalId) {
+    const fd   = new FormData(document.getElementById('inv-trx-form'));
+    const data = Object.fromEntries(fd.entries());
+    if (!data.itemId || !data.jumlah) { Notify.warning('Barang dan Jumlah wajib diisi'); return; }
+    data.jumlah = parseFloat(data.jumlah) || 0;
+    data.harga  = parseInt(data.harga)    || 0;
+    // Find item name
+    const item  = _items.find(i => i.id === data.itemId);
+    data.itemNama = item?.nama || '';
+    // Calc stok akhir
+    const prevStok = item?._stok || 0;
+    if (data.jenis === 'MASUK')  data.stokAkhir = prevStok + data.jumlah;
+    if (data.jenis === 'KELUAR') data.stokAkhir = prevStok - data.jumlah;
+    if (data.jenis === 'OPNAME') data.stokAkhir = data.jumlah;
+    try {
+      const saved = await DB.saveInventoryLog(data);
+      _logs.unshift(saved);
+      _recalcStok();
+      renderStok();
+      Modal.close(modalId);
+      Notify.success('Transaksi disimpan');
+      DB.logActivity({type:'add_inventory', detail:`${data.jenis} ${data.itemNama}: ${data.jumlah}`});
+    } catch(err) { Notify.error('Gagal', err.message); }
+  }
+
+  /* ===================== TAB: STOK MENIPIS ===================== */
+  function renderAlert() {
+    const low = _items.filter(i => (i._stok||0) <= (i.stokMin||0))
+                      .sort((a,b) => (a._stok||0) - (b._stok||0));
+    document.getElementById('inv-tab-alert').innerHTML = low.length === 0 ? `
+      <div class="empty-state" style="height:40vh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <h4>Semua Stok Aman</h4>
+        <p>Tidak ada barang yang perlu restock</p>
+      </div>` : `
+      <div class="table-wrapper">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>#</th><th>Nama Barang</th><th>Kategori</th>
+              <th class="num">Stok Saat Ini</th><th class="num">Stok Min</th>
+              <th>Status</th>
+              ${Auth.can('inventory','edit') ? '<th>Aksi</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${low.map((item,i) => {
+              const stok = item._stok || 0;
+              return `
+              <tr style="${stok<=0?'background:rgba(239,68,68,.05)':''}">
+                <td class="text-muted">${i+1}</td>
+                <td class="font-semibold">${item.nama}</td>
+                <td><span class="badge badge-neutral">${item.kategori||'-'}</span></td>
+                <td class="num" style="color:${stok<=0?'var(--danger)':'var(--warning)'};font-weight:700">
+                  ${stok} ${item.satuan||''}
+                </td>
+                <td class="num text-muted">${item.stokMin||0} ${item.satuan||''}</td>
+                <td>
+                  <span class="badge ${stok<=0?'badge-danger':'badge-warning'}">
+                    ${stok<=0?'❌ HABIS':'⚠️ MENIPIS'}
+                  </span>
+                </td>
+                ${Auth.can('inventory','edit') ? `
+                  <td>
+                    <button class="btn btn-sm btn-primary" onclick="InventoryModule.openTransaksiModal('${item.id}','MASUK')">
+                      Restock
+                    </button>
+                  </td>` : ''}
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
 
   return {
     init,
