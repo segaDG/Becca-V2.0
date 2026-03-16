@@ -1,86 +1,113 @@
 /* ============================================
-   BECCA V2.0 — Employee Module
-   Depends: db.js, utils.js, modal.js, notify.js
-   Employee schema: { id, nama, panggilan, nik, status, divisi, jabatan,
-                      gajiAwal, gaji, ktp, tglLahir, tempatLahir, agama,
-                      tglJoin, lama, pendidikan, thumb, sisaHutang }
-   Log schema: { id, bulan, tgl, nama, employeeId, bayar, hutang,
-                 pj, ket, konfirmasi }
-   ============================================ */
+   BECCA V2.0 — Inventory Module
+   Depends: db.js, utils.js, modal.js, notify.js, auth.js
 
-const EmployeeModule = (() => {
-  let _employees = [];
-  let _logs      = [];
-  let _activeTab = 'data';
-  let _filterDiv = '';
-  let _filterStatus = 'ACTIVE';
-  let _logFilter = { nama:'', bulan:'', jenis:'' };
+   Schemas:
+   - InventoryItem (produk/bahan):
+     { id, nama, satuan, kategori, stokMin, hargaSatuan, keterangan }
+   - InventoryLog (transaksi stok):
+     { id, tgl, itemId, itemNama, jenis ('MASUK'|'KELUAR'|'OPNAME'),
+       jumlah, stokAkhir, harga, supplier, catatan, createdBy }
+============================================ */
 
-  const DIVISIS    = ['Management','Service','Kitchen','Warehouse','Driver','Cleaning Service'];
-  const AGAMAS     = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu'];
-  const PENDIDIKANS= ['SD','SMP','SMA','SMK','SLTA','D3','S1'];
+const InventoryModule = (() => {
+
+  let _items   = [];   // master barang
+  let _logs    = [];   // transaksi
+  let _activeTab = 'stok';
+  let _filterKat = '';
+
+  const KATEGORIS = ['Bahan Baku','Bumbu','Minuman','Kemasan','Peralatan','Lain-lain'];
+  const SATUANS   = ['kg','gr','liter','ml','pcs','pack','karton','lusin','botol','sachet'];
 
   /* ===================== INIT ===================== */
   async function init() {
-    const page = document.getElementById('page-employee');
+    const page = document.getElementById('page-inventory');
     page.innerHTML = `
       <div class="page-header">
         <div class="page-header-left">
-          <h2>Data Karyawan</h2>
-          <p>Manajemen karyawan dan log hutang/bayar</p>
+          <h2>Inventory</h2>
+          <p>Manajemen stok bahan dan barang</p>
         </div>
         <div class="page-header-right">
-          ${Auth.can('employee','edit') ? `
-            <button class="btn btn-primary" onclick="EmployeeModule.openEmpModal()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 5v14M5 12h14"/></svg>
-              Karyawan Baru
+          ${Auth.can('inventory','edit') ? `
+            <button class="btn btn-ghost" onclick="InventoryModule.openTransaksiModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Transaksi Stok
+            </button>
+            <button class="btn btn-primary" onclick="InventoryModule.openItemModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Barang Baru
             </button>
           ` : ''}
         </div>
       </div>
+
       <div class="tabs">
-        <button class="tab-btn active" data-tab="data"    onclick="EmployeeModule.switchTab('data')">👷 Data Karyawan</button>
-        <button class="tab-btn"        data-tab="logbook" onclick="EmployeeModule.switchTab('logbook')">📒 Log Book</button>
-        <button class="tab-btn"        data-tab="card"    onclick="EmployeeModule.switchTab('card')">🪪 Employee Card</button>
-        <button class="tab-btn"        data-tab="arsip"   onclick="EmployeeModule.switchTab('arsip')">📦 Arsip</button>
+        <button class="tab-btn active" data-tab="stok"     onclick="InventoryModule.switchTab('stok')">📦 Stok Barang</button>
+        <button class="tab-btn"        data-tab="transaksi" onclick="InventoryModule.switchTab('transaksi')">📋 Riwayat Transaksi</button>
+        <button class="tab-btn"        data-tab="alert"     onclick="InventoryModule.switchTab('alert')">⚠️ Stok Menipis</button>
       </div>
-      <div id="emp-tab-data"   ></div>
-      <div id="emp-tab-logbook" class="hidden"></div>
-      <div id="emp-tab-card"    class="hidden"></div>
-      <div id="emp-tab-arsip"   class="hidden"></div>
+
+      <div id="inv-tab-stok"></div>
+      <div id="inv-tab-transaksi" class="hidden"></div>
+      <div id="inv-tab-alert"     class="hidden"></div>
     `;
 
-    [_employees, _logs] = await Promise.all([DB.getEmployees(), DB.getEmployeeLogs()]);
-    switchTab('data');
+    [_items, _logs] = await Promise.all([
+      DB.getInventoryItems(),
+      DB.getInventory(),
+    ]);
+
+    // Hitung stok setiap item dari logs
+    _recalcStok();
+    switchTab('stok');
   }
 
+  /* ===================== HITUNG STOK ===================== */
+  function _recalcStok() {
+    _items.forEach(item => {
+      const logsItem = _logs.filter(l => l.itemId === item.id);
+      item._stok = logsItem.reduce((acc, l) => {
+        if (l.jenis === 'MASUK')  return acc + (l.jumlah || 0);
+        if (l.jenis === 'KELUAR') return acc - (l.jumlah || 0);
+        if (l.jenis === 'OPNAME') return l.stokAkhir || acc;
+        return acc;
+      }, 0);
+    });
+  }
+
+  /* ===================== TAB SWITCH ===================== */
   function switchTab(tab) {
     _activeTab = tab;
-    ['data','logbook','card','arsip'].forEach(t => {
-      document.getElementById(`emp-tab-${t}`)?.classList.toggle('hidden', t !== tab);
+    ['stok','transaksi','alert'].forEach(t => {
+      document.getElementById(`inv-tab-${t}`)?.classList.toggle('hidden', t !== tab);
       document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
     });
-    const renders = { data:renderData, logbook:renderLogbook, card:renderCard, arsip:renderArsip };
+    const renders = { stok: renderStok, transaksi: renderTransaksi, alert: renderAlert };
     renders[tab]?.();
   }
 
-  /* ===================== DATA TAB ===================== */
-  function renderData() {
-    const active = _employees.filter(e => e.status === 'ACTIVE');
-    let filtered = active;
-    if (_filterDiv) filtered = filtered.filter(e => e.divisi === _filterDiv);
+  /* ===================== TAB: STOK BARANG ===================== */
+  function renderStok() {
+    let filtered = _items;
+    if (_filterKat) filtered = filtered.filter(i => i.kategori === _filterKat);
 
-    const totalGaji   = Utils.sumBy(filtered, 'gaji');
-    const totalHutang = Utils.sumBy(filtered, 'sisaHutang');
+    const totalNilai = filtered.reduce((a, i) => a + (i._stok || 0) * (i.hargaSatuan || 0), 0);
 
-    document.getElementById('emp-tab-data').innerHTML = `
-      <!-- Stats strip -->
+    document.getElementById('inv-tab-stok').innerHTML = `
+      <!-- Stats -->
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
         ${[
-          { l:'Total Karyawan Aktif', v: active.length,             c:'var(--primary-h)' },
-          { l:'Total Gaji Bulanan',   v: Utils.formatRupiah(Utils.sumBy(active,'gaji'),true), c:'var(--success)' },
-          { l:'Total Sisa Hutang',    v: Utils.formatRupiah(Utils.sumBy(active,'sisaHutang'),true), c:'var(--warning)' },
-        ].map(s=>`
+          { l:'Total Jenis Barang', v: _items.length, c:'var(--primary-h)' },
+          { l:'Ditampilkan',        v: filtered.length, c:'var(--text-1)' },
+          { l:'Nilai Stok',         v: Utils.formatRupiah(totalNilai, true), c:'var(--success)' },
+          { l:'Stok Menipis',       v: _items.filter(i => (i._stok||0) <= (i.stokMin||0)).length, c:'var(--warning)' },
+        ].map(s => `
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:160px">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
             <div style="font-size:18px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
@@ -88,14 +115,14 @@ const EmployeeModule = (() => {
         `).join('')}
       </div>
 
-      <!-- Filter bar -->
+      <!-- Filter -->
       <div class="filter-bar">
-        ${DIVISIS.map(d=>`
-          <button class="btn btn-sm ${_filterDiv===d?'btn-primary':'btn-ghost'}"
-            onclick="EmployeeModule.setDivFilter('${d}')">${d}</button>
+        <button class="btn btn-sm ${!_filterKat?'btn-primary':'btn-ghost'}"
+                onclick="InventoryModule.setKatFilter('')">Semua</button>
+        ${KATEGORIS.map(k => `
+          <button class="btn btn-sm ${_filterKat===k?'btn-primary':'btn-ghost'}"
+                  onclick="InventoryModule.setKatFilter('${k}')">${k}</button>
         `).join('')}
-        <button class="btn btn-sm btn-ghost" onclick="EmployeeModule.setDivFilter('')">Semua</button>
-        <span class="text-muted text-small" style="margin-left:auto">${filtered.length} karyawan · Gaji: ${Utils.formatRupiah(totalGaji)}</span>
       </div>
 
       <!-- Table -->
@@ -104,52 +131,73 @@ const EmployeeModule = (() => {
           <table class="table">
             <thead>
               <tr>
-                <th>#</th><th>Foto</th><th>Nama</th><th>Status</th><th>Divisi</th>
-                <th>Jabatan</th><th class="num">Gaji</th><th class="num">Sisa Hutang</th>
-                <th>NIK</th><th>No KTP</th><th>Tgl Lahir</th><th>Tempat</th>
-                <th>Tgl Join</th><th>Pendidikan</th>
-                ${Auth.can('employee','edit') ? '<th>Aksi</th>' : ''}
+                <th>#</th>
+                <th>Nama Barang</th>
+                <th>Kategori</th>
+                <th>Satuan</th>
+                <th class="num">Stok Sekarang</th>
+                <th class="num">Stok Min</th>
+                <th class="num">Harga Satuan</th>
+                <th class="num">Nilai Stok</th>
+                <th>Status</th>
+                ${Auth.can('inventory','edit') ? '<th>Aksi</th>' : ''}
               </tr>
             </thead>
             <tbody>
-              ${filtered.length ? filtered.map((e,i) => `
+              ${filtered.length ? filtered.map((item, i) => {
+                const stok    = item._stok || 0;
+                const min     = item.stokMin || 0;
+                const nilai   = stok * (item.hargaSatuan || 0);
+                const isLow   = stok <= min;
+                const isEmpty = stok <= 0;
+                return `
+                  <tr>
+                    <td class="text-muted text-small">${i+1}</td>
+                    <td>
+                      <div class="font-semibold">${item.nama}</div>
+                      ${item.keterangan ? `<div class="text-small text-muted">${item.keterangan}</div>` : ''}
+                    </td>
+                    <td><span class="badge badge-neutral">${item.kategori||'-'}</span></td>
+                    <td class="text-muted text-small">${item.satuan||'-'}</td>
+                    <td class="num font-semibold" style="color:${isEmpty?'var(--danger)':isLow?'var(--warning)':'var(--success)'}">
+                      ${Utils.formatNumber ? Utils.formatNumber(stok) : stok} ${item.satuan||''}
+                    </td>
+                    <td class="num text-muted text-small">${min} ${item.satuan||''}</td>
+                    <td class="num text-small">${Utils.formatRupiah(item.hargaSatuan||0)}</td>
+                    <td class="num text-small">${Utils.formatRupiah(nilai)}</td>
+                    <td>
+                      <span class="badge ${isEmpty?'badge-danger':isLow?'badge-warning':'badge-success'}">
+                        ${isEmpty ? '❌ Habis' : isLow ? '⚠️ Menipis' : '✅ Aman'}
+                      </span>
+                    </td>
+                    ${Auth.can('inventory','edit') ? `
+                      <td class="actions">
+                        <div style="display:flex;gap:4px">
+                          <button class="btn-icon" title="Edit Barang"
+                                  onclick="InventoryModule.openItemModal('${item.id}')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                          </button>
+                          <button class="btn-icon" title="Tambah Transaksi" style="color:var(--primary-h)"
+                                  onclick="InventoryModule.openTransaksiModal('${item.id}')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <path d="M12 5v14M5 12h14"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    ` : ''}
+                  </tr>
+                `;
+              }).join('') : `
                 <tr>
-                  <td class="text-muted text-small">${i+1}</td>
-                  <td>
-                    ${e.thumb
-                      ? `<img src="${e.thumb}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--border)">`
-                      : `<div style="width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white">${Utils.initials(e.nama)}</div>`}
+                  <td colspan="10" style="text-align:center;padding:40px;color:var(--text-3)">
+                    Belum ada data barang
                   </td>
-                  <td>
-                    <div class="font-semibold">${e.nama}</div>
-                    ${e.panggilan ? `<div class="text-small text-muted">${e.panggilan}</div>` : ''}
-                  </td>
-                  <td><span class="badge ${e.status==='ACTIVE'?'badge-success':'badge-neutral'}">${e.status}</span></td>
-                  <td><span class="badge badge-neutral">${e.divisi||'-'}</span></td>
-                  <td class="text-muted text-small">${e.jabatan||'-'}</td>
-                  <td class="num">${Utils.formatRupiah(e.gaji)}</td>
-                  <td class="num ${e.sisaHutang>0?'':'text-muted'}" style="color:${e.sisaHutang>0?'var(--warning)':''}">
-                    ${e.sisaHutang > 0 ? Utils.formatRupiah(e.sisaHutang) : '-'}
-                  </td>
-                  <td class="text-small text-muted">${e.nik||'-'}</td>
-                  <td class="text-small text-muted">${e.ktp||'-'}</td>
-                  <td class="text-small" style="white-space:nowrap">${e.tglLahir ? Utils.formatDate(e.tglLahir,'dd/mm/yyyy') : '-'}</td>
-                  <td class="text-small text-muted">${e.tempatLahir||'-'}</td>
-                  <td class="text-small" style="white-space:nowrap">${e.tglJoin ? Utils.formatDate(e.tglJoin,'dd/mm/yyyy') : '-'}</td>
-                  <td class="text-small text-muted">${e.pendidikan||'-'}</td>
-                  ${Auth.can('employee','edit') ? `
-                  <td class="actions">
-                    <div style="display:flex;gap:4px">
-                      <button class="btn-icon" onclick="EmployeeModule.openEmpModal('${e.id}')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      <button class="btn-icon" onclick="EmployeeModule.openLogModal(null,'${e.id}')" title="Tambah Log" style="color:var(--warning)">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                      </button>
-                    </div>
-                  </td>` : ''}
                 </tr>
-              `).join('') : `<tr><td colspan="15" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada karyawan</td></tr>`}
+              `}
             </tbody>
           </table>
         </div>
@@ -157,55 +205,23 @@ const EmployeeModule = (() => {
     `;
   }
 
-  function setDivFilter(div) { _filterDiv = div; renderData(); }
+  function setKatFilter(kat) {
+    _filterKat = kat;
+    renderStok();
+  }
 
-  /* ===================== LOG BOOK TAB ===================== */
-  function renderLogbook() {
-    let filtered = _logs;
-    if (_logFilter.nama)  filtered = filtered.filter(l => l.nama === _logFilter.nama);
-    if (_logFilter.bulan) filtered = filtered.filter(l => String(l.bulan) === String(_logFilter.bulan));
-    if (_logFilter.jenis === 'hutang') filtered = filtered.filter(l => l.hutang > 0);
-    if (_logFilter.jenis === 'bayar')  filtered = filtered.filter(l => l.bayar > 0);
+  /* ===================== TAB: TRANSAKSI ===================== */
+  function renderTransaksi() {
+    const sorted = [..._logs].sort((a, b) => b.tgl?.localeCompare(a.tgl));
 
-    const totalHutang = Utils.sumBy(filtered, 'hutang');
-    const totalBayar  = Utils.sumBy(filtered, 'bayar');
-
-    const empOpts = [...new Set(_logs.map(l=>l.nama))].sort()
-      .map(n=>`<option value="${n}" ${_logFilter.nama===n?'selected':''}>${n}</option>`).join('');
-
-    document.getElementById('emp-tab-logbook').innerHTML = `
-      <!-- Stats -->
-      <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4)">
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:150px">
-          <div style="font-size:11px;color:var(--text-3)">Total Berhutang</div>
-          <div style="font-size:18px;font-weight:700;color:var(--danger);font-family:var(--font-mono)">${Utils.formatRupiah(totalHutang,true)}</div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:150px">
-          <div style="font-size:11px;color:var(--text-3)">Total Bayar</div>
-          <div style="font-size:18px;font-weight:700;color:var(--success);font-family:var(--font-mono)">${Utils.formatRupiah(totalBayar,true)}</div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:150px">
-          <div style="font-size:11px;color:var(--text-3)">Sisa</div>
-          <div style="font-size:18px;font-weight:700;color:var(--warning);font-family:var(--font-mono)">${Utils.formatRupiah(totalHutang-totalBayar,true)}</div>
-        </div>
-      </div>
-
-      <div class="filter-bar">
-        <select class="form-control" style="width:180px" onchange="EmployeeModule.setLogFilter('nama',this.value)">
-          <option value="">Semua Karyawan</option>
-          ${empOpts}
-        </select>
-        <select class="form-control" style="width:130px" onchange="EmployeeModule.setLogFilter('bulan',this.value)">
-          <option value="">Semua Bulan</option>
-          ${Utils.MONTHS.map((m,i)=>`<option value="${i+1}" ${String(_logFilter.bulan)===String(i+1)?'selected':''}>${m}</option>`).join('')}
-        </select>
-        <select class="form-control" style="width:130px" onchange="EmployeeModule.setLogFilter('jenis',this.value)">
-          <option value="">Semua Jenis</option>
-          <option value="hutang" ${_logFilter.jenis==='hutang'?'selected':''}>💸 Berhutang</option>
-          <option value="bayar"  ${_logFilter.jenis==='bayar' ?'selected':''}>✅ Bayar Hutang</option>
-        </select>
-        <button class="btn btn-ghost btn-sm" onclick="EmployeeModule.resetLogFilter()">✕ Reset</button>
-        ${Auth.can('employee','edit') ? `<button class="btn btn-primary btn-sm" onclick="EmployeeModule.openLogModal()" style="margin-left:auto">+ Log Baru</button>` : ''}
+    document.getElementById('inv-tab-transaksi').innerHTML = `
+      <div class="filter-bar" style="margin-bottom:var(--s4)">
+        <span class="text-muted text-small" style="margin-left:auto">${sorted.length} transaksi</span>
+        ${Auth.can('inventory','edit') ? `
+          <button class="btn btn-primary btn-sm" onclick="InventoryModule.openTransaksiModal()">
+            + Transaksi Baru
+          </button>
+        ` : ''}
       </div>
 
       <div class="table-wrapper">
@@ -213,35 +229,43 @@ const EmployeeModule = (() => {
           <table class="table">
             <thead>
               <tr>
-                <th>#</th><th>Tanggal</th><th>Nama Karyawan</th>
-                <th class="num">Berhutang</th><th class="num">Bayar Hutang</th>
-                <th>PJ</th><th>Keterangan</th><th>Konfirmasi</th>
-                ${Auth.can('employee','edit') ? '<th>Aksi</th>' : ''}
+                <th>#</th>
+                <th>Tanggal</th>
+                <th>Nama Barang</th>
+                <th>Jenis</th>
+                <th class="num">Jumlah</th>
+                <th class="num">Stok Akhir</th>
+                <th class="num">Harga Sat.</th>
+                <th>Supplier/Catatan</th>
+                <th>Dicatat Oleh</th>
               </tr>
             </thead>
             <tbody>
-              ${filtered.length ? filtered.map((l,i) => `
+              ${sorted.length ? sorted.map((log, i) => {
+                const item   = _items.find(it => it.id === log.itemId);
+                const satuan = item?.satuan || '';
+                const jenisCls = log.jenis === 'MASUK' ? 'badge-success' :
+                                 log.jenis === 'KELUAR' ? 'badge-danger' : 'badge-neutral';
+                return `
+                  <tr>
+                    <td class="text-muted text-small">${i+1}</td>
+                    <td style="white-space:nowrap">${Utils.formatDate ? Utils.formatDate(log.tgl,'dd/mm/yyyy') : log.tgl}</td>
+                    <td class="font-semibold">${log.itemNama||'-'}</td>
+                    <td><span class="badge ${jenisCls}">${log.jenis}</span></td>
+                    <td class="num">${log.jumlah||0} ${satuan}</td>
+                    <td class="num text-muted">${log.stokAkhir != null ? log.stokAkhir + ' ' + satuan : '-'}</td>
+                    <td class="num text-small">${log.harga ? Utils.formatRupiah(log.harga) : '-'}</td>
+                    <td class="text-small text-muted">${log.supplier||log.catatan||'-'}</td>
+                    <td class="text-small text-muted">${log.createdBy||'-'}</td>
+                  </tr>
+                `;
+              }).join('') : `
                 <tr>
-                  <td class="text-muted text-small">${i+1}</td>
-                  <td style="white-space:nowrap">${Utils.formatDate(l.tgl,'dd/mm/yyyy')}</td>
-                  <td><span class="font-semibold">${l.nama}</span></td>
-                  <td class="num" style="color:var(--danger)">${l.hutang > 0 ? Utils.formatRupiah(l.hutang) : '-'}</td>
-                  <td class="num" style="color:var(--success)">${l.bayar > 0 ? Utils.formatRupiah(l.bayar) : '-'}</td>
-                  <td class="text-small text-muted">${l.pj||'-'}</td>
-                  <td class="text-small">${l.ket||'-'}</td>
-                  <td>
-                    <span class="badge ${l.konfirmasi==='CONFIRMED'?'badge-success':'badge-warning'}">
-                      ${l.konfirmasi==='CONFIRMED'?'✓ Confirmed':'Pending'}
-                    </span>
+                  <td colspan="9" style="text-align:center;padding:40px;color:var(--text-3)">
+                    Belum ada transaksi
                   </td>
-                  ${Auth.can('employee','edit') ? `
-                  <td class="actions">
-                    <button class="btn-icon" onclick="EmployeeModule.openLogModal('${l.id}')">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </button>
-                  </td>` : ''}
                 </tr>
-              `).join('') : `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada log</td></tr>`}
+              `}
             </tbody>
           </table>
         </div>
@@ -249,309 +273,292 @@ const EmployeeModule = (() => {
     `;
   }
 
-  function setLogFilter(k, v) { _logFilter[k] = v; renderLogbook(); }
-  function resetLogFilter()   { _logFilter = {}; renderLogbook(); }
+  /* ===================== TAB: STOK MENIPIS ===================== */
+  function renderAlert() {
+    const low = _items.filter(i => (i._stok || 0) <= (i.stokMin || 0));
 
-  /* ===================== CARD TAB ===================== */
-  function renderCard() {
-    const active = _employees.filter(e => e.status === 'ACTIVE');
-    document.getElementById('emp-tab-card').innerHTML = `
-      <div style="display:flex;justify-content:flex-end;margin-bottom:var(--s4)">
-        <button class="btn btn-ghost" onclick="window.print()">🖨️ Print</button>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s4)" id="emp-cards">
-        ${active.map(e => `
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5);display:flex;gap:var(--s4);align-items:center">
-            ${e.thumb
-              ? `<img src="${e.thumb}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--border2);flex-shrink:0">`
-              : `<div style="width:56px;height:56px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:white;flex-shrink:0">${Utils.initials(e.nama)}</div>`}
-            <div style="min-width:0">
-              <div style="font-weight:700;font-size:15px;color:var(--heading);truncate">${e.nama}</div>
-              <div style="font-size:12px;color:var(--text-3)">${e.jabatan||'-'} · ${e.divisi||'-'}</div>
-              <div style="font-size:11px;color:var(--primary-h);margin-top:4px;font-family:var(--font-mono)">${e.nik ? `NIK: ${e.nik}` : ''}</div>
-              ${e.sisaHutang > 0 ? `<div style="font-size:11px;color:var(--warning);margin-top:2px">Hutang: ${Utils.formatRupiah(e.sisaHutang)}</div>` : ''}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  /* ===================== ARSIP TAB ===================== */
-  function renderArsip() {
-    const arsip = _employees.filter(e => e.status !== 'ACTIVE');
-    document.getElementById('emp-tab-arsip').innerHTML = `
-      <div class="filter-bar">
-        <button class="btn btn-sm btn-ghost" onclick="EmployeeModule._renderArsipTable('')">Semua (${arsip.length})</button>
-        ${['RESIGN','FIRED'].map(s => `
-          <button class="btn btn-sm btn-ghost" onclick="EmployeeModule._renderArsipTable('${s}')">${s} (${arsip.filter(e=>e.status===s).length})</button>
-        `).join('')}
-      </div>
-      <div id="arsip-table"></div>
-    `;
-    _renderArsipTable('');
-  }
-
-  function _renderArsipTable(status) {
-    const data = _employees.filter(e => e.status !== 'ACTIVE' && (!status || e.status === status));
-    document.getElementById('arsip-table').innerHTML = `
-      <div class="table-wrapper">
-        <table class="table">
-          <thead>
-            <tr><th>#</th><th>Foto</th><th>Nama</th><th>Status</th><th>Divisi</th><th class="num">Gaji Terakhir</th><th>Tgl Join</th>
-            ${Auth.can('employee','edit') ? '<th>Aksi</th>' : ''}</tr>
-          </thead>
-          <tbody>
-            ${data.map((e,i) => `
+    document.getElementById('inv-tab-alert').innerHTML = `
+      ${low.length === 0 ? `
+        <div class="empty-state" style="height:40vh">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <h4>Semua Stok Aman</h4>
+          <p>Tidak ada barang yang perlu direstok saat ini.</p>
+        </div>
+      ` : `
+        <div style="background:var(--warning-bg,#fef9ec);border:1px solid var(--warning);border-radius:var(--r-md);
+                    padding:12px 16px;margin-bottom:var(--s4);color:var(--warning);font-size:13px">
+          ⚠️ <strong>${low.length} barang</strong> perlu segera direstok
+        </div>
+        <div class="table-wrapper">
+          <table class="table">
+            <thead>
               <tr>
-                <td>${i+1}</td>
-                <td>${e.thumb ? `<img src="${e.thumb}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : `<div style="width:32px;height:32px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${Utils.initials(e.nama)}</div>`}</td>
-                <td class="font-semibold">${e.nama}</td>
-                <td><span class="badge ${e.status==='RESIGN'?'badge-warning':'badge-danger'}">${e.status}</span></td>
-                <td class="text-muted">${e.divisi||'-'}</td>
-                <td class="num">${Utils.formatRupiah(e.gaji)}</td>
-                <td class="text-small">${e.tglJoin ? Utils.formatDate(e.tglJoin,'dd/mm/yyyy') : '-'}</td>
-                ${Auth.can('employee','edit') ? `<td><button class="btn btn-ghost btn-sm" onclick="EmployeeModule._restoreEmployee('${e.id}')">Aktifkan</button></td>` : ''}
+                <th>#</th><th>Nama Barang</th><th>Kategori</th>
+                <th class="num">Stok Sekarang</th><th class="num">Stok Min</th>
+                <th class="num">Kekurangan</th><th>Status</th>
+                ${Auth.can('inventory','edit') ? '<th>Aksi</th>' : ''}
               </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              ${low.map((item, i) => {
+                const stok     = item._stok || 0;
+                const min      = item.stokMin || 0;
+                const kurang   = min - stok;
+                const isEmpty  = stok <= 0;
+                return `
+                  <tr>
+                    <td>${i+1}</td>
+                    <td class="font-semibold">${item.nama}</td>
+                    <td><span class="badge badge-neutral">${item.kategori||'-'}</span></td>
+                    <td class="num" style="color:${isEmpty?'var(--danger)':'var(--warning)'}">
+                      ${stok} ${item.satuan||''}
+                    </td>
+                    <td class="num text-muted">${min} ${item.satuan||''}</td>
+                    <td class="num" style="color:var(--danger);font-weight:600">
+                      ${kurang > 0 ? kurang + ' ' + (item.satuan||'') : 'Habis!'}
+                    </td>
+                    <td>
+                      <span class="badge ${isEmpty?'badge-danger':'badge-warning'}">
+                        ${isEmpty ? '❌ Habis' : '⚠️ Menipis'}
+                      </span>
+                    </td>
+                    ${Auth.can('inventory','edit') ? `
+                      <td>
+                        <button class="btn btn-sm btn-primary"
+                                onclick="InventoryModule.openTransaksiModal('${item.id}','MASUK')">
+                          + Restok
+                        </button>
+                      </td>
+                    ` : ''}
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `}
     `;
   }
 
-  async function _restoreEmployee(id) {
-    const emp = _employees.find(e => e.id === id);
-    if (!emp) return;
-    emp.status = 'ACTIVE';
-    await DB.saveEmployee(emp);
-    renderArsip();
-    Notify.success(`${emp.nama} dipindahkan ke karyawan aktif`);
-  }
+  /* ===================== MODAL: BARANG ===================== */
+  function openItemModal(editId = null) {
+    const existing = editId ? _items.find(i => i.id === editId) : null;
+    const d = existing || {};
 
-  /* ===================== EMPLOYEE MODAL ===================== */
-  function openEmpModal(editId = null) {
-    const existing = editId ? _employees.find(e => e.id === editId) : null;
-    const d = existing || { status:'ACTIVE' };
     const mid = Modal.open({
-      title: editId ? 'Edit Karyawan' : 'Karyawan Baru',
-      size: 'modal-lg',
+      title: editId ? 'Edit Barang' : 'Tambah Barang Baru',
+      size:  'modal-md',
       body: `
-        <form id="emp-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Nama Lengkap <span class="req">*</span></label>
-              <input name="nama" class="form-control" value="${d.nama||''}" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Nama Panggilan</label>
-              <input name="panggilan" class="form-control" value="${d.panggilan||''}">
-            </div>
+        <form id="inv-item-form">
+          <div class="form-group">
+            <label class="form-label">Nama Barang <span class="req">*</span></label>
+            <input name="nama" class="form-control" value="${d.nama||''}" required placeholder="Contoh: Minyak Goreng Tropical">
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">Divisi <span class="req">*</span></label>
-              <select name="divisi" class="form-control" required>
-                ${DIVISIS.map(div=>`<option value="${div}" ${d.divisi===div?'selected':''}>${div}</option>`).join('')}
+              <label class="form-label">Kategori</label>
+              <select name="kategori" class="form-control">
+                <option value="">— Pilih —</option>
+                ${KATEGORIS.map(k => `<option value="${k}" ${d.kategori===k?'selected':''}>${k}</option>`).join('')}
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Jabatan</label>
-              <input name="jabatan" class="form-control" value="${d.jabatan||''}">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Status <span class="req">*</span></label>
-              <select name="status" class="form-control">
-                <option value="ACTIVE" ${d.status==='ACTIVE'?'selected':''}>ACTIVE</option>
-                <option value="RESIGN" ${d.status==='RESIGN'?'selected':''}>RESIGN</option>
-                <option value="FIRED"  ${d.status==='FIRED' ?'selected':''}>FIRED</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">NIK Internal</label>
-              <input name="nik" class="form-control" value="${d.nik||''}">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Gaji (Rp)</label>
-              <input name="gaji" type="number" class="form-control" value="${d.gaji||0}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Gaji Awal (Rp)</label>
-              <input name="gajiAwal" type="number" class="form-control" value="${d.gajiAwal||0}">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">No KTP</label>
-              <input name="ktp" class="form-control" value="${d.ktp||''}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Sisa Hutang (Rp)</label>
-              <input name="sisaHutang" type="number" class="form-control" value="${d.sisaHutang||0}">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Tgl Lahir</label>
-              <input name="tglLahir" type="date" class="form-control" value="${d.tglLahir||''}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Tempat Lahir</label>
-              <input name="tempatLahir" class="form-control" value="${d.tempatLahir||''}">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Agama</label>
-              <select name="agama" class="form-control">
-                <option value="">—</option>
-                ${AGAMAS.map(a=>`<option value="${a}" ${d.agama===a?'selected':''}>${a}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Pendidikan</label>
-              <select name="pendidikan" class="form-control">
-                <option value="">—</option>
-                ${PENDIDIKANS.map(p=>`<option value="${p}" ${d.pendidikan===p?'selected':''}>${p}</option>`).join('')}
+              <label class="form-label">Satuan <span class="req">*</span></label>
+              <select name="satuan" class="form-control" required>
+                <option value="">— Pilih —</option>
+                ${SATUANS.map(s => `<option value="${s}" ${d.satuan===s?'selected':''}>${s}</option>`).join('')}
               </select>
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">Tgl Bergabung</label>
-              <input name="tglJoin" type="date" class="form-control" value="${d.tglJoin||''}">
+              <label class="form-label">Stok Minimum</label>
+              <input name="stokMin" type="number" min="0" class="form-control" value="${d.stokMin||0}">
             </div>
             <div class="form-group">
-              <label class="form-label">URL Foto (Google Drive)</label>
-              <input name="thumb" class="form-control" value="${d.thumb||''}" placeholder="https://drive.google.com/thumbnail?id=...">
+              <label class="form-label">Harga Satuan (Rp)</label>
+              <input name="hargaSatuan" type="number" min="0" class="form-control" value="${d.hargaSatuan||0}">
             </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Keterangan</label>
+            <input name="keterangan" class="form-control" value="${d.keterangan||''}" placeholder="Opsional">
           </div>
         </form>
       `,
       footer: `
         <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        <button class="btn btn-primary" onclick="EmployeeModule._submitEmp('${mid}','${editId||''}')">
-          ${editId ? 'Simpan Perubahan' : 'Tambah Karyawan'}
+        <button class="btn btn-primary" onclick="InventoryModule._submitItem('${mid||'__mid'}','${editId||''}')">
+          ${editId ? 'Simpan Perubahan' : 'Tambah Barang'}
         </button>
       `,
     });
     return mid;
   }
 
-  async function _submitEmp(modalId, editId='') {
-    const fd = new FormData(document.getElementById('emp-form'));
+  async function _submitItem(modalId, editId = '') {
+    const fd   = new FormData(document.getElementById('inv-item-form'));
     const data = Object.fromEntries(fd.entries());
-    if (!data.nama || !data.divisi) { Notify.warning('Nama dan Divisi wajib diisi'); return; }
-    data.gaji      = parseInt(data.gaji)||0;
-    data.gajiAwal  = parseInt(data.gajiAwal)||0;
-    data.sisaHutang= parseInt(data.sisaHutang)||0;
+
+    if (!data.nama || !data.satuan) {
+      Notify.warning('Nama dan Satuan wajib diisi');
+      return;
+    }
+    data.stokMin     = parseInt(data.stokMin) || 0;
+    data.hargaSatuan = parseInt(data.hargaSatuan) || 0;
     if (editId) data.id = editId;
+
     try {
-      const saved = await DB.saveEmployee(data);
-      const idx = _employees.findIndex(e=>e.id===saved.id);
-      if (idx>=0) _employees[idx]=saved; else _employees.unshift(saved);
-      renderData();
+      const saved = await DB.saveInventoryItem(data);
+      const idx   = _items.findIndex(i => i.id === saved.id);
+      if (idx >= 0) _items[idx] = { ..._items[idx], ...saved };
+      else          _items.unshift({ ...saved, _stok: 0 });
+
+      _recalcStok();
+      renderStok();
       Modal.close(modalId);
-      Notify.success(editId ? 'Data karyawan diperbarui' : 'Karyawan ditambahkan');
-    } catch(err) { Notify.error('Gagal', err.message); }
+      Notify.success(editId ? 'Barang diperbarui' : 'Barang ditambahkan');
+    } catch (err) {
+      Notify.error('Gagal menyimpan', err.message);
+    }
   }
 
-  /* ===================== LOG MODAL ===================== */
-  function openLogModal(editId = null, preEmployeeId = '') {
-    const existing = editId ? _logs.find(l => l.id === editId) : null;
-    const d = existing || { tgl: Utils.today(), konfirmasi:'', bayar:0, hutang:0 };
-    const preEmp = preEmployeeId ? _employees.find(e=>e.id===preEmployeeId) : null;
+  /* ===================== MODAL: TRANSAKSI ===================== */
+  function openTransaksiModal(preItemId = null, preJenis = '') {
+    const itemOpts = _items
+      .map(i => `<option value="${i.id}" ${preItemId===i.id?'selected':''}>${i.nama} (${i.satuan||''})</option>`)
+      .join('');
 
-    const empOpts = _employees.filter(e=>e.status==='ACTIVE')
-      .map(e=>`<option value="${e.nama}" ${(d.nama||preEmp?.nama)===e.nama?'selected':''}>${e.nama}</option>`).join('');
+    const today = Utils.today ? Utils.today() : new Date().toISOString().split('T')[0];
 
     const mid = Modal.open({
-      title: editId ? 'Edit Log' : 'Tambah Log Baru',
+      title: 'Transaksi Stok',
+      size:  'modal-md',
       body: `
-        <form id="log-form">
+        <form id="inv-log-form">
           <div class="form-group">
-            <label class="form-label">Nama Karyawan <span class="req">*</span></label>
-            <select name="nama" class="form-control" required>
-              <option value="">— Pilih Karyawan —</option>
-              ${empOpts}
+            <label class="form-label">Barang <span class="req">*</span></label>
+            <select name="itemId" class="form-control" required onchange="InventoryModule._onItemChange(this)">
+              <option value="">— Pilih Barang —</option>
+              ${itemOpts}
             </select>
+            <div id="inv-stok-preview" style="margin-top:6px;font-size:12px;color:var(--text-3)"></div>
           </div>
           <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Jenis Transaksi <span class="req">*</span></label>
+              <select name="jenis" class="form-control" required>
+                <option value="MASUK"  ${preJenis==='MASUK' ?'selected':''}>📥 Stok Masuk</option>
+                <option value="KELUAR" ${preJenis==='KELUAR'?'selected':''}>📤 Stok Keluar</option>
+                <option value="OPNAME" ${preJenis==='OPNAME'?'selected':''}>🔢 Stock Opname</option>
+              </select>
+            </div>
             <div class="form-group">
               <label class="form-label">Tanggal <span class="req">*</span></label>
-              <input name="tgl" type="date" class="form-control" value="${d.tgl}" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Bulan</label>
-              <select name="bulan" class="form-control">
-                ${Utils.MONTHS.map((m,i)=>`<option value="${i+1}" ${String(d.bulan)===String(i+1)?'selected':''}>${m}</option>`).join('')}
-              </select>
+              <input name="tgl" type="date" class="form-control" value="${today}" required>
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">💸 Berhutang (Rp)</label>
-              <input name="hutang" type="number" min="0" class="form-control" value="${d.hutang||0}">
+              <label class="form-label" id="inv-jumlah-label">Jumlah <span class="req">*</span></label>
+              <input name="jumlah" type="number" min="0" step="0.01" class="form-control" required placeholder="0">
             </div>
             <div class="form-group">
-              <label class="form-label">✅ Bayar Hutang (Rp)</label>
-              <input name="bayar" type="number" min="0" class="form-control" value="${d.bayar||0}">
+              <label class="form-label">Harga Satuan (Rp)</label>
+              <input name="harga" type="number" min="0" class="form-control" placeholder="0">
             </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Keterangan</label>
-            <input name="ket" class="form-control" value="${d.ket||''}">
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">PJ</label>
-              <input name="pj" class="form-control" value="${d.pj||''}">
+              <label class="form-label">Supplier</label>
+              <input name="supplier" class="form-control" placeholder="Nama supplier (jika ada)">
             </div>
             <div class="form-group">
-              <label class="form-label">Konfirmasi</label>
-              <select name="konfirmasi" class="form-control">
-                <option value="">— Belum —</option>
-                <option value="CONFIRMED" ${d.konfirmasi==='CONFIRMED'?'selected':''}>✓ CONFIRMED</option>
-              </select>
+              <label class="form-label">Catatan</label>
+              <input name="catatan" class="form-control" placeholder="Opsional">
             </div>
           </div>
         </form>
       `,
       footer: `
         <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        <button class="btn btn-primary" onclick="EmployeeModule._submitLog('${mid}','${editId||''}')">Simpan</button>
+        <button class="btn btn-primary" onclick="InventoryModule._submitTransaksi('${mid||'__mid'}')">
+          Simpan Transaksi
+        </button>
       `,
     });
+
+    // Trigger preview jika preItemId sudah dipilih
+    if (preItemId) {
+      setTimeout(() => {
+        const sel = document.querySelector('#inv-log-form [name="itemId"]');
+        if (sel) { sel.value = preItemId; _onItemChange(sel); }
+      }, 100);
+    }
+
     return mid;
   }
 
-  async function _submitLog(modalId, editId='') {
-    const fd = new FormData(document.getElementById('log-form'));
-    const data = Object.fromEntries(fd.entries());
-    if (!data.nama || !data.tgl) { Notify.warning('Nama dan Tanggal wajib diisi'); return; }
-    data.hutang = parseInt(data.hutang)||0;
-    data.bayar  = parseInt(data.bayar)||0;
-    data.bulan  = parseInt(data.bulan)||0;
-    if (editId) data.id = editId;
-    try {
-      const saved = await DB.saveEmployeeLog(data);
-      const idx = _logs.findIndex(l=>l.id===saved.id);
-      if (idx>=0) _logs[idx]=saved; else _logs.unshift(saved);
-      renderLogbook();
-      Modal.close(modalId);
-      Notify.success(editId ? 'Log diperbarui' : 'Log ditambahkan');
-    } catch(err) { Notify.error('Gagal', err.message); }
+  function _onItemChange(sel) {
+    const item    = _items.find(i => i.id === sel.value);
+    const preview = document.getElementById('inv-stok-preview');
+    if (item && preview) {
+      preview.textContent = `Stok sekarang: ${item._stok || 0} ${item.satuan||''}  |  Min: ${item.stokMin||0}`;
+    }
   }
 
+  async function _submitTransaksi(modalId) {
+    const fd   = new FormData(document.getElementById('inv-log-form'));
+    const data = Object.fromEntries(fd.entries());
+
+    if (!data.itemId || !data.tgl || !data.jumlah) {
+      Notify.warning('Barang, Tanggal, dan Jumlah wajib diisi');
+      return;
+    }
+
+    const item     = _items.find(i => i.id === data.itemId);
+    data.itemNama  = item?.nama || '';
+    data.jumlah    = parseFloat(data.jumlah) || 0;
+    data.harga     = parseInt(data.harga) || 0;
+
+    // Hitung stok akhir
+    const stokNow  = item?._stok || 0;
+    if (data.jenis === 'MASUK')       data.stokAkhir = stokNow + data.jumlah;
+    else if (data.jenis === 'KELUAR') data.stokAkhir = stokNow - data.jumlah;
+    else                              data.stokAkhir = data.jumlah; // OPNAME = set langsung
+
+    data.createdBy = Auth.currentUser?.()?.nama || '';
+
+    try {
+      const saved = await DB.saveInventory(data);
+      _logs.unshift(saved);
+      _recalcStok();
+
+      // Re-render tab aktif
+      const renders = { stok: renderStok, transaksi: renderTransaksi, alert: renderAlert };
+      renders[_activeTab]?.();
+
+      Modal.close(modalId);
+      Notify.success(`Transaksi ${data.jenis} berhasil dicatat`);
+    } catch (err) {
+      Notify.error('Gagal menyimpan transaksi', err.message);
+    }
+  }
+
+  /* ===================== PUBLIC API ===================== */
   return {
-    init, switchTab, setDivFilter, setLogFilter, resetLogFilter,
-    openEmpModal, _submitEmp, openLogModal, _submitLog,
-    _renderArsipTable, _restoreEmployee,
+    init,
+    switchTab,
+    setKatFilter,
+    openItemModal,
+    _submitItem,
+    openTransaksiModal,
+    _onItemChange,
+    _submitTransaksi,
   };
+
 })();
 
-window.EmployeeModule = EmployeeModule;
+window.InventoryModule = InventoryModule;
