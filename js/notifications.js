@@ -90,7 +90,7 @@ const NotifCenter = {
     const items = this._items;
 
     /* FIX: Buat mid dulu dengan placeholder footer, lalu isi footer setelah mid terdefinisi */
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title : `🔔 Notifikasi ${items.length>0?`(${items.length})`:''}`,
       size  : 'modal-md',
       body  : items.length===0 ? `
