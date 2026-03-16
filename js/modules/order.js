@@ -303,7 +303,7 @@ const OrderModule = (() => {
       </div>
     `;
 
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: editId ? 'Edit Order' : 'Tambah Order Baru',
       size:  'modal-lg',
       body: `
