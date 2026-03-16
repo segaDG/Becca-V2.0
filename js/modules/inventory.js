@@ -1001,8 +1001,6 @@ const InventoryModule = (() => {
     _onOpnameItemChange,
     _onOpnameJumlahChange,
     _submitOpname2,
-    _ivSetItem,
-    _ivOnItemSelect,
     _ivOnItemSelect,
   };
 
