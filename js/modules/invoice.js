@@ -202,6 +202,7 @@ const InvoiceModule = (() => {
       render();
       Modal.close(modalId);
       Notify.success('Invoice disimpan');
+      DB.logActivity({type:editId?'edit_invoice':'add_invoice',detail:`Invoice: ${data.noinv}`});
     } catch(err) { Notify.error('Gagal', err.message); }
   }
 
