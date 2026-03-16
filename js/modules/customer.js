@@ -142,6 +142,7 @@ const CustomerModule = (() => {
       render();
       Modal.close(modalId);
       Notify.success(editId ? 'Customer diperbarui' : 'Customer ditambahkan');
+      DB.logActivity({type:editId?'edit_customer':'add_customer',detail:`Customer: ${data.nama}`});
     } catch(err) { Notify.error('Gagal', err.message); }
   }
 
