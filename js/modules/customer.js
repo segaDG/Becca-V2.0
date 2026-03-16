@@ -88,7 +88,7 @@ const CustomerModule = (() => {
   function openModal(editId = null) {
     const existing = editId ? _customers.find(c => c.id === editId) : null;
     const d = existing || {};
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: editId ? 'Edit Customer' : 'Tambah Customer',
       body: `
         <form id="cust-form">
