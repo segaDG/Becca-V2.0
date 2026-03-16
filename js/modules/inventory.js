@@ -29,27 +29,20 @@ const InventoryModule = (() => {
           <h2>Inventory</h2>
           <p>Manajemen stok bahan dan barang</p>
         </div>
-        <div class="page-header-right">
+        <div class="page-header-right" id="inv-header-btns">
           ${Auth.can('inventory','edit') ? `
-            <button class="btn btn-ghost" onclick="InventoryModule.openTransaksiModal()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
-                <path d="M12 5v14M5 12h14"/>
-              </svg>
-              Transaksi Stok
-            </button>
             <button class="btn btn-primary" onclick="InventoryModule.openItemModal()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
                 <path d="M12 5v14M5 12h14"/>
               </svg>
-              Barang Baru
+              + Barang
             </button>
           ` : ''}
         </div>
-      </div>
 
       <div class="tabs">
         <button class="tab-btn active" data-tab="stok"     onclick="InventoryModule.switchTab('stok')">📦 Stok Barang</button>
-        <button class="tab-btn"        data-tab="transaksi" onclick="InventoryModule.switchTab('transaksi')">📋 Riwayat Transaksi</button>
+        <button class="tab-btn"        data-tab="transaksi" onclick="InventoryModule.switchTab('transaksi')">📋 Activity Line</button>
         <button class="tab-btn"        data-tab="alert"     onclick="InventoryModule.switchTab('alert')">⚠️ Stok Menipis</button>
       </div>
 
@@ -84,6 +77,15 @@ const InventoryModule = (() => {
   /* ===================== TAB SWITCH ===================== */
   function switchTab(tab) {
     _activeTab = tab;
+    // Update header button based on active tab
+    const hdrBtns = document.getElementById('inv-header-btns');
+    if (hdrBtns && Auth.can('inventory','edit')) {
+      if (tab === 'transaksi') {
+        hdrBtns.innerHTML = '<button class="btn btn-primary btn-sm" onclick="InventoryModule.addLogRow()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d=\"M12 5v14M5 12h14\"/></svg> + Baris</button>';
+      } else {
+        hdrBtns.innerHTML = '<button class="btn btn-primary" onclick="InventoryModule.openItemModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d=\"M12 5v14M5 12h14\"/></svg> + Barang</button>';
+      }
+    }
     ['stok','transaksi','alert'].forEach(t => {
       document.getElementById(`inv-tab-${t}`)?.classList.toggle('hidden', t !== tab);
       document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
@@ -346,17 +348,37 @@ const InventoryModule = (() => {
     if (_invEditId!==id) return;
     _invEditId = null;
     const row     = _logs.find(r=>r.id===id);
-    const changes = _invPending[id]||{};
+    const pending = _invPending[id]||{};
     delete _invPending[id];
     if (!row) return;
-    Object.assign(row, changes);
+    // Read ALL current values from DOM inputs (more reliable than pending)
+    const trEl = document.getElementById('iv-row-'+id);
+    if (trEl) {
+      const dateFld   = trEl.querySelector('input[type="date"]');
+      const itemSel   = trEl.querySelectorAll('select')[0];
+      const jenisSel  = trEl.querySelectorAll('select')[1];
+      const inputs    = trEl.querySelectorAll('input[type="number"]');
+      const textInps  = trEl.querySelectorAll('input[type="text"]');
+      if (dateFld)   pending.tgl        = dateFld.value;
+      if (jenisSel)  pending.jenis      = jenisSel.value;
+      if (itemSel && itemSel.value) {
+        pending.itemId   = itemSel.value;
+        pending.itemNama = itemSel.options[itemSel.selectedIndex]?.text?.split(' (')[0] || pending.itemNama;
+      }
+      if (inputs[0])  pending.jumlah    = parseFloat(inputs[0].value)||0;
+      if (inputs[1])  pending.stokAkhir = parseFloat(inputs[1].value)||0;
+      if (inputs[2])  pending.harga     = parseFloat(inputs[2].value)||0;
+      if (textInps[0]) pending.supplier = textInps[0].value;
+      if (textInps[1]) pending.catatan  = textInps[1].value;
+    }
+    Object.assign(row, pending);
     const tbody   = document.getElementById('inv-tbody');
     if (!tbody) return;
-    const trEl    = document.getElementById('iv-row-'+id);
-    if (trEl) {
+    const trEl2    = document.getElementById('iv-row-'+id);
+    if (trEl2) {
       const allRows = Array.from(tbody.querySelectorAll('tr'));
-      const rowNum  = allRows.indexOf(trEl)+1;
-      trEl.outerHTML = _ivRowView(row, rowNum, true);
+      const rowNum  = allRows.indexOf(trEl2)+1;
+      trEl2.outerHTML = _ivRowView(row, rowNum, true);
     }
     try {
       await DB.saveInventoryLog(row);
