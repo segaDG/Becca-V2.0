@@ -211,69 +211,148 @@ const InventoryModule = (() => {
   }
 
   /* ===================== TAB: TRANSAKSI ===================== */
+  /* ===================== TRANSAKSI SPREADSHEET ===================== */
   function renderTransaksi() {
-    const sorted = [..._logs].sort((a, b) => b.tgl?.localeCompare(a.tgl));
+    const canEdit = Auth.can('inventory','edit');
+    const sorted = [..._logs].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+
+    if(!document.getElementById('inv-spreadsheet-style')) {
+      const st=document.createElement('style'); st.id='inv-spreadsheet-style';
+      st.textContent=`
+        .iv-table{width:100%;border-collapse:collapse;font-size:13px;}
+        .iv-table th{background:var(--surface2);color:var(--text-3);font-size:10px;text-transform:uppercase;
+          letter-spacing:.05em;padding:7px 8px;border:1px solid var(--border);white-space:nowrap;
+          position:sticky;top:0;z-index:2;}
+        .iv-table td{border:1px solid var(--border);padding:0;height:34px;background:var(--surface);vertical-align:middle;}
+        .iv-table tr:hover td{background:var(--surface2);}
+        .iv-input{width:100%;height:100%;border:none;outline:none;padding:0 8px;background:transparent;
+          color:var(--text);font-size:13px;font-family:var(--font);box-sizing:border-box;min-height:34px;}
+        .iv-select{width:100%;height:100%;border:none;outline:none;padding:0 6px;background:var(--surface3);
+          color:var(--text);font-size:12px;font-family:var(--font);cursor:pointer;}
+        .iv-num{text-align:right;font-family:var(--font-mono);}
+        .iv-add-row{width:100%;padding:7px;border:none;background:var(--surface2);color:var(--text-3);
+          cursor:pointer;text-align:left;font-size:12px;border-top:1px solid var(--border);
+          display:flex;align-items:center;gap:6px;transition:background var(--t-base);}
+        .iv-add-row:hover{background:var(--surface3);color:var(--primary-h);}
+        .iv-del-btn{width:24px;height:24px;border:none;background:transparent;cursor:pointer;color:var(--text-3);
+          border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+        .iv-del-btn:hover{background:rgba(239,68,68,.15);color:var(--danger);}
+        .iv-saved{animation:ivSave .6s ease;}
+        @keyframes ivSave{0%{background:rgba(34,197,94,.2)}100%{background:transparent}}
+      `;
+      document.head.appendChild(st);
+    }
+
+    const itemOpts = _items.map(it=>`<option value="${it.id}">${it.nama} (${it.satuan||''})</option>`).join('');
 
     document.getElementById('inv-tab-transaksi').innerHTML = `
-      <div class="filter-bar" style="margin-bottom:var(--s4)">
-        <span class="text-muted text-small" style="margin-left:auto">${sorted.length} transaksi</span>
-        ${Auth.can('inventory','edit') ? `
-          <button class="btn btn-primary btn-sm" onclick="InventoryModule.openTransaksiModal()">
-            + Transaksi Baru
-          </button>
-        ` : ''}
-      </div>
-
-      <div class="table-wrapper">
-        <div class="table-scroll">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Tanggal</th>
-                <th>Nama Barang</th>
-                <th>Jenis</th>
-                <th class="num">Jumlah</th>
-                <th class="num">Stok Akhir</th>
-                <th class="num">Harga Sat.</th>
-                <th>Supplier/Catatan</th>
-                <th>Dicatat Oleh</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${sorted.length ? sorted.map((log, i) => {
-                const item   = _items.find(it => it.id === log.itemId);
-                const satuan = item?.satuan || '';
-                const jenisCls = log.jenis === 'MASUK' ? 'badge-success' :
-                                 log.jenis === 'KELUAR' ? 'badge-danger' : 'badge-neutral';
-                return `
-                  <tr>
-                    <td class="text-muted text-small">${i+1}</td>
-                    <td style="white-space:nowrap">${Utils.formatDate ? Utils.formatDate(log.tgl,'dd/mm/yyyy') : log.tgl}</td>
-                    <td class="font-semibold">${log.itemNama||'-'}</td>
-                    <td><span class="badge ${jenisCls}">${log.jenis}</span></td>
-                    <td class="num">${log.jumlah||0} ${satuan}</td>
-                    <td class="num text-muted">${log.stokAkhir != null ? log.stokAkhir + ' ' + satuan : '-'}</td>
-                    <td class="num text-small">${log.harga ? Utils.formatRupiah(log.harga) : '-'}</td>
-                    <td class="text-small text-muted">${log.supplier||log.catatan||'-'}</td>
-                    <td class="text-small text-muted">${log.createdBy||'-'}</td>
-                  </tr>
-                `;
-              }).join('') : `
-                <tr>
-                  <td colspan="9" style="text-align:center;padding:40px;color:var(--text-3)">
-                    Belum ada transaksi
-                  </td>
-                </tr>
-              `}
-            </tbody>
-          </table>
-        </div>
+      <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-lg)">
+        <table class="iv-table" id="inv-grid">
+          <thead><tr>
+            <th style="width:32px">#</th>
+            <th style="width:110px">Tanggal</th>
+            <th style="min-width:180px">Nama Barang</th>
+            <th style="width:100px">Jenis</th>
+            <th style="width:80px" class="num">Jumlah</th>
+            <th style="width:80px" class="num">Stok Akhir</th>
+            <th style="width:100px" class="num">Harga</th>
+            <th style="width:120px">Supplier</th>
+            <th style="min-width:150px">Catatan</th>
+            ${canEdit ? '<th style="width:32px"></th>' : ''}
+          </tr></thead>
+          <tbody>
+            ${sorted.length ? sorted.map((r,i) => _renderLogRow(r, i+1, canEdit, itemOpts)).join('') :
+              `<tr><td colspan="${canEdit?10:9}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada transaksi</td></tr>`}
+          </tbody>
+        </table>
+        ${canEdit ? `
+        <button class="iv-add-row" onclick="InventoryModule.addLogRow()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
+          + Baris Baru
+        </button>` : ''}
       </div>
     `;
   }
 
-  /* ===================== TAB: STOK MENIPIS ===================== */
+  function _renderLogRow(r, rowNum, canEdit, itemOpts) {
+    const jenisOpts = ['MASUK','KELUAR','OPNAME'].map(j=>`<option value="${j}" ${r.jenis===j?'selected':''}>${j}</option>`).join('');
+    const jenisColor = r.jenis==='MASUK'?'var(--success)':r.jenis==='KELUAR'?'var(--danger)':'var(--warning)';
+
+    if (!canEdit) return `<tr data-id="${r.id}">
+      <td><div style="display:flex;align-items:center;justify-content:center;height:34px;color:var(--text-3);font-size:11px">${rowNum}</div></td>
+      <td><div style="padding:0 8px;line-height:34px">${r.tgl||''}</div></td>
+      <td><div style="padding:0 8px;line-height:34px">${r.itemNama||''}</div></td>
+      <td><div style="padding:0 8px;line-height:34px"><span class="badge" style="background:${jenisColor}10;color:${jenisColor};border:1px solid ${jenisColor}40">${r.jenis}</span></div></td>
+      <td class="num"><div style="padding:0 8px;line-height:34px">${r.jumlah}</div></td>
+      <td class="num"><div style="padding:0 8px;line-height:34px">${r.stokAkhir??''}</div></td>
+      <td class="num"><div style="padding:0 8px;line-height:34px">${r.harga?Utils.formatRupiah(r.harga):'-'}</div></td>
+      <td><div style="padding:0 8px;line-height:34px">${r.supplier||''}</div></td>
+      <td><div style="padding:0 8px;line-height:34px">${r.catatan||''}</div></td>
+    </tr>`;
+
+    return `<tr data-id="${r.id}" id="iv-row-${r.id}">
+      <td><div style="display:flex;align-items:center;justify-content:center;height:34px;color:var(--text-3);font-size:11px">${rowNum}</div></td>
+      <td><input class="iv-input" type="date" value="${r.tgl||''}" onchange="InventoryModule.saveLogCell('${r.id}','tgl',this.value)" style="padding:0 6px"></td>
+      <td>
+        <select class="iv-select" onchange="InventoryModule.saveLogCell('${r.id}','itemId',this.value);InventoryModule.saveLogCell('${r.id}','itemNama',this.options[this.selectedIndex].text.split(' (')[0])">
+          <option value="">Pilih barang...</option>${itemOpts.replace('value="'+r.itemId+'"','value="'+r.itemId+'" selected')}
+        </select>
+      </td>
+      <td>
+        <select class="iv-select" onchange="InventoryModule.saveLogCell('${r.id}','jenis',this.value)" style="color:${jenisColor}">
+          ${jenisOpts}
+        </select>
+      </td>
+      <td class="num"><input class="iv-input iv-num" type="number" min="0" value="${r.jumlah||0}" onblur="InventoryModule.saveLogCell('${r.id}','jumlah',parseFloat(this.value)||0)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+      <td class="num"><input class="iv-input iv-num" type="number" min="0" value="${r.stokAkhir??''}" placeholder="auto" onblur="InventoryModule.saveLogCell('${r.id}','stokAkhir',parseFloat(this.value)||0)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+      <td class="num"><input class="iv-input iv-num" type="number" min="0" value="${r.harga||0}" onblur="InventoryModule.saveLogCell('${r.id}','harga',parseFloat(this.value)||0)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+      <td><input class="iv-input" type="text" value="${(r.supplier||'').replace(/"/g,'&quot;')}" placeholder="Supplier" onblur="InventoryModule.saveLogCell('${r.id}','supplier',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+      <td><input class="iv-input" type="text" value="${(r.catatan||'').replace(/"/g,'&quot;')}" placeholder="Catatan" onblur="InventoryModule.saveLogCell('${r.id}','catatan',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+      <td><button class="iv-del-btn" onclick="InventoryModule.deleteLogRow('${r.id}')" title="Hapus">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+          <polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/>
+        </svg>
+      </button></td>
+    </tr>`;
+  }
+
+  async function saveLogCell(id, field, value) {
+    const row = _logs.find(r=>r.id===id);
+    if (!row) return;
+    row[field] = value;
+    try {
+      await DB.saveInventoryLog(row);
+      DB.logActivity({type:'edit_inventory', detail:`Edit ${field}: ${row.itemNama||id}`});
+      const el = document.getElementById('iv-row-'+id);
+      if (el) { el.classList.remove('iv-saved'); void el.offsetWidth; el.classList.add('iv-saved'); }
+    } catch(e) { Notify.error('Gagal simpan', e.message); }
+  }
+
+  async function addLogRow() {
+    const today = new Date().toISOString().split('T')[0];
+    const newRow = { tgl:today, itemId:'', itemNama:'', jenis:'MASUK', jumlah:0, stokAkhir:0, harga:0, supplier:'', catatan:'' };
+    try {
+      const saved = await DB.saveInventoryLog(newRow);
+      _logs.unshift(saved);
+      DB.logActivity({type:'add_inventory', detail:'Baris transaksi baru'});
+      renderTransaksi();
+      setTimeout(()=>{ const s=document.querySelector('#inv-grid select'); s?.focus(); },100);
+    } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
+  async function deleteLogRow(id) {
+    const ok = await Modal.confirm({title:'Hapus Baris',message:'Transaksi akan dihapus.',danger:true,confirmText:'Hapus'});
+    if (!ok) return;
+    try {
+      await DB.delete('inventory', id);
+      _logs = _logs.filter(r=>r.id!==id);
+      _recalcStok();
+      DB.logActivity({type:'delete_inventory', detail:'Baris dihapus'});
+      renderTransaksi(); renderStok();
+      Notify.success('Baris dihapus');
+    } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
   function renderAlert() {
     const low = _items.filter(i => (i._stok || 0) <= (i.stokMin || 0));
 
@@ -557,6 +636,9 @@ const InventoryModule = (() => {
     openTransaksiModal,
     _onItemChange,
     _submitTransaksi,
+    saveLogCell,
+    addLogRow,
+    deleteLogRow,
   };
 
 })();
