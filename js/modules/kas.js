@@ -402,7 +402,7 @@ const KasModule = (() => {
                     <td style="white-space:nowrap">${Utils.formatDate(r.tgl,'dd mmm yyyy')}</td>
                     <td class="num" style="color:var(--success)">${r.masuk ? Utils.formatRupiah(r.masuk) : '-'}</td>
                     <td class="num" style="color:var(--danger)">${r.keluar ? Utils.formatRupiah(r.keluar) : '-'}</td>
-                    <td class="num" style="color:${net>=0?'var(--success)':'var(--danger)';font-weight:600}">${net!==0 ? Utils.formatRupiah(Math.abs(net)) : '-'}</td>
+                    <td class="num" style="color:${net>=0?'var(--success)':'var(--danger)'};font-weight:600">${net!==0 ? Utils.formatRupiah(Math.abs(net)) : '-'}</td>
                     <td class="num">
                       <strong style="color:${r.balance>=0?'var(--text)':'var(--danger)'}">${Utils.formatRupiah(r.balance)}</strong>
                     </td>
