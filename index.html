@@ -1,116 +1,48 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>BECCA — Catering Management</title>
-  <!-- CSS -->
-  <link rel="stylesheet" href="css/base.css" />
-  <link rel="stylesheet" href="css/layout.css" />
-  <link rel="stylesheet" href="css/components.css" />
-  <link rel="stylesheet" href="css/tables.css" />
+  <link rel="stylesheet" href="css/base.css"/>
+  <link rel="stylesheet" href="css/layout.css"/>
+  <link rel="stylesheet" href="css/components.css"/>
+  <link rel="stylesheet" href="css/tables.css"/>
 </head>
 <body>
-
-  <!-- ============================================================
-       LOGIN PAGE
-  ============================================================ -->
-  <div id="page-login" class="login-page">
-    <!-- Auth.renderLogin() akan isi bagian ini -->
-  </div>
-
-  <!-- ============================================================
-       MAIN APP SHELL
-  ============================================================ -->
+  <div id="page-login" class="login-page"></div>
   <div id="app" style="display:none">
-
-    <!-- SIDEBAR -->
-    <aside id="sidebar" class="sidebar">
-      <!-- Sidebar.render() akan isi bagian ini -->
-    </aside>
-
-    <!-- MAIN AREA -->
+    <aside id="sidebar" class="sidebar"></aside>
     <div class="main-area">
-
-      <!-- HEADER -->
-      <header id="header" class="header">
-        <!-- App._renderHeader() akan isi bagian ini -->
-      </header>
-
-      <!-- CONTENT -->
+      <header id="header" class="header"></header>
       <main id="content" class="content">
-
-        <!-- DASHBOARD -->
         <section id="page-dashboard" class="page"></section>
-
-        <!-- ORDER -->
-        <section id="page-order" class="page hidden"></section>
-
-        <!-- INVOICE -->
-        <section id="page-invoice" class="page hidden"></section>
-
-        <!-- CUSTOMER -->
-        <section id="page-customer" class="page hidden"></section>
-
-        <!-- KAS KECIL -->
-        <section id="page-kas" class="page hidden"></section>
-
-        <!-- INVENTORY -->
+        <section id="page-order"     class="page hidden"></section>
+        <section id="page-invoice"   class="page hidden"></section>
+        <section id="page-customer"  class="page hidden"></section>
+        <section id="page-kas"       class="page hidden"></section>
         <section id="page-inventory" class="page hidden"></section>
-
-        <!-- EMPLOYEE / KARYAWAN -->
-        <section id="page-employee" class="page hidden"></section>
-
-        <!-- ACCOUNT PAYABLE -->
-        <section id="page-ap" class="page hidden"></section>
-
-        <!-- TASK -->
-        <section id="page-task" class="page hidden"></section>
-
-        <!-- LAPORAN -->
-        <section id="page-report" class="page hidden"></section>
-
-        <!-- SETTINGS -->
-        <section id="page-settings" class="page hidden"></section>
-
-      </main><!-- /content -->
-    </div><!-- /main-area -->
-  </div><!-- /app -->
-
-  <!-- Mobile Sidebar Overlay -->
+        <section id="page-employee"  class="page hidden"></section>
+        <section id="page-ap"        class="page hidden"></section>
+        <section id="page-task"      class="page hidden"></section>
+        <section id="page-report"    class="page hidden"></section>
+        <section id="page-settings"  class="page hidden"></section>
+      </main>
+    </div>
+  </div>
   <div id="sidebar-overlay"></div>
-
-  <!-- ============================================================
-       TOAST NOTIFICATION CONTAINER
-  ============================================================ -->
   <div id="toast-container" class="toast-container"></div>
-
-  <!-- ============================================================
-       MODAL CONTAINER
-  ============================================================ -->
   <div id="modal-container"></div>
 
-  <!-- ============================================================
-       SCRIPTS — urutan WAJIB diikuti
-  ============================================================ -->
-  <!-- 1. Firebase (uncomment jika pakai Firebase) -->
-  <!--
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  -->
-
-  <!-- 2. Core utilities -->
+  <!-- Core -->
   <script src="js/utils.js"></script>
   <script src="js/db.js"></script>
   <script src="js/auth.js"></script>
-
-  <!-- 3. UI Components -->
+  <!-- UI -->
   <script src="js/ui/notify.js"></script>
   <script src="js/ui/modal.js"></script>
   <script src="js/ui/sidebar.js"></script>
-
-  <!-- 4. Modules -->
+  <!-- Modules -->
   <script src="js/modules/dashboard.js"></script>
   <script src="js/modules/order.js"></script>
   <script src="js/modules/invoice.js"></script>
@@ -122,9 +54,9 @@
   <script src="js/modules/task.js"></script>
   <script src="js/modules/report.js"></script>
   <script src="js/modules/settings.js"></script>
-
-  <!-- 5. App boot — WAJIB PALING AKHIR -->
+  <!-- Notifications -->
+  <script src="js/notifications.js"></script>
+  <!-- Boot -->
   <script src="js/app.js"></script>
-
 </body>
 </html>
