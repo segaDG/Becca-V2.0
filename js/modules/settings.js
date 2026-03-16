@@ -1,101 +1,105 @@
+/* ============================================
    BECCA V2.0 — Settings Module
+   User Management, Privilege, Activity Log,
+   Notifikasi, Export/Import Data
 ============================================ */
 const SettingsModule = (() => {
+
+  const ROLES    = ['superadmin','admin','operator','viewer'];
+  const FEATURES = ['dashboard','order','invoice','customer','employee','inventory','kas','ap','task','report','settings'];
+
+  /* ===================== INIT ===================== */
   async function init() {
     const page = document.getElementById('page-settings');
-    const user = Auth.currentUser();
-    const settings = await DB.getSettings().catch(() => ({}));
-
     page.innerHTML = `
       <div class="page-header">
         <div class="page-header-left">
           <h2>Pengaturan</h2>
-          <p>Konfigurasi sistem BECCA</p>
+          <p>Konfigurasi sistem, user, dan hak akses</p>
         </div>
       </div>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="umum"      onclick="SettingsModule.switchTab('umum')">⚙️ Umum</button>
+        ${Auth.isSuperAdmin() ? `
+          <button class="tab-btn" data-tab="users"     onclick="SettingsModule.switchTab('users')">👥 Users</button>
+          <button class="tab-btn" data-tab="privilege" onclick="SettingsModule.switchTab('privilege')">🔐 Hak Akses</button>
+        ` : ''}
+        <button class="tab-btn" data-tab="activity" onclick="SettingsModule.switchTab('activity')">📋 Activity Log</button>
+        <button class="tab-btn" data-tab="data"     onclick="SettingsModule.switchTab('data')">🗄️ Data</button>
+      </div>
+      <div id="set-tab-umum"></div>
+      <div id="set-tab-users"     class="hidden"></div>
+      <div id="set-tab-privilege" class="hidden"></div>
+      <div id="set-tab-activity"  class="hidden"></div>
+      <div id="set-tab-data"      class="hidden"></div>
+    `;
+    switchTab('umum');
+  }
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s5)">
+  function switchTab(tab) {
+    ['umum','users','privilege','activity','data'].forEach(t => {
+      document.getElementById(`set-tab-${t}`)?.classList.toggle('hidden', t !== tab);
+      document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
+    });
+    ({umum:renderUmum, users:renderUsers, privilege:renderPrivilege, activity:renderActivity, data:renderData})[tab]?.();
+  }
 
-        <!-- Profil -->
+  /* ===================== TAB: UMUM ===================== */
+  async function renderUmum() {
+    const user     = Auth.currentUser();
+    const settings = await DB.getSettings().catch(() => ({}));
+    document.getElementById('set-tab-umum').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:var(--s5)">
+
         <div class="card">
           <div class="card-header"><div class="card-title">👤 Profil Akun</div></div>
           <div style="padding:var(--s5)">
             <div style="display:flex;align-items:center;gap:var(--s4);margin-bottom:var(--s5)">
-              <div style="width:56px;height:56px;border-radius:50%;background:var(--primary);
-                          display:flex;align-items:center;justify-content:center;
-                          font-size:20px;font-weight:800;color:white">
-                ${Utils.initials ? Utils.initials(user?.nama||'?') : (user?.nama||'?').substring(0,2).toUpperCase()}
+              <div style="width:56px;height:56px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:white;flex-shrink:0">
+                ${Utils.initials?Utils.initials(user?.nama||'?'):(user?.nama||'?').substring(0,2).toUpperCase()}
               </div>
               <div>
                 <div style="font-weight:700;font-size:16px">${user?.nama||'-'}</div>
-                <div style="color:var(--text-3);font-size:13px">${user?.role||'-'} · ${user?.username||'-'}</div>
+                <div style="color:var(--primary-h);font-size:12px;font-weight:600">${user?.role||'-'}</div>
+                <div style="color:var(--text-3);font-size:12px">${user?.username||'-'}</div>
               </div>
             </div>
-            <div style="font-size:13px;color:var(--text-3)">
-              Untuk mengubah password, hubungi Super Admin.
-            </div>
+            <button class="btn btn-ghost w-full" onclick="SettingsModule.openChangePasswordModal()">🔑 Ganti Password</button>
           </div>
         </div>
 
-        <!-- Info Aplikasi -->
         <div class="card">
-          <div class="card-header"><div class="card-title">ℹ️ Info Aplikasi</div></div>
-          <div style="padding:var(--s5)">
-            ${[
-              ['Nama Aplikasi', 'BECCA v2.0'],
-              ['Deskripsi', 'Catering Order & Management System'],
-              ['Database', 'localStorage (offline)'],
-              ['Versi', '2.0.0'],
-            ].map(([k,v]) => `
-              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
-                <span style="color:var(--text-3)">${k}</span>
-                <span style="font-weight:500">${v}</span>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-
-        <!-- Pengaturan Umum -->
-        <div class="card">
-          <div class="card-header"><div class="card-title">⚙️ Pengaturan Umum</div></div>
+          <div class="card-header"><div class="card-title">🏢 Pengaturan Perusahaan</div></div>
           <div style="padding:var(--s5)">
             <form id="settings-form">
               <div class="form-group">
-                <label class="form-label">Nama Perusahaan / Catering</label>
-                <input name="namaPerusahaan" class="form-control" value="${settings.namaPerusahaan||'BECCA Catering'}" placeholder="Nama catering">
+                <label class="form-label">Nama Perusahaan</label>
+                <input name="namaPerusahaan" class="form-control" value="${settings.namaPerusahaan||'BECCA Catering'}">
               </div>
               <div class="form-group">
                 <label class="form-label">Alamat</label>
-                <input name="alamat" class="form-control" value="${settings.alamat||''}" placeholder="Alamat usaha">
+                <input name="alamat" class="form-control" value="${settings.alamat||''}">
               </div>
               <div class="form-group">
                 <label class="form-label">No. Telepon</label>
-                <input name="telp" class="form-control" value="${settings.telp||''}" placeholder="08xx...">
+                <input name="telp" class="form-control" value="${settings.telp||''}">
               </div>
-              <button type="button" class="btn btn-primary" onclick="SettingsModule.saveSettings()">
-                💾 Simpan Pengaturan
-              </button>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input name="email" type="email" class="form-control" value="${settings.email||''}">
+              </div>
+              <button type="button" class="btn btn-primary" onclick="SettingsModule.saveGeneralSettings()">💾 Simpan</button>
             </form>
           </div>
         </div>
 
-        <!-- Data Management -->
         <div class="card">
-          <div class="card-header"><div class="card-title">🗄️ Manajemen Data</div></div>
-          <div style="padding:var(--s5);display:flex;flex-direction:column;gap:var(--s3)">
-            <button class="btn btn-ghost" onclick="SettingsModule.exportData()">
-              📥 Export Semua Data (JSON)
-            </button>
-            <div style="font-size:12px;color:var(--text-3)">
-              Export data ke file JSON untuk backup. Data tersimpan di localStorage browser ini.
-            </div>
-            <div style="border-top:1px solid var(--border);margin:var(--s2) 0"></div>
-            ${Auth.isSuperAdmin() ? `
-              <button class="btn btn-ghost" style="color:var(--danger);border-color:var(--danger-bg)"
-                      onclick="SettingsModule.clearData()">
-                🗑️ Reset Semua Data (Berbahaya!)
-              </button>
-            ` : '<div style="font-size:12px;color:var(--text-3)">Reset data hanya bisa dilakukan Super Admin.</div>'}
+          <div class="card-header"><div class="card-title">ℹ️ Info Aplikasi</div></div>
+          <div style="padding:var(--s4)">
+            ${[['Aplikasi','BECCA v2.0'],['Versi','2.0.0'],['Database','localStorage'],['Akun','segaDG']].map(([k,v])=>`
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+                <span style="color:var(--text-3)">${k}</span><span style="font-weight:500">${v}</span>
+              </div>`).join('')}
           </div>
         </div>
 
@@ -103,45 +107,424 @@ const SettingsModule = (() => {
     `;
   }
 
-  async function saveSettings() {
-    const fd   = new FormData(document.getElementById('settings-form'));
-    const data = Object.fromEntries(fd.entries());
-    await DB.saveSettings(data);
+  async function saveGeneralSettings() {
+    const fd = new FormData(document.getElementById('settings-form'));
+    await DB.saveSettings(Object.fromEntries(fd.entries()));
     Notify.success('Pengaturan disimpan');
   }
 
-  function exportData() {
-    const keys = ['orders','invoices','customers','kas','kas_masuk','inventory','inv_products',
-                  'employees','emp_logs','ap','suppliers','tasks','settings'];
-    const exported = {};
-    keys.forEach(k => {
-      try { exported[k] = JSON.parse(localStorage.getItem('becca_'+k)||'[]'); } catch {}
+  /* ===================== CHANGE PASSWORD ===================== */
+  function openChangePasswordModal() {
+    const mid = Modal.open({
+      title: '🔑 Ganti Password',
+      body: `
+        <form id="pwd-form">
+          <div class="form-group">
+            <label class="form-label">Password Lama <span class="req">*</span></label>
+            <input name="oldPwd" type="password" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password Baru <span class="req">*</span></label>
+            <input name="newPwd" type="password" class="form-control" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Konfirmasi Password Baru <span class="req">*</span></label>
+            <input name="confirmPwd" type="password" class="form-control" required>
+          </div>
+        </form>
+      `,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="SettingsModule._changePassword('${mid}')">Simpan</button>
+      `,
     });
-    const blob = new Blob([JSON.stringify(exported, null, 2)], { type:'application/json' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = `becca-backup-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    return mid;
+  }
+
+  async function _changePassword(modalId) {
+    const fd = new FormData(document.getElementById('pwd-form'));
+    const { oldPwd, newPwd, confirmPwd } = Object.fromEntries(fd.entries());
+    if (newPwd !== confirmPwd) { Notify.warning('Password baru tidak cocok'); return; }
+    if (newPwd.length < 6)    { Notify.warning('Password minimal 6 karakter'); return; }
+
+    const user  = Auth.currentUser();
+    let users   = await DB.getUsers().catch(()=>[]);
+    let dbUser  = users.find(u => u.id===user.id || u.username===user.username);
+
+    if (!dbUser) {
+      dbUser = { ...(Auth._defaultUsers.find(u=>u.username===user.username)||{}) };
+      if (!dbUser.username) { Notify.error('User tidak ditemukan'); return; }
+    }
+    if (dbUser.password !== oldPwd) { Notify.error('Password lama salah'); return; }
+
+    dbUser.password = newPwd;
+    await DB.saveUser(dbUser);
+    Modal.close(modalId);
+    Notify.success('Password berhasil diubah!');
+    DB.logActivity({ type:'change_password', detail:'Password diubah' });
+  }
+
+  /* ===================== TAB: USER MANAGEMENT ===================== */
+  async function renderUsers() {
+    let users = await DB.getUsers().catch(()=>[]);
+    const merged = [...users];
+    Auth._defaultUsers.forEach(du => {
+      if (!merged.find(u=>u.id===du.id||u.username===du.username))
+        merged.push({...du,_isDefault:true});
+    });
+    merged.sort((a,b)=>ROLES.indexOf(a.role)-ROLES.indexOf(b.role));
+
+    document.getElementById('set-tab-users').innerHTML = `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:var(--s4)">
+        <button class="btn btn-primary" onclick="SettingsModule.openUserModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 5v14M5 12h14"/></svg>
+          Tambah User
+        </button>
+      </div>
+      <div class="table-wrapper">
+        <table class="table">
+          <thead><tr><th>#</th><th>Nama</th><th>Username</th><th>Role</th><th>Email</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${merged.map((u,i)=>`
+              <tr>
+                <td class="text-muted">${i+1}</td>
+                <td class="font-semibold">${u.nama}</td>
+                <td style="font-family:var(--font-mono);font-size:12px">${u.username}</td>
+                <td><span class="badge ${u.role==='superadmin'?'badge-danger':u.role==='admin'?'badge-warning':u.role==='operator'?'badge-info':'badge-neutral'}">${u.role}</span></td>
+                <td class="text-muted text-small">${u.email||'-'}</td>
+                <td><span class="badge ${u.aktif===false?'badge-danger':'badge-success'}">${u.aktif===false?'Nonaktif':'Aktif'}</span></td>
+                <td class="actions">
+                  <div style="display:flex;gap:4px">
+                    <button class="btn-icon" onclick="SettingsModule.openUserModal('${u.id||u.username}',${!!u._isDefault})">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    ${u.username!==Auth.currentUser()?.username?`
+                      <button class="btn-icon" style="color:${u.aktif===false?'var(--success)':'var(--warning)'}"
+                              onclick="SettingsModule.toggleUser('${u.id||u.username}',${!!u._isDefault},${u.aktif===false})"
+                              title="${u.aktif===false?'Aktifkan':'Nonaktifkan'}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          ${u.aktif===false
+                            ? '<path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>'
+                            : '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'}
+                        </svg>
+                      </button>
+                    `:''}
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  async function openUserModal(idOrUsername=null, isDefault=false) {
+    let d = null;
+    if (idOrUsername) {
+      const users = await DB.getUsers().catch(()=>[]);
+      d = users.find(u=>u.id===idOrUsername||u.username===idOrUsername);
+      if (!d && isDefault) d = Auth._defaultUsers.find(u=>u.id===idOrUsername||u.username===idOrUsername);
+    }
+    d = d || { aktif:true, role:'operator' };
+    const isEdit = !!idOrUsername;
+
+    const mid = Modal.open({
+      title: isEdit ? `Edit User: ${d.nama||''}` : 'Tambah User Baru',
+      body: `
+        <form id="user-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Nama Lengkap <span class="req">*</span></label>
+              <input name="nama" class="form-control" value="${d.nama||''}" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Username <span class="req">*</span></label>
+              <input name="username" class="form-control" value="${d.username||''}" required ${isEdit?'readonly style="opacity:.7"':''}>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">${isEdit?'Password Baru (kosongkan jika tidak diubah)':'Password'} ${!isEdit?'<span class="req">*</span>':''}</label>
+              <input name="password" type="password" class="form-control" ${!isEdit?'required':''} placeholder="${isEdit?'Kosongkan jika tidak diubah':'Min. 6 karakter'}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input name="email" type="email" class="form-control" value="${d.email||''}">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Role</label>
+              <select name="role" class="form-control">
+                ${ROLES.map(r=>`<option value="${r}" ${d.role===r?'selected':''}>${r}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select name="aktif" class="form-control">
+                <option value="true"  ${d.aktif!==false?'selected':''}>✅ Aktif</option>
+                <option value="false" ${d.aktif===false?'selected':''}>🚫 Nonaktif</option>
+              </select>
+            </div>
+          </div>
+        </form>
+      `,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="SettingsModule._submitUser('${mid}','${d.id||d.username||''}',${isEdit})">
+          ${isEdit?'Simpan':'Tambah User'}
+        </button>
+      `,
+    });
+    return mid;
+  }
+
+  async function _submitUser(modalId, existingId, isEdit) {
+    const fd   = new FormData(document.getElementById('user-form'));
+    const data = Object.fromEntries(fd.entries());
+    data.aktif = data.aktif === 'true';
+
+    if (!data.nama||!data.username) { Notify.warning('Nama dan Username wajib diisi'); return; }
+    if (!isEdit && !data.password)  { Notify.warning('Password wajib diisi'); return; }
+    if (data.password && data.password.length<6) { Notify.warning('Password min. 6 karakter'); return; }
+
+    if (isEdit && !data.password) {
+      const users = await DB.getUsers().catch(()=>[]);
+      const old   = users.find(u=>u.id===existingId||u.username===existingId) ||
+                    Auth._defaultUsers.find(u=>u.id===existingId||u.username===existingId);
+      if (old) data.password = old.password;
+    }
+    if (isEdit) data.id = existingId||data.username;
+    else if (!data.id) data.id = Utils.uid();
+
+    try {
+      await DB.saveUser(data);
+      Modal.close(modalId);
+      Notify.success(isEdit?'User diperbarui':'User ditambahkan');
+      DB.logActivity({ type:isEdit?'edit_user':'add_user', detail:`User: ${data.username}` });
+      renderUsers();
+    } catch(err) { Notify.error('Gagal', err.message); }
+  }
+
+  async function toggleUser(idOrUsername, isDefault, currentlyInactive) {
+    const users = await DB.getUsers().catch(()=>[]);
+    let u = users.find(u=>u.id===idOrUsername||u.username===idOrUsername);
+    if (!u && isDefault) u = {...(Auth._defaultUsers.find(u=>u.id===idOrUsername||u.username===idOrUsername)||{})};
+    if (!u) { Notify.error('User tidak ditemukan'); return; }
+    u.aktif = currentlyInactive;
+    await DB.saveUser(u);
+    Notify.success(u.aktif?'User diaktifkan':'User dinonaktifkan');
+    renderUsers();
+  }
+
+  /* ===================== TAB: PRIVILEGE ===================== */
+  async function renderPrivilege() {
+    const custom = Utils.ls.get('becca_privileges') || {};
+    const privs  = {};
+    ROLES.forEach(r => { privs[r] = custom[r] || {...(Auth._defaultPrivileges[r]||{})}; });
+
+    document.getElementById('set-tab-privilege').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4)">
+        <p style="color:var(--text-2);font-size:13px">Atur hak akses per role. Berlaku setelah refresh halaman.</p>
+        <div style="display:flex;gap:var(--s2)">
+          <button class="btn btn-ghost btn-sm" onclick="SettingsModule.resetPrivileges()">↺ Reset Default</button>
+          <button class="btn btn-primary btn-sm" onclick="SettingsModule.savePrivileges()">💾 Simpan</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <div class="table-scroll">
+          <table class="table" style="font-size:13px">
+            <thead>
+              <tr>
+                <th>Modul</th>
+                ${ROLES.filter(r=>r!=='superadmin').map(r=>`<th style="text-align:center">${r}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="background:var(--surface2)">
+                <td colspan="4" style="font-size:11px;color:var(--primary-h);font-weight:600">
+                  ⭐ superadmin selalu punya akses penuh ke semua fitur
+                </td>
+              </tr>
+              ${FEATURES.map(feat=>`
+                <tr>
+                  <td class="font-semibold">${_featLabel(feat)}</td>
+                  ${ROLES.filter(r=>r!=='superadmin').map(role=>{
+                    const val=privs[role]?.[feat]||'';
+                    return `<td style="text-align:center">
+                      <select class="form-control" id="priv_${role}_${feat}" style="width:95px;font-size:11px">
+                        <option value=""    ${!val      ?'selected':''}>❌ Tidak ada</option>
+                        <option value="view"${val==='view'?'selected':''}>👁️ View</option>
+                        <option value="all" ${val==='all' ?'selected':''}>✏️ Full</option>
+                      </select>
+                    </td>`;
+                  }).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function _featLabel(f) {
+    const m = {dashboard:'📊 Dashboard',order:'📋 Order',invoice:'🧾 Invoice',customer:'👥 Customer',
+               employee:'👷 Karyawan',inventory:'📦 Inventory',kas:'💰 Kas Kecil',
+               ap:'💳 Account Payable',task:'✅ Task',report:'📈 Laporan',settings:'⚙️ Pengaturan'};
+    return m[f]||f;
+  }
+
+  function savePrivileges() {
+    const custom = {};
+    ROLES.filter(r=>r!=='superadmin').forEach(role=>{
+      custom[role]={};
+      FEATURES.forEach(feat=>{
+        const v=document.getElementById(`priv_${role}_${feat}`)?.value;
+        if(v) custom[role][feat]=v;
+      });
+    });
+    Utils.ls.set('becca_privileges', custom);
+    Notify.success('Hak akses disimpan! Refresh untuk menerapkan.');
+    DB.logActivity({type:'update_privileges',detail:'Hak akses diperbarui'});
+  }
+
+  function resetPrivileges() {
+    Utils.ls.del('becca_privileges');
+    Notify.success('Hak akses direset ke default');
+    renderPrivilege();
+  }
+
+  /* ===================== TAB: ACTIVITY LOG ===================== */
+  async function renderActivity() {
+    const logs   = await DB.getActivityLog().catch(()=>[]);
+    const sorted = [...logs].sort((a,b)=>(b.timestamp||'').localeCompare(a.timestamp||''));
+    const icons  = {login:'🔑',logout:'🚪',add_user:'➕',edit_user:'✏️',change_password:'🔒',update_privileges:'🔐',export_data:'📥',import_data:'📤'};
+
+    document.getElementById('set-tab-activity').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4)">
+        <span class="text-muted text-small">${sorted.length} aktivitas</span>
+        ${Auth.isSuperAdmin()?`<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="SettingsModule.clearActivityLog()">🗑️ Hapus Log</button>`:''}
+      </div>
+      <div class="table-wrapper">
+        <table class="table">
+          <thead><tr><th>#</th><th>Waktu</th><th>User</th><th>Role</th><th>Aktivitas</th><th>Detail</th></tr></thead>
+          <tbody>
+            ${sorted.length ? sorted.slice(0,300).map((log,i)=>`
+              <tr>
+                <td class="text-muted">${i+1}</td>
+                <td style="white-space:nowrap;font-size:12px">${log.timestamp?new Date(log.timestamp).toLocaleString('id-ID'):log.tgl||'-'}</td>
+                <td class="font-semibold">${log.user||'-'}</td>
+                <td><span class="badge badge-neutral text-small">${log.role||'-'}</span></td>
+                <td><span style="display:flex;align-items:center;gap:6px">${icons[log.type]||'📝'} <span class="badge badge-neutral">${log.type||'-'}</span></span></td>
+                <td class="text-muted text-small">${log.detail||'-'}</td>
+              </tr>
+            `).join('') : `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada aktivitas</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  async function clearActivityLog() {
+    const ok = await Modal.confirm({title:'Hapus Activity Log',message:'Semua log akan dihapus.',danger:true,confirmText:'Hapus'});
+    if (!ok) return;
+    await DB.clearActivityLog();
+    Notify.success('Log dihapus');
+    renderActivity();
+  }
+
+  /* ===================== TAB: DATA ===================== */
+  function renderData() {
+    const keys = ['orders','invoices','customers','kas','kas_masuk','inventory','inv_products','employees','emp_logs','ap','suppliers','tasks','settings','users','activity_log'];
+    const sizes = keys.map(k=>{
+      const raw = localStorage.getItem('becca_'+k);
+      return {k, count:raw?JSON.parse(raw).length:0, bytes:raw?raw.length:0};
+    });
+
+    document.getElementById('set-tab-data').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s5)">
+        <div class="card">
+          <div class="card-header"><div class="card-title">💾 Penggunaan Storage</div></div>
+          <div style="padding:var(--s4)">
+            <table class="table" style="font-size:12px">
+              <thead><tr><th>Collection</th><th class="num">Records</th><th class="num">Size</th></tr></thead>
+              <tbody>
+                ${sizes.map(s=>`<tr><td style="font-family:var(--font-mono)">${s.k}</td><td class="num">${s.count}</td><td class="num text-muted">${s.bytes>1024?(s.bytes/1024).toFixed(1)+'KB':s.bytes+'B'}</td></tr>`).join('')}
+                <tr style="background:var(--surface2);font-weight:600">
+                  <td>TOTAL</td>
+                  <td class="num">${sizes.reduce((s,r)=>s+r.count,0)}</td>
+                  <td class="num">${(sizes.reduce((s,r)=>s+r.bytes,0)/1024).toFixed(1)}KB</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">🔧 Aksi Data</div></div>
+          <div style="padding:var(--s5);display:flex;flex-direction:column;gap:var(--s3)">
+            <button class="btn btn-ghost w-full" onclick="SettingsModule.exportData()">📥 Export Semua Data (JSON)</button>
+            <button class="btn btn-ghost w-full" onclick="document.getElementById('import-file').click()">📤 Import Data (JSON)</button>
+            <input type="file" id="import-file" accept=".json" style="display:none" onchange="SettingsModule._doImport(this)">
+            <div style="font-size:12px;color:var(--text-3)">Export sebagai backup. Data tersimpan di localStorage browser ini.</div>
+            ${Auth.isSuperAdmin()?`
+              <div style="border-top:1px solid var(--border);padding-top:var(--s3)">
+                <button class="btn btn-ghost w-full" style="color:var(--danger);border-color:rgba(239,68,68,.2)" onclick="SettingsModule.clearData()">🗑️ Reset Semua Data</button>
+              </div>
+            `:''}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function exportData() {
+    const keys = ['orders','invoices','customers','kas','kas_masuk','inventory','inv_products','employees','emp_logs','ap','suppliers','tasks','settings','users','activity_log'];
+    const out  = {_exportedAt:new Date().toISOString(),_version:'2.0'};
+    keys.forEach(k=>{ try{out[k]=JSON.parse(localStorage.getItem('becca_'+k)||'[]');}catch{} });
+    const a = Object.assign(document.createElement('a'),{
+      href: URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'})),
+      download:`becca-backup-${new Date().toISOString().split('T')[0]}.json`
+    });
+    a.click(); URL.revokeObjectURL(a.href);
     Notify.success('Data berhasil di-export!');
+    DB.logActivity({type:'export_data',detail:'Backup JSON'});
+  }
+
+  function _doImport(input) {
+    const file=input.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=async(e)=>{
+      try {
+        const data=JSON.parse(e.target.result);
+        const keys=['orders','invoices','customers','kas','kas_masuk','inventory','inv_products','employees','emp_logs','ap','suppliers','tasks','settings','users'];
+        let count=0;
+        keys.forEach(k=>{ if(data[k]){localStorage.setItem('becca_'+k,JSON.stringify(data[k]));count++;} });
+        Notify.success(`Import berhasil! ${count} collection dipulihkan.`);
+        DB.logActivity({type:'import_data',detail:`Import: ${file.name}`});
+        setTimeout(()=>location.reload(),1500);
+      } catch(err) { Notify.error('Import gagal',err.message); }
+    };
+    reader.readAsText(file); input.value='';
   }
 
   async function clearData() {
-    const ok = await Modal.confirm({
-      title: '⚠️ Reset Semua Data',
-      message: 'SEMUA data akan dihapus permanen dan tidak bisa dikembalikan. Yakin?',
-      danger: true,
-      confirmText: 'Ya, Hapus Semua'
-    });
-    if (!ok) return;
-    const keys = ['orders','invoices','customers','kas','kas_masuk','inventory','inv_products',
-                  'employees','emp_logs','ap','suppliers','tasks','settings'];
-    keys.forEach(k => localStorage.removeItem('becca_'+k));
+    const ok=await Modal.confirm({title:'⚠️ Reset Semua Data',message:'SEMUA data dihapus permanen. Tidak bisa dikembalikan!',danger:true,confirmText:'Ya, Hapus Semua'});
+    if(!ok) return;
+    ['orders','invoices','customers','kas','kas_masuk','inventory','inv_products','employees','emp_logs','ap','suppliers','tasks','settings','users','activity_log']
+      .forEach(k=>localStorage.removeItem('becca_'+k));
     Notify.success('Semua data direset');
-    setTimeout(() => location.reload(), 1500);
+    setTimeout(()=>location.reload(),1500);
   }
 
-  return { init, saveSettings, exportData, clearData };
+  return {
+    init, switchTab,
+    saveGeneralSettings, openChangePasswordModal, _changePassword,
+    renderUsers, openUserModal, _submitUser, toggleUser,
+    renderPrivilege, savePrivileges, resetPrivileges,
+    renderActivity, clearActivityLog,
+    renderData, exportData, _doImport, clearData,
+  };
 })();
 window.SettingsModule = SettingsModule;
