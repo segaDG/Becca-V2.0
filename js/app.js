@@ -16,11 +16,17 @@ const App = {
   /* === Module registry — defensive: cek dulu apakah modul ada === */
   get _modules() {
     return {
-      dashboard : typeof DashboardModule !== 'undefined' ? DashboardModule : null,
-      order     : typeof OrderModule     !== 'undefined' ? OrderModule     : null,
-      kas       : typeof KasModule       !== 'undefined' ? KasModule       : null,
-      inventory : typeof InventoryModule !== 'undefined' ? InventoryModule : null,
-      employee  : typeof EmployeeModule  !== 'undefined' ? EmployeeModule  : null,
+      dashboard : typeof DashboardModule  !== 'undefined' ? DashboardModule  : null,
+      order     : typeof OrderModule      !== 'undefined' ? OrderModule      : null,
+      invoice   : typeof InvoiceModule    !== 'undefined' ? InvoiceModule    : null,
+      customer  : typeof CustomerModule   !== 'undefined' ? CustomerModule   : null,
+      kas       : typeof KasModule        !== 'undefined' ? KasModule        : null,
+      inventory : typeof InventoryModule  !== 'undefined' ? InventoryModule  : null,
+      employee  : typeof EmployeeModule   !== 'undefined' ? EmployeeModule   : null,
+      ap        : typeof APModule         !== 'undefined' ? APModule         : null,
+      task      : typeof TaskModule       !== 'undefined' ? TaskModule       : null,
+      report    : typeof ReportModule     !== 'undefined' ? ReportModule     : null,
+      settings  : typeof SettingsModule   !== 'undefined' ? SettingsModule   : null,
     };
   },
 
