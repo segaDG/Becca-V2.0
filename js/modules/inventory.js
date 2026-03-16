@@ -347,7 +347,7 @@ const InventoryModule = (() => {
     const existing = editId ? _items.find(i => i.id === editId) : null;
     const d = existing || {};
 
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: editId ? 'Edit Barang' : 'Tambah Barang Baru',
       size:  'modal-md',
       body: `
@@ -433,7 +433,7 @@ const InventoryModule = (() => {
 
     const today = Utils.today ? Utils.today() : new Date().toISOString().split('T')[0];
 
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: 'Transaksi Stok',
       size:  'modal-md',
       body: `
