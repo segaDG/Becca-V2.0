@@ -67,7 +67,7 @@ const KasModule = (() => {
 
   /* ===================== TRANSAKSI TAB ===================== */
   function renderTransaksi() {
-    const filtered = _applyFilter(_kas);
+    const filtered = _applyFilter(_kas).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
     const total    = filtered.length;
     const start    = (_page-1)*_perPage;
     const paged    = filtered.slice(start, start+_perPage);
@@ -436,7 +436,7 @@ const KasModule = (() => {
   function openFormModal(existing = null) {
     const isEdit = !!existing;
     const d = existing || { tgl: Utils.today(), status:'DONE', qty:1 };
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: isEdit ? 'Edit Transaksi' : 'Tambah Transaksi Kas',
       size: 'modal-lg',
       body: `
