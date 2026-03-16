@@ -132,7 +132,7 @@ const InvoiceModule = (() => {
   function openModal(editId = null) {
     const existing = editId ? _invoices.find(i => i.id === editId) : null;
     const d = existing || { tgl: Utils.today ? Utils.today() : new Date().toISOString().split('T')[0], status:'BELUM' };
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: editId ? 'Edit Invoice' : 'Buat Invoice Baru',
       body: `
         <form id="inv-form">
