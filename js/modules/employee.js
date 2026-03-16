@@ -333,7 +333,7 @@ const EmployeeModule = (() => {
   function openEmpModal(editId = null) {
     const existing = editId ? _employees.find(e => e.id === editId) : null;
     const d = existing || { status:'ACTIVE' };
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: editId ? 'Edit Karyawan' : 'Karyawan Baru',
       size: 'modal-lg',
       body: `
@@ -469,7 +469,7 @@ const EmployeeModule = (() => {
     const empOpts = _employees.filter(e=>e.status==='ACTIVE')
       .map(e=>`<option value="${e.nama}" ${(d.nama||preEmp?.nama)===e.nama?'selected':''}>${e.nama}</option>`).join('');
 
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: editId ? 'Edit Log' : 'Tambah Log Baru',
       body: `
         <form id="log-form">
