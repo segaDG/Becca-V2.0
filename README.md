@@ -71,3 +71,4 @@ Tanpa Firebase, data tersimpan di localStorage browser.
 ## 🤖 Cara Minta Bantuan AI
 
 Share file `CONTEXT.md` + file modul yang relevan. Jangan perlu share semua kode sekaligus.
+
