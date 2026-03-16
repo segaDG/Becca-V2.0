@@ -105,7 +105,7 @@ const APModule = (() => {
     const existing = editId ? _ap.find(r => r.id === editId) : null;
     const d = existing || { tgl: Utils.today ? Utils.today() : '', status: 'BELUM' };
     const suppOpts = _suppliers.map(s => `<option value="${s.nama}" ${d.supplier===s.nama?'selected':''}>${s.nama}</option>`).join('');
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: editId ? 'Edit AP' : 'Tambah Account Payable',
       body: `
         <form id="ap-form">
@@ -157,7 +157,7 @@ const APModule = (() => {
   }
 
   function openSupplierModal() {
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: 'Kelola Supplier',
       body: `
         <div id="sup-list-wrap">
