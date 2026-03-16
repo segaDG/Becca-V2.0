@@ -113,7 +113,11 @@ const KasModule = (() => {
     });
     const hdr = document.getElementById('kas-header-btn');
     if (hdr) hdr.innerHTML = tab==='transaksi' && Auth.can('kas','edit')
-      ? `<button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>` : '';
+      ? `<button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>
+         <button class="btn btn-primary btn-sm" onclick="KasModule.addRow()">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M12 5v14M5 12h14"/></svg>
+           + Baris
+         </button>` : '';
     if (tab==='transaksi') renderTransaksi();
     else if (tab==='summary')  renderSummary();
     else if (tab==='monthly')  renderMonthly();
@@ -323,20 +327,40 @@ const KasModule = (() => {
     _editingId = null;
 
     const row     = _kas.find(r=>r.id===id);
-    const changes = _pendingChanges[id] || {};
+    const pending = _pendingChanges[id] || {};
     delete _pendingChanges[id];
     if (!row) return;
 
-    // Apply changes
-    Object.assign(row, changes);
-
-    // Switch back to view mode
+    // Read ALL values from DOM directly (reliable, catches selects too)
     const trEl = document.getElementById('ks-row-'+id);
     if (trEl) {
+      const dateFld = trEl.querySelector('input[type="date"]');
+      const selects = trEl.querySelectorAll('select');
+      const texts   = trEl.querySelectorAll('input[type="text"]');
+      const nums    = trEl.querySelectorAll('input[type="number"]');
+      if (dateFld)   pending.tgl         = dateFld.value;
+      if (selects[0]) pending.type       = selects[0].value;
+      if (selects[1]) pending.status     = selects[1].value;
+      if (selects[2]) pending.bulan      = selects[2].value;
+      if (texts[0])   pending.nama       = texts[0].value;
+      if (texts[1])   pending.vendor     = texts[1].value;
+      if (texts[2])   pending.satuan     = texts[2].value;
+      if (texts[3])   pending.penerima   = texts[3].value;
+      if (nums[0])    pending.qty        = parseFloat(nums[0].value)||0;
+      if (nums[1])    pending.hargaSatuan= parseFloat(nums[1].value)||0;
+      if (nums[2])    pending.jumlah     = parseFloat(nums[2].value)||0;
+    }
+
+    // Apply changes
+    Object.assign(row, pending);
+
+    // Switch back to view mode
+    const trEl2 = document.getElementById('ks-row-'+id);
+    if (trEl2) {
       const tbody   = document.getElementById('kas-tbody');
       const allRows = Array.from(tbody.querySelectorAll('tr'));
-      const rowNum  = allRows.indexOf(trEl) + 1 + (_page-1)*_perPage;
-      trEl.outerHTML = _rowView(row, rowNum, true);
+      const rowNum  = allRows.indexOf(trEl2) + 1 + (_page-1)*_perPage;
+      trEl2.outerHTML = _rowView(row, rowNum, true);
     }
 
     // Save to DB
