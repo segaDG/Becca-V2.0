@@ -160,7 +160,7 @@ const TaskModule = (() => {
     const existing = editId ? _tasks.find(t => t.id===editId) : null;
     const d = existing || {status:'todo', priority:'medium'};
     const isEdit = !!editId;
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: isEdit ? 'Edit Task' : 'Task Baru',
       body: `<form id="task-form">
         <div class="form-group">
