@@ -115,7 +115,7 @@ const SettingsModule = (() => {
 
   /* ===================== CHANGE PASSWORD ===================== */
   function openChangePasswordModal() {
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: '🔑 Ganti Password',
       body: `
         <form id="pwd-form">
@@ -229,7 +229,7 @@ const SettingsModule = (() => {
     d = d || { aktif:true, role:'operator' };
     const isEdit = !!idOrUsername;
 
-    const mid = Modal.open({
+    const mid = Utils.uid(); Modal.open({ id: mid,
       title: isEdit ? `Edit User: ${d.nama||''}` : 'Tambah User Baru',
       body: `
         <form id="user-form">
