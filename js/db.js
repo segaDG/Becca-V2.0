@@ -79,6 +79,15 @@ const DB = {
   },
   deleteInventoryLog(id)  { return this._delete('inventory', id); },
 
+  /* ============ OPNAME LOGS (terpisah dari activity line) ============ */
+  getOpnameLogs()         { return this._get('opname_logs'); },
+  saveOpnameLog(data) {
+    if (!data.id) data.id = Utils.uid();
+    data.createdAt = data.createdAt || new Date().toISOString();
+    return this._save('opname_logs', data);
+  },
+  deleteOpnameLog(id)     { return this._delete('opname_logs', id); },
+
   getInventoryItems()     { return this._get('inv_products'); },
   saveInventoryItem(data) { if (!data.id) data.id = Utils.uid(); return this._save('inv_products', data); },
   deleteInventoryItem(id) { return this._delete('inv_products', id); },
