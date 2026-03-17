@@ -12,8 +12,9 @@
 
 const InventoryModule = (() => {
 
-  let _items   = [];   // master barang
-  let _logs    = [];   // transaksi
+  let _items      = [];   // master barang
+  let _logs       = [];   // activity line (MASUK/KELUAR only)
+  let _opnameLogs = [];   // stok opname (terpisah)
   let _activeTab = 'stok';
   let _filterKat = '';
 
@@ -54,9 +55,10 @@ const InventoryModule = (() => {
       <div id="inv-tab-opname"    class="hidden"></div>
     `;
 
-    [_items, _logs] = await Promise.all([
+    [_items, _logs, _opnameLogs] = await Promise.all([
       DB.getInventoryItems(),
       DB.getInventory(),
+      DB.getOpnameLogs().catch(()=>[]),
     ]);
 
     // Hitung stok setiap item dari logs
@@ -68,12 +70,12 @@ const InventoryModule = (() => {
 
   /* ===================== HITUNG STOK ===================== */
   function _recalcStok() {
+    // Stok hanya dari MASUK dan KELUAR - OPNAME terpisah, tidak mempengaruhi stok
     _items.forEach(item => {
       const logsItem = _logs.filter(l => l.itemId === item.id);
       item._stok = logsItem.reduce((acc, l) => {
         if (l.jenis === 'MASUK')  return acc + (l.jumlah || 0);
         if (l.jenis === 'KELUAR') return acc - (l.jumlah || 0);
-        if (l.jenis === 'OPNAME') return l.stokAkhir || acc;
         return acc;
       }, 0);
     });
@@ -99,15 +101,21 @@ const InventoryModule = (() => {
       const tabBtn = document.getElementById('inv-tab-btn-'+t);
       if (tabBtn) tabBtn.classList.toggle('active', t === tab);
     });
-    // For activity line tab: reload logs from DB first to catch opname/external updates
     if (tab === 'transaksi') {
+      // Reload logs (MASUK/KELUAR only) - OPNAME ada di tab sendiri
       DB.getInventory().then(freshLogs => {
         _logs = freshLogs;
         _recalcStok();
         renderTransaksi();
       }).catch(() => renderTransaksi());
+    } else if (tab === 'opname') {
+      // Reload opname logs dari DB terpisah
+      DB.getOpnameLogs().catch(()=>[]).then(fresh => {
+        _opnameLogs = fresh;
+        renderOpnameTab();
+      });
     } else {
-      const renders = { stok: renderStok, alert: renderAlert, opname: renderOpnameTab };
+      const renders = { stok: renderStok, alert: renderAlert };
       renders[tab]?.();
     }
   }
@@ -252,7 +260,8 @@ const InventoryModule = (() => {
 
   function renderTransaksi() {
     const canEdit = Auth.can('inventory','edit');
-    const sorted  = [..._logs].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    // Activity Line: hanya MASUK dan KELUAR - OPNAME tampil di tab Stok Opname
+    const sorted  = [..._logs].filter(l=>l.jenis!=='OPNAME').sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
 
     if (!document.getElementById('inv-ss-style')) {
       const st=document.createElement('style'); st.id='inv-ss-style';
@@ -822,21 +831,46 @@ const InventoryModule = (() => {
 
   /* ===================== STOK OPNAME TAB ===================== */
   function renderOpnameTab() {
-    const itemOpts = _items.map(it => {
-      const stok = it._stok || 0;
-      return `<option value="${it.id}">${it.nama} — Stok: ${stok} ${it.satuan||''}</option>`;
-    }).join('');
+    const sorted = [..._opnameLogs].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    const totalOpname = sorted.length;
+    // Group by item for summary
+    const byItem = {};
+    sorted.forEach(l => {
+      if (!byItem[l.itemId]) byItem[l.itemId] = {nama: l.itemNama, logs: []};
+      byItem[l.itemId].logs.push(l);
+    });
+    const lastOpname = sorted[0]?.tgl || '-';
+    const itemCount  = Object.keys(byItem).length;
 
     document.getElementById('inv-tab-opname').innerHTML = `
+      <!-- Summary Cards -->
+      <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
+        ${[
+          {l:'Total Opname', v:totalOpname+' record', c:'var(--primary-h)'},
+          {l:'Barang Diopname', v:itemCount+' item', c:'var(--info)'},
+          {l:'Opname Terakhir', v:lastOpname, c:'var(--text-2)'},
+        ].map(s=>`
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:160px">
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
+            <div style="font-size:16px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
+          </div>`).join('')}
+        ${Auth.can('inventory','edit') ? `
+          <div style="margin-left:auto;display:flex;align-items:center">
+            <button class="btn btn-ghost btn-sm" onclick="InventoryModule.exportOpnameCSV()">
+              Export CSV
+            </button>
+          </div>` : ''}
+      </div>
+
       <div style="display:grid;grid-template-columns:1fr 2fr;gap:var(--s5)">
-        <!-- Form Opname -->
+        <!-- Form Input Opname -->
         <div class="card">
           <div class="card-header">
             <div class="card-title">🔢 Input Stok Opname</div>
           </div>
-          <div style="padding:var(--s5)">
-            <p style="font-size:13px;color:var(--text-3);margin-bottom:var(--s4)">
-              Masukkan jumlah stok aktual hasil hitung fisik di gudang.
+          <div style="padding:var(--s4)">
+            <p style="font-size:12px;color:var(--text-3);margin-bottom:var(--s4);line-height:1.5">
+              Catat jumlah stok aktual hasil hitung fisik. Data tersimpan terpisah dari Activity Line dan tidak mempengaruhi stok.
             </p>
             <div class="form-group">
               <label class="form-label">Tanggal Opname</label>
@@ -846,7 +880,7 @@ const InventoryModule = (() => {
               <label class="form-label">Barang <span class="req">*</span></label>
               <select class="form-control" id="op-item" onchange="InventoryModule._onOpnameItemChange()">
                 <option value="">Pilih barang...</option>
-                ${itemOpts}
+                ${_items.map(it=>`<option value="${it.id}">${it.nama} — Stok: ${it._stok||0} ${it.satuan||''}</option>`).join('')}
               </select>
             </div>
             <div id="op-current-info" style="padding:10px;background:var(--surface2);border-radius:var(--r-md);margin-bottom:var(--s4);font-size:13px;display:none">
@@ -860,7 +894,7 @@ const InventoryModule = (() => {
               </div>
             </div>
             <div class="form-group">
-              <label class="form-label">Stok Aktual (hasil hitung fisik) <span class="req">*</span></label>
+              <label class="form-label">Jumlah Fisik <span class="req">*</span></label>
               <input type="number" min="0" step="0.01" class="form-control" id="op-jumlah" value="0"
                 oninput="InventoryModule._onOpnameJumlahChange()">
             </div>
@@ -868,37 +902,102 @@ const InventoryModule = (() => {
               <label class="form-label">Catatan</label>
               <input type="text" class="form-control" id="op-catatan" placeholder="Opsional">
             </div>
-            <button class="btn btn-primary w-full" onclick="InventoryModule._submitOpname2()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
-                <polyline points="20,6 9,17 4,12"/>
-              </svg>
-              Simpan Stok Opname
+            <button class="btn btn-primary" style="width:100%" onclick="InventoryModule._submitOpname2()">
+              Simpan Opname
             </button>
           </div>
         </div>
 
-        <!-- Opname History -->
+        <!-- Laporan Stok Opname -->
         <div class="card">
           <div class="card-header">
-            <div class="card-title">📋 Riwayat Opname</div>
+            <div class="card-title">📋 Laporan Stok Opname</div>
+            <div style="display:flex;gap:var(--s2)">
+              <select class="form-control" style="width:160px;font-size:12px" id="op-filter-item"
+                onchange="InventoryModule.renderOpnameTab()">
+                <option value="">Semua Barang</option>
+                ${[...new Set(sorted.map(l=>l.itemId))].map(id=>{
+                  const n = sorted.find(l=>l.itemId===id)?.itemNama||id;
+                  const selVal = document.getElementById('op-filter-item')?.value;
+                  return '<option value="'+id+'">'+n+'</option>';
+                }).join('')}
+              </select>
+            </div>
           </div>
           <div class="table-scroll">
-            <table class="table">
-              <thead><tr><th>Tanggal</th><th>Barang</th><th class="num">Stok Baru</th><th>Catatan</th></tr></thead>
+            <table class="table" style="font-size:13px">
+              <thead>
+                <tr>
+                  <th style="width:110px">Tanggal</th>
+                  <th>Barang</th>
+                  <th class="num" style="width:90px">Jumlah Fisik</th>
+                  <th class="num" style="width:100px">Stok Sistem</th>
+                  <th class="num" style="width:90px">Selisih</th>
+                  <th>Catatan</th>
+                  ${Auth.can('inventory','edit') ? '<th style="width:32px"></th>' : ''}
+                </tr>
+              </thead>
               <tbody>
-                ${_logs.filter(l=>l.jenis==='OPNAME').sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,20).map(l=>`
-                  <tr>
-                    <td style="white-space:nowrap">${l.tgl||''}</td>
-                    <td class="font-semibold">${l.itemNama||''}</td>
-                    <td class="num" style="font-family:var(--font-mono)">${l.jumlah||0}</td>
-                    <td class="text-muted text-small">${l.catatan||''}</td>
-                  </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-3)">Belum ada riwayat opname</td></tr>'}
+                ${(() => {
+                  const filterItemId = document.getElementById && document.getElementById('op-filter-item')?.value || '';
+                  const rows = filterItemId ? sorted.filter(l=>l.itemId===filterItemId) : sorted;
+                  if (!rows.length) return '<tr>'
+                    + '<td style="white-space:nowrap">'+tglFmt+'</td>'
+                    + '<td class="font-semibold">'+(l.itemNama||'')+'</td>'
+                    + '<td class="num" style="font-family:var(--font-mono)">'+(l.jumlah||0)+'</td>'
+                    + '<td class="num text-muted" style="font-family:var(--font-mono)">'+(l.stokSistem!=null?l.stokSistem:'-')+'</td>'
+                    + '<td class="num" style="color:'+selisihColor+';font-weight:600;font-family:var(--font-mono)">'+(selisih>=0?'+':'')+selisih+'</td>'
+                    + '<td class="text-muted text-small">'+(l.catatan||'')+'</td>'
+                    + (Auth.can('inventory','edit') ? '<td><button class="iv-del" onclick="InventoryModule.deleteOpnameRow(\'' + l.id + '\')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg></button></td>' : '')
+                    + '</tr>';
+                  return rows.map(l => {
+                    const selisih = (l.jumlah||0) - (l.stokSistem||0);
+                    const selisihColor = selisih===0?'var(--text-2)':selisih>0?'var(--success)':'var(--danger)';
+                    const tglFmt = l.tgl ? l.tgl.split('-').reverse().join('-') : '';
+                    return '<tr>'
+                      + '<td style="white-space:nowrap">'+tglFmt+'</td>'
+                      + '<td class="font-semibold">'+(l.itemNama||'')+'</td>'
+                      + '<td class="num" style="font-family:var(--font-mono)">'+(l.jumlah||0)+'</td>'
+                      + '<td class="num text-muted" style="font-family:var(--font-mono)">'+(l.stokSistem!=null?l.stokSistem:'-')+'</td>'
+                      + '<td class="num" style="color:'+selisihColor+';font-weight:600;font-family:var(--font-mono)">'+(selisih>=0?'+':'')+selisih+'</td>'
+                      + '<td class="text-muted text-small">'+(l.catatan||'')+'</td>'
+                      + (Auth.can('inventory','edit') ? '<td><button class="iv-del" onclick="InventoryModule.deleteOpnameRow(\'' + l.id + '\')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg></button></td>' : '')
+                      + '</tr>';
+                  }).join('');
+                })()}
               </tbody>
             </table>
           </div>
         </div>
       </div>
     `;
+  }
+
+  async function deleteOpnameRow(id) {
+    const ok = await Modal.confirm({title:'Hapus Opname',message:'Data opname dihapus permanen.',danger:true,confirmText:'Hapus'});
+    if (!ok) return;
+    try {
+      await DB.deleteOpnameLog(id);
+      _opnameLogs = _opnameLogs.filter(r=>r.id!==id);
+      renderOpnameTab();
+      Notify.success('Data opname dihapus');
+    } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
+  function exportOpnameCSV() {
+    const rows = [..._opnameLogs].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    const hdr = ['Tanggal','Nama Barang','Jumlah Fisik','Stok Sistem','Selisih','Catatan'];
+    const data = rows.map(l => {
+      const s = (l.jumlah||0)-(l.stokSistem||0);
+      return [l.tgl, l.itemNama, l.jumlah||0, l.stokSistem??'', (s>=0?'+':'')+s, l.catatan||'']
+        .map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
+    });
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([[hdr.join(','),...data].join('\n')], {type:'text/csv;charset=utf-8;'})),
+      download: `opname-${new Date().toISOString().split('T')[0]}.csv`
+    });
+    a.click(); URL.revokeObjectURL(a.href);
+    Notify.success('CSV di-export');
   }
 
   function _onOpnameItemChange() {
@@ -943,18 +1042,18 @@ const InventoryModule = (() => {
     const selisih  = jumlah - prevStok;
     const log = {
       tgl, itemId: item.id, itemNama: item.nama,
-      jenis: 'OPNAME', jumlah, stokAkhir: jumlah, harga: 0,
-      kodeAktivitas: 'OPNAME', hpp: null, pengambil: '', penanggungJawab: '',
+      jumlah,                          // jumlah fisik hasil hitung
+      stokSistem: prevStok,            // stok sistem saat opname
+      selisih,                         // selisih (fisik - sistem)
       catatan: catatan || ('Opname: '+prevStok+' → '+jumlah+(selisih>=0?' (+'+selisih+')':' ('+selisih+')')),
     };
     try {
-      const saved = await DB.saveInventoryLog(log);
-      // Reload ALL logs from DB to ensure fresh data
-      _logs = await DB.getInventory().catch(()=>_logs);
-      _recalcStok();
-      renderStok();
+      // OPNAME disimpan ke DB terpisah - TIDAK masuk activity line
+      const saved = await DB.saveOpnameLog(log);
+      _opnameLogs.unshift(saved);
+      // OPNAME tidak mempengaruhi _logs (activity line) dan tidak mempengaruhi stok via _recalcStok
       renderOpnameTab();
-      renderTransaksi(); // Always refresh activity line after opname
+      renderStok(); // Refresh tampilan stok (stok tidak berubah karena opname)
       Notify.success('Stok Opname disimpan! '+item.nama+': '+prevStok+' → '+jumlah+' '+( item.satuan||''));
       DB.logActivity({type:'opname', detail:'Opname '+item.nama+': '+prevStok+'→'+jumlah});
       // Reset form
@@ -1220,6 +1319,8 @@ const InventoryModule = (() => {
     _aiSuggestHPP,
     _onKodeChange,
     _onJenisChange,
+    deleteOpnameRow,
+    exportOpnameCSV,
   };
 
 })();
