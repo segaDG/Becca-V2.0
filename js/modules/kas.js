@@ -384,7 +384,7 @@ const KasModule = (() => {
 
     // Save to DB async
     DB.saveKas(row).then(() => {
-      DB.logActivity({type:'edit_kas', detail:'Edit: '+(row.nama||id)});
+      DB.logActivity({type:'edit_kas', detail:'Edit: '+(row.nama||id), snapshot:{after:{nama:row.nama,type:row.type,jumlah:row.jumlah,vendor:row.vendor,tgl:row.tgl,status:row.status}}});
       const newTr = document.getElementById('ks-row-'+id);
       if (newTr) { newTr.classList.add('ks-saved'); setTimeout(()=>newTr.classList.remove('ks-saved'),500); }
     }).catch(e => Notify.error('Gagal simpan', e.message));
@@ -410,7 +410,7 @@ const KasModule = (() => {
     try {
       const saved = await DB.saveKas(newRow);
       _kas.unshift(saved);
-      DB.logActivity({type:'add_kas', detail:'Baris baru'});
+      DB.logActivity({type:'add_kas', detail:'Baris baru', snapshot:{after:{tgl:saved.tgl,nama:saved.nama||'Baris baru'}}});
       renderTransaksi();
       setTimeout(()=>startEdit(saved.id), 80);
     } catch(e) { Notify.error('Gagal', e.message); }
