@@ -69,7 +69,7 @@ const Sidebar = {
     `;
 
     // Section label style: lebih kecil dan halus
-    const sectionStyle = 'font-size:9px;font-weight:500;letter-spacing:.08em;opacity:.55;';
+    const sectionStyle = 'font-size:9px;font-weight:700;letter-spacing:.08em;opacity:.6;padding-left:var(--s4);';
 
     let lastSection = '';
     this._items.forEach(item => {
