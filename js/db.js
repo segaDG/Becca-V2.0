@@ -95,7 +95,17 @@ const DB = {
   /* ============ EMPLOYEES ============ */
   getEmployees()          { return this._get('employees'); },
   saveEmployee(data)      { if (!data.id) data.id = Utils.uid(); return this._save('employees', data); },
-  getEmployeeLogs()       { return this._get('emp_logs'); },
+  getEmployeeLogs() {
+    // Try multiple possible keys untuk backward compat
+    return this._get('emp_logs').then(d => {
+      if (d && d.length) return d;
+      // Fallback: cek key lama
+      const old1 = JSON.parse(localStorage.getItem('becca_employee_logs')||'[]');
+      const old2 = JSON.parse(localStorage.getItem('becca_logbook')||'[]');
+      const combined = [...old1, ...old2];
+      return combined;
+    });
+  },
   saveEmployeeLog(data)   { if (!data.id) data.id = Utils.uid(); return this._save('emp_logs', data); },
   deleteEmployeeLog(id)   { return this._delete('emp_logs', id); },
 
