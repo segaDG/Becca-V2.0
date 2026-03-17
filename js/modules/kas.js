@@ -809,7 +809,7 @@ const KasModule = (() => {
       const cards = [
         {
           label: 'Kas Masuk',
-          value: Utils.formatRupiah(totalMasuk, true),
+          value: Utils.formatRupiah(totalMasuk),
           color: 'var(--success)',
           prefix: '',
         },
@@ -823,7 +823,7 @@ const KasModule = (() => {
         balanceBarEl.innerHTML =
           '<span style="font-size:12px;color:var(--text-3)">Balance &nbsp;</span>'
           + '<span style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:'+balColor+'">'
-          + balSign+Utils.formatRupiah(Math.abs(balance), true)+'</span>'
+          + balSign+Utils.formatRupiah(Math.abs(balance))+'</span>'
           + '&nbsp;<span style="font-size:11px;color:'+balColor+'">'+balLabel+'</span>';
       }
       // Inject Saldo Awal bar kiri atas (editable)
@@ -834,7 +834,7 @@ const KasModule = (() => {
           '<span style="color:var(--text-3);font-size:12px">Saldo Awal &nbsp;</span>'
           + '<span id="kas-saldo-val" style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--primary-h);cursor:pointer;border-bottom:1px dashed rgba(99,102,241,.4);padding-bottom:1px"'
           + ' title="Klik untuk edit saldo awal" onclick="KasModule.editSaldoAwal()">'
-          + Utils.formatRupiah(sa, true)+'</span>'
+          + Utils.formatRupiah(sa)+'</span>'
           + ' <span style="font-size:10px;color:var(--text-3);cursor:pointer" onclick="KasModule.editSaldoAwal()" title="Edit">✎</span>';
       }
       
