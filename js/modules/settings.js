@@ -327,7 +327,7 @@ const SettingsModule = (() => {
   async function renderPrivilege() {
     const custom = Utils.ls.get('becca_privileges') || {};
     const privs  = {};
-    ROLES.forEach(r => { privs[r] = custom[r] || {...(Auth._defaultPrivileges[r]||{})}; });
+    _getRoles().forEach(r => { privs[r] = custom[r] || {...(Auth._defaultPrivileges[r]||{})}; });
 
     document.getElementById('set-tab-privilege').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4)">
@@ -497,31 +497,144 @@ const SettingsModule = (() => {
   async function renderActivity() {
     const logs   = await DB.getActivityLog().catch(()=>[]);
     const sorted = [...logs].sort((a,b)=>(b.timestamp||'').localeCompare(a.timestamp||''));
-    const icons  = {login:'🔑',logout:'🚪',add_user:'➕',edit_user:'✏️',change_password:'🔒',update_privileges:'🔐',export_data:'📥',import_data:'📤'};
+    const icons  = {
+      login:'🔑', logout:'🚪', add_user:'➕', edit_user:'✏️',
+      change_password:'🔒', update_privileges:'🔐', export_data:'📥', import_data:'📤',
+      add_kas:'💰', edit_kas:'💰', delete_kas:'💰',
+      add_inventory:'📦', edit_inventory:'📦', delete_inventory:'📦',
+      add_item:'📦', edit_item:'📦', opname:'📦',
+      add_customer:'👥', edit_customer:'👥', delete_customer:'👥',
+      add_invoice:'🧾', edit_invoice:'🧾', delete_invoice:'🧾',
+      add_task:'✅', edit_task:'✅', delete_task:'✅', complete_task:'✅',
+      add_ap:'💳', edit_ap:'💳', employee:'👷',
+    };
+
+    // Store logs for detail modal
+    window._activityLogs = sorted;
 
     document.getElementById('set-tab-activity').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4)">
-        <span class="text-muted text-small">${sorted.length} aktivitas</span>
-        ${Auth.isSuperAdmin()?`<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="SettingsModule.clearActivityLog()">🗑️ Hapus Log</button>`:''}
+        <div>
+          <span class="text-muted text-small">${sorted.length} aktivitas</span>
+          <span class="text-muted text-small" style="margin-left:8px">· Klik baris untuk detail</span>
+        </div>
+        <div style="display:flex;gap:var(--s2)">
+          <input type="text" class="form-control" style="width:200px;font-size:12px"
+            placeholder="Cari user / aktivitas..."
+            oninput="SettingsModule._filterActivityLog(this.value)">
+          ${Auth.isSuperAdmin()?`<button class="btn btn-ghost btn-sm" style="color:var(--danger)"
+            onclick="SettingsModule.clearActivityLog()">🗑️ Hapus Log</button>`:''}
+        </div>
       </div>
       <div class="table-wrapper">
-        <table class="table">
-          <thead><tr><th>#</th><th>Waktu</th><th>User</th><th>Role</th><th>Aktivitas</th><th>Detail</th></tr></thead>
-          <tbody>
-            ${sorted.length ? sorted.slice(0,300).map((log,i)=>`
-              <tr>
-                <td class="text-muted">${i+1}</td>
-                <td style="white-space:nowrap;font-size:12px">${log.timestamp?new Date(log.timestamp).toLocaleString('id-ID'):log.tgl||'-'}</td>
-                <td class="font-semibold">${log.user||'-'}</td>
-                <td><span class="badge badge-neutral text-small">${log.role||'-'}</span></td>
-                <td><span style="display:flex;align-items:center;gap:6px">${icons[log.type]||'📝'} <span class="badge badge-neutral">${log.type||'-'}</span></span></td>
-                <td class="text-muted text-small">${log.detail||'-'}</td>
-              </tr>
-            `).join('') : `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada aktivitas</td></tr>`}
+        <table class="table" id="activity-table">
+          <thead><tr>
+            <th style="width:32px">#</th>
+            <th style="width:140px">Waktu</th>
+            <th>User</th>
+            <th style="width:80px">Role</th>
+            <th>Aktivitas</th>
+            <th>Detail</th>
+          </tr></thead>
+          <tbody id="activity-tbody">
+            ${SettingsModule._renderActivityRows(sorted)}
           </tbody>
         </table>
       </div>
     `;
+  }
+
+  function _renderActivityRows(rows) {
+    const icons = {
+      login:'🔑', logout:'🚪', add_user:'➕', edit_user:'✏️',
+      change_password:'🔒', update_privileges:'🔐', export_data:'📥', import_data:'📤',
+      add_kas:'💰', edit_kas:'💰', delete_kas:'🗑️',
+      add_inventory:'📦', edit_inventory:'📦', delete_inventory:'🗑️',
+      opname:'🔢', employee:'👷', add_task:'✅', complete_task:'✅',
+    };
+    const typeColors = {
+      login:'var(--success)', logout:'var(--text-3)',
+      add_user:'var(--primary-h)', edit_user:'var(--info)',
+      delete_kas:'var(--danger)', delete_inventory:'var(--danger)',
+      update_privileges:'var(--warning)',
+    };
+
+    if (!rows.length) return `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada aktivitas</td></tr>`;
+
+    return rows.slice(0,300).map((log,i) => {
+      const timeStr = log.timestamp
+        ? new Date(log.timestamp).toLocaleString('id-ID',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})
+        : (log.tgl||'-');
+      const color = typeColors[log.type] || 'var(--text-2)';
+      const icon  = icons[log.type] || '📝';
+      const detail = (log.detail||'').length > 40 ? (log.detail||'').substring(0,40)+'…' : (log.detail||'-');
+
+      return `<tr style="cursor:pointer;transition:background .1s"
+                onmouseover="this.style.background='var(--surface2)'"
+                onmouseout="this.style.background=''"
+                onclick="SettingsModule.showActivityDetail(${i})">
+        <td class="text-muted" style="font-size:11px">${i+1}</td>
+        <td style="white-space:nowrap;font-size:11px;color:var(--text-3)">${timeStr}</td>
+        <td style="font-weight:600;font-size:13px">${log.user||'-'}</td>
+        <td><span class="badge badge-neutral" style="font-size:10px">${log.role||'-'}</span></td>
+        <td>
+          <span style="display:inline-flex;align-items:center;gap:5px">
+            <span>${icon}</span>
+            <span class="badge" style="font-size:10px;background:${color}18;color:${color};border:1px solid ${color}30">${log.type||'-'}</span>
+          </span>
+        </td>
+        <td class="text-muted" style="font-size:12px">${detail}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function _filterActivityLog(q) {
+    const logs = window._activityLogs || [];
+    const lower = q.toLowerCase();
+    const filtered = lower
+      ? logs.filter(l => (l.user||'').toLowerCase().includes(lower)
+          || (l.type||'').toLowerCase().includes(lower)
+          || (l.detail||'').toLowerCase().includes(lower))
+      : logs;
+    const tbody = document.getElementById('activity-tbody');
+    if (tbody) tbody.innerHTML = SettingsModule._renderActivityRows(filtered);
+  }
+
+  function showActivityDetail(idx) {
+    const logs = window._activityLogs || [];
+    const log  = logs[idx];
+    if (!log) return;
+    const timeStr = log.timestamp
+      ? new Date(log.timestamp).toLocaleString('id-ID', {
+          weekday:'long', year:'numeric', month:'long', day:'numeric',
+          hour:'2-digit', minute:'2-digit', second:'2-digit'
+        })
+      : (log.tgl||'-');
+
+    const mid = Utils.uid();
+    Modal.open({ id: mid,
+      title: '📋 Detail Aktivitas',
+      size: 'modal-sm',
+      body: `<div style="display:flex;flex-direction:column;gap:12px">
+        ${[
+          {l:'Waktu',     v: timeStr},
+          {l:'User',      v: log.user||'-'},
+          {l:'Role',      v: log.role||'-'},
+          {l:'Tipe',      v: log.type||'-'},
+          {l:'Detail',    v: log.detail||'-'},
+          {l:'Tanggal',   v: log.tgl||'-'},
+        ].map(f=>`
+          <div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="width:80px;font-size:12px;color:var(--text-3);flex-shrink:0">${f.l}</div>
+            <div style="font-size:13px;font-weight:500;color:var(--text);word-break:break-all">${f.v}</div>
+          </div>`).join('')}
+        <div style="display:flex;gap:12px;padding:8px 0">
+          <div style="width:80px;font-size:12px;color:var(--text-3);flex-shrink:0">ID</div>
+          <div style="font-size:11px;color:var(--text-3);font-family:var(--font-mono)">${log.id||'-'}</div>
+        </div>
+      </div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
   }
 
   async function clearActivityLog() {
@@ -620,7 +733,7 @@ const SettingsModule = (() => {
     saveGeneralSettings, openChangePasswordModal, _changePassword,
     renderUsers, openUserModal, _submitUser, toggleUser,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
-    renderActivity, clearActivityLog,
+    renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, clearActivityLog,
     renderData, exportData, _doImport, clearData,
   };
 })();
