@@ -20,7 +20,7 @@ const Sidebar = {
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>` },
     { id: 'ap',         label: 'Account Payable',  section: null,
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>` },
-    { id: 'task',       label: 'Task',             section: 'MANAJEMEN',
+    { id: 'task',       label: 'Task',             section: null,
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>` },
     { id: 'report',     label: 'Laporan',          section: 'LAPORAN',
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>` },
@@ -28,40 +28,48 @@ const Sidebar = {
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>` },
   ],
 
-  render() {
+  // render() async: baca settings dari DB agar nama/logo perusahaan selalu terbaru
+  async render() {
     const sidebar  = document.getElementById('sidebar');
     const user     = Auth.currentUser();
-    const settings = Utils.ls.get('becca_settings') || {};
+
+    // Baca dari DB (bukan Utils.ls.get) agar dapat data terbaru
+    const settings = await DB.getSettings().catch(() => ({}));
     const compName = settings.namaPerusahaan || '';
+    const tagline  = settings.tagline || '';
     const logoUrl  = settings.logoUrl || '';
 
-    // ── Brand area: pakai class CSS asli ─────────────────────
-    // Jika ada nama/logo perusahaan → tampilkan perusahaan
-    // Jika tidak ada → tampilkan default BECCA (identik dengan versi asli)
+    // ── Brand area pakai class CSS asli ──────────────────────
     let logoContent;
     if (logoUrl) {
-      // Foto logo: img tanpa background tambahan, container pakai sidebar-logo sebagai ukuran
-      logoContent = `<div class="sidebar-logo" style="background:none;padding:0;overflow:hidden">
-        <img src="${logoUrl}" style="width:100%;height:100%;object-fit:contain;display:block">
+      logoContent = `<div class="sidebar-logo" style="background:transparent;padding:0;overflow:hidden">
+        <img src="${logoUrl}" style="width:32px;height:32px;object-fit:contain;display:block">
       </div>`;
     } else {
-      // Default: huruf pertama nama perusahaan atau "B" untuk BECCA
       const letter = compName ? compName.substring(0,1).toUpperCase() : 'B';
       logoContent = `<div class="sidebar-logo">${letter}</div>`;
     }
 
-    const nameText = compName || 'BECCA';
-    const nameSpan = compName
-      ? `<div class="sidebar-name">${compName}</div>`
-      : `<div class="sidebar-name">BECCA <span style="opacity:.5;font-weight:400;font-size:12px">v2.0</span></div>`;
+    let nameHtml;
+    if (compName) {
+      nameHtml = `<div class="sidebar-name" style="line-height:1.2">
+        <div>${compName}</div>
+        ${tagline ? `<div style="font-size:10px;font-weight:400;color:var(--text-3);overflow:hidden;text-overflow:ellipsis">${tagline}</div>` : ''}
+      </div>`;
+    } else {
+      nameHtml = `<div class="sidebar-name">BECCA <span style="opacity:.5;font-weight:400;font-size:12px">v2.0</span></div>`;
+    }
 
     let html = `
       <div class="sidebar-brand">
         ${logoContent}
-        ${nameSpan}
+        ${nameHtml}
       </div>
       <nav class="sidebar-nav">
     `;
+
+    // Section label style: lebih kecil dan halus
+    const sectionStyle = 'font-size:9px;font-weight:500;letter-spacing:.08em;opacity:.55;';
 
     let lastSection = '';
     this._items.forEach(item => {
@@ -69,7 +77,7 @@ const Sidebar = {
 
       if (item.section && item.section !== lastSection) {
         lastSection = item.section;
-        html += `<div class="nav-section">${item.section}</div>`;
+        html += `<div class="nav-section" style="${sectionStyle}">${item.section}</div>`;
       }
       html += `
         <div class="nav-item" data-page="${item.id}" onclick="App.navigate('${item.id}')">
@@ -91,7 +99,7 @@ const Sidebar = {
               <div class="user-role">${user.role}</div>
             </div>
           </div>
-          <div style="text-align:center;padding:4px 0 2px;font-size:9px;color:var(--text-3);opacity:.45;letter-spacing:.04em">
+          <div style="text-align:center;padding:4px 0 2px;font-size:9px;color:var(--text-3);opacity:.4;letter-spacing:.04em">
             Powered by <strong style="color:var(--primary-h)">BECCA</strong> System
           </div>
         </div>
