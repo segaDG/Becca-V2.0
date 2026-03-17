@@ -332,7 +332,9 @@ const InventoryModule = (() => {
       <td><div class="ivc" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
       <td><input class="iv-inp" type="date" value="${r.tgl||''}" id="ivf-tgl-${r.id}"></td>
       <td><select class="iv-sel" id="ivf-item-${r.id}" onchange="InventoryModule._ivOnItemSelect('${r.id}',this.value,this.options[this.selectedIndex].text)"><option value="">Pilih barang...</option>${itemOpts}</select></td>
-      <td><select class="iv-sel" id="ivf-jenis-${r.id}" onchange="InventoryModule._onJenisChange('${r.id}')">${jenisOpts}</select></td>
+      <td><select class="iv-sel" id="ivf-jenis-${r.id}" 
+            onchange="InventoryModule._onJenisChange('${r.id}')"
+            ${!r.itemId ? 'disabled style="opacity:.4;cursor:not-allowed" title=\"Pilih barang dulu\"' : ''}>${jenisOpts}</select></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.jumlah||0}" id="ivf-jumlah-${r.id}" style="text-align:right"
         onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.harga||0}" id="ivf-harga-${r.id}" style="text-align:right"></td>
@@ -345,11 +347,25 @@ const InventoryModule = (() => {
           <select class="iv-sel" id="ivf-hpp-${r.id}" style="width:70px;font-size:11px"
             onchange="InventoryModule._updateHPPBadge('${r.id}',this.value==='ya')">
             <option value="" ${!r.hpp&&r.hpp!==false?'selected':''}>— AI —</option>
-            <option value="ya" ${r.hpp===true||r.hpp==='ya'?'selected':''}>✅ Ya</option>
-            <option value="tidak" ${r.hpp===false||r.hpp==='tidak'?'selected':''}>❌ Tidak</option>
+            <option value="ya" ${r.hpp===true||r.hpp==='ya'?'selected':''}>Ya</option>
+            <option value="tidak" ${r.hpp===false||r.hpp==='tidak'?'selected':''}>Tidak</option>
           </select>
-          <span id="ivf-hpp-badge-${r.id}" style="font-size:10px;cursor:pointer" title="AI suggest HPP"
-            onclick="InventoryModule._aiSuggestHPP('${r.id}')">🤖</span>
+          <span id="ivf-hpp-badge-${r.id}" 
+            style="cursor:pointer;display:inline-flex;align-items:center;border-radius:50%;padding:2px;
+                   background:rgba(129,140,248,.15);border:1px solid rgba(129,140,248,.3);transition:all .2s"
+            title="AI suggest HPP (klik)"
+            onmouseover="this.style.background='rgba(129,140,248,.3)'"
+            onmouseout="this.style.background='rgba(129,140,248,.15)'"
+            onclick="InventoryModule._aiSuggestHPP('${r.id}')">
+            <svg viewBox="0 0 20 20" fill="none" width="14" height="14">
+              <defs><linearGradient id="ag${r.id}" x1="0" y1="0" x2="20" y2="20">
+                <stop offset="0%" stop-color="#818cf8"/><stop offset="100%" stop-color="#a78bfa"/>
+              </linearGradient></defs>
+              <circle cx="10" cy="10" r="9" fill="url(#ag${r.id})" opacity=".2"/>
+              <path d="M10 5v1.5M10 13.5V15M5 10h1.5M13.5 10H15M6.4 6.4l1.1 1.1M12.5 12.5l1.1 1.1M6.4 13.6l1.1-1.1M12.5 7.5l1.1-1.1" stroke="url(#ag${r.id})" stroke-width="1.4" stroke-linecap="round"/>
+              <circle cx="10" cy="10" r="2.2" fill="url(#ag${r.id})"/>
+            </svg>
+          </span>
         </div>
       </td>
       <td><input class="iv-inp" type="text" value="${(r.pengambil||'').replace(/"/g,'&quot;')}" id="ivf-sup-${r.id}" placeholder="Pengambil"></td>
@@ -440,6 +456,14 @@ const InventoryModule = (() => {
 
   function _ivOnItemSelect(id, itemId, labelText) {
     const item = _items.find(i=>i.id===itemId);
+    // Enable jenis select when item is selected
+    const jenisEl2 = document.getElementById('ivf-jenis-'+id);
+    if (jenisEl2 && itemId) {
+      jenisEl2.disabled = false;
+      jenisEl2.style.opacity = '1';
+      jenisEl2.style.cursor = 'pointer';
+      jenisEl2.title = '';
+    }
     const hargaEl = document.getElementById('ivf-harga-'+id);
     if (!hargaEl) return;
     const jenisEl = document.getElementById('ivf-jenis-'+id);
