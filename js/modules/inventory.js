@@ -942,15 +942,7 @@ const InventoryModule = (() => {
                 ${(() => {
                   const filterItemId = document.getElementById && document.getElementById('op-filter-item')?.value || '';
                   const rows = filterItemId ? sorted.filter(l=>l.itemId===filterItemId) : sorted;
-                  if (!rows.length) return '<tr>'
-                    + '<td style="white-space:nowrap">'+tglFmt+'</td>'
-                    + '<td class="font-semibold">'+(l.itemNama||'')+'</td>'
-                    + '<td class="num" style="font-family:var(--font-mono)">'+(l.jumlah||0)+'</td>'
-                    + '<td class="num text-muted" style="font-family:var(--font-mono)">'+(l.stokSistem!=null?l.stokSistem:'-')+'</td>'
-                    + '<td class="num" style="color:'+selisihColor+';font-weight:600;font-family:var(--font-mono)">'+(selisih>=0?'+':'')+selisih+'</td>'
-                    + '<td class="text-muted text-small">'+(l.catatan||'')+'</td>'
-                    + (Auth.can('inventory','edit') ? '<td><button class="iv-del" onclick="InventoryModule.deleteOpnameRow(\'' + l.id + '\')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg></button></td>' : '')
-                    + '</tr>';
+                  if (!rows.length) return '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-3)">Belum ada data opname</td></tr>';
                   return rows.map(l => {
                     const selisih = (l.jumlah||0) - (l.stokSistem||0);
                     const selisihColor = selisih===0?'var(--text-2)':selisih>0?'var(--success)':'var(--danger)';
