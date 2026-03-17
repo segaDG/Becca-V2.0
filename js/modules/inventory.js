@@ -343,20 +343,12 @@ const InventoryModule = (() => {
           ${['','SHIFT 1','SHIFT 2','SHIFT 3','RETUR / RUSAK','PENJUALAN','EVENT','STOCK IN','OPNAME'].map(k=>'<option value="'+k+'" '+(r.kodeAktivitas===k?'selected':'')+'>'+( k||'— Pilih —')+'</option>').join('')}
         </select></td>
       <td style="text-align:center;padding:0 4px">
-        <div style="display:flex;align-items:center;gap:4px;justify-content:center">
-          <select class="iv-sel" id="ivf-hpp-${r.id}" style="width:70px;font-size:11px"
-            onchange="InventoryModule._updateHPPBadge('${r.id}',this.value==='ya')">
-            <option value="" ${!r.hpp&&r.hpp!==false?'selected':''}>— AI —</option>
-            <option value="ya" ${r.hpp===true||r.hpp==='ya'?'selected':''}>Ya</option>
-            <option value="tidak" ${r.hpp===false||r.hpp==='tidak'?'selected':''}>Tidak</option>
-          </select>
-          <span id="ivf-hpp-badge-${r.id}"
-            style="font-size:9px;background:rgba(99,102,241,.2);color:var(--primary-h);border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;cursor:pointer;font-weight:700;letter-spacing:.02em;border:none;transition:background .15s"
-            title="Klik untuk AI suggest HPP"
-            onmouseover="this.style.background='rgba(99,102,241,.35)'"
-            onmouseout="this.style.background='rgba(99,102,241,.2)'"
-            onclick="InventoryModule._aiSuggestHPP('${r.id}')">AI</span>
-        </div>
+        <select class="iv-sel" id="ivf-hpp-${r.id}" style="width:80px;font-size:11px"
+          onchange="InventoryModule._updateHPPBadge('${r.id}',this.value==='ya')">
+          <option value="" ${!r.hpp&&r.hpp!==false?'selected':''}>— AI —</option>
+          <option value="ya" ${r.hpp===true||r.hpp==='ya'?'selected':''}>Ya</option>
+          <option value="tidak" ${r.hpp===false||r.hpp==='tidak'?'selected':''}>Tidak</option>
+        </select>
       </td>
       <td><input class="iv-inp" type="text" value="${(r.pengambil||'').replace(/"/g,'&quot;')}" id="ivf-sup-${r.id}" placeholder="Pengambil"></td>
       <td><input class="iv-inp" type="text" value="${(r.penanggungJawab||'').replace(/"/g,'&quot;')}" id="ivf-pj-${r.id}" placeholder="Penanggung Jawab"></td>
@@ -946,12 +938,12 @@ const InventoryModule = (() => {
     };
     try {
       const saved = await DB.saveInventoryLog(log);
-      _logs.unshift(saved);
+      // Reload ALL logs from DB to ensure fresh data
+      _logs = await DB.getInventory().catch(()=>_logs);
       _recalcStok();
       renderStok();
-      renderOpnameTab(); // Refresh opname page
-      // Also refresh activity line so opname appears there
-      if (document.getElementById('inv-tab-transaksi') && !document.getElementById('inv-tab-transaksi').classList.contains('hidden')) renderTransaksi();
+      renderOpnameTab();
+      renderTransaksi(); // Always refresh activity line after opname
       Notify.success('Stok Opname disimpan! '+item.nama+': '+prevStok+' → '+jumlah+' '+( item.satuan||''));
       DB.logActivity({type:'opname', detail:'Opname '+item.nama+': '+prevStok+'→'+jumlah});
       // Reset form
@@ -1115,22 +1107,18 @@ const InventoryModule = (() => {
 
   // ============ AI Helpers ============
   function _updateHPPBadge(id, isHPP) {
-    const badge = document.getElementById('ivf-hpp-badge-'+id);
-    if (!badge) return;
-    // Always show "AI" text - badge is the clickable trigger
-    badge.textContent = 'AI';
-    if (isHPP === true)  {
-      badge.style.background = 'rgba(34,197,94,.25)';
-      badge.style.color = 'var(--success)';
-      badge.title = 'AI: HPP = Ya (klik untuk ubah)';
+    // Visually highlight the select to show AI result
+    const sel = document.getElementById('ivf-hpp-'+id);
+    if (!sel) return;
+    if (isHPP === true) {
+      sel.style.color = 'var(--success)';
+      sel.style.borderColor = 'rgba(34,197,94,.4)';
     } else if (isHPP === false) {
-      badge.style.background = 'rgba(148,163,184,.2)';
-      badge.style.color = 'var(--text-3)';
-      badge.title = 'AI: HPP = Tidak (klik untuk ubah)';
+      sel.style.color = 'var(--text-3)';
+      sel.style.borderColor = '';
     } else {
-      badge.style.background = 'rgba(99,102,241,.2)';
-      badge.style.color = 'var(--primary-h)';
-      badge.title = 'Klik untuk AI suggest HPP';
+      sel.style.color = '';
+      sel.style.borderColor = '';
     }
   }
 
