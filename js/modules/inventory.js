@@ -722,7 +722,10 @@ const InventoryModule = (() => {
     const row = _logs.find(r=>r.id===id);
     if (!row) return;
     const vals = _ivReadDOM(id);
+    const origStr = row._original || '{}';
     Object.assign(row, vals);
+    const newStr = JSON.stringify({tgl:row.tgl,itemId:row.itemId,jenis:row.jenis,jumlah:row.jumlah,harga:row.harga,kodeAktivitas:row.kodeAktivitas,hpp:row.hpp,pengambil:row.pengambil,penanggungJawab:row.penanggungJawab,catatan:row.catatan});
+    row._hasChanged = origStr !== newStr;
     const trEl = document.getElementById('iv-row-'+id);
     if (trEl) {
       const tbody   = document.getElementById('inv-tbody');
@@ -740,7 +743,10 @@ const InventoryModule = (() => {
           DB.saveInventoryItem(item).catch(()=>{});
         }
       }
-      DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), snapshot:{after: {...row}}});
+      // Only log if there was actual change vs original
+      if (row._hasChanged !== false) {
+        DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), snapshot:{after: {...row}}});
+      }
       const newTr = document.getElementById('iv-row-'+id);
       if (newTr) { newTr.classList.add('iv-saved'); setTimeout(()=>newTr.classList.remove('iv-saved'),500); }
     }).catch(e => Notify.error('Gagal simpan', e.message));
