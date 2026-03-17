@@ -284,13 +284,16 @@ const InventoryModule = (() => {
             <th style="width:90px">Jenis</th>
             <th style="width:75px" class="iv-num">Jumlah</th>
             <th style="width:100px" class="iv-num">Harga (Rp)</th>
-            <th style="width:110px">Supplier</th>
+            <th style="width:110px">Kode Aktivitas</th>
+            <th style="width:100px" class="iv-num">HPP (Rp)</th>
+            <th style="width:110px">Pengambil</th>
+            <th style="width:130px">Penanggung Jawab</th>
             <th style="min-width:140px">Catatan</th>
             ${canEdit ? '<th style="width:32px"></th>' : ''}
           </tr></thead>
           <tbody id="inv-tbody">
             ${sorted.length ? sorted.map((r,i)=>_ivRowView(r,i+1,canEdit)).join('') :
-              `<tr><td colspan="${canEdit?9:8}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data. Klik Baris Baru untuk mulai.</td></tr>`}
+              `<tr><td colspan="${canEdit?12:11}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data. Klik Baris Baru untuk mulai.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -307,7 +310,10 @@ const InventoryModule = (() => {
       <td><div class="ivc"><span class="badge" style="background:${jColor}18;color:${jColor};border:1px solid ${jColor}40;font-size:10px">${r.jenis||''}</span></div></td>
       <td class="iv-num"><div class="ivc">${r.jumlah||0}</div></td>
       <td class="iv-num"><div class="ivc">${r.harga?Utils.formatRupiah(r.harga):'-'}</div></td>
-      <td><div class="ivc">${r.supplier||''}</div></td>
+      <td><div class="ivc">${r.kodeAktivitas||''}</div></td>
+      <td class="iv-num"><div class="ivc">${r.hpp?Utils.formatRupiah(r.hpp):'-'}</div></td>
+      <td><div class="ivc">${r.pengambil||''}</div></td>
+      <td><div class="ivc">${r.penanggungJawab||''}</div></td>
       <td><div class="ivc">${r.catatan||''}</div></td>
       ${canEdit?`<td><button class="iv-del" onclick="event.stopPropagation();InventoryModule.deleteLogRow('${r.id}')" title="Hapus">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
@@ -327,7 +333,10 @@ const InventoryModule = (() => {
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.jumlah||0}" id="ivf-jumlah-${r.id}" style="text-align:right"
         onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.harga||0}" id="ivf-harga-${r.id}" style="text-align:right"></td>
-      <td><input class="iv-inp" type="text" value="${(r.supplier||'').replace(/"/g,'&quot;')}" id="ivf-sup-${r.id}" placeholder="Supplier"></td>
+      <td><input class="iv-inp" type="text" value="${(r.kodeAktivitas||'').replace(/"/g,'&quot;')}" id="ivf-kode-${r.id}" placeholder="Kode Aktivitas"></td>
+      <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.hpp||0}" id="ivf-hpp-${r.id}" style="text-align:right" placeholder="HPP"></td>
+      <td><input class="iv-inp" type="text" value="${(r.pengambil||'').replace(/"/g,'&quot;')}" id="ivf-sup-${r.id}" placeholder="Pengambil"></td>
+      <td><input class="iv-inp" type="text" value="${(r.penanggungJawab||'').replace(/"/g,'&quot;')}" id="ivf-pj-${r.id}" placeholder="Penanggung Jawab"></td>
       <td><input class="iv-inp" type="text" value="${(r.catatan||'').replace(/"/g,'&quot;')}" id="ivf-cat-${r.id}" placeholder="Catatan"
         onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
       ${canEdit?`<td><button class="iv-del" style="color:var(--success)" onclick="event.stopPropagation();InventoryModule.commitLogEdit('${r.id}')" title="Simpan">
@@ -365,10 +374,13 @@ const InventoryModule = (() => {
       itemId:    itemSel?.value      || '',
       itemNama:  itemSel?.options[itemSel?.selectedIndex]?.text?.split(' (')[0] || '',
       jenis:     g('jenis')?.value   || 'MASUK',
-      jumlah:    parseFloat(g('jumlah')?.value) || 0,
-      harga:     parseFloat(g('harga')?.value)  || 0,
-      supplier:  g('sup')?.value     || '',
-      catatan:   g('cat')?.value     || '',
+      jumlah:         parseFloat(g('jumlah')?.value) || 0,
+      harga:          parseFloat(g('harga')?.value)  || 0,
+      kodeAktivitas:  g('kode')?.value    || '',
+      hpp:            parseFloat(g('hpp')?.value)    || 0,
+      pengambil:      g('sup')?.value     || '',
+      penanggungJawab:g('pj')?.value      || '',
+      catatan:        g('cat')?.value     || '',
     };
   }
 
@@ -437,7 +449,7 @@ const InventoryModule = (() => {
       _invEditId = null;
     }
     const today = new Date().toISOString().split('T')[0];
-    const newRow = {tgl:today,itemId:'',itemNama:'',jenis:'MASUK',jumlah:0,stokAkhir:0,harga:0,supplier:'',catatan:''};
+    const newRow = {tgl:today,itemId:'',itemNama:'',jenis:'MASUK',jumlah:0,stokAkhir:0,harga:0,kodeAktivitas:'',hpp:0,pengambil:'',penanggungJawab:'',catatan:''};
     try {
       const saved = await DB.saveInventoryLog(newRow);
       _logs.unshift(saved);
@@ -699,7 +711,7 @@ const InventoryModule = (() => {
     }).join('');
 
     document.getElementById('inv-tab-opname').innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s5)">
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:var(--s5)">
         <!-- Form Opname -->
         <div class="card">
           <div class="card-header">
@@ -815,7 +827,8 @@ const InventoryModule = (() => {
     const log = {
       tgl, itemId: item.id, itemNama: item.nama,
       jenis: 'OPNAME', jumlah, stokAkhir: jumlah, harga: 0,
-      supplier: '', catatan: catatan || ('Opname: '+prevStok+' → '+jumlah+(selisih>=0?' (+'+selisih+')':' ('+selisih+')')),
+      kodeAktivitas: 'OPNAME', hpp: 0, pengambil: '', penanggungJawab: '',
+      catatan: catatan || ('Opname: '+prevStok+' → '+jumlah+(selisih>=0?' (+'+selisih+')':' ('+selisih+')')),
     };
     try {
       const saved = await DB.saveInventoryLog(log);
@@ -823,6 +836,8 @@ const InventoryModule = (() => {
       _recalcStok();
       renderStok();
       renderOpnameTab(); // Refresh opname page
+      // Also refresh activity line so opname appears there
+      if (document.getElementById('inv-tab-transaksi') && !document.getElementById('inv-tab-transaksi').classList.contains('hidden')) renderTransaksi();
       Notify.success('Stok Opname disimpan! '+item.nama+': '+prevStok+' → '+jumlah+' '+( item.satuan||''));
       DB.logActivity({type:'opname', detail:'Opname '+item.nama+': '+prevStok+'→'+jumlah});
       // Reset form
