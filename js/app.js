@@ -27,6 +27,7 @@ const App = {
     if (!Auth.init()) { this._showLogin(); return; }
     this._showApp();
     this._initTheme();
+    this._startPresence();
   },
 
   _showLogin() {
@@ -85,6 +86,9 @@ const App = {
         <span class="page-title" id="header-page-title">Dashboard</span>
       </div>
       <div class="header-right">
+        <!-- Online Users -->
+        <div id="online-users-bar" style="display:flex;align-items:center;gap:4px;margin-right:4px"></div>
+
         <!-- Dark/Light Mode Toggle -->
         <button class="header-btn" id="btn-theme" onclick="App.toggleTheme()" title="Ganti Tema"
           style="position:relative">
@@ -260,6 +264,136 @@ const App = {
     `;
     page.classList.add('active');
     Sidebar.setActive(pageId);
+  },
+
+  /* === Presence / User Online === */
+  _presenceInterval: null,
+  _presenceSessionId: null,
+
+  _startPresence() {
+    const user = Auth.currentUser();
+    if (!user) return;
+    this._presenceSessionId = Utils.uid();
+    const update = () => {
+      DB.updatePresence(user.id || user.username, {
+        id:        user.id || user.username,
+        nama:      user.nama || user.username,
+        username:  user.username,
+        role:      user.role,
+        sessionId: this._presenceSessionId,
+        page:      this._currentPage,
+      });
+    };
+    update();
+    this._presenceInterval = setInterval(update, 15000); // update every 15s
+    // Render online users every 20s
+    this._renderOnlineUsers();
+    setInterval(() => this._renderOnlineUsers(), 20000);
+    // Clear presence on page unload
+    window.addEventListener('beforeunload', () => {
+      DB.clearPresence(user.id || user.username);
+    });
+  },
+
+  async _renderOnlineUsers() {
+    const bar = document.getElementById('online-users-bar');
+    if (!bar) return;
+    const currentUser = Auth.currentUser();
+    const users = await DB.getOnlineUsers(30000).catch(() => []);
+    // Color palette for avatars
+    const COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#ef4444'];
+    const getColor = (name) => {
+      let hash = 0;
+      for (const c of (name||'?')) hash = hash*31 + c.charCodeAt(0);
+      return COLORS[Math.abs(hash) % COLORS.length];
+    };
+
+    // Show max 5 avatars + overflow
+    const MAX = 5;
+    const shown = users.slice(0, MAX);
+    const overflow = users.length > MAX ? users.length - MAX : 0;
+
+    bar.innerHTML = shown.map(u => {
+      const initials = (u.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+      const color    = getColor(u.nama);
+      const isMe     = u.username === currentUser?.username;
+      const page     = u.page ? ' · /'+u.page : '';
+      return `<div title="${u.nama}${page}${isMe?' (Anda)':''}"
+        style="width:28px;height:28px;border-radius:50%;
+               background:${color};color:white;
+               display:flex;align-items:center;justify-content:center;
+               font-size:11px;font-weight:700;
+               border:2px solid ${isMe?'white':'var(--surface)'};
+               cursor:default;flex-shrink:0;
+               box-shadow:0 0 0 2px ${isMe?color:'transparent'};
+               transition:transform .15s;
+               ${isMe?'outline:2px solid var(--primary);outline-offset:1px':''}"
+        onmouseover="this.style.transform='scale(1.2)';this.style.zIndex='10'"
+        onmouseout="this.style.transform='';this.style.zIndex=''"
+        onclick="App._showOnlineUsersModal()">${initials}</div>`;
+    }).join('');
+
+    if (overflow > 0) {
+      bar.innerHTML += `<div style="width:28px;height:28px;border-radius:50%;
+        background:var(--surface3);color:var(--text-3);
+        display:flex;align-items:center;justify-content:center;
+        font-size:10px;font-weight:700;border:2px solid var(--border);cursor:pointer"
+        onclick="App._showOnlineUsersModal()">+${overflow}</div>`;
+    }
+
+    if (users.length > 0) {
+      bar.title = users.length + ' user online';
+    }
+  },
+
+  async _showOnlineUsersModal() {
+    const users  = await DB.getOnlineUsers(30000).catch(() => []);
+    const COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#ef4444'];
+    const getColor = (name) => {
+      let hash = 0;
+      for (const c of (name||'?')) hash = hash*31 + c.charCodeAt(0);
+      return COLORS[Math.abs(hash) % COLORS.length];
+    };
+    const currentUser = Auth.currentUser();
+    const now = Date.now();
+    const mid = Utils.uid();
+
+    const rows = users.map(u => {
+      const initials = (u.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+      const color    = getColor(u.nama);
+      const isMe     = u.username === currentUser?.username;
+      const secsAgo  = Math.round((now - new Date(u.lastSeen).getTime()) / 1000);
+      const timeAgo  = secsAgo < 60 ? secsAgo+'d yang lalu' : Math.round(secsAgo/60)+'m yang lalu';
+      const pageLabel = {dashboard:'Dashboard',order:'Order',inventory:'Inventory',kas:'Kas Kecil',
+        employee:'Karyawan',settings:'Pengaturan',ap:'Account Payable',task:'Task'}[u.page] || u.page || '-';
+      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="width:38px;height:38px;border-radius:50%;background:${color};color:white;
+                    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;
+                    ${isMe?'box-shadow:0 0 0 3px '+color+'40':''}">
+          ${initials}
+        </div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">${u.nama||u.username}${isMe?' <span style="font-size:10px;color:var(--primary-h)">(Anda)</span>':''}</div>
+          <div style="font-size:11px;color:var(--text-3)">${u.role||'-'} · ${pageLabel}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="display:flex;align-items:center;gap:5px;justify-content:flex-end">
+            <div style="width:7px;height:7px;border-radius:50%;background:var(--success);flex-shrink:0"></div>
+            <span style="font-size:11px;color:var(--success);font-weight:600">Online</span>
+          </div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:2px">${timeAgo}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    Modal.open({ id: mid,
+      title: '👥 User Online (' + users.length + ')',
+      size: 'modal-sm',
+      body: users.length
+        ? `<div>${rows}</div>`
+        : '<div style="text-align:center;padding:30px;color:var(--text-3)">Tidak ada user lain yang online</div>',
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
   },
 
   /* === Theme Toggle === */
