@@ -13,6 +13,22 @@ const EmployeeModule = (() => {
   let _filterDept   = '';
   let _selectedEmpId = null;  // for card view
 
+  const _EMP_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6'];
+  function _empColor(nama) {
+    let h = 0;
+    for (const c of (nama||'?')) h = h*31 + c.charCodeAt(0);
+    return _EMP_COLORS[Math.abs(h) % _EMP_COLORS.length];
+  }
+  function _empAvatar(emp, size) {
+    const sz = size || 32;
+    const initials = (emp.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+    const color = _empColor(emp.nama);
+    if (emp.fotoUrl) {
+      return '<img src="'+emp.fotoUrl+'" style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;object-fit:cover">';
+    }
+    return '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+color+';color:white;display:flex;align-items:center;justify-content:center;font-size:'+(sz*0.35)+'px;font-weight:700;flex-shrink:0">'+initials+'</div>';
+  }
+
   /* ===================== INIT ===================== */
   async function init() {
     const page = document.getElementById('page-employee');
@@ -63,7 +79,8 @@ const EmployeeModule = (() => {
 
   /* ===================== RENDER DATA ===================== */
   function renderData() {
-    const active   = _employees.filter(e => e.status !== 'Arsip');
+    const ARSIP_STATUS = ['Arsip','RESIGN','Inactive','INACTIVE','Keluar','keluar'];
+    const active   = _employees.filter(e => !ARSIP_STATUS.includes(e.status));
     const depts    = [...new Set(active.map(e=>e.departemen).filter(Boolean))].sort();
     const canEdit  = Auth.can('employee','edit');
 
@@ -87,8 +104,8 @@ const EmployeeModule = (() => {
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
         ${[
           {l:'Total Aktif', v:active.length,                                        c:'var(--primary-h)'},
-          {l:'Tetap',       v:active.filter(e=>e.status==='Tetap').length,          c:'var(--success)'},
-          {l:'Kontrak',     v:active.filter(e=>e.status==='Kontrak').length,        c:'var(--warning)'},
+          {l:'Aktif/Tetap', v:active.filter(e=>['Tetap','ACTIVE','Active'].includes(e.status)).length, c:'var(--success)'},
+          {l:'Kontrak',     v:active.filter(e=>['Kontrak','CONTRACT','Kontrak'].includes(e.status)).length, c:'var(--warning)'},
           {l:'Departemen',  v:depts.length+' dept',                                 c:'var(--text-2)'},
         ].map(s=>`
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">
@@ -127,8 +144,14 @@ const EmployeeModule = (() => {
             </tr></thead>
             <tbody>
               ${filtered.length ? filtered.map((emp, i) => {
-                const initials = (emp.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
-                const statusColor = emp.status==='Tetap'?'badge-success':emp.status==='Kontrak'?'badge-warning':'badge-neutral';
+                // avatar handled by _empAvatar helper
+                const _ACTIVE_STATUSES = ['Tetap','ACTIVE','Active'];
+                const _WARN_STATUSES   = ['Kontrak','CONTRACT','Percobaan'];
+                const _DANGER_STATUSES = ['RESIGN','Resign','Nonaktif'];
+                const statusColor = _ACTIVE_STATUSES.includes(emp.status)?'badge-success'
+                  : _WARN_STATUSES.includes(emp.status)?'badge-warning'
+                  : _DANGER_STATUSES.includes(emp.status)?'badge-danger'
+                  : 'badge-neutral';
                 const logCount = _logs.filter(l=>l.employeeId===emp.id).length;
                 return `<tr style="cursor:pointer" onclick="EmployeeModule.viewCard('${emp.id}')"
                           onmouseover="this.style.background='var(--surface2)'"
@@ -136,9 +159,7 @@ const EmployeeModule = (() => {
                   <td class="text-muted text-small">${i+1}</td>
                   <td>
                     <div style="display:flex;align-items:center;gap:10px">
-                      <div style="width:32px;height:32px;border-radius:50%;background:rgba(99,102,241,.2);
-                                  color:var(--primary-h);display:flex;align-items:center;justify-content:center;
-                                  font-size:11px;font-weight:700;flex-shrink:0">${initials}</div>
+                      ${_empAvatar(emp, 32)}
                       <div>
                         <div style="font-weight:600">${emp.nama||''}</div>
                         ${emp.noHp ? `<div class="text-small text-muted">${emp.noHp}</div>` : ''}
@@ -229,8 +250,10 @@ const EmployeeModule = (() => {
   }
 
   function _cardHTML(emp) {
-    const initials = (emp.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
-    const statusColor = emp.status==='Tetap'?'var(--success)':emp.status==='Kontrak'?'var(--warning)':'var(--text-3)';
+    const statusColor = ['Tetap','ACTIVE','Active'].includes(emp.status)?'var(--success)'
+      : ['Kontrak','CONTRACT','Percobaan'].includes(emp.status)?'var(--warning)'
+      : ['RESIGN','Resign'].includes(emp.status)?'var(--danger)'
+      : 'var(--text-3)';
     const empLogs = _logs.filter(l=>l.employeeId===emp.id).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,3);
     const canEdit = Auth.can('employee','edit');
 
@@ -242,11 +265,7 @@ const EmployeeModule = (() => {
       <!-- Card Header -->
       <div style="background:linear-gradient(135deg,rgba(99,102,241,.15),rgba(139,92,246,.1));padding:20px;
                   display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border)">
-        <div style="width:52px;height:52px;border-radius:50%;background:rgba(99,102,241,.25);
-                    color:var(--primary-h);display:flex;align-items:center;justify-content:center;
-                    font-size:18px;font-weight:700;flex-shrink:0;border:2px solid rgba(99,102,241,.3)">
-          ${initials}
-        </div>
+        ${_empAvatar(emp, 52)}
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:15px;color:var(--heading);margin-bottom:2px">${emp.nama||''}</div>
           <div style="font-size:12px;color:var(--text-3)">${emp.jabatan||''} ${emp.departemen?'· '+emp.departemen:''}</div>
@@ -293,8 +312,10 @@ const EmployeeModule = (() => {
   function _renderSingleCard(el, emp) {
     const empLogs = _logs.filter(l=>l.employeeId===emp.id).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
     const canEdit = Auth.can('employee','edit');
-    const initials = (emp.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
-    const statusColor = emp.status==='Tetap'?'var(--success)':emp.status==='Kontrak'?'var(--warning)':'var(--text-3)';
+    const statusColor = ['Tetap','ACTIVE','Active'].includes(emp.status)?'var(--success)'
+      : ['Kontrak','CONTRACT','Percobaan'].includes(emp.status)?'var(--warning)'
+      : ['RESIGN','Resign'].includes(emp.status)?'var(--danger)'
+      : 'var(--text-3)';
 
     el.innerHTML = `
       <div style="margin-bottom:var(--s3)">
@@ -307,10 +328,8 @@ const EmployeeModule = (() => {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
           <div style="background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(139,92,246,.15));
                       padding:30px 20px;text-align:center;border-bottom:1px solid var(--border)">
-            <div style="width:72px;height:72px;border-radius:50%;background:rgba(99,102,241,.25);
-                        color:var(--primary-h);display:flex;align-items:center;justify-content:center;
-                        font-size:24px;font-weight:700;margin:0 auto 12px;border:3px solid rgba(99,102,241,.4)">
-              ${initials}
+            <div style="margin:0 auto 12px;display:flex;justify-content:center">
+              ${_empAvatar(emp, 72)}
             </div>
             <div style="font-size:18px;font-weight:700;color:var(--heading)">${emp.nama||''}</div>
             <div style="font-size:13px;color:var(--text-3);margin-top:4px">${emp.jabatan||''}</div>
@@ -437,7 +456,7 @@ const EmployeeModule = (() => {
 
   /* ===================== RENDER ARSIP ===================== */
   function renderArsip() {
-    const arsip = _employees.filter(e=>e.status==='Arsip');
+    const arsip = _employees.filter(e=>['Arsip','RESIGN','Resign','Inactive','INACTIVE'].includes(e.status));
     document.getElementById('emp-tab-arsip').innerHTML = `
       <div class="table-wrapper"><div class="table-scroll">
         <table class="table">
@@ -471,6 +490,22 @@ const EmployeeModule = (() => {
       title: editId ? 'Edit Karyawan' : 'Tambah Karyawan',
       size: 'modal-lg',
       body: `<form id="emp-form">
+        <!-- Foto Karyawan -->
+        <div class="form-group" style="display:flex;align-items:center;gap:var(--s4);margin-bottom:var(--s4)">
+          <div id="emp-foto-preview" style="width:60px;height:60px;border-radius:50%;overflow:hidden;flex-shrink:0;
+               background:var(--surface2);border:2px dashed var(--border2);display:flex;align-items:center;justify-content:center">
+            ${d.fotoUrl ? '<img src="'+d.fotoUrl+'" style="width:100%;height:100%;object-fit:cover">' : '<span style="font-size:24px">👤</span>'}
+          </div>
+          <div>
+            <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin-bottom:4px">
+              📷 Pilih Foto
+              <input type="file" id="emp-foto-input" accept="image/*" style="display:none"
+                onchange="EmployeeModule._handleFotoUpload(this)">
+            </label>
+            ${d.fotoUrl ? '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="EmployeeModule._removeFoto()">✕ Hapus</button>' : ''}
+            <div style="font-size:10px;color:var(--text-3)">PNG/JPG · Max 1MB</div>
+          </div>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Nama Lengkap <span class="req">*</span></label>
@@ -541,6 +576,17 @@ const EmployeeModule = (() => {
     if (!data.nama) { Notify.warning('Nama wajib diisi'); return; }
     data.gajiPokok = parseInt(data.gajiPokok)||0;
     if (editId) data.id = editId;
+    // Handle foto upload
+    if (_tempFotoUrl && _tempFotoUrl !== '__remove__') {
+      data.fotoUrl = _tempFotoUrl;
+    } else if (_tempFotoUrl === '__remove__') {
+      data.fotoUrl = '';
+    } else if (editId) {
+      // Preserve existing foto
+      const existing = _employees.find(e=>e.id===editId);
+      if (existing?.fotoUrl) data.fotoUrl = existing.fotoUrl;
+    }
+    _tempFotoUrl = null;
     try {
       const saved = await DB.saveEmployee(data);
       const idx   = _employees.findIndex(e=>e.id===saved.id);
@@ -617,8 +663,32 @@ const EmployeeModule = (() => {
     } catch(e) { Notify.error('Gagal', e.message); }
   }
 
+  /* === Foto Handler === */
+  let _tempFotoUrl = null;
+
+  function _handleFotoUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 1024*1024) { Notify.warning('Foto terlalu besar. Maks 1MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      _tempFotoUrl = e.target.result;
+      const prev = document.getElementById('emp-foto-preview');
+      if (prev) prev.innerHTML = '<img src="'+_tempFotoUrl+'" style="width:100%;height:100%;object-fit:cover">';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function _removeFoto() {
+    _tempFotoUrl = '__remove__';
+    const prev = document.getElementById('emp-foto-preview');
+    if (prev) prev.innerHTML = '<span style="font-size:20px">👤</span>';
+  }
+
+
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
+    _handleFotoUpload, _removeFoto,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
     get _selectedEmpId() { return _selectedEmpId; },
