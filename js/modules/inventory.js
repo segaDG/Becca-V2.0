@@ -42,10 +42,10 @@ const InventoryModule = (() => {
       </div>
 
       <div class="tabs">
-        <button class="tab-btn active" data-tab="stok"     onclick="InventoryModule.switchTab('stok')">📦 Stok Barang</button>
-        <button class="tab-btn"        data-tab="transaksi" onclick="InventoryModule.switchTab('transaksi')">📋 Activity Line</button>
-        <button class="tab-btn"        data-tab="alert"     onclick="InventoryModule.switchTab('alert')">⚠️ Stok Menipis</button>
-        <button class="tab-btn"        data-tab="opname"    onclick="InventoryModule.switchTab('opname')">🔢 Stok Opname</button>
+        <button id="inv-tab-btn-stok" class="tab-btn active" data-tab="stok"     onclick="InventoryModule.switchTab('stok')">📦 Stok Barang</button>
+        <button id="inv-tab-btn-transaksi" class="tab-btn" data-tab="transaksi" onclick="InventoryModule.switchTab('transaksi')">📋 Activity Line</button>
+        <button id="inv-tab-btn-alert" class="tab-btn" data-tab="alert"     onclick="InventoryModule.switchTab('alert')">⚠️ Stok Menipis</button>
+        <button id="inv-tab-btn-opname" class="tab-btn" data-tab="opname"    onclick="InventoryModule.switchTab('opname')">🔢 Stok Opname</button>
       </div>
 
       <div id="inv-tab-stok"></div>
@@ -94,7 +94,7 @@ const InventoryModule = (() => {
     ['stok','transaksi','alert','opname'].forEach(t => {
       const tabContent = document.getElementById('inv-tab-'+t);
       if (tabContent) tabContent.classList.toggle('hidden', t !== tab);
-      const tabBtn = document.querySelector('.tabs [data-tab="'+t+'"]');
+      const tabBtn = document.getElementById('inv-tab-btn-'+t);
       if (tabBtn) tabBtn.classList.toggle('active', t === tab);
     });
     const renders = { stok: renderStok, transaksi: renderTransaksi, alert: renderAlert, opname: renderOpnameTab };
@@ -302,7 +302,7 @@ const InventoryModule = (() => {
     return `<tr class="iv-view" id="iv-row-${r.id}" data-id="${r.id}"
               ${canEdit?`onclick="InventoryModule.startLogEdit('${r.id}')"`  :''}>
       <td><div class="ivc" style="justify-content:center;color:var(--text-3);font-size:11px">${rowNum}</div></td>
-      <td><div class="ivc">${r.tgl||''}</div></td>
+      <td><div class="ivc">${r.tgl?(r.tgl.split('-').reverse().join('-')):''}</div></td>
       <td><div class="ivc">${r.itemNama||''}</div></td>
       <td><div class="ivc"><span class="badge" style="background:${jColor}18;color:${jColor};border:1px solid ${jColor}40;font-size:10px">${r.jenis||''}</span></div></td>
       <td class="iv-num"><div class="ivc">${r.jumlah||0}</div></td>
