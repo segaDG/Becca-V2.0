@@ -9,6 +9,7 @@ const EmployeeModule = (() => {
   let _activeTab = 'data';
   let _sortField = 'nama';
   let _sortDir   = 'asc';
+  let _searchQ   = '';
   let _filterStatus = '';
   let _filterDept   = '';
   let _selectedEmpId = null;  // for card view
@@ -25,7 +26,9 @@ const EmployeeModule = (() => {
     const color = _empColor(emp.nama);
     const photoUrl = emp.fotoUrl || emp.thumb || emp.foto || emp.photo || '';
     if (photoUrl) {
-      return '<img src="'+photoUrl+'" style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;object-fit:cover">';
+      const eid = (emp.id||'').replace(/'/g,'');
+      return '<img src="'+photoUrl+'" style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;object-fit:cover;cursor:zoom-in"'
+        +' onclick="event.stopPropagation();EmployeeModule._viewPhoto(this.src)" title="Klik untuk perbesar">';
     }
     return '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+color+';color:white;display:flex;align-items:center;justify-content:center;font-size:'+(sz*0.35)+'px;font-weight:700;flex-shrink:0">'+initials+'</div>';
   }
@@ -89,6 +92,16 @@ const EmployeeModule = (() => {
     let filtered = active;
     if (_filterStatus) filtered = filtered.filter(e=>e.status===_filterStatus);
     if (_filterDept)   filtered = filtered.filter(e=>(e.divisi||e.departemen)===_filterDept);
+    if (_searchQ) {
+      const q = _searchQ.toLowerCase();
+      filtered = filtered.filter(e =>
+        (e.nama||'').toLowerCase().includes(q) ||
+        (e.nik||e.nip||'').toLowerCase().includes(q) ||
+        (e.jabatan||'').toLowerCase().includes(q) ||
+        (e.divisi||e.departemen||'').toLowerCase().includes(q) ||
+        (e.panggilan||'').toLowerCase().includes(q)
+      );
+    }
 
     // Apply sort
     filtered = [...filtered].sort((a,b) => {
@@ -125,6 +138,9 @@ const EmployeeModule = (() => {
 
       <!-- Filter & Sort -->
       <div class="filter-bar" style="margin-bottom:var(--s3)">
+        <input type="text" class="form-control" id="emp-search-bar" style="width:200px"
+          placeholder="🔍 Cari nama, jabatan, NIK..."
+          oninput="EmployeeModule._searchEmp(this.value)">
         <select class="form-control" style="width:150px" onchange="EmployeeModule.setFilter('status',this.value)">
           <option value="">Semua Status</option>
           ${[...new Set(_employees.map(e=>e.status).filter(Boolean))].sort().map(s=>`<option value="${s}" ${_filterStatus===s?'selected':''}>${s}</option>`).join('')}
@@ -204,6 +220,11 @@ const EmployeeModule = (() => {
         </div>
       </div>
     `;
+  }
+
+  function _searchEmp(q) {
+    _searchQ = q || '';
+    renderData();
   }
 
   function setFilter(key, val) {
@@ -685,6 +706,19 @@ const EmployeeModule = (() => {
     } catch(e) { Notify.error('Gagal', e.message); }
   }
 
+  function _viewPhoto(src) {
+    if (!src) return;
+    const mid = Utils.uid();
+    Modal.open({ id: mid,
+      title: 'Foto Karyawan',
+      size: 'modal-sm',
+      body: `<div style="text-align:center;padding:var(--s4)">
+        <img src="${src}" style="max-width:100%;max-height:70vh;border-radius:var(--r-lg);box-shadow:var(--shadow-lg)">
+        </div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+  }
+
   /* === Foto Handler === */
   let _tempFotoUrl = null;
 
@@ -710,7 +744,7 @@ const EmployeeModule = (() => {
 
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
-    _handleFotoUpload, _removeFoto,
+    _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
     get _selectedEmpId() { return _selectedEmpId; },
