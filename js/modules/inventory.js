@@ -157,7 +157,8 @@ const InventoryModule = (() => {
               ${filtered.length ? filtered.map((item, i) => {
                 const stok    = item._stok || 0;
                 const min     = item.stokMin || 0;
-                const nilai   = stok * (item.hargaSatuan || 0);
+                // FIFO: nilai stok menggunakan harga batch terbaru
+                const nilai   = _getFIFOStockValue(item.id);
                 const isLow   = stok <= min;
                 const isEmpty = stok <= 0;
                 // Calculate stock in/out from logs
@@ -285,7 +286,7 @@ const InventoryModule = (() => {
             <th style="width:75px" class="iv-num">Jumlah</th>
             <th style="width:100px" class="iv-num">Harga (Rp)</th>
             <th style="width:110px">Kode Aktivitas</th>
-            <th style="width:100px" class="iv-num">HPP (Rp)</th>
+            <th style="width:80px" style="text-align:center">HPP <span style="font-size:9px;opacity:.7">🤖AI</span></th>
             <th style="width:110px">Pengambil</th>
             <th style="width:130px">Penanggung Jawab</th>
             <th style="min-width:140px">Catatan</th>
@@ -311,7 +312,9 @@ const InventoryModule = (() => {
       <td class="iv-num"><div class="ivc">${r.jumlah||0}</div></td>
       <td class="iv-num"><div class="ivc">${r.harga?Utils.formatRupiah(r.harga):'-'}</div></td>
       <td><div class="ivc">${r.kodeAktivitas||''}</div></td>
-      <td class="iv-num"><div class="ivc">${r.hpp?Utils.formatRupiah(r.hpp):'-'}</div></td>
+      <td style="text-align:center"><div class="ivc" style="justify-content:center">
+        ${r.hpp===true||r.hpp==='ya'?'<span class="badge badge-success" style="font-size:10px">✅ HPP</span>':r.hpp===false||r.hpp==='tidak'?'<span class="badge badge-neutral" style="font-size:10px">❌ Non-HPP</span>':'<span style="color:var(--text-3);font-size:11px">—</span>'}
+      </div></td>
       <td><div class="ivc">${r.pengambil||''}</div></td>
       <td><div class="ivc">${r.penanggungJawab||''}</div></td>
       <td><div class="ivc">${r.catatan||''}</div></td>
@@ -329,12 +332,26 @@ const InventoryModule = (() => {
       <td><div class="ivc" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
       <td><input class="iv-inp" type="date" value="${r.tgl||''}" id="ivf-tgl-${r.id}"></td>
       <td><select class="iv-sel" id="ivf-item-${r.id}" onchange="InventoryModule._ivOnItemSelect('${r.id}',this.value,this.options[this.selectedIndex].text)"><option value="">Pilih barang...</option>${itemOpts}</select></td>
-      <td><select class="iv-sel" id="ivf-jenis-${r.id}">${jenisOpts}</select></td>
+      <td><select class="iv-sel" id="ivf-jenis-${r.id}" onchange="InventoryModule._onJenisChange('${r.id}')">${jenisOpts}</select></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.jumlah||0}" id="ivf-jumlah-${r.id}" style="text-align:right"
         onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.harga||0}" id="ivf-harga-${r.id}" style="text-align:right"></td>
-      <td><input class="iv-inp" type="text" value="${(r.kodeAktivitas||'').replace(/"/g,'&quot;')}" id="ivf-kode-${r.id}" placeholder="Kode Aktivitas"></td>
-      <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.hpp||0}" id="ivf-hpp-${r.id}" style="text-align:right" placeholder="HPP"></td>
+      <td><select class="iv-sel" id="ivf-kode-${r.id}"
+            onchange="InventoryModule._onKodeChange('${r.id}')">
+          ${['','SHIFT 1','SHIFT 2','SHIFT 3','RETUR / RUSAK','PENJUALAN','EVENT','STOCK IN','OPNAME'].map(k=>'<option value="'+k+'" '+(r.kodeAktivitas===k?'selected':'')+'>'+( k||'— Pilih —')+'</option>').join('')}
+        </select></td>
+      <td style="text-align:center;padding:0 4px">
+        <div style="display:flex;align-items:center;gap:4px;justify-content:center">
+          <select class="iv-sel" id="ivf-hpp-${r.id}" style="width:70px;font-size:11px"
+            onchange="InventoryModule._updateHPPBadge('${r.id}',this.value==='ya')">
+            <option value="" ${!r.hpp&&r.hpp!==false?'selected':''}>— AI —</option>
+            <option value="ya" ${r.hpp===true||r.hpp==='ya'?'selected':''}>✅ Ya</option>
+            <option value="tidak" ${r.hpp===false||r.hpp==='tidak'?'selected':''}>❌ Tidak</option>
+          </select>
+          <span id="ivf-hpp-badge-${r.id}" style="font-size:10px;cursor:pointer" title="AI suggest HPP"
+            onclick="InventoryModule._aiSuggestHPP('${r.id}')">🤖</span>
+        </div>
+      </td>
       <td><input class="iv-inp" type="text" value="${(r.pengambil||'').replace(/"/g,'&quot;')}" id="ivf-sup-${r.id}" placeholder="Pengambil"></td>
       <td><input class="iv-inp" type="text" value="${(r.penanggungJawab||'').replace(/"/g,'&quot;')}" id="ivf-pj-${r.id}" placeholder="Penanggung Jawab"></td>
       <td><input class="iv-inp" type="text" value="${(r.catatan||'').replace(/"/g,'&quot;')}" id="ivf-cat-${r.id}" placeholder="Catatan"
@@ -345,25 +362,108 @@ const InventoryModule = (() => {
     </tr>`;
   }
 
+  // ============ AI: HPP Classification Rules ============
+  const HPP_RULES = {
+    isHPP: [
+      {keys:['SHIFT 1','SHIFT 2','SHIFT 3','PENJUALAN','EVENT'], match:'kode'},
+      {keys:['KELUAR'], match:'jenis'},
+      {keys:['ayam','daging','ikan','sapi','udang','telur','sayur','buah','beras','minyak','tepung','gula','garam','bumbu','rempah','santan','tahu','tempe','susu','wortel','kentang','bawang','tomat','cabe','cabai','merica','jahe','kunyit','kencur'], match:'nama'},
+    ],
+    notHPP: [
+      {keys:['RETUR / RUSAK','STOCK IN','OPNAME'], match:'kode'},
+      {keys:['MASUK','OPNAME'], match:'jenis'},
+      {keys:['bensin','solar','listrik','pdam','pulsa','gaji','seragam','alat','kemasan','plastik','sabun','deterjen','pembersih'], match:'nama'},
+    ]
+  };
+
+  function _suggestHPP(kode, jenis, itemNama) {
+    const nama = (itemNama||'').toLowerCase();
+    const k = (kode||'').toUpperCase();
+    const j = (jenis||'').toUpperCase();
+    for (const rule of HPP_RULES.notHPP) {
+      if (rule.match==='kode' && rule.keys.includes(k)) return false;
+      if (rule.match==='jenis' && rule.keys.includes(j)) return false;
+      if (rule.match==='nama' && rule.keys.some(kw=>nama.includes(kw))) return false;
+    }
+    for (const rule of HPP_RULES.isHPP) {
+      if (rule.match==='kode' && rule.keys.includes(k)) return true;
+      if (rule.match==='jenis' && rule.keys.includes(j)) return true;
+      if (rule.match==='nama' && rule.keys.some(kw=>nama.includes(kw))) return true;
+    }
+    return null; // unknown
+  }
+
+  // ============ FIFO Pricing (AI) ============
+  function _getFIFOAveragePrice(itemId, qty) {
+    const masukLogs = _logs
+      .filter(l=>l.itemId===itemId && l.jenis==='MASUK' && (l.harga||0)>0)
+      .sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||''));
+    if (!masukLogs.length) {
+      const item = _items.find(i=>i.id===itemId);
+      return item?.hargaSatuan || 0;
+    }
+    let remaining=qty||1, totalCost=0, totalConsumed=0;
+    for (const log of masukLogs) {
+      if (remaining<=0) break;
+      const consume = Math.min(log.jumlah||0, remaining);
+      totalCost    += consume*(log.harga||0);
+      totalConsumed+= consume;
+      remaining    -= consume;
+    }
+    if (remaining>0) {
+      const lastPrice = masukLogs[masukLogs.length-1].harga||0;
+      totalCost    += remaining*lastPrice;
+      totalConsumed+= remaining;
+    }
+    return totalConsumed>0 ? Math.round(totalCost/totalConsumed) : 0;
+  }
+
+  function _getFIFOStockValue(itemId) {
+    const item = _items.find(i=>i.id===itemId);
+    const currentStok = item?._stok || 0;
+    if (currentStok<=0) return 0;
+    const masukLogs = _logs
+      .filter(l=>l.itemId===itemId && l.jenis==='MASUK' && (l.harga||0)>0)
+      .sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||''));
+    if (!masukLogs.length) return currentStok*(item?.hargaSatuan||0);
+    // Use most recent batches (FIFO: remaining stock = latest batches)
+    let remaining=currentStok, totalValue=0;
+    for (let i=masukLogs.length-1; i>=0; i--) {
+      if (remaining<=0) break;
+      const use = Math.min(masukLogs[i].jumlah||0, remaining);
+      totalValue += use*(masukLogs[i].harga||0);
+      remaining  -= use;
+    }
+    if (remaining>0) totalValue += remaining*(item?.hargaSatuan||0);
+    return Math.round(totalValue);
+  }
+
   function _ivOnItemSelect(id, itemId, labelText) {
     const item = _items.find(i=>i.id===itemId);
-    // Update itemNama display after commit
     const hargaEl = document.getElementById('ivf-harga-'+id);
     if (!hargaEl) return;
     const jenisEl = document.getElementById('ivf-jenis-'+id);
     const jenis = jenisEl?.value || 'MASUK';
+    const jumlahEl = document.getElementById('ivf-jumlah-'+id);
+    const qty = parseFloat(jumlahEl?.value)||1;
     if (item) {
-      hargaEl.value = (jenis==='KELUAR') ? _getFIFOPrice(itemId) : (item.hargaSatuan||0);
+      // AI: auto-fill harga
+      if (jenis==='KELUAR') {
+        hargaEl.value = _getFIFOAveragePrice(itemId, qty);
+      } else {
+        hargaEl.value = item.hargaSatuan||0;
+      }
+      // AI: suggest HPP
+      const kodeEl = document.getElementById('ivf-kode-'+id);
+      const hppEl  = document.getElementById('ivf-hpp-'+id);
+      if (kodeEl && hppEl) {
+        const suggested = _suggestHPP(kodeEl.value, jenis, item.nama);
+        if (suggested !== null) {
+          hppEl.value = suggested ? 'ya' : 'tidak';
+          _updateHPPBadge(id, suggested);
+        }
+      }
     }
-  }
-
-  function _getFIFOPrice(itemId) {
-    const masukLogs = _logs
-      .filter(l=>l.itemId===itemId && l.jenis==='MASUK' && (l.harga||0)>0)
-      .sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||''));
-    if (masukLogs.length>0) return masukLogs[0].harga;
-    const item = _items.find(i=>i.id===itemId);
-    return item?.hargaSatuan || 0;
   }
 
     function _ivReadDOM(id) {
@@ -377,7 +477,7 @@ const InventoryModule = (() => {
       jumlah:         parseFloat(g('jumlah')?.value) || 0,
       harga:          parseFloat(g('harga')?.value)  || 0,
       kodeAktivitas:  g('kode')?.value    || '',
-      hpp:            parseFloat(g('hpp')?.value)    || 0,
+      hpp:            g('hpp')?.value==='ya' ? true : g('hpp')?.value==='tidak' ? false : null,
       pengambil:      g('sup')?.value     || '',
       penanggungJawab:g('pj')?.value      || '',
       catatan:        g('cat')?.value     || '',
@@ -999,6 +1099,80 @@ const InventoryModule = (() => {
     } catch(err) { Notify.error('Gagal', err.message); }
   }
 
+  // ============ AI Helpers ============
+  function _updateHPPBadge(id, isHPP) {
+    const badge = document.getElementById('ivf-hpp-badge-'+id);
+    if (!badge) return;
+    if (isHPP === true)  { badge.textContent='✅'; badge.title='HPP: Ya'; }
+    else if (isHPP === false) { badge.textContent='❌'; badge.title='HPP: Tidak'; }
+    else { badge.textContent='🤖'; badge.title='AI suggest HPP (klik)'; }
+  }
+
+  function _aiSuggestHPP(id) {
+    const jenisEl = document.getElementById('ivf-jenis-'+id);
+    const kodeEl  = document.getElementById('ivf-kode-'+id);
+    const hppEl   = document.getElementById('ivf-hpp-'+id);
+    // Get item name from current row data
+    const trEl    = document.getElementById('iv-row-'+id);
+    const row     = _logs.find(r=>r.id===id);
+    const itemNama = row?.itemNama || '';
+    const jenis   = jenisEl?.value || '';
+    const kode    = kodeEl?.value  || '';
+    const suggested = _suggestHPP(kode, jenis, itemNama);
+    if (hppEl && suggested !== null) {
+      hppEl.value = suggested ? 'ya' : 'tidak';
+      _updateHPPBadge(id, suggested);
+      Notify.success('AI: HPP = '+(suggested?'Ya':'Tidak')+' (berdasarkan kode & jenis)');
+    } else {
+      Notify.warning('AI tidak dapat menentukan HPP. Pilih manual.');
+    }
+  }
+
+  function _onKodeChange(id) {
+    // When kode changes, re-suggest HPP
+    const kodeEl = document.getElementById('ivf-kode-'+id);
+    const jenisEl= document.getElementById('ivf-jenis-'+id);
+    const hppEl  = document.getElementById('ivf-hpp-'+id);
+    const row    = _logs.find(r=>r.id===id);
+    if (!row) return;
+    const kode   = kodeEl?.value  || '';
+    const jenis  = jenisEl?.value || '';
+    const suggested = _suggestHPP(kode, jenis, row.itemNama||'');
+    if (suggested !== null && hppEl) {
+      hppEl.value = suggested ? 'ya' : 'tidak';
+      _updateHPPBadge(id, suggested);
+    }
+    // Also update kodeAktivitas auto-suggest for STOCK IN
+    if (kode==='STOCK IN' || kode==='OPNAME') {
+      const jenisSelEl = document.getElementById('ivf-jenis-'+id);
+      if (jenisSelEl && kode==='STOCK IN') jenisSelEl.value = 'MASUK';
+    }
+  }
+
+  function _onJenisChange(id) {
+    // When jenis changes, re-calc harga via FIFO
+    const jenisEl = document.getElementById('ivf-jenis-'+id);
+    const jenis   = jenisEl?.value || 'MASUK';
+    const row     = _logs.find(r=>r.id===id);
+    if (!row || !row.itemId) return;
+    const hargaEl  = document.getElementById('ivf-harga-'+id);
+    const jumlahEl = document.getElementById('ivf-jumlah-'+id);
+    const qty = parseFloat(jumlahEl?.value)||1;
+    if (hargaEl) {
+      hargaEl.value = jenis==='KELUAR'
+        ? _getFIFOAveragePrice(row.itemId, qty)
+        : (_items.find(i=>i.id===row.itemId)?.hargaSatuan||0);
+    }
+    // Re-suggest HPP
+    const kodeEl = document.getElementById('ivf-kode-'+id);
+    const hppEl  = document.getElementById('ivf-hpp-'+id);
+    const suggested = _suggestHPP(kodeEl?.value||'', jenis, row.itemNama||'');
+    if (suggested !== null && hppEl) {
+      hppEl.value = suggested ? 'ya' : 'tidak';
+      _updateHPPBadge(id, suggested);
+    }
+  }
+
   return {
     init,
     switchTab,
@@ -1017,6 +1191,10 @@ const InventoryModule = (() => {
     _onOpnameJumlahChange,
     _submitOpname2,
     _ivOnItemSelect,
+    _updateHPPBadge,
+    _aiSuggestHPP,
+    _onKodeChange,
+    _onJenisChange,
   };
 
 })();
