@@ -26,6 +26,7 @@ const App = {
     DB.init(this._firebaseConfig);
     if (!Auth.init()) { this._showLogin(); return; }
     this._showApp();
+    this._initTheme();
   },
 
   _showLogin() {
@@ -84,6 +85,25 @@ const App = {
         <span class="page-title" id="header-page-title">Dashboard</span>
       </div>
       <div class="header-right">
+        <!-- Dark/Light Mode Toggle -->
+        <button class="header-btn" id="btn-theme" onclick="App.toggleTheme()" title="Ganti Tema"
+          style="position:relative">
+          <svg id="icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"
+            style="display:none">
+            <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/>
+          </svg>
+          <svg id="icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </button>
         <!-- Notifikasi -->
         <button class="header-btn" id="btn-notif" onclick="App._openNotif()" title="Notifikasi" style="position:relative">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -240,6 +260,82 @@ const App = {
     `;
     page.classList.add('active');
     Sidebar.setActive(pageId);
+  },
+
+  /* === Theme Toggle === */
+  toggleTheme() {
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    const newTheme = isDark ? 'light' : 'dark';
+    this._applyTheme(newTheme);
+    localStorage.setItem('becca_theme', newTheme);
+  },
+
+  _applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const iconDark  = document.getElementById('icon-dark');
+    const iconLight = document.getElementById('icon-light');
+    const btnTheme  = document.getElementById('btn-theme');
+    if (theme === 'light') {
+      if (iconDark)  iconDark.style.display  = 'block';
+      if (iconLight) iconLight.style.display = 'none';
+      if (btnTheme)  btnTheme.title = 'Ganti ke Dark Mode';
+    } else {
+      if (iconDark)  iconDark.style.display  = 'none';
+      if (iconLight) iconLight.style.display = 'block';
+      if (btnTheme)  btnTheme.title = 'Ganti ke Light Mode';
+    }
+  },
+
+  _initTheme() {
+    // Inject light mode CSS if not already present
+    if (!document.getElementById('becca-light-mode-css')) {
+      const style = document.createElement('style');
+      style.id = 'becca-light-mode-css';
+      style.textContent = `
+        [data-theme="light"] {
+          --bg:          #f1f5f9;
+          --surface:     #ffffff;
+          --surface2:    #f8fafc;
+          --surface3:    #f1f5f9;
+          --border:      rgba(0,0,0,.1);
+          --border2:     rgba(0,0,0,.15);
+          --text:        #0f172a;
+          --text-1:      #1e293b;
+          --text-2:      #475569;
+          --text-3:      #94a3b8;
+          --heading:     #0f172a;
+          --overlay:     rgba(0,0,0,.4);
+          --shadow-sm:   0 1px 2px rgba(0,0,0,.08);
+          --shadow-md:   0 4px 12px rgba(0,0,0,.1);
+          --shadow-lg:   0 8px 24px rgba(0,0,0,.12);
+          color-scheme: light;
+        }
+        [data-theme="light"] .sidebar {
+          background: #ffffff;
+          border-right: 1px solid rgba(0,0,0,.08);
+        }
+        [data-theme="light"] .header {
+          background: #ffffff;
+          border-bottom: 1px solid rgba(0,0,0,.08);
+        }
+        [data-theme="light"] .ks-tbl td,
+        [data-theme="light"] .iv-tbl td {
+          background: #ffffff;
+        }
+        [data-theme="light"] .ks-tbl tr.ks-view:hover td,
+        [data-theme="light"] .iv-tbl tr.iv-view:hover td {
+          background: #f8fafc;
+        }
+        [data-theme="light"] input,
+        [data-theme="light"] select,
+        [data-theme="light"] textarea {
+          color-scheme: light;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    const saved = localStorage.getItem('becca_theme') || 'dark';
+    this._applyTheme(saved);
   },
 
   async logout() {
