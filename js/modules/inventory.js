@@ -325,8 +325,11 @@ const InventoryModule = (() => {
 
   function renderTransaksi() {
     const canEdit = Auth.can('inventory','edit');
-    // Activity Line: hanya MASUK dan KELUAR - OPNAME tampil di tab Stok Opname
-    const sorted  = [..._logs].filter(l=>l.jenis!=='OPNAME').sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    // Activity Line: hanya MASUK dan KELUAR, filter OPNAME dan baris kosong/corrupted
+    const sorted  = [..._logs]
+      .filter(l => l.jenis !== 'OPNAME')
+      .filter(l => l.itemNama || l.tgl)   // buang baris tanpa nama & tanggal
+      .sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
 
     if (!document.getElementById('inv-ss-style')) {
       const st=document.createElement('style'); st.id='inv-ss-style';
