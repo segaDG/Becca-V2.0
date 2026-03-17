@@ -4,8 +4,12 @@
    AI type suggestion from nama field
 ============================================ */
 const KasModule = (() => {
-  let _kas  = [];
-  let _masuk= [];
+  let _kas        = [];
+  let _masuk      = [];
+  let _saldoAwal  = 0;  // Saldo awal kas, bisa di-edit user
+
+  function _loadSaldoAwal()  { return parseFloat(localStorage.getItem('becca_kas_saldo_awal')||'0') || 0; }
+  function _saveSaldoAwal(v) { localStorage.setItem('becca_kas_saldo_awal', String(v)); _saldoAwal = v; }
   let _activeTab = 'transaksi';
   let _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'' };
   let _page   = 1;
@@ -56,6 +60,7 @@ const KasModule = (() => {
     const page = document.getElementById('page-kas');
     page.innerHTML = _renderShell();
     [_kas, _masuk] = await Promise.all([DB.getKas(), DB.getKasMasuk()]);
+    _saldoAwal = _loadSaldoAwal();
     _editingId = null;
     _pendingChanges = {};
     switchTab('transaksi');
@@ -487,7 +492,7 @@ const KasModule = (() => {
         </div>
         <div class="card"><div class="card-header"><div class="card-title">Per Bulan</div></div>
           <table class="table"><thead><tr><th>Bulan</th><th class="num">Total</th><th class="num">Baris</th></tr></thead>
-          <tbody>${Object.keys(byBulan).sort().map(b=>{const rows=byBulan[b];return`<tr><td><strong>${b}</strong></td><td class="num">${Utils.formatRupiah(Utils.sumBy(rows,'jumlah'))}</td><td class="num text-muted">${rows.length}</td></tr>`;}).join('')}</tbody>
+          <tbody>${Object.keys(byBulan).sort().map(b=>{const rows=byBulan[b];return`<tr><td><strong>${_bulanLabel(b)}</strong></td><td class="num">${Utils.formatRupiah(Utils.sumBy(rows,'jumlah'))}</td><td class="num text-muted">${rows.length}</td></tr>`;}).join('')}</tbody>
         </table></div>
       </div>`;
   }
@@ -499,7 +504,7 @@ const KasModule = (() => {
     document.getElementById('kas-tab-monthly').innerHTML=`
       <div class="filter-bar" style="margin-bottom:var(--s5)">
         <select class="form-control" style="width:160px" onchange="KasModule.renderMonthlyTable(this.value)">
-          ${opts.map(b=>`<option value="${b}" ${b===sel?'selected':''}>${b}</option>`).join('')}
+          ${opts.map(b=>`<option value="${b}" ${b===sel?'selected':''}>${_bulanLabel(b)}</option>`).join('')}
         </select>
         <button class="btn btn-ghost btn-sm" onclick="window.print()">Print / PDF</button>
       </div>
@@ -508,22 +513,141 @@ const KasModule = (() => {
   }
 
   function renderMonthlyTable(bulan) {
-    const rows=_kas.filter(r=>r.bulan===bulan), byType=Utils.groupBy(rows,'type'), grand=Utils.sumBy(rows,'jumlah');
-    document.getElementById('monthly-table-wrap').innerHTML=`
-      <div class="card">
-        <div class="card-header"><div class="card-title">Laporan Kas Kecil — ${bulan}</div>
-          <div style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--danger)">${Utils.formatRupiah(grand)}</div>
+    const rows   = _kas.filter(r => r.bulan === bulan);
+    const byType = {};
+    rows.forEach(r => {
+      const t = r.type || 'Lain-lain';
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(r);
+    });
+    const grand      = rows.reduce((s,r) => s+( r.jumlah||0), 0);
+    const grandDone  = rows.filter(r=>r.status==='DONE').reduce((s,r)=>s+(r.jumlah||0),0);
+    const grandTBC   = rows.filter(r=>r.status==='TBC').reduce((s,r)=>s+(r.jumlah||0),0);
+    const saldoAwal  = _loadSaldoAwal();
+    const bulanLabel = _bulanLabel(bulan);
+
+    const typesSorted = Object.entries(byType)
+      .map(([type, items]) => ({type, items, total: items.reduce((s,r)=>s+(r.jumlah||0),0)}))
+      .sort((a,b) => b.total - a.total);
+
+    document.getElementById('monthly-table-wrap').innerHTML = `
+      <!-- Print Header -->
+      <div id="monthly-report" style="font-family:var(--font)">
+
+        <!-- Title Bar -->
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    padding:16px 20px;background:var(--surface);border:1px solid var(--border);
+                    border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:none">
+          <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:2px">Laporan Kas Kecil</div>
+            <div style="font-size:22px;font-weight:700;color:var(--heading)">${bulanLabel}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11px;color:var(--text-3)">Total Pengeluaran</div>
+            <div style="font-size:24px;font-weight:800;color:var(--danger);font-family:var(--font-mono)">${Utils.formatRupiah(grand,true)}</div>
+          </div>
         </div>
-        ${Object.entries(byType).sort((a,b)=>Utils.sumBy(b[1],'jumlah')-Utils.sumBy(a[1],'jumlah')).map(([type,items])=>`
-          <div style="margin-bottom:var(--s4)">
-            <div class="section-title" style="display:flex;justify-content:space-between"><span>${type}</span><span style="font-family:var(--font-mono)">${Utils.formatRupiah(Utils.sumBy(items,'jumlah'))}</span></div>
-            <table class="table" style="font-size:12px">
-              <thead><tr><th>Tgl</th><th>Nama</th><th>Vendor</th><th class="num">Qty</th><th>Sat</th><th class="num">Harga</th><th class="num">Total</th><th>Status</th></tr></thead>
-              <tbody>${items.map(r=>`<tr><td style="white-space:nowrap">${Utils.formatDate(r.tgl,'dd/mm/yyyy')}</td><td>${r.nama}</td><td class="text-muted">${r.vendor||'-'}</td><td class="num">${r.qty||0}</td><td class="text-muted">${r.satuan||''}</td><td class="num">${Utils.formatRupiah(r.hargaSatuan)}</td><td class="num"><strong>${Utils.formatRupiah(r.jumlah)}</strong></td><td><span class="badge ${r.status==='DONE'?'badge-success':'badge-warning'}">${r.status}</span></td></tr>`).join('')}</tbody>
-            </table>
-          </div>`).join('')}
-      </div>`;
+
+        <!-- Summary Cards -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;
+                    border:1px solid var(--border);border-top:none;border-radius:0;overflow:hidden">
+          ${[
+            {l:'Saldo Awal',  v:Utils.formatRupiah(saldoAwal,true),  c:'var(--primary-h)'},
+            {l:'Confirmed',   v:Utils.formatRupiah(grandDone,true),  c:'var(--success)'},
+            {l:'TBC / Pending',v:Utils.formatRupiah(grandTBC,true),  c:'var(--warning)'},
+            {l:'Kategori',    v:Object.keys(byType).length+' jenis', c:'var(--text-2)'},
+          ].map((s,i) => `
+            <div style="padding:12px 16px;background:var(--surface);
+                        ${i>0?'border-left:1px solid var(--border)':''}">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:3px">${s.l}</div>
+              <div style="font-size:16px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- Detail per Kategori -->
+        <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r-lg) var(--r-lg);overflow:hidden">
+          ${typesSorted.map(({type, items, total}, tIdx) => {
+            const done = items.filter(r=>r.status==='DONE').reduce((s,r)=>s+(r.jumlah||0),0);
+            const pct  = grand > 0 ? Math.round(total/grand*100) : 0;
+            return `
+            <div style="${tIdx>0?'border-top:1px solid var(--border)':''}">
+              <!-- Type Header -->
+              <div style="display:flex;align-items:center;justify-content:space-between;
+                          padding:10px 16px;background:var(--surface2)">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-size:13px;font-weight:700;color:var(--heading)">${type}</span>
+                  <span style="font-size:11px;color:var(--text-3)">${items.length} transaksi</span>
+                  <!-- Progress bar -->
+                  <div style="width:80px;height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+                    <div style="width:${pct}%;height:100%;background:var(--primary);border-radius:2px"></div>
+                  </div>
+                  <span style="font-size:10px;color:var(--text-3)">${pct}%</span>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:14px;font-weight:700;color:var(--danger);font-family:var(--font-mono)">${Utils.formatRupiah(total)}</div>
+                  ${done < total ? `<div style="font-size:10px;color:var(--text-3)">Confirmed: ${Utils.formatRupiah(done)}</div>` : ''}
+                </div>
+              </div>
+
+              <!-- Rows Table -->
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead>
+                    <tr style="background:var(--surface3)">
+                      <th style="padding:6px 12px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase;white-space:nowrap;width:90px">Tanggal</th>
+                      <th style="padding:6px 12px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase">Nama / Keterangan</th>
+                      <th style="padding:6px 12px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase;white-space:nowrap">Vendor</th>
+                      <th style="padding:6px 12px;text-align:right;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase;white-space:nowrap">Qty × Sat</th>
+                      <th style="padding:6px 12px;text-align:right;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase;white-space:nowrap">Harga/Sat</th>
+                      <th style="padding:6px 12px;text-align:right;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase;white-space:nowrap">Total</th>
+                      <th style="padding:6px 12px;text-align:center;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase;width:65px">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).map((r,i) => `
+                      <tr style="${i%2===0?'background:var(--surface)':'background:var(--surface2)'}${r.status==='DONE'?';opacity:.75':''}">
+                        <td style="padding:7px 12px;color:var(--text-2);white-space:nowrap">${r.tgl?r.tgl.split('-').reverse().join('-'):'-'}</td>
+                        <td style="padding:7px 12px">
+                          <div style="font-weight:500;color:var(--text)">${r.nama||'-'}</div>
+                          ${r.penerima?`<div style="font-size:10px;color:var(--text-3)">→ ${r.penerima}</div>`:''}
+                        </td>
+                        <td style="padding:7px 12px;color:var(--text-3)">${r.vendor||'-'}</td>
+                        <td style="padding:7px 12px;text-align:right;font-family:var(--font-mono);color:var(--text-2)">${r.qty||1} ${r.satuan||''}</td>
+                        <td style="padding:7px 12px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${Utils.formatRupiah(r.hargaSatuan||0)}</td>
+                        <td style="padding:7px 12px;text-align:right;font-family:var(--font-mono);font-weight:600;color:var(--text)">${Utils.formatRupiah(r.jumlah||0)}</td>
+                        <td style="padding:7px 12px;text-align:center">
+                          <span style="font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600;
+                            background:${r.status==='DONE'?'rgba(34,197,94,.15)':'rgba(234,179,8,.15)'};
+                            color:${r.status==='DONE'?'var(--success)':'var(--warning)'}">
+                            ${r.status||'-'}
+                          </span>
+                        </td>
+                      </tr>`).join('')}
+                    <!-- Subtotal row -->
+                    <tr style="background:var(--surface3);border-top:1px solid var(--border)">
+                      <td colspan="5" style="padding:7px 12px;font-weight:700;color:var(--text-2);font-size:11px">
+                        Subtotal ${type}
+                      </td>
+                      <td style="padding:7px 12px;text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--danger)">${Utils.formatRupiah(total)}</td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>`;
+          }).join('')}
+
+          <!-- Grand Total Footer -->
+          <div style="display:flex;justify-content:space-between;align-items:center;
+                      padding:14px 20px;background:var(--surface);border-top:2px solid var(--border2)">
+            <div style="font-size:13px;font-weight:700;color:var(--heading)">GRAND TOTAL — ${bulanLabel}</div>
+            <div style="font-family:var(--font-mono);font-size:20px;font-weight:800;color:var(--danger)">${Utils.formatRupiah(grand)}</div>
+          </div>
+        </div>
+      </div>
+    `;
   }
+
 
   /* ===================== CASH FLOW ===================== */
   function renderCashflow() {
@@ -572,9 +696,10 @@ const KasModule = (() => {
       // Kas keluar (confirmed/DONE only)
       const totalKeluar = _kas.filter(r=>r.status==='DONE').reduce((s,r) => s + (r.jumlah||0), 0);
       const totalAllKeluar = _kas.reduce((s,r) => s + (r.jumlah||0), 0); // incl TBC
-      
-      // Balance
-      const balance = totalMasuk - totalKeluar;
+
+      // Balance = Saldo Awal + Kas Masuk - Kas Keluar (DONE)
+      const saldoAwal = _loadSaldoAwal();
+      const balance   = saldoAwal + totalMasuk - totalKeluar;
       const balanceColor = balance >= 0 ? 'var(--success)' : 'var(--danger)';
       
       const cards = [
@@ -597,13 +722,16 @@ const KasModule = (() => {
           + balSign+Utils.formatRupiah(Math.abs(balance), true)+'</span>'
           + '&nbsp;<span style="font-size:11px;color:'+balColor+'">'+balLabel+'</span>';
       }
-      // Inject Saldo Awal bar kiri atas
+      // Inject Saldo Awal bar kiri atas (editable)
       const saldoBarEl = document.getElementById('kas-saldo-bar');
       if (saldoBarEl) {
+        const sa = _loadSaldoAwal();
         saldoBarEl.innerHTML =
-          '<span style="color:var(--text-3)">Saldo Awal &nbsp;</span>'
-          + '<span style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--primary-h)">'
-          + Utils.formatRupiah(totalMasuk, true)+'</span>';
+          '<span style="color:var(--text-3);font-size:12px">Saldo Awal &nbsp;</span>'
+          + '<span id="kas-saldo-val" style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--primary-h);cursor:pointer;border-bottom:1px dashed rgba(99,102,241,.4);padding-bottom:1px"'
+          + ' title="Klik untuk edit saldo awal" onclick="KasModule.editSaldoAwal()">'
+          + Utils.formatRupiah(sa, true)+'</span>'
+          + ' <span style="font-size:10px;color:var(--text-3);cursor:pointer" onclick="KasModule.editSaldoAwal()" title="Edit">✎</span>';
       }
       
       // Render Kas Masuk card - clickable, buka modal filter
@@ -700,6 +828,61 @@ const KasModule = (() => {
       + '</tbody></table></div>';
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, _onNamaInput, _calcTotal, deleteRow, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk };
+  /* ===================== EDIT SALDO AWAL ===================== */
+  function editSaldoAwal() {
+    const current = _loadSaldoAwal();
+    const mid = Utils.uid();
+    Modal.open({ id: mid,
+      title: 'Edit Saldo Awal Kas',
+      size: 'modal-sm',
+      body: `<div class="form-group">
+        <label class="form-label">Saldo Awal (Rp)</label>
+        <input type="number" min="0" class="form-control" id="saldo-awal-inp" value="${current}" placeholder="0">
+        <div class="form-hint">Saldo awal mempengaruhi Balance. Klik Simpan atau tekan Enter.</div>
+      </div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+               <button class="btn btn-primary" onclick="KasModule._saveSaldoAwalModal('${mid}')">Simpan</button>`,
+    });
+    setTimeout(() => {
+      const inp = document.getElementById('saldo-awal-inp');
+      if (inp) { inp.focus(); inp.select(); }
+    }, 100);
+  }
+
+  function _saveSaldoAwalModal(mid) {
+    const val = parseFloat(document.getElementById('saldo-awal-inp')?.value) || 0;
+    _saveSaldoAwal(val);
+    Modal.close(mid);
+    // Refresh balance bar
+    _renderBalanceCards();
+    Notify.success('Saldo awal disimpan: '+Utils.formatRupiah(val));
+  }
+
+  /* ===================== MONTH HELPERS ===================== */
+  const _BULAN_FULL = {
+    'Jan':'Januari','Feb':'Februari','Mar':'Maret','Apr':'April',
+    'Mei':'Mei','Jun':'Juni','Jul':'Juli','Ags':'Agustus',
+    'Sep':'September','Okt':'Oktober','Nov':'November','Des':'Desember'
+  };
+  const _BULAN_IDX = {
+    'Jan':1,'Feb':2,'Mar':3,'Apr':4,'Mei':5,'Jun':6,
+    'Jul':7,'Ags':8,'Sep':9,'Okt':10,'Nov':11,'Des':12
+  };
+
+  function _bulanLabel(bulan) {
+    // Return "Januari 2026" from bulan="Jan" using tgl data
+    const full = _BULAN_FULL[bulan] || bulan;
+    // Find year from actual data
+    const monthIdx = _BULAN_IDX[bulan];
+    const yearFromData = _kas
+      .filter(r => r.bulan === bulan && r.tgl)
+      .map(r => parseInt((r.tgl||'').split('-')[0]))
+      .filter(y => y > 2000)
+      .sort()[0];
+    const year = yearFromData || new Date().getFullYear();
+    return full + ' ' + year;
+  }
+
+  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, _onNamaInput, _calcTotal, deleteRow, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal };
 })();
 window.KasModule = KasModule;
