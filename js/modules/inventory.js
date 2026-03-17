@@ -740,7 +740,7 @@ const InventoryModule = (() => {
           DB.saveInventoryItem(item).catch(()=>{});
         }
       }
-      DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id)});
+      DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), snapshot:{after: {...row}}});
       const newTr = document.getElementById('iv-row-'+id);
       if (newTr) { newTr.classList.add('iv-saved'); setTimeout(()=>newTr.classList.remove('iv-saved'),500); }
     }).catch(e => Notify.error('Gagal simpan', e.message));
@@ -763,7 +763,7 @@ const InventoryModule = (() => {
     try {
       const saved = await DB.saveInventoryLog(newRow);
       _logs.unshift(saved);
-      DB.logActivity({type:'add_inventory', detail:'Baris baru'});
+      DB.logActivity({type:'add_inventory', detail:'Baris baru', snapshot:{after: {...saved}}});
       renderTransaksi();
       // Wait for DOM to be fully rendered before starting edit
       requestAnimationFrame(() => {
@@ -1239,7 +1239,7 @@ const InventoryModule = (() => {
       renderOpnameTab();
       renderStok(); // Refresh tampilan stok (stok tidak berubah karena opname)
       Notify.success('Stok Opname disimpan! '+item.nama+': '+prevStok+' → '+jumlah+' '+( item.satuan||''));
-      DB.logActivity({type:'opname', detail:'Opname '+item.nama+': '+prevStok+'→'+jumlah});
+      DB.logActivity({type:'opname', detail:'Opname '+item.nama+': '+prevStok+'→'+jumlah, snapshot:{after:{barang:item.nama, stokLama:prevStok, stokBaru:jumlah, selisih:jumlah-prevStok, tanggal:tgl}}});
       // Reset form
       document.getElementById('op-item').value = '';
       document.getElementById('op-jumlah').value = '0';
