@@ -371,7 +371,10 @@ const InventoryModule = (() => {
             <th style="width:75px" class="iv-num">Jumlah</th>
             <th style="width:100px" class="iv-num">Harga (Rp)</th>
             <th style="width:110px">Kode Aktivitas</th>
-            <th style="width:80px;text-align:center">HPP <span style="font-size:9px;background:rgba(99,102,241,.2);color:var(--primary-h);border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;font-weight:700">AI</span></th>
+            <th style="width:80px;text-align:center" id="hpp-ai-header">HPP <span 
+  style="font-size:9px;background:rgba(99,102,241,.2);color:var(--primary-h);border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;font-weight:700;cursor:pointer"
+  onclick="InventoryModule._showHPPAIInfo()"
+  title="Klik untuk lihat statistik AI HPP">AI</span></th>
             <th style="width:110px">Pengambil</th>
             <th style="width:130px">Penanggung Jawab</th>
             <th style="min-width:140px">Catatan</th>
@@ -421,6 +424,7 @@ const InventoryModule = (() => {
             onchange="InventoryModule._onJenisChange('${r.id}')"
             ${!r.itemId ? 'disabled style="opacity:.4;cursor:not-allowed" title=\"Pilih barang dulu\"' : ''}>${jenisOpts}</select></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.jumlah||0}" id="ivf-jumlah-${r.id}" style="text-align:right"
+        oninput="InventoryModule._onQtyChange('${r.id}',this.value)"
         onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.harga||0}" id="ivf-harga-${r.id}" style="text-align:right"></td>
       <td><select class="iv-sel" id="ivf-kode-${r.id}"
@@ -445,35 +449,121 @@ const InventoryModule = (() => {
     </tr>`;
   }
 
-  // ============ AI: HPP Classification Rules ============
-  const HPP_RULES = {
+  // ============================================================
+  // AI HPP — dengan Learning Capability
+  // Setiap keputusan user disimpan ke localStorage sebagai training data
+  // AI memprioritaskan learned rules di atas built-in rules
+  // ============================================================
+  const _HPP_STORAGE_KEY = 'becca_hpp_ai_learned';
+
+  const _HPP_BUILTIN = {
     isHPP: [
       {keys:['SHIFT 1','SHIFT 2','SHIFT 3','PENJUALAN','EVENT'], match:'kode'},
       {keys:['KELUAR'], match:'jenis'},
-      {keys:['ayam','daging','ikan','sapi','udang','telur','sayur','buah','beras','minyak','tepung','gula','garam','bumbu','rempah','santan','tahu','tempe','susu','wortel','kentang','bawang','tomat','cabe','cabai','merica','jahe','kunyit','kencur'], match:'nama'},
+      {keys:['ayam','daging','ikan','sapi','udang','telur','sayur','buah','beras','minyak','tepung',
+              'gula','garam','bumbu','rempah','santan','tahu','tempe','susu','wortel','kentang',
+              'bawang','tomat','cabe','cabai','merica','jahe','kunyit','kencur','cabai','sosis',
+              'nugget','fillet','tulang','hati','ampela','usus','ceker','kepala'], match:'nama'},
     ],
     notHPP: [
       {keys:['RETUR / RUSAK','STOCK IN','OPNAME'], match:'kode'},
       {keys:['MASUK','OPNAME'], match:'jenis'},
-      {keys:['bensin','solar','listrik','pdam','pulsa','gaji','seragam','alat','kemasan','plastik','sabun','deterjen','pembersih'], match:'nama'},
+      {keys:['bensin','solar','listrik','pdam','pulsa','gaji','seragam','alat','kemasan',
+              'plastik','sabun','deterjen','pembersih','tisu','tissue','sarung','gelang',
+              'stiker','label','spidol','pena','buku','printer','tinta'], match:'nama'},
     ]
   };
 
+  // Load / save learned data
+  function _hppLearnedLoad() {
+    try { return JSON.parse(localStorage.getItem(_HPP_STORAGE_KEY) || '{"items":{},"keywords":{}}'); }
+    catch { return {items:{}, keywords:{}}; }
+  }
+
+  function _hppLearnedSave(data) {
+    try { localStorage.setItem(_HPP_STORAGE_KEY, JSON.stringify(data)); } catch{}
+  }
+
+  // Simpan keputusan user (dipanggil saat user ubah value HPP dropdown)
+  function hppLearn(itemNama, kode, jenis, userDecision) {
+    if (userDecision === null || userDecision === undefined) return;
+    const learned = _hppLearnedLoad();
+    const key = (itemNama||'').toLowerCase().trim();
+    // Simpan per nama item
+    if (key) {
+      learned.items[key] = {hpp: userDecision, updatedAt: new Date().toISOString()};
+    }
+    // Extract keywords dari nama (min 3 chars) dan simpan
+    if (key.length >= 3) {
+      const words = key.split(/\s+/).filter(w => w.length >= 3);
+      words.forEach(word => {
+        if (!learned.keywords[word]) learned.keywords[word] = {ya:0, tidak:0};
+        learned.keywords[word][userDecision ? 'ya' : 'tidak']++;
+      });
+    }
+    _hppLearnedSave(learned);
+  }
+
+  // Saran AI dengan prioritas: learned > builtin
   function _suggestHPP(kode, jenis, itemNama) {
-    const nama = (itemNama||'').toLowerCase();
+    const nama = (itemNama||'').toLowerCase().trim();
     const k = (kode||'').toUpperCase();
     const j = (jenis||'').toUpperCase();
-    for (const rule of HPP_RULES.notHPP) {
+    const learned = _hppLearnedLoad();
+
+    // 1. Cek exact item name match (highest priority — user explicitly set this)
+    if (learned.items[nama] !== undefined) {
+      return learned.items[nama].hpp;
+    }
+
+    // 2. Cek partial nama match di learned items
+    for (const [learnedNama, data] of Object.entries(learned.items)) {
+      if (nama.includes(learnedNama) || learnedNama.includes(nama)) {
+        return data.hpp;
+      }
+    }
+
+    // 3. Cek learned keywords (jika score dominan)
+    const words = nama.split(/\s+/).filter(w=>w.length>=3);
+    let yaScore = 0, tidakScore = 0;
+    words.forEach(w => {
+      if (learned.keywords[w]) {
+        yaScore    += learned.keywords[w].ya    || 0;
+        tidakScore += learned.keywords[w].tidak || 0;
+      }
+    });
+    if (yaScore > tidakScore && yaScore >= 2)    return true;
+    if (tidakScore > yaScore && tidakScore >= 2) return false;
+
+    // 4. Fallback ke built-in rules
+    for (const rule of _HPP_BUILTIN.notHPP) {
       if (rule.match==='kode' && rule.keys.includes(k)) return false;
       if (rule.match==='jenis' && rule.keys.includes(j)) return false;
       if (rule.match==='nama' && rule.keys.some(kw=>nama.includes(kw))) return false;
     }
-    for (const rule of HPP_RULES.isHPP) {
+    for (const rule of _HPP_BUILTIN.isHPP) {
       if (rule.match==='kode' && rule.keys.includes(k)) return true;
       if (rule.match==='jenis' && rule.keys.includes(j)) return true;
       if (rule.match==='nama' && rule.keys.some(kw=>nama.includes(kw))) return true;
     }
-    return null; // unknown
+    return null;
+  }
+
+  // Statistik AI untuk display
+  function hppAIStats() {
+    const learned = _hppLearnedLoad();
+    const itemCount = Object.keys(learned.items).length;
+    const kwCount   = Object.keys(learned.keywords).length;
+    const totalDecisions = Object.values(learned.items).length;
+    const hppCount  = Object.values(learned.items).filter(v=>v.hpp===true).length;
+    const nonHPP    = Object.values(learned.items).filter(v=>v.hpp===false).length;
+    return {itemCount, kwCount, totalDecisions, hppCount, nonHPP};
+  }
+
+  // Reset AI learning data
+  function hppAIReset() {
+    localStorage.removeItem(_HPP_STORAGE_KEY);
+    Notify.success('AI HPP reset — mulai belajar dari awal');
   }
 
   // ============ FIFO Weighted Average Price untuk KELUAR ============
@@ -1307,8 +1397,10 @@ const InventoryModule = (() => {
   }
 
   // ============ AI Helpers ============
-  function _updateHPPBadge(id, isHPP) {
-    // Visually highlight the select to show AI result
+  function _updateHPPBadge(id, isHPPVal) {
+    // isHPPVal: true/false/'ya'/'tidak'/undefined
+    const isHPP = isHPPVal === true || isHPPVal === 'ya' ? true
+                : isHPPVal === false || isHPPVal === 'tidak' ? false : null;
     const sel = document.getElementById('ivf-hpp-'+id);
     if (!sel) return;
     if (isHPP === true) {
@@ -1321,6 +1413,59 @@ const InventoryModule = (() => {
       sel.style.color = '';
       sel.style.borderColor = '';
     }
+    // === LEARNING: simpan keputusan user ke AI training data ===
+    if (isHPP !== null) {
+      const row = _logs.find(r => r.id === id);
+      if (row) {
+        hppLearn(row.itemNama || '', row.kodeAktivitas || '', row.jenis || '', isHPP);
+      }
+    }
+  }
+
+  function _showHPPAIInfo() {
+    const stats   = hppAIStats();
+    const learned = _hppLearnedLoad();
+    const topItems = Object.entries(learned.items)
+      .sort((a,b) => new Date(b[1].updatedAt||0) - new Date(a[1].updatedAt||0))
+      .slice(0, 8);
+
+    const statsCards = [
+      {l:'Item Dipelajari', v:stats.itemCount,  c:'var(--primary-h)'},
+      {l:'Termasuk HPP',    v:stats.hppCount,   c:'var(--success)'},
+      {l:'Non-HPP',         v:stats.nonHPP,     c:'var(--text-3)'},
+    ].map(s =>
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;text-align:center">'
+      + '<div style="font-size:11px;color:var(--text-3);margin-bottom:3px">'+s.l+'</div>'
+      + '<div style="font-size:20px;font-weight:700;color:'+s.c+';font-family:var(--font-mono)">'+s.v+'</div>'
+      + '</div>'
+    ).join('');
+
+    const itemRows = topItems.map(([nama, d]) =>
+      '<tr>'
+      + '<td>'+nama+'</td>'
+      + '<td style="text-align:center">'+(d.hpp ? '<span style="color:var(--success);font-weight:600">Ya</span>' : '<span style="color:var(--text-3)">Tidak</span>')+'</td>'
+      + '<td class="text-muted text-small">'+(d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('id-ID') : '-')+'</td>'
+      + '</tr>'
+    ).join('');
+
+    const learnedSection = topItems.length
+      ? '<div class="section-title" style="margin-top:var(--s4)">Item yang sudah dipelajari (terbaru)</div>'
+        + '<div style="max-height:200px;overflow-y:auto"><table class="table" style="font-size:12px">'
+        + '<thead><tr><th>Nama Item</th><th style="text-align:center">HPP</th><th>Dipelajari</th></tr></thead>'
+        + '<tbody>'+itemRows+'</tbody></table></div>'
+      : '<div style="text-align:center;padding:20px;color:var(--text-3)">AI belum punya data. Edit kolom HPP di Activity Line untuk melatih AI.</div>';
+
+    const mid = Utils.uid();
+    Modal.open({ id: mid,
+      title: '🤖 AI HPP — Learning Stats',
+      size: 'modal-md',
+      body: '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s3);margin-bottom:var(--s4)">'
+        + statsCards + '</div>'
+        + '<div style="font-size:12px;color:var(--text-3);margin-bottom:var(--s3)">AI belajar dari setiap perubahan HPP yang Anda buat. Keyword unik: <strong style="color:var(--primary-h)">'+stats.kwCount+'</strong></div>'
+        + learnedSection,
+      footer: '<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="InventoryModule.hppAIReset();Modal.close(\'' + mid + '\')" >Reset AI</button>'
+        + '<button class="btn btn-ghost" onclick="Modal.close(\'' + mid + '\')" >Tutup</button>',
+    });
   }
 
   function _aiSuggestHPP(id) {
@@ -1361,6 +1506,20 @@ const InventoryModule = (() => {
     if (kode==='STOCK IN' || kode==='OPNAME') {
       const jenisSelEl = document.getElementById('ivf-jenis-'+id);
       if (jenisSelEl && kode==='STOCK IN') jenisSelEl.value = 'MASUK';
+    }
+  }
+
+  function _onQtyChange(id, val) {
+    // Saat qty berubah, recalc harga KELUAR via FIFO
+    const jenisEl = document.getElementById('ivf-jenis-'+id);
+    if (!jenisEl || jenisEl.value !== 'KELUAR') return;
+    const row  = _logs.find(r=>r.id===id);
+    if (!row || !row.itemId) return;
+    const qty  = parseFloat(val) || 0;
+    if (qty <= 0) return;
+    const hargaEl = document.getElementById('ivf-harga-'+id);
+    if (hargaEl) {
+      hargaEl.value = _getFIFOAveragePrice(row.itemId, qty);
     }
   }
 
@@ -1411,8 +1570,13 @@ const InventoryModule = (() => {
     _aiSuggestHPP,
     _onKodeChange,
     _onJenisChange,
+    _onQtyChange,
     deleteOpnameRow,
     exportOpnameCSV,
+    hppLearn,
+    hppAIStats,
+    hppAIReset,
+    _showHPPAIInfo,
   };
 
 })();
