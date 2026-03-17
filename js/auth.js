@@ -44,6 +44,7 @@ const Auth = {
     if (!user) throw new Error('Username atau password salah, atau akun tidak aktif');
 
     this._user = { ...user };
+    const mustChange = user.mustChangePassword === true;
     delete this._user.password;
 
     if (remember) {
