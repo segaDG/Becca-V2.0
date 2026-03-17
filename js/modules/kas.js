@@ -144,8 +144,7 @@ const KasModule = (() => {
     const bulanOpts= [...new Set(_kas.map(r=>r.bulan).filter(Boolean))].sort();
 
     document.getElementById('kas-tab-transaksi').innerHTML = `
-      <div style="display:flex;gap:var(--s3);margin-bottom:var(--s3);flex-wrap:wrap" id="kas-balance-cards"></div>
-      <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">${_summaryStrip(filtered)}</div>
+      <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap" id="kas-strip-wrap">${_summaryStrip(filtered)}<div id="kas-balance-cards" style="display:contents"></div></div>
       <div class="filter-bar" style="margin-bottom:var(--s3)">
         <input type="date" class="form-control" value="${_filter.dateFrom}" onchange="KasModule.setFilter('dateFrom',this.value)" style="width:140px">
         <input type="date" class="form-control" value="${_filter.dateTo}"   onchange="KasModule.setFilter('dateTo',this.value)"   style="width:140px">
@@ -167,16 +166,23 @@ const KasModule = (() => {
         <span class="text-muted text-small" style="margin-left:auto">${total} baris · ${Utils.formatRupiah(sum)}</span>
       </div>
       ${canEdit ? '<div style="font-size:11px;color:var(--text-3);padding:2px 0 6px;font-style:italic">Klik baris untuk edit · Enter untuk simpan · Type otomatis saat ketik Nama</div>' : ''}
-      <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
-        ${canEdit ? `<button class="btn btn-primary btn-sm" onclick="KasModule.addRow()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M12 5v14M5 12h14"/></svg>
-          Baris Baru
-        </button>` : ''}
+
+      <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:6px;min-height:24px">
+        <div id="kas-balance-bar" style="text-align:right"></div>
       </div>
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-lg)">
         <table class="ks-tbl" id="kas-grid">
           <thead><tr>
-            <th style="width:32px">#</th>
+            <th style="width:32px;padding:0;text-align:center">
+              ${canEdit
+                ? `<button title="Baris Baru" onclick="KasModule.addRow()"
+                    style="width:100%;height:100%;border:none;background:transparent;cursor:pointer;
+                           color:var(--primary-h);font-size:16px;font-weight:700;line-height:1;
+                           display:flex;align-items:center;justify-content:center;padding:6px;"
+                    onmouseover="this.style.background='rgba(99,102,241,.15)'"
+                    onmouseout="this.style.background='transparent'">+</button>`
+                : '#'}
+            </th>
             <th style="width:108px">Tanggal</th>
             <th style="min-width:180px">Nama / Keterangan</th>
             <th style="width:130px">Type <span class="ks-ai-badge">AI</span></th>
@@ -207,6 +213,8 @@ const KasModule = (() => {
           </div>
         </div>` : ''}
     `;
+    // Refresh balance cards setelah render
+    _renderBalanceCards();
   }
 
   /* ---- VIEW ROW ---- */
@@ -543,6 +551,7 @@ const KasModule = (() => {
   async function _renderBalanceCards() {
     const container = document.getElementById('kas-balance-cards');
     if (!container) return;
+    container.innerHTML = ''; // clear dulu
     
     try {
       // Kas masuk dari DB
@@ -562,66 +571,29 @@ const KasModule = (() => {
           label: 'Kas Masuk',
           value: Utils.formatRupiah(totalMasuk, true),
           color: 'var(--success)',
-          icon: `<svg viewBox="0 0 20 20" fill="none" width="18" height="18">
-            <path d="M3 10h14M10 4l6 6-6 6" stroke="var(--success)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>`,
-          sub: masukData.length + ' transaksi masuk',
-          gradient: 'linear-gradient(135deg,rgba(34,197,94,.08),rgba(16,185,129,.04))',
-          border: 'rgba(34,197,94,.25)',
-        },
-        {
-          label: 'Balance',
-          value: Utils.formatRupiah(Math.abs(balance), true),
-          color: balanceColor,
-          icon: `<svg viewBox="0 0 20 20" fill="none" width="18" height="18">
-            <defs><linearGradient id="balGrad" x1="0" y1="0" x2="20" y2="20">
-              <stop offset="0%" stop-color="${balance>=0?'#22c55e':'#ef4444'}"/>
-              <stop offset="100%" stop-color="${balance>=0?'#10b981':'#f97316'}"/>
-            </linearGradient></defs>
-            <path d="M4 12l3-3 3 3 6-6" stroke="url(#balGrad)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="10" cy="17" r="2" fill="url(#balGrad)" opacity=".6"/>
-          </svg>`,
-          sub: balance >= 0 ? 'Surplus' : 'Defisit',
-          gradient: balance>=0 
-            ? 'linear-gradient(135deg,rgba(34,197,94,.08),rgba(16,185,129,.04))'
-            : 'linear-gradient(135deg,rgba(239,68,68,.08),rgba(249,115,22,.04))',
-          border: balance>=0 ? 'rgba(34,197,94,.25)' : 'rgba(239,68,68,.25)',
-          prefix: balance < 0 ? '- ' : '',
+          prefix: '',
         },
       ];
+      // Inject Balance bar di atas table
+      const balanceBarEl = document.getElementById('kas-balance-bar');
+      if (balanceBarEl) {
+        const balSign  = balance >= 0 ? '+' : '-';
+        const balColor = balance >= 0 ? 'var(--success)' : 'var(--danger)';
+        const balLabel = balance >= 0 ? 'Surplus' : 'Defisit';
+        balanceBarEl.innerHTML =
+          '<span style="font-size:12px;color:var(--text-3)">Balance &nbsp;</span>'
+          + '<span style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:'+balColor+'">'
+          + balSign+' '+Utils.formatRupiah(Math.abs(balance), true)+'</span>'
+          + '&nbsp;<span style="font-size:11px;color:'+balColor+'">'+balLabel+'</span>';
+      }
       
-      container.innerHTML = cards.map(c => `
-        <div style="
-          background:${c.gradient};
-          border:1px solid ${c.border};
-          border-radius:var(--r-lg);
-          padding:14px 20px;
-          min-width:200px;
-          display:flex;
-          align-items:center;
-          gap:12px;
-          transition:all .2s;
-          position:relative;
-          overflow:hidden;
-        "
-        onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='var(--shadow-md)'"
-        onmouseout="this.style.transform='';this.style.boxShadow=''">
-          <div style="
-            width:38px;height:38px;border-radius:10px;
-            background:${c.color}18;
-            border:1px solid ${c.color}30;
-            display:flex;align-items:center;justify-content:center;
-            flex-shrink:0;
-          ">${c.icon}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">${c.label}</div>
-            <div style="font-size:18px;font-weight:700;color:${c.color};font-family:var(--font-mono);white-space:nowrap">
-              ${c.prefix||''}${c.value}
-            </div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:1px">${c.sub}</div>
-          </div>
-        </div>
-      `).join('');
+      // Render dengan template SAMA seperti _summaryStrip
+      container.innerHTML = cards.map(c =>
+        '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">'
+        + '<div style="font-size:11px;color:var(--text-3);margin-bottom:4px">'+c.label+'</div>'
+        + '<div style="font-size:18px;font-weight:700;color:'+c.color+';font-family:var(--font-mono)">'+(c.prefix||'')+c.value+'</div>'
+        + '</div>'
+      ).join('');
     } catch(e) {
       console.error('Balance cards error:', e);
     }
