@@ -733,6 +733,12 @@ const InventoryModule = (() => {
       const rowNum  = allRows.indexOf(trEl)+1;
       trEl.outerHTML = _ivRowView(row, rowNum, true);
     }
+    if (row._hasChanged === false) {
+      // Tidak ada perubahan - skip save dan log
+      delete row._original; delete row._hasChanged;
+      return;
+    }
+    delete row._original; delete row._hasChanged;
     DB.saveInventoryLog(row).then(() => {
       _recalcStok();
       // Update item hargaSatuan if MASUK and harga provided
