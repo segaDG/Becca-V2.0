@@ -23,8 +23,9 @@ const EmployeeModule = (() => {
     const sz = size || 32;
     const initials = (emp.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
     const color = _empColor(emp.nama);
-    if (emp.fotoUrl) {
-      return '<img src="'+emp.fotoUrl+'" style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;object-fit:cover">';
+    const photoUrl = emp.fotoUrl || emp.thumb || emp.foto || emp.photo || '';
+    if (photoUrl) {
+      return '<img src="'+photoUrl+'" style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;object-fit:cover">';
     }
     return '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+color+';color:white;display:flex;align-items:center;justify-content:center;font-size:'+(sz*0.35)+'px;font-weight:700;flex-shrink:0">'+initials+'</div>';
   }
@@ -79,20 +80,28 @@ const EmployeeModule = (() => {
 
   /* ===================== RENDER DATA ===================== */
   function renderData() {
-    const ARSIP_STATUS = ['Arsip','RESIGN','Inactive','INACTIVE','Keluar','keluar'];
-    const active   = _employees.filter(e => !ARSIP_STATUS.includes(e.status));
-    const depts    = [...new Set(active.map(e=>e.departemen).filter(Boolean))].sort();
+    // Show all in main table (including RESIGN), only hide 'Arsip'
+    const active   = _employees.filter(e => e.status !== 'Arsip');
+    const depts    = [...new Set(active.map(e=>e.divisi||e.departemen).filter(Boolean))].sort();
     const canEdit  = Auth.can('employee','edit');
 
     // Apply filter
     let filtered = active;
     if (_filterStatus) filtered = filtered.filter(e=>e.status===_filterStatus);
-    if (_filterDept)   filtered = filtered.filter(e=>e.departemen===_filterDept);
+    if (_filterDept)   filtered = filtered.filter(e=>(e.divisi||e.departemen)===_filterDept);
 
     // Apply sort
     filtered = [...filtered].sort((a,b) => {
-      const va = (a[_sortField]||'').toString().toLowerCase();
-      const vb = (b[_sortField]||'').toString().toLowerCase();
+      // Handle field aliases
+      const getVal = (e) => {
+        if (_sortField==='departemen') return e.divisi||e.departemen||'';
+        if (_sortField==='nip') return e.nik||e.nip||'';
+        if (_sortField==='tglMasuk') return e.tglJoin||e.tglMasuk||'';
+        if (_sortField==='gajiPokok') return e.gaji||e.gajiPokok||0;
+        return e[_sortField]||'';
+      };
+      const va = getVal(a).toString().toLowerCase();
+      const vb = getVal(b).toString().toLowerCase();
       return _sortDir==='asc' ? va.localeCompare(vb) : vb.localeCompare(va);
     });
 
@@ -104,8 +113,8 @@ const EmployeeModule = (() => {
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
         ${[
           {l:'Total Aktif', v:active.length,                                        c:'var(--primary-h)'},
-          {l:'Aktif/Tetap', v:active.filter(e=>['Tetap','ACTIVE','Active'].includes(e.status)).length, c:'var(--success)'},
-          {l:'Kontrak',     v:active.filter(e=>['Kontrak','CONTRACT','Kontrak'].includes(e.status)).length, c:'var(--warning)'},
+          {l:'Aktif',    v:active.filter(e=>['Tetap','ACTIVE','Active'].includes(e.status)).length, c:'var(--success)'},
+          {l:'Lainnya',  v:active.filter(e=>!['Tetap','ACTIVE','Active'].includes(e.status)).length, c:'var(--warning)'},
           {l:'Departemen',  v:depts.length+' dept',                                 c:'var(--text-2)'},
         ].map(s=>`
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">
@@ -118,7 +127,7 @@ const EmployeeModule = (() => {
       <div class="filter-bar" style="margin-bottom:var(--s3)">
         <select class="form-control" style="width:150px" onchange="EmployeeModule.setFilter('status',this.value)">
           <option value="">Semua Status</option>
-          ${['Tetap','Kontrak','Percobaan','Harian'].map(s=>`<option value="${s}" ${_filterStatus===s?'selected':''}>${s}</option>`).join('')}
+          ${[...new Set(_employees.map(e=>e.status).filter(Boolean))].sort().map(s=>`<option value="${s}" ${_filterStatus===s?'selected':''}>${s}</option>`).join('')}
         </select>
         <select class="form-control" style="width:160px" onchange="EmployeeModule.setFilter('dept',this.value)">
           <option value="">Semua Departemen</option>
@@ -135,11 +144,13 @@ const EmployeeModule = (() => {
             <thead><tr>
               <th style="width:36px">#</th>
               <th onclick="EmployeeModule.sortBy('nama')" style="cursor:pointer">Nama${sortIcon('nama')}</th>
-              <th onclick="EmployeeModule.sortBy('nip')"  style="cursor:pointer">NIP${sortIcon('nip')}</th>
+              <th onclick="EmployeeModule.sortBy('nik')"  style="cursor:pointer">NIK${sortIcon('nik')}</th>
               <th onclick="EmployeeModule.sortBy('jabatan')" style="cursor:pointer">Jabatan${sortIcon('jabatan')}</th>
-              <th onclick="EmployeeModule.sortBy('departemen')" style="cursor:pointer">Departemen${sortIcon('departemen')}</th>
+              <th onclick="EmployeeModule.sortBy('divisi')" style="cursor:pointer">Divisi${sortIcon('divisi')}</th>
               <th onclick="EmployeeModule.sortBy('status')" style="cursor:pointer">Status${sortIcon('status')}</th>
-              <th onclick="EmployeeModule.sortBy('tglMasuk')" style="cursor:pointer">Tgl Masuk${sortIcon('tglMasuk')}</th>
+              <th onclick="EmployeeModule.sortBy('tglJoin')" style="cursor:pointer">Tgl Join${sortIcon('tglJoin')}</th>
+              <th onclick="EmployeeModule.sortBy('gaji')" style="cursor:pointer">Gaji${sortIcon('gaji')}</th>
+              <th onclick="EmployeeModule.sortBy('sisaHutang')" style="cursor:pointer">Hutang${sortIcon('sisaHutang')}</th>
               ${canEdit ? '<th style="width:80px">Aksi</th>' : ''}
             </tr></thead>
             <tbody>
@@ -166,11 +177,13 @@ const EmployeeModule = (() => {
                       </div>
                     </div>
                   </td>
-                  <td class="text-muted text-small">${emp.nip||'-'}</td>
+                  <td class="text-muted text-small">${emp.nik||emp.nip||'-'}</td>
                   <td>${emp.jabatan||'-'}</td>
-                  <td><span class="badge badge-neutral">${emp.departemen||'-'}</span></td>
+                  <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
                   <td><span class="badge ${statusColor}">${emp.status||'-'}</span></td>
-                  <td class="text-small text-muted">${emp.tglMasuk||'-'}</td>
+                  <td class="text-small text-muted">${emp.tglJoin||emp.tglMasuk||'-'}</td>
+                  <td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,true):'-'}</td>
+                  <td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,true):'-'}</td>
                   ${canEdit ? `<td onclick="event.stopPropagation()">
                     <div style="display:flex;gap:4px">
                       <button class="btn-icon" title="Edit" onclick="EmployeeModule.openEmpModal('${emp.id}')">
@@ -280,10 +293,11 @@ const EmployeeModule = (() => {
       <div style="padding:14px 16px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
           ${[
-            {l:'NIP',        v:emp.nip||'-'},
+            {l:'NIK',        v:emp.nik||emp.nip||'-'},
             {l:'No. HP',     v:emp.noHp||'-'},
-            {l:'Tgl Masuk',  v:emp.tglMasuk||'-'},
-            {l:'Gaji Pokok', v:emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-'},
+            {l:'Tgl Join',   v:emp.tglJoin||emp.tglMasuk||'-'},
+            {l:'Gaji',       v:emp.gaji?Utils.formatRupiah(emp.gaji):(emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-')},
+            {l:'Sisa Hutang',v:emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang):'-'},
           ].map(f=>`<div>
             <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em">${f.l}</div>
             <div style="font-size:12px;font-weight:500;color:var(--text)">${f.v}</div>
@@ -342,13 +356,21 @@ const EmployeeModule = (() => {
           </div>
           <div style="padding:16px">
             ${[
-              {l:'NIP',         v:emp.nip||'-'},
-              {l:'Departemen',  v:emp.departemen||'-'},
+              {l:'NIK',         v:emp.nik||emp.nip||'-'},
+              {l:'Panggilan',   v:emp.panggilan||'-'},
+              {l:'Divisi',      v:emp.divisi||emp.departemen||'-'},
+              {l:'Jabatan',     v:emp.jabatan||'-'},
               {l:'No. HP',      v:emp.noHp||'-'},
-              {l:'Alamat',      v:emp.alamat||'-'},
-              {l:'Tgl Masuk',   v:emp.tglMasuk||'-'},
-              {l:'Gaji Pokok',  v:emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-'},
+              {l:'Tgl Lahir',   v:emp.tglLahir||'-'},
+              {l:'Tempat Lahir',v:emp.tempatLahir||'-'},
+              {l:'Agama',       v:emp.agama||'-'},
+              {l:'Pendidikan',  v:emp.pendidikan||'-'},
+              {l:'Tgl Join',    v:emp.tglJoin||emp.tglMasuk||'-'},
+              {l:'Gaji',        v:emp.gaji?Utils.formatRupiah(emp.gaji):(emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-')},
+              {l:'Gaji Awal',   v:emp.gajiAwal?Utils.formatRupiah(emp.gajiAwal):'-'},
+              {l:'Sisa Hutang', v:emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang):'-'},
               {l:'No. Rekening',v:emp.noRek||'-'},
+              {l:'KTP',         v:emp.ktp||'-'},
             ].map(f=>`
               <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
                 <span style="font-size:12px;color:var(--text-3)">${f.l}</span>
