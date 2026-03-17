@@ -61,6 +61,8 @@ const InventoryModule = (() => {
 
     // Hitung stok setiap item dari logs
     _recalcStok();
+    // Reset edit state on every page load
+    _invEditId = null;
     switchTab('stok');
   }
 
@@ -97,8 +99,17 @@ const InventoryModule = (() => {
       const tabBtn = document.getElementById('inv-tab-btn-'+t);
       if (tabBtn) tabBtn.classList.toggle('active', t === tab);
     });
-    const renders = { stok: renderStok, transaksi: renderTransaksi, alert: renderAlert, opname: renderOpnameTab };
-    renders[tab]?.();
+    // For activity line tab: reload logs from DB first to catch opname/external updates
+    if (tab === 'transaksi') {
+      DB.getInventory().then(freshLogs => {
+        _logs = freshLogs;
+        _recalcStok();
+        renderTransaksi();
+      }).catch(() => renderTransaksi());
+    } else {
+      const renders = { stok: renderStok, alert: renderAlert, opname: renderOpnameTab };
+      renders[tab]?.();
+    }
   }
 
   /* ===================== TAB: STOK BARANG ===================== */
@@ -933,7 +944,7 @@ const InventoryModule = (() => {
     const log = {
       tgl, itemId: item.id, itemNama: item.nama,
       jenis: 'OPNAME', jumlah, stokAkhir: jumlah, harga: 0,
-      kodeAktivitas: 'OPNAME', hpp: 0, pengambil: '', penanggungJawab: '',
+      kodeAktivitas: 'OPNAME', hpp: null, pengambil: '', penanggungJawab: '',
       catatan: catatan || ('Opname: '+prevStok+' → '+jumlah+(selisih>=0?' (+'+selisih+')':' ('+selisih+')')),
     };
     try {
