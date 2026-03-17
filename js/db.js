@@ -4,10 +4,7 @@
 ============================================ */
 const DB = {
   _config: null,
-
-  init(firebaseConfig) {
-    this._config = firebaseConfig;
-  },
+  init(firebaseConfig) { this._config = firebaseConfig; },
 
   /* ============ HELPERS ============ */
   _get(key) {
@@ -35,65 +32,78 @@ const DB = {
   },
 
   /* ============ USERS ============ */
-  getUsers()         { return this._get('users'); },
-  saveUser(data)     { if (!data.id) data.id = Utils.uid(); return this._save('users', data); },
-  deleteUser(id)     { return this._delete('users', id); },
+  getUsers()              { return this._get('users'); },
+  saveUser(data)          { if (!data.id) data.id = Utils.uid(); return this._save('users', data); },
+  deleteUser(id)          { return this._delete('users', id); },
 
   /* ============ ORDERS ============ */
-  getOrders()        { return this._get('orders'); },
-  saveOrder(data)    { if (!data.id) data.id = Utils.uid(); return this._save('orders', data); },
-  deleteOrder(id)    { return this._delete('orders', id); },
+  getOrders()             { return this._get('orders'); },
+  saveOrder(data)         { if (!data.id) data.id = Utils.uid(); return this._save('orders', data); },
+  deleteOrder(id)         { return this._delete('orders', id); },
 
   /* ============ INVOICES ============ */
-  getInvoices()      { return this._get('invoices'); },
-  saveInvoice(data)  { if (!data.id) data.id = Utils.uid(); return this._save('invoices', data); },
-  deleteInvoice(id)  { return this._delete('invoices', id); },
+  getInvoices()           { return this._get('invoices'); },
+  saveInvoice(data)       { if (!data.id) data.id = Utils.uid(); return this._save('invoices', data); },
+  deleteInvoice(id)       { return this._delete('invoices', id); },
 
   /* ============ CUSTOMERS ============ */
-  getCustomers()     { return this._get('customers'); },
-  saveCustomer(data) { if (!data.id) data.id = Utils.uid(); return this._save('customers', data); },
-  deleteCustomer(id) { return this._delete('customers', id); },
+  getCustomers()          { return this._get('customers'); },
+  saveCustomer(data)      { if (!data.id) data.id = Utils.uid(); return this._save('customers', data); },
+  deleteCustomer(id)      { return this._delete('customers', id); },
 
   /* ============ KAS ============ */
-  getKas()           { return this._get('kas'); },
-  saveKas(data)      {
+  getKas()                { return this._get('kas'); },
+  saveKas(data) {
     if (!data.id) data.id = Utils.uid();
     data.createdAt = data.createdAt || new Date().toISOString();
     data.createdBy = data.createdBy || (typeof Auth !== 'undefined' ? Auth.currentUser()?.nama : '') || '';
     return this._save('kas', data);
   },
-  deleteKas(id)      { return this._delete('kas', id); },
-  getKasMasuk()      { return this._get('kas_masuk'); },
-  saveKasMasuk(data) { if (!data.id) data.id = Utils.uid(); return this._save('kas_masuk', data); },
+  deleteKas(id)           { return this._delete('kas', id); },
+  getKasMasuk()           { return this._get('kas_masuk'); },
+  saveKasMasuk(data)      { if (!data.id) data.id = Utils.uid(); return this._save('kas_masuk', data); },
 
   /* ============ INVENTORY ============ */
   getInventory()          { return this._get('inventory'); },
-  saveInventory(data)     { if (!data.id) data.id = Utils.uid(); data.createdAt = data.createdAt || new Date().toISOString(); return this._save('inventory', data); },
+  // saveInventory = alias for inventory logs (activity line)
+  saveInventory(data) {
+    if (!data.id) data.id = Utils.uid();
+    data.createdAt = data.createdAt || new Date().toISOString();
+    return this._save('inventory', data);
+  },
+  // Explicit alias used by inventory.js
+  saveInventoryLog(data) {
+    if (!data.id) data.id = Utils.uid();
+    data.createdAt = data.createdAt || new Date().toISOString();
+    return this._save('inventory', data);
+  },
+  deleteInventoryLog(id)  { return this._delete('inventory', id); },
+
   getInventoryItems()     { return this._get('inv_products'); },
   saveInventoryItem(data) { if (!data.id) data.id = Utils.uid(); return this._save('inv_products', data); },
   deleteInventoryItem(id) { return this._delete('inv_products', id); },
 
   /* ============ EMPLOYEES ============ */
-  getEmployees()       { return this._get('employees'); },
-  saveEmployee(data)   { if (!data.id) data.id = Utils.uid(); return this._save('employees', data); },
-  getEmployeeLogs()    { return this._get('emp_logs'); },
-  saveEmployeeLog(data){ if (!data.id) data.id = Utils.uid(); return this._save('emp_logs', data); },
-  deleteEmployeeLog(id){ return this._delete('emp_logs', id); },
+  getEmployees()          { return this._get('employees'); },
+  saveEmployee(data)      { if (!data.id) data.id = Utils.uid(); return this._save('employees', data); },
+  getEmployeeLogs()       { return this._get('emp_logs'); },
+  saveEmployeeLog(data)   { if (!data.id) data.id = Utils.uid(); return this._save('emp_logs', data); },
+  deleteEmployeeLog(id)   { return this._delete('emp_logs', id); },
 
   /* ============ ACCOUNT PAYABLE ============ */
-  getAP()            { return this._get('ap'); },
-  saveAP(data)       { if (!data.id) data.id = Utils.uid(); return this._save('ap', data); },
-  getSuppliers()     { return this._get('suppliers'); },
-  saveSupplier(data) { if (!data.id) data.id = Utils.uid(); return this._save('suppliers', data); },
+  getAP()                 { return this._get('ap'); },
+  saveAP(data)            { if (!data.id) data.id = Utils.uid(); return this._save('ap', data); },
+  getSuppliers()          { return this._get('suppliers'); },
+  saveSupplier(data)      { if (!data.id) data.id = Utils.uid(); return this._save('suppliers', data); },
 
   /* ============ TASKS ============ */
-  getTasks()         { return this._get('tasks'); },
-  saveTask(data)     { if (!data.id) data.id = Utils.uid(); return this._save('tasks', data); },
-  deleteTask(id)     { return this._delete('tasks', id); },
+  getTasks()              { return this._get('tasks'); },
+  saveTask(data)          { if (!data.id) data.id = Utils.uid(); return this._save('tasks', data); },
+  deleteTask(id)          { return this._delete('tasks', id); },
 
   /* ============ SETTINGS ============ */
-  getSettings()      { return this._get('settings').then(d => d[0] || {}); },
-  saveSettings(data) { return this._save('settings', { ...data, id: 'settings' }); },
+  getSettings()           { return this._get('settings').then(d => d[0] || {}); },
+  saveSettings(data)      { return this._save('settings', { ...data, id: 'settings' }); },
 
   /* ============ ACTIVITY LOG ============ */
   logActivity(entry) {
@@ -108,10 +118,10 @@ const DB = {
     };
     return this._save('activity_log', log);
   },
-  getActivityLog()   { return this._get('activity_log'); },
-  clearActivityLog() { localStorage.removeItem('becca_activity_log'); return Promise.resolve(true); },
+  getActivityLog()        { return this._get('activity_log'); },
+  clearActivityLog()      { localStorage.removeItem('becca_activity_log'); return Promise.resolve(true); },
 
   /* ============ GENERIC ============ */
-  delete(collection, id) { return this._delete(collection, id); },
+  delete(collection, id)  { return this._delete(collection, id); },
 };
 window.DB = DB;
