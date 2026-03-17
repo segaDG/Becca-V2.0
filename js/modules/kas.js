@@ -127,7 +127,7 @@ const KasModule = (() => {
     if (hdr) hdr.innerHTML = tab==='transaksi' && Auth.can('kas','edit')
       ? `<button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>`
       : '';
-    if (tab==='transaksi') renderTransaksi();
+    if (tab==='transaksi') { renderTransaksi(); _renderBalanceCards(); }
     else if (tab==='summary')  renderSummary();
     else if (tab==='monthly')  renderMonthly();
     else if (tab==='cashflow') renderCashflow();
@@ -144,6 +144,7 @@ const KasModule = (() => {
     const bulanOpts= [...new Set(_kas.map(r=>r.bulan).filter(Boolean))].sort();
 
     document.getElementById('kas-tab-transaksi').innerHTML = `
+      <div style="display:flex;gap:var(--s3);margin-bottom:var(--s3);flex-wrap:wrap" id="kas-balance-cards"></div>
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">${_summaryStrip(filtered)}</div>
       <div class="filter-bar" style="margin-bottom:var(--s3)">
         <input type="date" class="form-control" value="${_filter.dateFrom}" onchange="KasModule.setFilter('dateFrom',this.value)" style="width:140px">
@@ -528,6 +529,104 @@ const KasModule = (() => {
       </table></div></div>`;
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, _onNamaInput, _calcTotal, deleteRow, renderMonthlyTable, exportCSV };
+  /* ===================== BALANCE CARDS ===================== */
+  const _AI_SVG_KAS = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+    <defs><linearGradient id="kasAI" x1="0" y1="0" x2="20" y2="20">
+      <stop offset="0%" stop-color="#818cf8"/><stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient></defs>
+    <circle cx="10" cy="10" r="9" fill="url(#kasAI)" opacity=".15"/>
+    <path d="M10 4v2M10 14v2M4 10h2M14 10h2M5.6 5.6l1.1 1.1M13.3 13.3l1.1 1.1M5.6 14.4l1.1-1.1M13.3 6.7l1.1-1.1" 
+          stroke="url(#kasAI)" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="10" cy="10" r="2.5" fill="url(#kasAI)"/>
+  </svg>`;
+
+  async function _renderBalanceCards() {
+    const container = document.getElementById('kas-balance-cards');
+    if (!container) return;
+    
+    try {
+      // Kas masuk dari DB
+      const masukData = await DB.getKasMasuk().catch(()=>[]);
+      const totalMasuk  = masukData.reduce((s,r) => s + (r.kredit||0), 0);
+      
+      // Kas keluar (confirmed/DONE only)
+      const totalKeluar = _kas.filter(r=>r.status==='DONE').reduce((s,r) => s + (r.jumlah||0), 0);
+      const totalAllKeluar = _kas.reduce((s,r) => s + (r.jumlah||0), 0); // incl TBC
+      
+      // Balance
+      const balance = totalMasuk - totalKeluar;
+      const balanceColor = balance >= 0 ? 'var(--success)' : 'var(--danger)';
+      
+      const cards = [
+        {
+          label: 'Kas Masuk',
+          value: Utils.formatRupiah(totalMasuk, true),
+          color: 'var(--success)',
+          icon: `<svg viewBox="0 0 20 20" fill="none" width="18" height="18">
+            <path d="M3 10h14M10 4l6 6-6 6" stroke="var(--success)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>`,
+          sub: masukData.length + ' transaksi masuk',
+          gradient: 'linear-gradient(135deg,rgba(34,197,94,.08),rgba(16,185,129,.04))',
+          border: 'rgba(34,197,94,.25)',
+        },
+        {
+          label: 'Balance',
+          value: Utils.formatRupiah(Math.abs(balance), true),
+          color: balanceColor,
+          icon: `<svg viewBox="0 0 20 20" fill="none" width="18" height="18">
+            <defs><linearGradient id="balGrad" x1="0" y1="0" x2="20" y2="20">
+              <stop offset="0%" stop-color="${balance>=0?'#22c55e':'#ef4444'}"/>
+              <stop offset="100%" stop-color="${balance>=0?'#10b981':'#f97316'}"/>
+            </linearGradient></defs>
+            <path d="M4 12l3-3 3 3 6-6" stroke="url(#balGrad)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="10" cy="17" r="2" fill="url(#balGrad)" opacity=".6"/>
+          </svg>`,
+          sub: balance >= 0 ? 'Surplus' : 'Defisit',
+          gradient: balance>=0 
+            ? 'linear-gradient(135deg,rgba(34,197,94,.08),rgba(16,185,129,.04))'
+            : 'linear-gradient(135deg,rgba(239,68,68,.08),rgba(249,115,22,.04))',
+          border: balance>=0 ? 'rgba(34,197,94,.25)' : 'rgba(239,68,68,.25)',
+          prefix: balance < 0 ? '- ' : '',
+        },
+      ];
+      
+      container.innerHTML = cards.map(c => `
+        <div style="
+          background:${c.gradient};
+          border:1px solid ${c.border};
+          border-radius:var(--r-lg);
+          padding:14px 20px;
+          min-width:200px;
+          display:flex;
+          align-items:center;
+          gap:12px;
+          transition:all .2s;
+          position:relative;
+          overflow:hidden;
+        "
+        onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='var(--shadow-md)'"
+        onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div style="
+            width:38px;height:38px;border-radius:10px;
+            background:${c.color}18;
+            border:1px solid ${c.color}30;
+            display:flex;align-items:center;justify-content:center;
+            flex-shrink:0;
+          ">${c.icon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">${c.label}</div>
+            <div style="font-size:18px;font-weight:700;color:${c.color};font-family:var(--font-mono);white-space:nowrap">
+              ${c.prefix||''}${c.value}
+            </div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:1px">${c.sub}</div>
+          </div>
+        </div>
+      `).join('');
+    } catch(e) {
+      console.error('Balance cards error:', e);
+    }
+  }
+
+  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, _onNamaInput, _calcTotal, deleteRow, renderMonthlyTable, exportCSV, _renderBalanceCards };
 })();
 window.KasModule = KasModule;
