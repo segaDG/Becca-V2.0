@@ -105,7 +105,7 @@ const KasModule = (() => {
   function _renderShell() {
     return `
       <div class="page-header">
-        <div class="page-header-left"><h2>Kas Kecil</h2><p>Klik baris untuk edit langsung · Type otomatis via AI</p></div>
+        <div class="page-header-left"><h2>Kas Kecil</h2><p>Manajemen kas dan pengeluaran</p></div>
         <div class="page-header-right"><span id="kas-hdr-btn"></span></div>
       </div>
       <div class="tabs">
@@ -176,7 +176,7 @@ const KasModule = (() => {
           onmouseout="this.style.background='transparent';this.style.color='var(--text-2)'">↺</button>
         <span class="text-muted text-small" style="margin-left:auto">${total} baris · ${Utils.formatRupiah(sum)}</span>
       </div>
-      ${canEdit ? '<div style="font-size:11px;color:var(--text-3);padding:2px 0 6px;font-style:italic">Klik baris untuk edit · Enter untuk simpan · Type otomatis saat ketik Nama</div>' : ''}
+
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;min-height:24px">
         <div id="kas-saldo-bar" style="font-size:12px;color:var(--text-3)"></div>
@@ -475,7 +475,10 @@ const KasModule = (() => {
 
   /* ===================== SUMMARY TAB ===================== */
   function renderSummary() {
-    const byType=Utils.groupBy(_kas,'type'), byBulan=Utils.groupBy(_kas,'bulan');
+    // Normalize bulan sebelum group agar variasi digabung
+    const kasNorm = _kas.map(r => ({...r, bulan: _normalizeBulan(r.bulan)}));
+    const byType  = Utils.groupBy(kasNorm, 'type');
+    const byBulan = Utils.groupBy(kasNorm, 'bulan');
     const typeRows=Object.entries(byType).map(([t,rows])=>({t,total:Utils.sumBy(rows,'jumlah'),count:rows.length})).sort((a,b)=>b.total-a.total);
     const grand=typeRows.reduce((s,r)=>s+r.total,0);
     document.getElementById('kas-tab-summary').innerHTML=`
@@ -499,7 +502,9 @@ const KasModule = (() => {
 
   /* ===================== MONTHLY REPORT ===================== */
   function renderMonthly() {
-    const opts=[...new Set(_kas.map(r=>r.bulan).filter(Boolean))].sort();
+    // Normalize dan deduplicate bulan
+    const rawBulans = _kas.map(r=>_normalizeBulan(r.bulan)).filter(Boolean);
+    const opts = [...new Set(rawBulans)].sort((a,b)=>(_BULAN_IDX[a]||99)-(_BULAN_IDX[b]||99));
     const sel=opts[opts.length-1]||'';
     document.getElementById('kas-tab-monthly').innerHTML=`
       <div class="filter-bar" style="margin-bottom:var(--s5)">
@@ -513,7 +518,7 @@ const KasModule = (() => {
   }
 
   function renderMonthlyTable(bulan) {
-    const rows   = _kas.filter(r => r.bulan === bulan);
+    const rows   = _kas.filter(r => _normalizeBulan(r.bulan) === bulan);
     const byType = {};
     rows.forEach(r => {
       const t = r.type || 'Lain-lain';
@@ -868,6 +873,27 @@ const KasModule = (() => {
     'Jan':1,'Feb':2,'Mar':3,'Apr':4,'Mei':5,'Jun':6,
     'Jul':7,'Ags':8,'Sep':9,'Okt':10,'Nov':11,'Des':12
   };
+  // Normalize semua variasi penulisan bulan ke kode pendek (3 huruf)
+  const _BULAN_NORMALIZE = {
+    'januari':'Jan','january':'Jan','jan':'Jan',
+    'februari':'Feb','february':'Feb','feb':'Feb','febuari':'Feb','februri':'Feb',
+    'maret':'Mar','march':'Mar','mar':'Mar',
+    'april':'Apr','apr':'Apr',
+    'mei':'Mei','may':'Mei',
+    'juni':'Jun','june':'Jun','jun':'Jun',
+    'juli':'Jul','july':'Jul','jul':'Jul',
+    'agustus':'Ags','august':'Ags','ags':'Ags','aug':'Ags',
+    'september':'Sep','sept':'Sep','sep':'Sep',
+    'oktober':'Okt','october':'Okt','okt':'Okt','oct':'Okt',
+    'november':'Nov','nov':'Nov',
+    'desember':'Des','december':'Des','des':'Des','dec':'Des',
+  };
+
+  function _normalizeBulan(b) {
+    if (!b) return '';
+    const lower = b.toLowerCase().trim();
+    return _BULAN_NORMALIZE[lower] || b;
+  }
 
   function _bulanLabel(bulan) {
     // Return "Januari 2026" from bulan="Jan" using tgl data
