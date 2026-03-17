@@ -149,10 +149,11 @@ const SettingsModule = (() => {
       // Preview
       const wrap = document.getElementById('logo-preview-wrap');
       if (wrap) wrap.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:contain">`;
-      // Save to localStorage
-      const settings = Utils.ls.get('becca_settings') || {};
-      settings.logoUrl = dataUrl;
-      Utils.ls.set('becca_settings', settings);
+      // Save via DB.saveSettings agar format konsisten
+      DB.getSettings().then(existing => {
+        existing.logoUrl = dataUrl;
+        DB.saveSettings(existing);
+      });
       // Update sidebar immediately
       Sidebar.render();
       Notify.success('Logo diperbarui!');
@@ -161,22 +162,24 @@ const SettingsModule = (() => {
   }
 
   function _removeLogo() {
-    const settings = Utils.ls.get('becca_settings') || {};
-    delete settings.logoUrl;
-    Utils.ls.set('becca_settings', settings);
-    Sidebar.render();
-    renderUmum();
-    Notify.success('Logo dihapus');
+    DB.getSettings().then(settings => {
+      delete settings.logoUrl;
+      return DB.saveSettings(settings);
+    }).then(() => {
+      Sidebar.render();
+      renderUmum();
+      Notify.success('Logo dihapus');
+    });
   }
 
   async function saveGeneralSettings() {
     const fd = new FormData(document.getElementById('settings-form'));
     const data = Object.fromEntries(fd.entries());
-    // Preserve logoUrl - not in form data
-    const existing = Utils.ls.get('becca_settings') || {};
+    // Preserve logoUrl dari DB (disimpan terpisah oleh _handleLogoUpload)
+    const existing = await DB.getSettings().catch(()=>({}));
     if (existing.logoUrl) data.logoUrl = existing.logoUrl;
     await DB.saveSettings(data);
-    Sidebar.render();  // Refresh sidebar with new company name/tagline
+    Sidebar.render();  // Refresh sidebar
     Notify.success('Pengaturan disimpan!');
   }
 
