@@ -1,155 +1,170 @@
 /* ============================================
    BECCA V2.0 — Employee Module
-   Depends: db.js, utils.js, modal.js, notify.js
-   Employee schema: { id, nama, panggilan, nik, status, divisi, jabatan,
-                      gajiAwal, gaji, ktp, tglLahir, tempatLahir, agama,
-                      tglJoin, lama, pendidikan, thumb, sisaHutang }
-   Log schema: { id, bulan, tgl, nama, employeeId, bayar, hutang,
-                 pj, ket, konfirmasi }
-   ============================================ */
-
+   Karyawan data, logbook, employee card
+============================================ */
 const EmployeeModule = (() => {
+
   let _employees = [];
   let _logs      = [];
   let _activeTab = 'data';
-  let _filterDiv = '';
-  let _filterStatus = 'ACTIVE';
-  let _logFilter = { nama:'', bulan:'', jenis:'' };
-
-  const DIVISIS    = ['Management','Service','Kitchen','Warehouse','Driver','Cleaning Service'];
-  const AGAMAS     = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu'];
-  const PENDIDIKANS= ['SD','SMP','SMA','SMK','SLTA','D3','S1'];
+  let _sortField = 'nama';
+  let _sortDir   = 'asc';
+  let _filterStatus = '';
+  let _filterDept   = '';
+  let _selectedEmpId = null;  // for card view
 
   /* ===================== INIT ===================== */
   async function init() {
     const page = document.getElementById('page-employee');
     page.innerHTML = `
       <div class="page-header">
-        <div class="page-header-left">
-          <h2>Data Karyawan</h2>
-          <p>Manajemen karyawan dan log hutang/bayar</p>
-        </div>
+        <div class="page-header-left"><h2>Karyawan</h2><p>Data dan logbook karyawan</p></div>
         <div class="page-header-right">
           ${Auth.can('employee','edit') ? `
             <button class="btn btn-primary" onclick="EmployeeModule.openEmpModal()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 5v14M5 12h14"/></svg>
-              Karyawan Baru
-            </button>
-          ` : ''}
+              Tambah Karyawan
+            </button>` : ''}
         </div>
       </div>
       <div class="tabs">
-        <button class="tab-btn active" data-tab="data"    onclick="EmployeeModule.switchTab('data')">👷 Data Karyawan</button>
-        <button class="tab-btn"        data-tab="logbook" onclick="EmployeeModule.switchTab('logbook')">📒 Log Book</button>
-        <button class="tab-btn"        data-tab="card"    onclick="EmployeeModule.switchTab('card')">🪪 Employee Card</button>
-        <button class="tab-btn"        data-tab="arsip"   onclick="EmployeeModule.switchTab('arsip')">📦 Arsip</button>
+        <button class="tab-btn active" id="emp-tab-btn-data"    data-tab="data"    onclick="EmployeeModule.switchTab('data')">👥 Data Karyawan</button>
+        <button class="tab-btn"        id="emp-tab-btn-card"    data-tab="card"    onclick="EmployeeModule.switchTab('card')">🪪 Employee Card</button>
+        <button class="tab-btn"        id="emp-tab-btn-logbook" data-tab="logbook" onclick="EmployeeModule.switchTab('logbook')">📋 Logbook</button>
+        <button class="tab-btn"        id="emp-tab-btn-arsip"   data-tab="arsip"   onclick="EmployeeModule.switchTab('arsip')">📁 Arsip</button>
       </div>
-      <div id="emp-tab-data"   ></div>
-      <div id="emp-tab-logbook" class="hidden"></div>
+      <div id="emp-tab-data"></div>
       <div id="emp-tab-card"    class="hidden"></div>
+      <div id="emp-tab-logbook" class="hidden"></div>
       <div id="emp-tab-arsip"   class="hidden"></div>
     `;
 
-    [_employees, _logs] = await Promise.all([DB.getEmployees(), DB.getEmployeeLogs()]);
+    [_employees, _logs] = await Promise.all([
+      DB.getEmployees().catch(()=>[]),
+      DB.getEmployeeLogs().catch(()=>[]),
+    ]);
     switchTab('data');
   }
 
+  /* ===================== TAB SWITCH ===================== */
   function switchTab(tab) {
     _activeTab = tab;
-    ['data','logbook','card','arsip'].forEach(t => {
-      document.getElementById(`emp-tab-${t}`)?.classList.toggle('hidden', t !== tab);
-      document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
+    ['data','card','logbook','arsip'].forEach(t => {
+      const el = document.getElementById('emp-tab-'+t);
+      if (el) el.classList.toggle('hidden', t !== tab);
+      const btn = document.getElementById('emp-tab-btn-'+t);
+      if (btn) btn.classList.toggle('active', t === tab);
     });
-    const renders = { data:renderData, logbook:renderLogbook, card:renderCard, arsip:renderArsip };
-    renders[tab]?.();
+    if (tab === 'data')    renderData();
+    if (tab === 'card')    renderCard(_selectedEmpId);
+    if (tab === 'logbook') renderLogbook();
+    if (tab === 'arsip')   renderArsip();
   }
 
-  /* ===================== DATA TAB ===================== */
+  /* ===================== RENDER DATA ===================== */
   function renderData() {
-    const active = _employees.filter(e => e.status === 'ACTIVE');
-    let filtered = active;
-    if (_filterDiv) filtered = filtered.filter(e => e.divisi === _filterDiv);
+    const active   = _employees.filter(e => e.status !== 'Arsip');
+    const depts    = [...new Set(active.map(e=>e.departemen).filter(Boolean))].sort();
+    const canEdit  = Auth.can('employee','edit');
 
-    const totalGaji   = Utils.sumBy(filtered, 'gaji');
-    const totalHutang = Utils.sumBy(filtered, 'sisaHutang');
+    // Apply filter
+    let filtered = active;
+    if (_filterStatus) filtered = filtered.filter(e=>e.status===_filterStatus);
+    if (_filterDept)   filtered = filtered.filter(e=>e.departemen===_filterDept);
+
+    // Apply sort
+    filtered = [...filtered].sort((a,b) => {
+      const va = (a[_sortField]||'').toString().toLowerCase();
+      const vb = (b[_sortField]||'').toString().toLowerCase();
+      return _sortDir==='asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+
+    const sortIcon = (field) => _sortField===field
+      ? (_sortDir==='asc' ? ' ↑' : ' ↓') : ' ⇅';
 
     document.getElementById('emp-tab-data').innerHTML = `
-      <!-- Stats strip -->
+      <!-- Stats -->
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
         ${[
-          { l:'Total Karyawan Aktif', v: active.length,             c:'var(--primary-h)' },
-          { l:'Total Gaji Bulanan',   v: Utils.formatRupiah(Utils.sumBy(active,'gaji'),true), c:'var(--success)' },
-          { l:'Total Sisa Hutang',    v: Utils.formatRupiah(Utils.sumBy(active,'sisaHutang'),true), c:'var(--warning)' },
+          {l:'Total Aktif', v:active.length,                                        c:'var(--primary-h)'},
+          {l:'Tetap',       v:active.filter(e=>e.status==='Tetap').length,          c:'var(--success)'},
+          {l:'Kontrak',     v:active.filter(e=>e.status==='Kontrak').length,        c:'var(--warning)'},
+          {l:'Departemen',  v:depts.length+' dept',                                 c:'var(--text-2)'},
         ].map(s=>`
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:160px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
             <div style="font-size:18px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
-          </div>
-        `).join('')}
+          </div>`).join('')}
       </div>
 
-      <!-- Filter bar -->
-      <div class="filter-bar">
-        ${DIVISIS.map(d=>`
-          <button class="btn btn-sm ${_filterDiv===d?'btn-primary':'btn-ghost'}"
-            onclick="EmployeeModule.setDivFilter('${d}')">${d}</button>
-        `).join('')}
-        <button class="btn btn-sm btn-ghost" onclick="EmployeeModule.setDivFilter('')">Semua</button>
-        <span class="text-muted text-small" style="margin-left:auto">${filtered.length} karyawan · Gaji: ${Utils.formatRupiah(totalGaji)}</span>
+      <!-- Filter & Sort -->
+      <div class="filter-bar" style="margin-bottom:var(--s3)">
+        <select class="form-control" style="width:150px" onchange="EmployeeModule.setFilter('status',this.value)">
+          <option value="">Semua Status</option>
+          ${['Tetap','Kontrak','Percobaan','Harian'].map(s=>`<option value="${s}" ${_filterStatus===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:160px" onchange="EmployeeModule.setFilter('dept',this.value)">
+          <option value="">Semua Departemen</option>
+          ${depts.map(d=>`<option value="${d}" ${_filterDept===d?'selected':''}>${d}</option>`).join('')}
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="EmployeeModule.setFilter('reset')" title="Reset filter">↺</button>
+        <span class="text-muted text-small" style="margin-left:auto">${filtered.length} karyawan</span>
       </div>
 
       <!-- Table -->
       <div class="table-wrapper">
         <div class="table-scroll">
           <table class="table">
-            <thead>
-              <tr>
-                <th>#</th><th>Foto</th><th>Nama</th><th>Status</th><th>Divisi</th>
-                <th>Jabatan</th><th class="num">Gaji</th><th class="num">Sisa Hutang</th>
-                <th>NIK</th><th>No KTP</th><th>Tgl Lahir</th><th>Tempat</th>
-                <th>Tgl Join</th><th>Pendidikan</th>
-                ${Auth.can('employee','edit') ? '<th>Aksi</th>' : ''}
-              </tr>
-            </thead>
+            <thead><tr>
+              <th style="width:36px">#</th>
+              <th onclick="EmployeeModule.sortBy('nama')" style="cursor:pointer">Nama${sortIcon('nama')}</th>
+              <th onclick="EmployeeModule.sortBy('nip')"  style="cursor:pointer">NIP${sortIcon('nip')}</th>
+              <th onclick="EmployeeModule.sortBy('jabatan')" style="cursor:pointer">Jabatan${sortIcon('jabatan')}</th>
+              <th onclick="EmployeeModule.sortBy('departemen')" style="cursor:pointer">Departemen${sortIcon('departemen')}</th>
+              <th onclick="EmployeeModule.sortBy('status')" style="cursor:pointer">Status${sortIcon('status')}</th>
+              <th onclick="EmployeeModule.sortBy('tglMasuk')" style="cursor:pointer">Tgl Masuk${sortIcon('tglMasuk')}</th>
+              ${canEdit ? '<th style="width:80px">Aksi</th>' : ''}
+            </tr></thead>
             <tbody>
-              ${filtered.length ? filtered.map((e,i) => `
-                <tr>
+              ${filtered.length ? filtered.map((emp, i) => {
+                const initials = (emp.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+                const statusColor = emp.status==='Tetap'?'badge-success':emp.status==='Kontrak'?'badge-warning':'badge-neutral';
+                const logCount = _logs.filter(l=>l.employeeId===emp.id).length;
+                return `<tr style="cursor:pointer" onclick="EmployeeModule.viewCard('${emp.id}')"
+                          onmouseover="this.style.background='var(--surface2)'"
+                          onmouseout="this.style.background=''">
                   <td class="text-muted text-small">${i+1}</td>
                   <td>
-                    ${e.thumb
-                      ? `<img src="${e.thumb}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--border)">`
-                      : `<div style="width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white">${Utils.initials(e.nama)}</div>`}
+                    <div style="display:flex;align-items:center;gap:10px">
+                      <div style="width:32px;height:32px;border-radius:50%;background:rgba(99,102,241,.2);
+                                  color:var(--primary-h);display:flex;align-items:center;justify-content:center;
+                                  font-size:11px;font-weight:700;flex-shrink:0">${initials}</div>
+                      <div>
+                        <div style="font-weight:600">${emp.nama||''}</div>
+                        ${emp.noHp ? `<div class="text-small text-muted">${emp.noHp}</div>` : ''}
+                      </div>
+                    </div>
                   </td>
-                  <td>
-                    <div class="font-semibold">${e.nama}</div>
-                    ${e.panggilan ? `<div class="text-small text-muted">${e.panggilan}</div>` : ''}
-                  </td>
-                  <td><span class="badge ${e.status==='ACTIVE'?'badge-success':'badge-neutral'}">${e.status}</span></td>
-                  <td><span class="badge badge-neutral">${e.divisi||'-'}</span></td>
-                  <td class="text-muted text-small">${e.jabatan||'-'}</td>
-                  <td class="num">${Utils.formatRupiah(e.gaji)}</td>
-                  <td class="num ${e.sisaHutang>0?'':'text-muted'}" style="color:${e.sisaHutang>0?'var(--warning)':''}">
-                    ${e.sisaHutang > 0 ? Utils.formatRupiah(e.sisaHutang) : '-'}
-                  </td>
-                  <td class="text-small text-muted">${e.nik||'-'}</td>
-                  <td class="text-small text-muted">${e.ktp||'-'}</td>
-                  <td class="text-small" style="white-space:nowrap">${e.tglLahir ? Utils.formatDate(e.tglLahir,'dd/mm/yyyy') : '-'}</td>
-                  <td class="text-small text-muted">${e.tempatLahir||'-'}</td>
-                  <td class="text-small" style="white-space:nowrap">${e.tglJoin ? Utils.formatDate(e.tglJoin,'dd/mm/yyyy') : '-'}</td>
-                  <td class="text-small text-muted">${e.pendidikan||'-'}</td>
-                  ${Auth.can('employee','edit') ? `
-                  <td class="actions">
+                  <td class="text-muted text-small">${emp.nip||'-'}</td>
+                  <td>${emp.jabatan||'-'}</td>
+                  <td><span class="badge badge-neutral">${emp.departemen||'-'}</span></td>
+                  <td><span class="badge ${statusColor}">${emp.status||'-'}</span></td>
+                  <td class="text-small text-muted">${emp.tglMasuk||'-'}</td>
+                  ${canEdit ? `<td onclick="event.stopPropagation()">
                     <div style="display:flex;gap:4px">
-                      <button class="btn-icon" onclick="EmployeeModule.openEmpModal('${e.id}')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      <button class="btn-icon" title="Edit" onclick="EmployeeModule.openEmpModal('${emp.id}')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
                       </button>
-                      <button class="btn-icon" onclick="EmployeeModule.openLogModal(null,'${e.id}')" title="Tambah Log" style="color:var(--warning)">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                      <button class="btn-icon" title="Log (${logCount})" onclick="EmployeeModule.openLogModal('',('${emp.id}'))"
+                        style="${logCount?'color:var(--primary-h)':''}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
                       </button>
                     </div>
                   </td>` : ''}
-                </tr>
-              `).join('') : `<tr><td colspan="15" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada karyawan</td></tr>`}
+                </tr>`;
+              }).join('') : `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-3)">
+                Belum ada data karyawan
+              </td></tr>`}
             </tbody>
           </table>
         </div>
@@ -157,401 +172,458 @@ const EmployeeModule = (() => {
     `;
   }
 
-  function setDivFilter(div) { _filterDiv = div; renderData(); }
+  function setFilter(key, val) {
+    if (key==='status') _filterStatus = val;
+    else if (key==='dept') _filterDept = val;
+    else if (key==='reset') { _filterStatus=''; _filterDept=''; }
+    renderData();
+  }
 
-  /* ===================== LOG BOOK TAB ===================== */
+  function sortBy(field) {
+    if (_sortField===field) _sortDir = _sortDir==='asc'?'desc':'asc';
+    else { _sortField=field; _sortDir='asc'; }
+    renderData();
+  }
+
+  function viewCard(empId) {
+    _selectedEmpId = empId;
+    switchTab('card');
+  }
+
+  /* ===================== RENDER CARD ===================== */
+  function renderCard(empId) {
+    const el = document.getElementById('emp-tab-card');
+    const active = _employees.filter(e=>e.status!=='Arsip');
+
+    if (empId) {
+      const emp = _employees.find(e=>e.id===empId);
+      if (emp) {
+        _renderSingleCard(el, emp);
+        return;
+      }
+    }
+
+    if (!active.length) {
+      el.innerHTML = '<div class="empty-state" style="height:40vh"><h4>Belum ada data karyawan</h4></div>';
+      return;
+    }
+
+    // Show all cards grid
+    el.innerHTML = `
+      <div style="margin-bottom:var(--s3)">
+        <input type="text" class="form-control" style="max-width:300px" placeholder="Cari karyawan..."
+          oninput="EmployeeModule.filterCards(this.value)" id="card-search">
+      </div>
+      <div id="cards-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s4)">
+        ${active.map(emp => _cardHTML(emp)).join('')}
+      </div>
+    `;
+  }
+
+  function filterCards(q) {
+    const lower = q.toLowerCase();
+    const active = _employees.filter(e=>e.status!=='Arsip');
+    const filtered = lower ? active.filter(e=>(e.nama||'').toLowerCase().includes(lower)||(e.jabatan||'').toLowerCase().includes(lower)) : active;
+    const grid = document.getElementById('cards-grid');
+    if (grid) grid.innerHTML = filtered.map(emp=>_cardHTML(emp)).join('');
+  }
+
+  function _cardHTML(emp) {
+    const initials = (emp.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+    const statusColor = emp.status==='Tetap'?'var(--success)':emp.status==='Kontrak'?'var(--warning)':'var(--text-3)';
+    const empLogs = _logs.filter(l=>l.employeeId===emp.id).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,3);
+    const canEdit = Auth.can('employee','edit');
+
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+                         overflow:hidden;transition:all .2s;"
+                  onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)';this.style.boxShadow='var(--shadow-md)'"
+                  onmouseout="this.style.borderColor='var(--border)';this.style.transform='';this.style.boxShadow=''">
+
+      <!-- Card Header -->
+      <div style="background:linear-gradient(135deg,rgba(99,102,241,.15),rgba(139,92,246,.1));padding:20px;
+                  display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border)">
+        <div style="width:52px;height:52px;border-radius:50%;background:rgba(99,102,241,.25);
+                    color:var(--primary-h);display:flex;align-items:center;justify-content:center;
+                    font-size:18px;font-weight:700;flex-shrink:0;border:2px solid rgba(99,102,241,.3)">
+          ${initials}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:15px;color:var(--heading);margin-bottom:2px">${emp.nama||''}</div>
+          <div style="font-size:12px;color:var(--text-3)">${emp.jabatan||''} ${emp.departemen?'· '+emp.departemen:''}</div>
+          <div style="margin-top:4px">
+            <span style="font-size:10px;padding:2px 7px;border-radius:3px;font-weight:600;
+              background:${statusColor}18;color:${statusColor};border:1px solid ${statusColor}30">${emp.status||'-'}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Body -->
+      <div style="padding:14px 16px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+          ${[
+            {l:'NIP',        v:emp.nip||'-'},
+            {l:'No. HP',     v:emp.noHp||'-'},
+            {l:'Tgl Masuk',  v:emp.tglMasuk||'-'},
+            {l:'Gaji Pokok', v:emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-'},
+          ].map(f=>`<div>
+            <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em">${f.l}</div>
+            <div style="font-size:12px;font-weight:500;color:var(--text)">${f.v}</div>
+          </div>`).join('')}
+        </div>
+
+        <!-- Recent Logs -->
+        ${empLogs.length ? `
+          <div style="border-top:1px solid var(--border);padding-top:10px">
+            <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Log Terbaru</div>
+            ${empLogs.map(l=>`
+              <div style="font-size:11px;color:var(--text-2);padding:3px 0;border-bottom:1px solid rgba(var(--border),0.5)">
+                <span style="color:var(--text-3)">${l.tgl||''}</span> · ${l.catatan||l.type||'-'}
+              </div>`).join('')}
+          </div>` : ''}
+      </div>
+
+      <!-- Card Footer -->
+      ${canEdit ? `<div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="EmployeeModule.openEmpModal('${emp.id}')">Edit</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="EmployeeModule.openLogModal('','${emp.id}')">+ Log</button>
+      </div>` : ''}
+    </div>`;
+  }
+
+  function _renderSingleCard(el, emp) {
+    const empLogs = _logs.filter(l=>l.employeeId===emp.id).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    const canEdit = Auth.can('employee','edit');
+    const initials = (emp.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+    const statusColor = emp.status==='Tetap'?'var(--success)':emp.status==='Kontrak'?'var(--warning)':'var(--text-3)';
+
+    el.innerHTML = `
+      <div style="margin-bottom:var(--s3)">
+        <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._selectedEmpId=null;EmployeeModule.renderCard()">
+          ← Semua Karyawan
+        </button>
+      </div>
+      <div style="display:grid;grid-template-columns:320px 1fr;gap:var(--s5);align-items:start">
+        <!-- Profile Card -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+          <div style="background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(139,92,246,.15));
+                      padding:30px 20px;text-align:center;border-bottom:1px solid var(--border)">
+            <div style="width:72px;height:72px;border-radius:50%;background:rgba(99,102,241,.25);
+                        color:var(--primary-h);display:flex;align-items:center;justify-content:center;
+                        font-size:24px;font-weight:700;margin:0 auto 12px;border:3px solid rgba(99,102,241,.4)">
+              ${initials}
+            </div>
+            <div style="font-size:18px;font-weight:700;color:var(--heading)">${emp.nama||''}</div>
+            <div style="font-size:13px;color:var(--text-3);margin-top:4px">${emp.jabatan||''}</div>
+            <div style="margin-top:8px">
+              <span style="font-size:11px;padding:3px 10px;border-radius:4px;font-weight:600;
+                background:${statusColor}18;color:${statusColor};border:1px solid ${statusColor}30">
+                ${emp.status||'-'}
+              </span>
+            </div>
+          </div>
+          <div style="padding:16px">
+            ${[
+              {l:'NIP',         v:emp.nip||'-'},
+              {l:'Departemen',  v:emp.departemen||'-'},
+              {l:'No. HP',      v:emp.noHp||'-'},
+              {l:'Alamat',      v:emp.alamat||'-'},
+              {l:'Tgl Masuk',   v:emp.tglMasuk||'-'},
+              {l:'Gaji Pokok',  v:emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-'},
+              {l:'No. Rekening',v:emp.noRek||'-'},
+            ].map(f=>`
+              <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+                <span style="font-size:12px;color:var(--text-3)">${f.l}</span>
+                <span style="font-size:12px;font-weight:500;color:var(--text);text-align:right;max-width:180px">${f.v}</span>
+              </div>`).join('')}
+          </div>
+          ${canEdit ? `<div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" style="flex:1" onclick="EmployeeModule.openEmpModal('${emp.id}')">Edit Data</button>
+            <button class="btn btn-primary btn-sm" style="flex:1" onclick="EmployeeModule.openLogModal('','${emp.id}')">+ Log</button>
+          </div>` : ''}
+        </div>
+
+        <!-- Log History -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:14px;font-weight:700;color:var(--heading)">Riwayat Log (${empLogs.length})</div>
+          </div>
+          ${empLogs.length ? `
+            <div class="table-scroll">
+              <table class="table" style="font-size:13px">
+                <thead><tr>
+                  <th>Tanggal</th><th>Tipe</th><th>Catatan</th>
+                  ${canEdit?'<th style="width:32px"></th>':''}
+                </tr></thead>
+                <tbody>
+                  ${empLogs.map(l=>`<tr>
+                    <td style="white-space:nowrap">${l.tgl||'-'}</td>
+                    <td><span class="badge badge-neutral" style="font-size:10px">${l.type||'-'}</span></td>
+                    <td>${l.catatan||'-'}</td>
+                    ${canEdit?`<td><button class="btn-icon" onclick="EmployeeModule.openLogModal('${l.id}')">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+                    </button></td>` : ''}
+                  </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>` : `<div style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</div>`}
+        </div>
+      </div>
+    `;
+  }
+
+  /* ===================== RENDER LOGBOOK ===================== */
   function renderLogbook() {
-    let filtered = _logs;
-    if (_logFilter.nama)  filtered = filtered.filter(l => l.nama === _logFilter.nama);
-    if (_logFilter.bulan) filtered = filtered.filter(l => String(l.bulan) === String(_logFilter.bulan));
-    if (_logFilter.jenis === 'hutang') filtered = filtered.filter(l => l.hutang > 0);
-    if (_logFilter.jenis === 'bayar')  filtered = filtered.filter(l => l.bayar > 0);
-
-    const totalHutang = Utils.sumBy(filtered, 'hutang');
-    const totalBayar  = Utils.sumBy(filtered, 'bayar');
-
-    const empOpts = [...new Set(_logs.map(l=>l.nama))].sort()
-      .map(n=>`<option value="${n}" ${_logFilter.nama===n?'selected':''}>${n}</option>`).join('');
+    const empOpts = _employees.filter(e=>e.status!=='Arsip')
+      .map(e=>`<option value="${e.id}">${e.nama}</option>`).join('');
 
     document.getElementById('emp-tab-logbook').innerHTML = `
-      <!-- Stats -->
-      <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4)">
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:150px">
-          <div style="font-size:11px;color:var(--text-3)">Total Berhutang</div>
-          <div style="font-size:18px;font-weight:700;color:var(--danger);font-family:var(--font-mono)">${Utils.formatRupiah(totalHutang,true)}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s4)">
+        <div style="display:flex;gap:var(--s2)">
+          <select class="form-control" style="width:180px" id="lb-filter-emp"
+            onchange="EmployeeModule.renderLogbook()">
+            <option value="">Semua Karyawan</option>
+            ${empOpts}
+          </select>
+          <input type="date" class="form-control" style="width:140px" id="lb-filter-from"
+            onchange="EmployeeModule.renderLogbook()">
+          <input type="date" class="form-control" style="width:140px" id="lb-filter-to"
+            onchange="EmployeeModule.renderLogbook()">
         </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:150px">
-          <div style="font-size:11px;color:var(--text-3)">Total Bayar</div>
-          <div style="font-size:18px;font-weight:700;color:var(--success);font-family:var(--font-mono)">${Utils.formatRupiah(totalBayar,true)}</div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:150px">
-          <div style="font-size:11px;color:var(--text-3)">Sisa</div>
-          <div style="font-size:18px;font-weight:700;color:var(--warning);font-family:var(--font-mono)">${Utils.formatRupiah(totalHutang-totalBayar,true)}</div>
-        </div>
+        ${Auth.can('employee','edit') ? `
+          <button class="btn btn-primary btn-sm" onclick="EmployeeModule.openLogModal()">+ Tambah Log</button>` : ''}
       </div>
-
-      <div class="filter-bar">
-        <select class="form-control" style="width:180px" onchange="EmployeeModule.setLogFilter('nama',this.value)">
-          <option value="">Semua Karyawan</option>
-          ${empOpts}
-        </select>
-        <select class="form-control" style="width:130px" onchange="EmployeeModule.setLogFilter('bulan',this.value)">
-          <option value="">Semua Bulan</option>
-          ${Utils.MONTHS.map((m,i)=>`<option value="${i+1}" ${String(_logFilter.bulan)===String(i+1)?'selected':''}>${m}</option>`).join('')}
-        </select>
-        <select class="form-control" style="width:130px" onchange="EmployeeModule.setLogFilter('jenis',this.value)">
-          <option value="">Semua Jenis</option>
-          <option value="hutang" ${_logFilter.jenis==='hutang'?'selected':''}>💸 Berhutang</option>
-          <option value="bayar"  ${_logFilter.jenis==='bayar' ?'selected':''}>✅ Bayar Hutang</option>
-        </select>
-        <button class="btn btn-ghost btn-sm" onclick="EmployeeModule.resetLogFilter()">✕ Reset</button>
-        ${Auth.can('employee','edit') ? `<button class="btn btn-primary btn-sm" onclick="EmployeeModule.openLogModal()" style="margin-left:auto">+ Log Baru</button>` : ''}
-      </div>
-
-      <div class="table-wrapper">
-        <div class="table-scroll">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>#</th><th>Tanggal</th><th>Nama Karyawan</th>
-                <th class="num">Berhutang</th><th class="num">Bayar Hutang</th>
-                <th>PJ</th><th>Keterangan</th><th>Konfirmasi</th>
-                ${Auth.can('employee','edit') ? '<th>Aksi</th>' : ''}
-              </tr>
-            </thead>
-            <tbody>
-              ${filtered.length ? filtered.map((l,i) => `
-                <tr>
-                  <td class="text-muted text-small">${i+1}</td>
-                  <td style="white-space:nowrap">${Utils.formatDate(l.tgl,'dd/mm/yyyy')}</td>
-                  <td><span class="font-semibold">${l.nama}</span></td>
-                  <td class="num" style="color:var(--danger)">${l.hutang > 0 ? Utils.formatRupiah(l.hutang) : '-'}</td>
-                  <td class="num" style="color:var(--success)">${l.bayar > 0 ? Utils.formatRupiah(l.bayar) : '-'}</td>
-                  <td class="text-small text-muted">${l.pj||'-'}</td>
-                  <td class="text-small">${l.ket||'-'}</td>
-                  <td>
-                    <span class="badge ${l.konfirmasi==='CONFIRMED'?'badge-success':'badge-warning'}">
-                      ${l.konfirmasi==='CONFIRMED'?'✓ Confirmed':'Pending'}
-                    </span>
-                  </td>
-                  ${Auth.can('employee','edit') ? `
-                  <td class="actions">
-                    <button class="btn-icon" onclick="EmployeeModule.openLogModal('${l.id}')">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </button>
-                  </td>` : ''}
-                </tr>
-              `).join('') : `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada log</td></tr>`}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-  }
-
-  function setLogFilter(k, v) { _logFilter[k] = v; renderLogbook(); }
-  function resetLogFilter()   { _logFilter = {}; renderLogbook(); }
-
-  /* ===================== CARD TAB ===================== */
-  function renderCard() {
-    const active = _employees.filter(e => e.status === 'ACTIVE');
-    document.getElementById('emp-tab-card').innerHTML = `
-      <div style="display:flex;justify-content:flex-end;margin-bottom:var(--s4)">
-        <button class="btn btn-ghost" onclick="window.print()">🖨️ Print</button>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s4)" id="emp-cards">
-        ${active.map(e => `
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5);display:flex;gap:var(--s4);align-items:center">
-            ${e.thumb
-              ? `<img src="${e.thumb}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--border2);flex-shrink:0">`
-              : `<div style="width:56px;height:56px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:white;flex-shrink:0">${Utils.initials(e.nama)}</div>`}
-            <div style="min-width:0">
-              <div style="font-weight:700;font-size:15px;color:var(--heading);truncate">${e.nama}</div>
-              <div style="font-size:12px;color:var(--text-3)">${e.jabatan||'-'} · ${e.divisi||'-'}</div>
-              <div style="font-size:11px;color:var(--primary-h);margin-top:4px;font-family:var(--font-mono)">${e.nik ? `NIK: ${e.nik}` : ''}</div>
-              ${e.sisaHutang > 0 ? `<div style="font-size:11px;color:var(--warning);margin-top:2px">Hutang: ${Utils.formatRupiah(e.sisaHutang)}</div>` : ''}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  /* ===================== ARSIP TAB ===================== */
-  function renderArsip() {
-    const arsip = _employees.filter(e => e.status !== 'ACTIVE');
-    document.getElementById('emp-tab-arsip').innerHTML = `
-      <div class="filter-bar">
-        <button class="btn btn-sm btn-ghost" onclick="EmployeeModule._renderArsipTable('')">Semua (${arsip.length})</button>
-        ${['RESIGN','FIRED'].map(s => `
-          <button class="btn btn-sm btn-ghost" onclick="EmployeeModule._renderArsipTable('${s}')">${s} (${arsip.filter(e=>e.status===s).length})</button>
-        `).join('')}
-      </div>
-      <div id="arsip-table"></div>
-    `;
-    _renderArsipTable('');
-  }
-
-  function _renderArsipTable(status) {
-    const data = _employees.filter(e => e.status !== 'ACTIVE' && (!status || e.status === status));
-    document.getElementById('arsip-table').innerHTML = `
-      <div class="table-wrapper">
+      <div class="table-wrapper"><div class="table-scroll">
         <table class="table">
-          <thead>
-            <tr><th>#</th><th>Foto</th><th>Nama</th><th>Status</th><th>Divisi</th><th class="num">Gaji Terakhir</th><th>Tgl Join</th>
-            ${Auth.can('employee','edit') ? '<th>Aksi</th>' : ''}</tr>
-          </thead>
+          <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Tipe</th><th>Catatan</th>
+            ${Auth.can('employee','edit')?'<th>Aksi</th>':''}
+          </tr></thead>
+          <tbody id="lb-tbody">${_renderLogRows()}</tbody>
+        </table>
+      </div></div>
+    `;
+  }
+
+  function _renderLogRows() {
+    const empFilter = document.getElementById('lb-filter-emp')?.value || '';
+    const from      = document.getElementById('lb-filter-from')?.value || '';
+    const to        = document.getElementById('lb-filter-to')?.value || '';
+    const canEdit   = Auth.can('employee','edit');
+
+    let logs = [..._logs].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    if (empFilter) logs = logs.filter(l=>l.employeeId===empFilter);
+    if (from)      logs = logs.filter(l=>(l.tgl||'')>=from);
+    if (to)        logs = logs.filter(l=>(l.tgl||'')<=to);
+
+    if (!logs.length) return `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</td></tr>`;
+
+    return logs.map(l => {
+      const emp = _employees.find(e=>e.id===l.employeeId);
+      return `<tr>
+        <td style="white-space:nowrap">${l.tgl||'-'}</td>
+        <td>${emp?.nama||l.employeeId||'-'}</td>
+        <td><span class="badge badge-neutral" style="font-size:10px">${l.type||'-'}</span></td>
+        <td>${l.catatan||'-'}</td>
+        ${canEdit?`<td><div style="display:flex;gap:4px">
+          <button class="btn-icon" title="Edit" onclick="EmployeeModule.openLogModal('${l.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+          </button>
+          <button class="btn-icon" title="Hapus" onclick="EmployeeModule.deleteLog('${l.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+          </button>
+        </div></td>`:''}
+      </tr>`;
+    }).join('');
+  }
+
+  /* ===================== RENDER ARSIP ===================== */
+  function renderArsip() {
+    const arsip = _employees.filter(e=>e.status==='Arsip');
+    document.getElementById('emp-tab-arsip').innerHTML = `
+      <div class="table-wrapper"><div class="table-scroll">
+        <table class="table">
+          <thead><tr><th>Nama</th><th>NIP</th><th>Jabatan</th><th>Departemen</th><th>Tgl Keluar</th>
+            ${Auth.can('employee','edit')?'<th>Aksi</th>':''}
+          </tr></thead>
           <tbody>
-            ${data.map((e,i) => `
-              <tr>
-                <td>${i+1}</td>
-                <td>${e.thumb ? `<img src="${e.thumb}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : `<div style="width:32px;height:32px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${Utils.initials(e.nama)}</div>`}</td>
-                <td class="font-semibold">${e.nama}</td>
-                <td><span class="badge ${e.status==='RESIGN'?'badge-warning':'badge-danger'}">${e.status}</span></td>
-                <td class="text-muted">${e.divisi||'-'}</td>
-                <td class="num">${Utils.formatRupiah(e.gaji)}</td>
-                <td class="text-small">${e.tglJoin ? Utils.formatDate(e.tglJoin,'dd/mm/yyyy') : '-'}</td>
-                ${Auth.can('employee','edit') ? `<td><button class="btn btn-ghost btn-sm" onclick="EmployeeModule._restoreEmployee('${e.id}')">Aktifkan</button></td>` : ''}
-              </tr>
-            `).join('')}
+            ${arsip.length ? arsip.map(emp=>`<tr>
+              <td>${emp.nama}</td>
+              <td class="text-muted">${emp.nip||'-'}</td>
+              <td>${emp.jabatan||'-'}</td>
+              <td>${emp.departemen||'-'}</td>
+              <td class="text-muted">${emp.tglKeluar||'-'}</td>
+              ${Auth.can('employee','edit')?`<td>
+                <button class="btn btn-ghost btn-sm" onclick="EmployeeModule.openEmpModal('${emp.id}')">Edit</button>
+              </td>`:''}
+            </tr>`).join('')
+            : `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada karyawan arsip</td></tr>`}
           </tbody>
         </table>
-      </div>
+      </div></div>
     `;
   }
 
-  async function _restoreEmployee(id) {
-    const emp = _employees.find(e => e.id === id);
-    if (!emp) return;
-    emp.status = 'ACTIVE';
-    await DB.saveEmployee(emp);
-    renderArsip();
-    Notify.success(`${emp.nama} dipindahkan ke karyawan aktif`);
-  }
-
-  /* ===================== EMPLOYEE MODAL ===================== */
+  /* ===================== MODAL: KARYAWAN ===================== */
   function openEmpModal(editId = null) {
-    const existing = editId ? _employees.find(e => e.id === editId) : null;
-    const d = existing || { status:'ACTIVE' };
-    const mid = Utils.uid(); Modal.open({ id: mid,
-      title: editId ? 'Edit Karyawan' : 'Karyawan Baru',
+    const emp = editId ? _employees.find(e=>e.id===editId) : {};
+    const d   = emp || {};
+    const mid = Utils.uid();
+    Modal.open({ id: mid,
+      title: editId ? 'Edit Karyawan' : 'Tambah Karyawan',
       size: 'modal-lg',
-      body: `
-        <form id="emp-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Nama Lengkap <span class="req">*</span></label>
-              <input name="nama" class="form-control" value="${d.nama||''}" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Nama Panggilan</label>
-              <input name="panggilan" class="form-control" value="${d.panggilan||''}">
-            </div>
+      body: `<form id="emp-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nama Lengkap <span class="req">*</span></label>
+            <input name="nama" class="form-control" value="${d.nama||''}" required>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Divisi <span class="req">*</span></label>
-              <select name="divisi" class="form-control" required>
-                ${DIVISIS.map(div=>`<option value="${div}" ${d.divisi===div?'selected':''}>${div}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Jabatan</label>
-              <input name="jabatan" class="form-control" value="${d.jabatan||''}">
-            </div>
+          <div class="form-group">
+            <label class="form-label">NIP</label>
+            <input name="nip" class="form-control" value="${d.nip||''}">
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Status <span class="req">*</span></label>
-              <select name="status" class="form-control">
-                <option value="ACTIVE" ${d.status==='ACTIVE'?'selected':''}>ACTIVE</option>
-                <option value="RESIGN" ${d.status==='RESIGN'?'selected':''}>RESIGN</option>
-                <option value="FIRED"  ${d.status==='FIRED' ?'selected':''}>FIRED</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">NIK Internal</label>
-              <input name="nik" class="form-control" value="${d.nik||''}">
-            </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Jabatan</label>
+            <input name="jabatan" class="form-control" value="${d.jabatan||''}">
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Gaji (Rp)</label>
-              <input name="gaji" type="number" class="form-control" value="${d.gaji||0}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Gaji Awal (Rp)</label>
-              <input name="gajiAwal" type="number" class="form-control" value="${d.gajiAwal||0}">
-            </div>
+          <div class="form-group">
+            <label class="form-label">Departemen</label>
+            <input name="departemen" class="form-control" value="${d.departemen||''}">
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">No KTP</label>
-              <input name="ktp" class="form-control" value="${d.ktp||''}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Sisa Hutang (Rp)</label>
-              <input name="sisaHutang" type="number" class="form-control" value="${d.sisaHutang||0}">
-            </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">No. HP</label>
+            <input name="noHp" class="form-control" value="${d.noHp||''}">
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Tgl Lahir</label>
-              <input name="tglLahir" type="date" class="form-control" value="${d.tglLahir||''}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Tempat Lahir</label>
-              <input name="tempatLahir" class="form-control" value="${d.tempatLahir||''}">
-            </div>
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <select name="status" class="form-control">
+              ${['Tetap','Kontrak','Percobaan','Harian','Arsip'].map(s=>`<option value="${s}" ${d.status===s?'selected':''}>${s}</option>`).join('')}
+            </select>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Agama</label>
-              <select name="agama" class="form-control">
-                <option value="">—</option>
-                ${AGAMAS.map(a=>`<option value="${a}" ${d.agama===a?'selected':''}>${a}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Pendidikan</label>
-              <select name="pendidikan" class="form-control">
-                <option value="">—</option>
-                ${PENDIDIKANS.map(p=>`<option value="${p}" ${d.pendidikan===p?'selected':''}>${p}</option>`).join('')}
-              </select>
-            </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tgl Masuk</label>
+            <input type="date" name="tglMasuk" class="form-control" value="${d.tglMasuk||''}">
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Tgl Bergabung</label>
-              <input name="tglJoin" type="date" class="form-control" value="${d.tglJoin||''}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">URL Foto (Google Drive)</label>
-              <input name="thumb" class="form-control" value="${d.thumb||''}" placeholder="https://drive.google.com/thumbnail?id=...">
-            </div>
+          <div class="form-group">
+            <label class="form-label">Gaji Pokok</label>
+            <input type="number" name="gajiPokok" class="form-control" value="${d.gajiPokok||0}">
           </div>
-        </form>
-      `,
-      footer: `
-        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        <button class="btn btn-primary" onclick="EmployeeModule._submitEmp('${mid}','${editId||''}')">
-          ${editId ? 'Simpan Perubahan' : 'Tambah Karyawan'}
-        </button>
-      `,
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">No. Rekening</label>
+            <input name="noRek" class="form-control" value="${d.noRek||''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tgl Keluar</label>
+            <input type="date" name="tglKeluar" class="form-control" value="${d.tglKeluar||''}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Alamat</label>
+          <input name="alamat" class="form-control" value="${d.alamat||''}">
+        </div>
+      </form>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+               <button class="btn btn-primary" onclick="EmployeeModule._submitEmp('${mid}','${editId||''}')">
+                 ${editId ? 'Simpan' : 'Tambah'}
+               </button>`,
     });
-    return mid;
   }
 
-  async function _submitEmp(modalId, editId='') {
-    const fd = new FormData(document.getElementById('emp-form'));
+  async function _submitEmp(mid, editId='') {
+    const fd   = new FormData(document.getElementById('emp-form'));
     const data = Object.fromEntries(fd.entries());
-    if (!data.nama || !data.divisi) { Notify.warning('Nama dan Divisi wajib diisi'); return; }
-    data.gaji      = parseInt(data.gaji)||0;
-    data.gajiAwal  = parseInt(data.gajiAwal)||0;
-    data.sisaHutang= parseInt(data.sisaHutang)||0;
+    if (!data.nama) { Notify.warning('Nama wajib diisi'); return; }
+    data.gajiPokok = parseInt(data.gajiPokok)||0;
     if (editId) data.id = editId;
     try {
       const saved = await DB.saveEmployee(data);
-      const idx = _employees.findIndex(e=>e.id===saved.id);
-      if (idx>=0) _employees[idx]=saved; else _employees.unshift(saved);
+      const idx   = _employees.findIndex(e=>e.id===saved.id);
+      if (idx>=0) _employees[idx]=saved; else _employees.push(saved);
       renderData();
-      Modal.close(modalId);
-      Notify.success(editId ? 'Data karyawan diperbarui' : 'Karyawan ditambahkan');
-    } catch(err) { Notify.error('Gagal', err.message); }
+      Modal.close(mid);
+      Notify.success(editId?'Data diperbarui':'Karyawan ditambahkan');
+      DB.logActivity({type:'employee', detail:(editId?'Edit: ':'Tambah: ')+data.nama});
+    } catch(e) { Notify.error('Gagal', e.message); }
   }
 
-  /* ===================== LOG MODAL ===================== */
-  function openLogModal(editId = null, preEmployeeId = '') {
-    const existing = editId ? _logs.find(l => l.id === editId) : null;
-    const d = existing || { tgl: Utils.today(), konfirmasi:'', bayar:0, hutang:0 };
-    const preEmp = preEmployeeId ? _employees.find(e=>e.id===preEmployeeId) : null;
-
-    const empOpts = _employees.filter(e=>e.status==='ACTIVE')
-      .map(e=>`<option value="${e.nama}" ${(d.nama||preEmp?.nama)===e.nama?'selected':''}>${e.nama}</option>`).join('');
-
-    const mid = Utils.uid(); Modal.open({ id: mid,
-      title: editId ? 'Edit Log' : 'Tambah Log Baru',
-      body: `
-        <form id="log-form">
+  /* ===================== MODAL: LOG ===================== */
+  function openLogModal(editId='', preEmpId='') {
+    const log  = editId ? _logs.find(l=>l.id===editId) : {};
+    const d    = log || {};
+    const empOpts = _employees.filter(e=>e.status!=='Arsip')
+      .map(e=>`<option value="${e.id}" ${(d.employeeId||preEmpId)===e.id?'selected':''}>${e.nama}</option>`).join('');
+    const mid  = Utils.uid();
+    Modal.open({ id: mid,
+      title: editId ? 'Edit Log' : 'Tambah Log',
+      body: `<form id="log-form">
+        <div class="form-group">
+          <label class="form-label">Karyawan <span class="req">*</span></label>
+          <select name="employeeId" class="form-control" required>
+            <option value="">Pilih karyawan...</option>${empOpts}
+          </select>
+        </div>
+        <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Nama Karyawan <span class="req">*</span></label>
-            <select name="nama" class="form-control" required>
-              <option value="">— Pilih Karyawan —</option>
-              ${empOpts}
+            <label class="form-label">Tanggal</label>
+            <input type="date" name="tgl" class="form-control" value="${d.tgl||new Date().toISOString().split('T')[0]}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tipe</label>
+            <select name="type" class="form-control">
+              ${['Absensi','Lembur','SP','Cuti','Izin','Sakit','Prestasi','Pelatihan','Mutasi','Lain-lain'].map(t=>`<option value="${t}" ${d.type===t?'selected':''}>${t}</option>`).join('')}
             </select>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Tanggal <span class="req">*</span></label>
-              <input name="tgl" type="date" class="form-control" value="${d.tgl}" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Bulan</label>
-              <select name="bulan" class="form-control">
-                ${Utils.MONTHS.map((m,i)=>`<option value="${i+1}" ${String(d.bulan)===String(i+1)?'selected':''}>${m}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">💸 Berhutang (Rp)</label>
-              <input name="hutang" type="number" min="0" class="form-control" value="${d.hutang||0}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">✅ Bayar Hutang (Rp)</label>
-              <input name="bayar" type="number" min="0" class="form-control" value="${d.bayar||0}">
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Keterangan</label>
-            <input name="ket" class="form-control" value="${d.ket||''}">
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">PJ</label>
-              <input name="pj" class="form-control" value="${d.pj||''}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Konfirmasi</label>
-              <select name="konfirmasi" class="form-control">
-                <option value="">— Belum —</option>
-                <option value="CONFIRMED" ${d.konfirmasi==='CONFIRMED'?'selected':''}>✓ CONFIRMED</option>
-              </select>
-            </div>
-          </div>
-        </form>
-      `,
-      footer: `
-        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        <button class="btn btn-primary" onclick="EmployeeModule._submitLog('${mid}','${editId||''}')">Simpan</button>
-      `,
+        </div>
+        <div class="form-group">
+          <label class="form-label">Catatan</label>
+          <textarea name="catatan" class="form-control" rows="3">${d.catatan||''}</textarea>
+        </div>
+      </form>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+               <button class="btn btn-primary" onclick="EmployeeModule._submitLog('${mid}','${editId||''}')">Simpan</button>`,
     });
-    return mid;
   }
 
-  async function _submitLog(modalId, editId='') {
-    const fd = new FormData(document.getElementById('log-form'));
+  async function _submitLog(mid, editId='') {
+    const fd   = new FormData(document.getElementById('log-form'));
     const data = Object.fromEntries(fd.entries());
-    if (!data.nama || !data.tgl) { Notify.warning('Nama dan Tanggal wajib diisi'); return; }
-    data.hutang = parseInt(data.hutang)||0;
-    data.bayar  = parseInt(data.bayar)||0;
-    data.bulan  = parseInt(data.bulan)||0;
+    if (!data.employeeId) { Notify.warning('Pilih karyawan'); return; }
     if (editId) data.id = editId;
     try {
       const saved = await DB.saveEmployeeLog(data);
-      const idx = _logs.findIndex(l=>l.id===saved.id);
+      const idx   = _logs.findIndex(l=>l.id===saved.id);
       if (idx>=0) _logs[idx]=saved; else _logs.unshift(saved);
+      if (_activeTab==='logbook') renderLogbook();
+      if (_activeTab==='card')    renderCard(_selectedEmpId);
+      Modal.close(mid);
+      Notify.success('Log disimpan');
+    } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
+  async function deleteLog(id) {
+    const ok = await Modal.confirm({title:'Hapus Log',message:'Log ini akan dihapus.',danger:true,confirmText:'Hapus'});
+    if (!ok) return;
+    try {
+      await DB.deleteEmployeeLog(id);
+      _logs = _logs.filter(l=>l.id!==id);
       renderLogbook();
-      Modal.close(modalId);
-      Notify.success(editId ? 'Log diperbarui' : 'Log ditambahkan');
-    } catch(err) { Notify.error('Gagal', err.message); }
+      Notify.success('Log dihapus');
+    } catch(e) { Notify.error('Gagal', e.message); }
   }
 
   return {
-    init, switchTab, setDivFilter, setLogFilter, resetLogFilter,
-    openEmpModal, _submitEmp, openLogModal, _submitLog,
-    _renderArsipTable, _restoreEmployee,
+    init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
+    setFilter, sortBy, viewCard, filterCards,
+    openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
+    get _selectedEmpId() { return _selectedEmpId; },
+    set _selectedEmpId(v) { _selectedEmpId = v; },
   };
-})();
 
+})();
 window.EmployeeModule = EmployeeModule;
