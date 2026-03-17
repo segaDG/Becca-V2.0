@@ -61,12 +61,32 @@ const DashboardModule = (() => {
 
   async function refresh() { await _render(); Notify.success('Data diperbarui'); }
 
+  // Map each widget ID to the module it needs access to
+  const _WIDGET_MODULE = {
+    saldo_kas:'kas', total_keluar:'kas', total_masuk:'kas', total_trx:'kas',
+    karyawan:'employee', hutang:'employee',
+    barang_aktif:'inventory', nilai_inv:'inventory',
+    task_open:'task', invoice_belum:'invoice', ap_belum:'ap',
+  };
+
   async function _render() {
+    // Load only data user has access to
+    const canKas      = Auth.can('kas','view');
+    const canEmployee = Auth.can('employee','view');
+    const canInventory= Auth.can('inventory','view');
+    const canInvoice  = Auth.can('invoice','view');
+    const canAP       = Auth.can('ap','view');
+    const canTask     = Auth.can('task','view');
+
     const [kas, kasMasuk, employees, invLogs, invItems, invoices, apList, tasks] = await Promise.all([
-      DB.getKas().catch(()=>[]),          DB.getKasMasuk().catch(()=>[]),
-      DB.getEmployees().catch(()=>[]),    DB.getInventory().catch(()=>[]),
-      DB.getInventoryItems().catch(()=>[]),DB.getInvoices().catch(()=>[]),
-      DB.getAP().catch(()=>[]),           DB.getTasks().catch(()=>[]),
+      canKas       ? DB.getKas().catch(()=>[])              : Promise.resolve([]),
+      canKas       ? DB.getKasMasuk().catch(()=>[])         : Promise.resolve([]),
+      canEmployee  ? DB.getEmployees().catch(()=>[])         : Promise.resolve([]),
+      canInventory ? DB.getInventory().catch(()=>[])         : Promise.resolve([]),
+      canInventory ? DB.getInventoryItems().catch(()=>[])    : Promise.resolve([]),
+      canInvoice   ? DB.getInvoices().catch(()=>[])          : Promise.resolve([]),
+      canAP        ? DB.getAP().catch(()=>[])                : Promise.resolve([]),
+      canTask      ? DB.getTasks().catch(()=>[])             : Promise.resolve([]),
     ]);
 
     const totalKeluar   = kas.reduce((s,r)=>s+(r.jumlah||0), 0);
@@ -98,7 +118,13 @@ const DashboardModule = (() => {
       ap_belum:     {v: Utils.formatRupiah(apBelum,true),         c: 'var(--danger)'},
     };
 
-    const widgets = _getCfg().filter(w=>w.enabled);
+    // Filter widgets by user privilege
+    const widgets = _getCfg().filter(w => {
+      if (!w.enabled) return false;
+      const mod = _WIDGET_MODULE[w.id];
+      if (mod && !Auth.can(mod,'view')) return false;
+      return true;
+    });
     const arrowSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M5 12h14M12 5l7 7-7 7"/></svg>`;
 
     document.getElementById('dash-content').innerHTML = `
@@ -114,66 +140,13 @@ const DashboardModule = (() => {
         }).join('')}
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 360px;gap:var(--s4);margin-bottom:var(--s5)">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Transaksi Kas Terbaru</div>
-            <button class="btn btn-ghost btn-sm" onclick="App.navigate('kas')">Lihat Semua</button>
-          </div>
-          <div class="table-scroll">
-            <table class="table">
-              <thead><tr><th>Tanggal</th><th>Nama</th><th>Type</th><th class="num">Jumlah</th><th>Status</th></tr></thead>
-              <tbody>
-                ${recentKas.length ? recentKas.map(r=>`
-                  <tr style="cursor:pointer" onclick="App.navigate('kas')">
-                    <td style="white-space:nowrap">${r.tgl?Utils.formatDate(r.tgl,'dd/mm/yyyy'):'-'}</td>
-                    <td>${r.nama||'-'}</td>
-                    <td><span class="badge badge-neutral">${r.type||'-'}</span></td>
-                    <td class="num">${Utils.formatRupiah(r.jumlah||0)}</td>
-                    <td><span class="badge ${r.status==='DONE'?'badge-success':'badge-warning'}">${r.status||'-'}</span></td>
-                  </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-3)">Belum ada data</td></tr>`}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div style="display:grid;grid-template-columns:${[canKas,canInventory].filter(Boolean).length>1?'1fr 360px':'1fr'};gap:var(--s4);margin-bottom:var(--s5)">
+        ${canKas ? _renderRecentKasTable(recentKas) : ''}
 
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Stok Menipis</div>
-            <button class="btn btn-ghost btn-sm" onclick="App.navigate('inventory')">Lihat</button>
-          </div>
-          <div style="padding:var(--s3)">
-            ${lowStock.length===0 ? `<div style="text-align:center;padding:30px;color:var(--text-3)">Semua stok aman</div>` :
-              lowStock.slice(0,8).map(p=>`
-                <div onclick="App.navigate('inventory')" style="display:flex;align-items:center;justify-content:space-between;padding:7px var(--s3);border-radius:var(--r-sm);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-                  <div><div style="font-size:13px;font-weight:500">${p.nama}</div><div style="font-size:11px;color:var(--text-3)">${p.satuan||''}</div></div>
-                  <span class="badge ${(p._stok||p.balance||0)<=0?'badge-danger':'badge-warning'}">${p._stok||p.balance||0} ${p.satuan||''}</span>
-                </div>`).join('')}
-          </div>
-        </div>
+        ${canInventory ? _renderLowStockCard(lowStock) : ''}
       </div>
 
-      ${topHutang.length ? `
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Hutang Karyawan Terbesar</div>
-            <button class="btn btn-ghost btn-sm" onclick="App.navigate('employee')">Lihat</button>
-          </div>
-          <div class="table-scroll">
-            <table class="table">
-              <thead><tr><th>#</th><th>Nama</th><th>Divisi</th><th class="num">Sisa Hutang</th></tr></thead>
-              <tbody>
-                ${topHutang.map((e,i)=>`
-                  <tr style="cursor:pointer" onclick="App.navigate('employee')">
-                    <td class="text-muted">${i+1}</td>
-                    <td class="font-semibold">${e.nama}</td>
-                    <td><span class="badge badge-neutral">${e.divisi||'-'}</span></td>
-                    <td class="num" style="color:var(--warning);font-weight:600">${Utils.formatRupiah(e.sisaHutang)}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>` : ''}
+      ${canEmployee && topHutang.length ? _renderHutangTable(topHutang) : ''}
     `;
   }
 
@@ -219,6 +192,70 @@ const DashboardModule = (() => {
     Notify.success('Widget direset');
     _render();
   }
+
+  function _renderRecentKasTable(rows) {
+    const nav = "App.navigate(\'kas\')";
+    let h = '<div class="card"><div class="card-header">'
+      + '<div class="card-title">Transaksi Kas Terbaru</div>'
+      + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat Semua</button>'
+      + '</div><div class="table-scroll"><table class="table">'
+      + '<thead><tr><th>Tanggal</th><th>Nama</th><th>Type</th><th class="num">Jumlah</th><th>Status</th></tr></thead><tbody>';
+    if (!rows.length) {
+      h += '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-3)">Belum ada data</td></tr>';
+    } else {
+      rows.forEach(function(r) {
+        h += '<tr style="cursor:pointer" onclick="' + nav + '">'
+          + '<td style="white-space:nowrap">' + (r.tgl ? Utils.formatDate(r.tgl,'dd/mm/yyyy') : '-') + '</td>'
+          + '<td>' + (r.nama||'-') + '</td>'
+          + '<td><span class="badge badge-neutral">' + (r.type||'-') + '</span></td>'
+          + '<td class="num">' + Utils.formatRupiah(r.jumlah||0) + '</td>'
+          + '<td><span class="badge ' + (r.status==='DONE'?'badge-success':'badge-warning') + '">' + (r.status||'-') + '</span></td>'
+          + '</tr>';
+      });
+    }
+    return h + '</tbody></table></div></div>';
+  }
+
+  function _renderLowStockCard(lowStock) {
+    const nav = "App.navigate(\'inventory\')";
+    let h = '<div class="card"><div class="card-header">'
+      + '<div class="card-title">Stok Menipis</div>'
+      + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat</button>'
+      + '</div><div style="padding:var(--s3)">';
+    if (!lowStock.length) {
+      h += '<div style="text-align:center;padding:30px;color:var(--text-3)">Semua stok aman ✅</div>';
+    } else {
+      lowStock.slice(0,8).forEach(function(p) {
+        const stok = p._stok||p.balance||0;
+        h += '<div onclick="' + nav + '" style="display:flex;align-items:center;justify-content:space-between;padding:7px var(--s3);border-radius:var(--r-sm);cursor:pointer">'
+          + '<div><div style="font-size:13px;font-weight:500">' + p.nama + '</div>'
+          + '<div style="font-size:11px;color:var(--text-3)">' + (p.satuan||'') + '</div></div>'
+          + '<span class="badge ' + (stok<=0?'badge-danger':'badge-warning') + '">' + stok + ' ' + (p.satuan||'') + '</span>'
+          + '</div>';
+      });
+    }
+    return h + '</div></div>';
+  }
+
+  function _renderHutangTable(topHutang) {
+    const nav = "App.navigate(\'employee\')";
+    let h = '<div class="card"><div class="card-header">'
+      + '<div class="card-title">Hutang Karyawan Terbesar</div>'
+      + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat</button>'
+      + '</div><div class="table-scroll"><table class="table">'
+      + '<thead><tr><th>#</th><th>Nama</th><th>Divisi</th><th class="num">Sisa Hutang</th></tr></thead><tbody>';
+    topHutang.forEach(function(e,i) {
+      h += '<tr style="cursor:pointer" onclick="' + nav + '">'
+        + '<td class="text-muted">' + (i+1) + '</td>'
+        + '<td class="font-semibold">' + e.nama + '</td>'
+        + '<td><span class="badge badge-neutral">' + (e.divisi||'-') + '</span></td>'
+        + '<td class="num" style="color:var(--warning);font-weight:600">' + Utils.formatRupiah(e.sisaHutang) + '</td>'
+        + '</tr>';
+    });
+    return h + '</tbody></table></div></div>';
+  }
+
+
 
   return { init, refresh, openWidgetEditor, _saveW, _resetW };
 })();
