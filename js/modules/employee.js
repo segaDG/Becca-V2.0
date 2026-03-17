@@ -149,10 +149,7 @@ const EmployeeModule = (() => {
         <input type="text" class="form-control" id="emp-search-bar" style="width:200px"
           placeholder="🔍 Cari nama, jabatan, NIK..."
           oninput="EmployeeModule._searchEmp(this.value)">
-        <select class="form-control" style="width:150px" onchange="EmployeeModule.setFilter('status',this.value)">
-          <option value="">Semua Status</option>
-          ${[...new Set(_employees.map(e=>e.status).filter(Boolean))].sort().map(s=>`<option value="${s}" ${_filterStatus===s?'selected':''}>${s}</option>`).join('')}
-        </select>
+
         <select class="form-control" style="width:160px" onchange="EmployeeModule.setFilter('dept',this.value)">
           <option value="">Semua Departemen</option>
           ${depts.map(d=>`<option value="${d}" ${_filterDept===d?'selected':''}>${d}</option>`).join('')}
@@ -443,78 +440,159 @@ const EmployeeModule = (() => {
 
   /* ===================== RENDER LOGBOOK ===================== */
   function renderLogbook() {
-    const empOpts = _employees.filter(e=>e.status!=='Arsip')
-      .map(e=>`<option value="${e.id}">${e.nama}</option>`).join('');
+    // Logbook data: hutang/pinjaman/cicilan karyawan
+    // Fields: tgl, nama, bulan, hutang, bayar, ket, pj, konfirmasi
+    const allNamas  = [...new Set(_logs.map(l=>l.nama).filter(Boolean))].sort();
+    const allBulans = [...new Set(_logs.map(l=>l.bulan).filter(b=>b))].sort((a,b)=>a-b);
+    const BULAN_LABEL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+
+    const totalHutang = _logs.reduce((s,l)=>s+(l.hutang||0), 0);
+    const totalBayar  = _logs.reduce((s,l)=>s+(l.bayar||0),  0);
+    const saldo       = totalHutang - totalBayar;
 
     document.getElementById('emp-tab-logbook').innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s4)">
-        <div style="display:flex;gap:var(--s2)">
-          <select class="form-control" style="width:180px" id="lb-filter-emp"
-            onchange="EmployeeModule.renderLogbook()">
-            <option value="">Semua Karyawan</option>
-            ${empOpts}
-          </select>
-          <input type="date" class="form-control" style="width:140px" id="lb-filter-from"
-            onchange="EmployeeModule.renderLogbook()">
-          <input type="date" class="form-control" style="width:140px" id="lb-filter-to"
-            onchange="EmployeeModule.renderLogbook()">
-        </div>
+      <!-- Summary Cards -->
+      <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
+        ${[
+          {l:'Total Hutang',  v:Utils.formatRupiah(totalHutang,true),  c:'var(--danger)'},
+          {l:'Total Bayar',   v:Utils.formatRupiah(totalBayar,true),   c:'var(--success)'},
+          {l:'Sisa Hutang',   v:Utils.formatRupiah(saldo,true),        c:saldo>0?'var(--warning)':'var(--success)'},
+          {l:'Total Records', v:_logs.length+' entri',                 c:'var(--text-2)'},
+        ].map(s=>`
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 16px;min-width:130px">
+            <div style="font-size:10px;color:var(--text-3);margin-bottom:2px">${s.l}</div>
+            <div style="font-size:15px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
+          </div>`).join('')}
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar" style="margin-bottom:var(--s3)">
+        <select class="form-control" style="width:180px" id="lb-filter-nama"
+          onchange="EmployeeModule.renderLogbook()">
+          <option value="">Semua Karyawan</option>
+          ${allNamas.map(n=>`<option value="${n}">${n}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:110px" id="lb-filter-bulan"
+          onchange="EmployeeModule.renderLogbook()">
+          <option value="">Semua Bulan</option>
+          ${allBulans.map(b=>`<option value="${b}">${BULAN_LABEL[b]||b}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:130px" id="lb-filter-konf"
+          onchange="EmployeeModule.renderLogbook()">
+          <option value="">Semua Status</option>
+          <option value="CONFIRMED">CONFIRMED</option>
+          <option value="">Belum Konfirmasi</option>
+        </select>
+        <input type="date" class="form-control" style="width:140px" id="lb-filter-from"
+          onchange="EmployeeModule.renderLogbook()">
+        <input type="date" class="form-control" style="width:140px" id="lb-filter-to"
+          onchange="EmployeeModule.renderLogbook()">
+        <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._resetLbFilter()" title="Reset">↺</button>
+        <span style="margin-left:auto;font-size:12px;color:var(--text-3)" id="lb-count-label"></span>
         ${Auth.can('employee','edit') ? `
           <button class="btn btn-primary btn-sm" onclick="EmployeeModule.openLogModal()">+ Tambah Log</button>` : ''}
       </div>
+
+      <!-- Table -->
       <div class="table-wrapper"><div class="table-scroll">
-        <table class="table">
-          <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Tipe</th><th>Catatan</th><th>Jumlah</th>
-            ${Auth.can('employee','edit')?'<th>Aksi</th>':''}
+        <table class="table" style="font-size:12px">
+          <thead><tr>
+            <th style="width:90px">Tanggal</th>
+            <th>Nama Karyawan</th>
+            <th style="width:60px;text-align:center">Bulan</th>
+            <th>Keterangan</th>
+            <th>Penanggung Jawab</th>
+            <th class="num" style="color:var(--danger)">Hutang</th>
+            <th class="num" style="color:var(--success)">Bayar</th>
+            <th style="width:100px;text-align:center">Status</th>
+            ${Auth.can('employee','edit')?'<th style="width:70px">Aksi</th>':''}
           </tr></thead>
           <tbody id="lb-tbody">${_renderLogRows()}</tbody>
         </table>
       </div></div>
     `;
+
+    // Update count label
+    setTimeout(() => {
+      const tbody = document.getElementById('lb-tbody');
+      if (tbody) {
+        const rows = tbody.querySelectorAll('tr').length;
+        const lbl  = document.getElementById('lb-count-label');
+        if (lbl) lbl.textContent = rows + ' entri';
+      }
+    }, 50);
+  }
+
+  function _resetLbFilter() {
+    ['lb-filter-nama','lb-filter-bulan','lb-filter-konf','lb-filter-from','lb-filter-to']
+      .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    renderLogbook();
   }
 
   function _renderLogRows() {
-    const empFilter = document.getElementById('lb-filter-emp')?.value || '';
-    const from      = document.getElementById('lb-filter-from')?.value || '';
-    const to        = document.getElementById('lb-filter-to')?.value || '';
-    const canEdit   = Auth.can('employee','edit');
+    const BULAN_LABEL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const filterNama  = document.getElementById('lb-filter-nama')?.value  || '';
+    const filterBulan = document.getElementById('lb-filter-bulan')?.value || '';
+    const filterKonf  = document.getElementById('lb-filter-konf')?.value  || '_all_';
+    const from        = document.getElementById('lb-filter-from')?.value  || '';
+    const to          = document.getElementById('lb-filter-to')?.value    || '';
+    const canEdit     = Auth.can('employee','edit');
+    const cols        = canEdit ? 9 : 8;
 
     let logs = [..._logs].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
-    if (empFilter) {
-      // Support both old format (nama match) and new format (employeeId)
-      const empName = _employees.find(e=>e.id===empFilter)?.nama||'';
-      logs = logs.filter(l=>l.employeeId===empFilter || l.nama===empName);
-    }
+    if (filterNama)            logs = logs.filter(l=>l.nama===filterNama);
+    if (filterBulan)           logs = logs.filter(l=>String(l.bulan)===filterBulan);
+    if (filterKonf !== '_all_') logs = logs.filter(l=>l.konfirmasi===filterKonf);
     if (from) logs = logs.filter(l=>(l.tgl||'')>=from);
     if (to)   logs = logs.filter(l=>(l.tgl||'')<=to);
 
-    if (!logs.length) return `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</td></tr>`;
+    if (!logs.length) return `<tr><td colspan="${cols}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</td></tr>`;
 
-    return logs.map(l => {
-      // Support both old and new format
-      const emp      = _employees.find(e=>e.id===l.employeeId || e.nama===l.nama);
-      const namaEmp  = emp?.nama || l.nama || l.employeeId || '-';
-      // Old format fields: ket, bayar, hutang, pj, konfirmasi
-      // New format fields: type, catatan
-      const tipe     = l.type || l.konfirmasi || '-';
-      const catatan  = l.catatan || l.ket || '-';
-      const extra    = (l.bayar||l.hutang) ? Utils.formatRupiah((l.bayar||0)+(l.hutang||0)) : '';
+    // Subtotal rows
+    const subHutang = logs.reduce((s,l)=>s+(l.hutang||0),0);
+    const subBayar  = logs.reduce((s,l)=>s+(l.bayar||0),0);
+
+    const rows = logs.map(l => {
+      const namaEmp  = l.nama || '-';
+      const tglFmt   = l.tgl ? l.tgl.split('-').reverse().join('/') : '-';
+      const bulanLbl = BULAN_LABEL[l.bulan] || (l.bulan||'-');
+      const ket      = l.ket || l.catatan || '-';
+      const pj       = l.pj || '-';
+      const hutang   = l.hutang || 0;
+      const bayar    = l.bayar  || 0;
+      const konfBadge = l.konfirmasi==='CONFIRMED'
+        ? '<span class="badge badge-success" style="font-size:10px">✓ Konfirmasi</span>'
+        : '<span class="badge badge-neutral" style="font-size:10px">Pending</span>';
+
       return `<tr>
-        <td style="white-space:nowrap">${l.tgl||'-'}</td>
-        <td>${namaEmp}</td>
-        <td><span class="badge badge-neutral" style="font-size:10px">${tipe}</span></td>
-        <td>${catatan}</td>
-        <td class="text-small" style="font-family:var(--font-mono);color:var(--warning)">${extra}</td>
-        ${canEdit?`<td><div style="display:flex;gap:4px">
+        <td style="white-space:nowrap;color:var(--text-2)">${tglFmt}</td>
+        <td style="font-weight:600">${namaEmp}</td>
+        <td style="text-align:center;color:var(--text-3)">${bulanLbl}</td>
+        <td style="color:var(--text-2)">${ket}</td>
+        <td style="color:var(--text-3);font-size:11px">${pj}</td>
+        <td class="num" style="font-family:var(--font-mono);color:${hutang>0?'var(--danger)':'var(--text-3)'};font-weight:${hutang>0?'600':'400'}">${hutang>0?Utils.formatRupiah(hutang):'-'}</td>
+        <td class="num" style="font-family:var(--font-mono);color:${bayar>0?'var(--success)':'var(--text-3)'};font-weight:${bayar>0?'600':'400'}">${bayar>0?Utils.formatRupiah(bayar):'-'}</td>
+        <td style="text-align:center">${konfBadge}</td>
+        ${canEdit?`<td><div style="display:flex;gap:3px">
           <button class="btn-icon" title="Edit" onclick="EmployeeModule.openLogModal('${l.id}')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
           </button>
           <button class="btn-icon" title="Hapus" onclick="EmployeeModule.deleteLog('${l.id}')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>
           </button>
         </div></td>`:''}
       </tr>`;
     }).join('');
+
+    // Footer subtotal
+    const footer = `<tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--border2)">
+      <td colspan="5" style="font-size:12px;color:var(--text-2)">Subtotal (${logs.length} entri)</td>
+      <td class="num" style="font-family:var(--font-mono);color:var(--danger)">${Utils.formatRupiah(subHutang)}</td>
+      <td class="num" style="font-family:var(--font-mono);color:var(--success)">${Utils.formatRupiah(subBayar)}</td>
+      <td colspan="${canEdit?2:1}"></td>
+    </tr>`;
+
+    return rows + footer;
   }
 
   /* ===================== RENDER ARSIP ===================== */
@@ -539,7 +617,7 @@ const EmployeeModule = (() => {
               <td class="text-muted">${emp.nik||emp.nip||'-'}</td>
               <td>${emp.jabatan||'-'}</td>
               <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
-              <td><span class="badge badge-danger" style="font-size:10px">${emp.status||'-'}</span></td>
+              <td onclick="event.stopPropagation()">${_statusDropdown(emp)}</td>
               ${Auth.can('employee','edit')?`<td>
                 <div style="display:flex;gap:4px;align-items:center">
                   <button class="btn btn-ghost btn-sm" onclick="EmployeeModule.openEmpModal('${emp.id}')">Edit</button>
@@ -790,11 +868,27 @@ const EmployeeModule = (() => {
     } catch(e) { Notify.error('Gagal', e.message); }
   }
 
+  const _STATUS_COLORS = {
+    'ACTIVE':    {bg:'rgba(34,197,94,.15)',  color:'#16a34a', border:'rgba(34,197,94,.4)'},
+    'Active':    {bg:'rgba(34,197,94,.15)',  color:'#16a34a', border:'rgba(34,197,94,.4)'},
+    'Tetap':     {bg:'rgba(59,130,246,.15)', color:'#2563eb', border:'rgba(59,130,246,.4)'},
+    'Kontrak':   {bg:'rgba(99,102,241,.15)', color:'#6366f1', border:'rgba(99,102,241,.4)'},
+    'Percobaan': {bg:'rgba(180,140,100,.15)',color:'#92713a', border:'rgba(180,140,100,.4)'},
+    'Harian':    {bg:'rgba(148,163,184,.15)',color:'#64748b', border:'rgba(148,163,184,.4)'},
+    'RESIGN':    {bg:'rgba(234,179,8,.15)',  color:'#b45309', border:'rgba(234,179,8,.4)'},
+    'Fired':     {bg:'rgba(239,68,68,.15)',  color:'#dc2626', border:'rgba(239,68,68,.4)'},
+    'Arsip':     {bg:'rgba(100,116,139,.12)',color:'#64748b', border:'rgba(100,116,139,.3)'},
+  };
+
   function _statusDropdown(emp) {
     const ALL_STATUSES = ['ACTIVE','Tetap','Kontrak','Percobaan','Harian','RESIGN','Fired','Arsip'];
-    const id = (emp.id||'').replace(/['"]/g,'');
-    const opts = ALL_STATUSES.map(s=>`<option value="${s}" ${emp.status===s?'selected':''}>${s}</option>`).join('');
-    return `<select class="form-control" style="font-size:11px;padding:3px 6px;height:auto;min-width:90px"
+    const id    = (emp.id||'').replace(/['"]/g,'');
+    const clr   = _STATUS_COLORS[emp.status] || {bg:'var(--surface2)',color:'var(--text-2)',border:'var(--border)'};
+    const opts  = ALL_STATUSES.map(s=>`<option value="${s}" ${emp.status===s?'selected':''}>${s}</option>`).join('');
+    return `<select
+      style="font-size:11px;padding:2px 6px;height:auto;min-width:90px;border-radius:4px;
+             background:${clr.bg};color:${clr.color};border:1px solid ${clr.border};
+             font-weight:600;cursor:pointer;outline:none"
       onchange="event.stopPropagation();EmployeeModule.changeStatus('${id}',this.value)"
       onclick="event.stopPropagation()">${opts}</select>`;
   }
@@ -802,7 +896,7 @@ const EmployeeModule = (() => {
 
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
-    _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, changeStatus,
+    _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, changeStatus, _resetLbFilter,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
     get _selectedEmpId() { return _selectedEmpId; },
