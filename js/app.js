@@ -28,6 +28,10 @@ const App = {
     this._showApp();
     this._initTheme();
     this._startPresence();
+    // Force change password on first login
+    if (sessionStorage.getItem('becca_must_change_pwd') === '1') {
+      setTimeout(() => this._forceChangePasswordModal(), 500);
+    }
   },
 
   _showLogin() {
@@ -470,6 +474,55 @@ const App = {
     }
     const saved = localStorage.getItem('becca_theme') || 'dark';
     this._applyTheme(saved);
+  },
+
+  _forceChangePasswordModal() {
+    const mid = Utils.uid();
+    // Cannot close this modal - must change password
+    Modal.open({ id: mid,
+      title: '🔑 Ganti Password',
+      size: 'modal-sm',
+      body: `<div style="background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);
+                          border-radius:var(--r-md);padding:12px;margin-bottom:var(--s4);font-size:13px;color:var(--warning)">
+               ⚠️ Ini adalah login pertama Anda. Anda harus mengganti password sebelum melanjutkan.
+             </div>
+             <form id="force-pwd-form">
+               <div class="form-group">
+                 <label class="form-label">Password Baru <span class="req">*</span></label>
+                 <input name="newPwd" type="password" class="form-control" minlength="6" required
+                   placeholder="Min. 6 karakter">
+               </div>
+               <div class="form-group">
+                 <label class="form-label">Konfirmasi Password <span class="req">*</span></label>
+                 <input name="confirmPwd" type="password" class="form-control" required>
+               </div>
+             </form>`,
+      footer: `<button class="btn btn-primary w-full" onclick="App._submitForcePassword('${mid}')">Simpan Password</button>`,
+      hideClose: true,
+    });
+  },
+
+  async _submitForcePassword(mid) {
+    const form = document.getElementById('force-pwd-form');
+    const fd   = new FormData(form);
+    const np   = fd.get('newPwd');
+    const cp   = fd.get('confirmPwd');
+    if (!np || np.length < 6) { Notify.warning('Password min. 6 karakter'); return; }
+    if (np !== cp) { Notify.warning('Konfirmasi password tidak sama'); return; }
+    try {
+      const user = Auth.currentUser();
+      let users = await DB.getUsers().catch(()=>[]);
+      if (!users.length) users = [...Auth._defaultUsers];
+      const idx = users.findIndex(u => u.username === user.username);
+      if (idx < 0) { Notify.error('User tidak ditemukan'); return; }
+      users[idx].password = np;
+      users[idx].mustChangePassword = false;
+      await DB.saveUser(users[idx]);
+      sessionStorage.removeItem('becca_must_change_pwd');
+      Modal.close(mid);
+      Notify.success('Password berhasil diganti! Selamat datang, '+user.nama);
+      DB.logActivity({type:'change_password', detail:'Force change password: '+user.username});
+    } catch(e) { Notify.error('Gagal', e.message); }
   },
 
   async logout() {
