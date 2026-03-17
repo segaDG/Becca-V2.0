@@ -124,8 +124,46 @@ const DB = {
       user: user?.nama || 'System',
       role: user?.role || '',
       ...entry,
+      // snapshot: { before: {}, after: {}, fields: [] } - data sebelum/sesudah
     };
     return this._save('activity_log', log);
+  },
+
+  /* ============ PRESENCE / USER ONLINE ============ */
+  // Key format: becca_presence_<userId>
+  updatePresence(userId, userData) {
+    const data = {
+      id: userId,
+      ...userData,
+      lastSeen: new Date().toISOString(),
+      sessionId: userData.sessionId || Utils.uid(),
+    };
+    try {
+      localStorage.setItem('becca_presence_' + userId, JSON.stringify(data));
+      return Promise.resolve(data);
+    } catch { return Promise.resolve(data); }
+  },
+
+  getOnlineUsers(maxAgeMs = 30000) {
+    // Return users seen in last 30 seconds
+    const now = Date.now();
+    const users = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith('becca_presence_')) continue;
+      try {
+        const data = JSON.parse(localStorage.getItem(key));
+        if (!data?.lastSeen) continue;
+        const age = now - new Date(data.lastSeen).getTime();
+        if (age <= maxAgeMs) users.push(data);
+      } catch {}
+    }
+    return Promise.resolve(users.sort((a,b) => a.nama?.localeCompare(b.nama||'')));
+  },
+
+  clearPresence(userId) {
+    localStorage.removeItem('becca_presence_' + userId);
+    return Promise.resolve(true);
   },
   getActivityLog()        { return this._get('activity_log'); },
   clearActivityLog()      { localStorage.removeItem('becca_activity_log'); return Promise.resolve(true); },
