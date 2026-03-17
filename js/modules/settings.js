@@ -422,6 +422,77 @@ const SettingsModule = (() => {
     renderPrivilege();
   }
 
+  // Sync checkbox logic: Full implies View
+  function _onPrivChange(role, feat, type, checked) {
+    const viewEl = document.getElementById('priv_'+role+'_'+feat+'_view');
+    const fullEl = document.getElementById('priv_'+role+'_'+feat+'_full');
+    if (type==='full' && checked && viewEl)  viewEl.checked = true;
+    if (type==='view' && !checked && fullEl) fullEl.checked = false;
+  }
+
+  // Add custom role modal
+  function addCustomRole() {
+    const mid = Utils.uid();
+    const roleOpts = _getRoles().filter(r=>r!=='superadmin')
+      .map(r=>`<option value="${r}">${r}</option>`).join('');
+    Modal.open({ id: mid,
+      title: '+ Tambah Role Baru',
+      size: 'modal-sm',
+      body: `<div class="form-group">
+        <label class="form-label">Nama Role <span class="req">*</span></label>
+        <input type="text" class="form-control" id="new-role-inp"
+          placeholder="Contoh: supervisor, kasir">
+        <div class="form-hint">Huruf kecil, tanpa spasi. Contoh: supervisor</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Salin hak akses dari role (opsional)</label>
+        <select class="form-control" id="copy-from-role">
+          <option value="">— Mulai kosong —</option>
+          ${roleOpts}
+        </select>
+      </div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+               <button class="btn btn-primary" onclick="SettingsModule._saveNewRole('${mid}')">Tambah Role</button>`,
+    });
+    setTimeout(()=>document.getElementById('new-role-inp')?.focus(), 100);
+  }
+
+  function _saveNewRole(mid) {
+    const name = (document.getElementById('new-role-inp')?.value||'').trim().toLowerCase().replace(/\s+/g,'_');
+    if (!name) { Notify.warning('Nama role tidak boleh kosong'); return; }
+    if (_getRoles().includes(name)) { Notify.warning('Role "'+name+'" sudah ada'); return; }
+    if (!/^[a-z][a-z0-9_]*$/.test(name)) { Notify.warning('Hanya huruf kecil, angka, underscore'); return; }
+    // Copy privileges from existing role if selected
+    const copyFrom = document.getElementById('copy-from-role')?.value;
+    const existing = Utils.ls.get('becca_privileges') || {};
+    if (copyFrom && existing[copyFrom]) {
+      existing[name] = {...existing[copyFrom]};
+      Utils.ls.set('becca_privileges', existing);
+    }
+    // Save to custom roles list
+    const customRoles = Utils.ls.get('becca_custom_roles') || [];
+    customRoles.push(name);
+    Utils.ls.set('becca_custom_roles', customRoles);
+    Modal.close(mid);
+    Notify.success('Role "'+name+'" ditambahkan!');
+    renderPrivilege();
+    DB.logActivity({type:'add_role', detail:'Role baru: '+name});
+  }
+
+  function deleteCustomRole(roleName) {
+    if (_DEFAULT_ROLES.includes(roleName)) { Notify.warning('Role default tidak bisa dihapus'); return; }
+    Modal.confirm({title:'Hapus Role',message:'Role "'+roleName+'" akan dihapus permanen.',danger:true,confirmText:'Hapus'}).then(ok=>{
+      if (!ok) return;
+      const custom = Utils.ls.get('becca_custom_roles') || [];
+      Utils.ls.set('becca_custom_roles', custom.filter(r=>r!==roleName));
+      const privs = Utils.ls.get('becca_privileges') || {};
+      delete privs[roleName];
+      Utils.ls.set('becca_privileges', privs);
+      Notify.success('Role "'+roleName+'" dihapus');
+      renderPrivilege();
+    });
+  }
+
   /* ===================== TAB: ACTIVITY LOG ===================== */
   async function renderActivity() {
     const logs   = await DB.getActivityLog().catch(()=>[]);
