@@ -475,30 +475,129 @@ const KasModule = (() => {
 
   /* ===================== SUMMARY TAB ===================== */
   function renderSummary() {
-    // Normalize bulan sebelum group agar variasi digabung
-    const kasNorm = _kas.map(r => ({...r, bulan: _normalizeBulan(r.bulan)}));
-    const byType  = Utils.groupBy(kasNorm, 'type');
-    const byBulan = Utils.groupBy(kasNorm, 'bulan');
-    const typeRows=Object.entries(byType).map(([t,rows])=>({t,total:Utils.sumBy(rows,'jumlah'),count:rows.length})).sort((a,b)=>b.total-a.total);
-    const grand=typeRows.reduce((s,r)=>s+r.total,0);
-    document.getElementById('kas-tab-summary').innerHTML=`
+    // Normalize + filter by selected bulan
+    const kasNorm  = _kas.map(r => ({...r, bulan: _normalizeBulan(r.bulan)}));
+    const allBulan = [...new Set(kasNorm.map(r=>r.bulan).filter(Boolean))]
+      .sort((a,b)=>(_BULAN_IDX[a]||99)-(_BULAN_IDX[b]||99));
+    const selBulan = document.getElementById('sum-bulan-filter')?.value || '';
+    const filtered = selBulan ? kasNorm.filter(r=>r.bulan===selBulan) : kasNorm;
+
+    const byType  = Utils.groupBy(filtered, 'type');
+    const byBulan = Utils.groupBy(kasNorm,  'bulan');  // always all for bulan table
+    const typeRows = Object.entries(byType)
+      .map(([t,rows]) => ({t, total:Utils.sumBy(rows,'jumlah'), count:rows.length}))
+      .sort((a,b) => b.total - a.total);
+    const grand = typeRows.reduce((s,r) => s+r.total, 0);
+
+    // Chart data
+    const chartByType  = typeRows.slice(0,8);
+    const chartByBulan = allBulan.map(b=>({b, total:Utils.sumBy(byBulan[b]||[],'jumlah')}));
+    const maxTypeVal  = Math.max(...chartByType.map(r=>r.total), 1);
+    const maxBulanVal = Math.max(...chartByBulan.map(r=>r.total), 1);
+
+    const CHART_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6'];
+
+    document.getElementById('kas-tab-summary').innerHTML = `
+      <!-- Filter bar -->
+      <div class="filter-bar" style="margin-bottom:var(--s4)">
+        <label style="font-size:12px;color:var(--text-3)">Filter Bulan:</label>
+        <select class="form-control" style="width:160px" id="sum-bulan-filter"
+          onchange="KasModule.renderSummary()">
+          <option value="">Semua Bulan</option>
+          ${allBulan.map(b=>`<option value="${b}" ${selBulan===b?'selected':''}>${_bulanLabel(b)}</option>`).join('')}
+        </select>
+        ${selBulan ? `<span style="font-size:12px;color:var(--primary-h)">${_bulanLabel(selBulan)}</span>` : ''}
+      </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s5)">
-        <div class="card"><div class="card-header"><div class="card-title">Per Kategori</div></div>
-          <table class="table"><thead><tr><th>Kategori</th><th class="num">Jumlah</th><th class="num">Baris</th><th class="num">%</th></tr></thead>
-          <tbody>${typeRows.map(r=>`<tr><td><span class="badge badge-neutral">${r.t}</span></td><td class="num">${Utils.formatRupiah(r.total)}</td><td class="num text-muted">${r.count}</td>
-            <td class="num"><div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
-              <div style="width:50px;height:4px;background:var(--border);border-radius:2px">
-                <div style="width:${Math.round(r.total/grand*100)}%;height:100%;background:var(--primary);border-radius:2px"></div>
-              </div><span class="text-small">${Math.round(r.total/grand*100)}%</span></div></td></tr>`).join('')}
-            <tr style="background:var(--surface2)"><td><strong>TOTAL</strong></td><td class="num"><strong>${Utils.formatRupiah(grand)}</strong></td><td class="num text-muted">${_kas.length}</td><td class="num">100%</td></tr>
+
+        <!-- Per Kategori -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Per Kategori ${selBulan?'— '+_bulanLabel(selBulan):''}</div>
+            <div style="font-size:13px;font-weight:700;color:var(--danger);font-family:var(--font-mono)">${Utils.formatRupiah(grand,true)}</div>
+          </div>
+          <table class="table"><thead><tr>
+            <th>Kategori</th><th class="num">Jumlah</th><th class="num">Baris</th><th class="num">%</th>
+          </tr></thead><tbody>
+            ${typeRows.map(r=>`<tr>
+              <td><span class="badge badge-neutral">${r.t||'—'}</span></td>
+              <td class="num">${Utils.formatRupiah(r.total)}</td>
+              <td class="num text-muted">${r.count}</td>
+              <td class="num">
+                <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+                  <div style="width:50px;height:4px;background:var(--border);border-radius:2px">
+                    <div style="width:${Math.round(r.total/grand*100)}%;height:100%;background:var(--primary);border-radius:2px"></div>
+                  </div>
+                  <span class="text-small">${Math.round(r.total/grand*100)}%</span>
+                </div>
+              </td>
+            </tr>`).join('')}
+            <tr style="background:var(--surface2)">
+              <td><strong>TOTAL</strong></td>
+              <td class="num"><strong>${Utils.formatRupiah(grand)}</strong></td>
+              <td class="num text-muted">${filtered.length}</td>
+              <td class="num">100%</td>
+            </tr>
           </tbody></table>
+
+          <!-- Bar Chart per Kategori -->
+          <div style="padding:var(--s4);border-top:1px solid var(--border)">
+            <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--s3)">Grafik Kategori</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              ${chartByType.map((r,i)=>`
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="width:100px;font-size:11px;color:var(--text-2);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.t||'—'}</div>
+                  <div style="flex:1;height:16px;background:var(--surface2);border-radius:3px;overflow:hidden">
+                    <div style="width:${Math.round(r.total/maxTypeVal*100)}%;height:100%;background:${CHART_COLORS[i%8]};border-radius:3px;
+                      display:flex;align-items:center;padding-left:6px;transition:width .3s">
+                      ${r.total/maxTypeVal > 0.2 ? `<span style="font-size:10px;color:white;font-weight:600">${Math.round(r.total/grand*100)}%</span>` : ''}
+                    </div>
+                  </div>
+                  <div style="width:90px;font-size:11px;color:var(--text-2);font-family:var(--font-mono);text-align:right">${Utils.formatRupiah(r.total,true)}</div>
+                </div>`).join('')}
+            </div>
+          </div>
         </div>
-        <div class="card"><div class="card-header"><div class="card-title">Per Bulan</div></div>
-          <table class="table"><thead><tr><th>Bulan</th><th class="num">Total</th><th class="num">Baris</th></tr></thead>
-          <tbody>${Object.keys(byBulan).sort().map(b=>{const rows=byBulan[b];return`<tr><td><strong>${_bulanLabel(b)}</strong></td><td class="num">${Utils.formatRupiah(Utils.sumBy(rows,'jumlah'))}</td><td class="num text-muted">${rows.length}</td></tr>`;}).join('')}</tbody>
-        </table></div>
-      </div>`;
+
+        <!-- Per Bulan -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">Per Bulan (Semua Periode)</div></div>
+          <table class="table"><thead><tr>
+            <th>Bulan</th><th class="num">Total</th><th class="num">Baris</th>
+          </tr></thead><tbody>
+            ${allBulan.map(b=>{
+              const rows=byBulan[b]||[];
+              return `<tr ${selBulan===b?'style="background:rgba(99,102,241,.06)"':''}>
+                <td><strong>${_bulanLabel(b)}</strong></td>
+                <td class="num">${Utils.formatRupiah(Utils.sumBy(rows,'jumlah'))}</td>
+                <td class="num text-muted">${rows.length}</td>
+              </tr>`;
+            }).join('')}
+          </tbody></table>
+
+          <!-- Bar Chart per Bulan -->
+          <div style="padding:var(--s4);border-top:1px solid var(--border)">
+            <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--s3)">Grafik Per Bulan</div>
+            <div style="display:flex;align-items:flex-end;gap:6px;height:100px;padding-bottom:20px;position:relative">
+              ${chartByBulan.map((r,i)=>{
+                const pct = Math.round(r.total/maxBulanVal*100);
+                const color = selBulan===r.b ? '#6366f1' : '#94a3b8';
+                return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+                  <div style="width:100%;background:${color};border-radius:3px 3px 0 0;height:${pct}px;min-height:2px;transition:height .3s;cursor:pointer"
+                    onclick="document.getElementById('sum-bulan-filter').value='${r.b}';KasModule.renderSummary()"
+                    title="${_bulanLabel(r.b)}: ${Utils.formatRupiah(r.total)}"></div>
+                  <div style="font-size:9px;color:var(--text-3);text-align:center;transform:rotate(-45deg);transform-origin:top center;margin-top:4px;white-space:nowrap">${r.b}</div>
+                </div>`;
+              }).join('')}
+            </div>
+            <div style="font-size:10px;color:var(--text-3);text-align:center;margin-top:4px">Klik bar untuk filter kategori</div>
+          </div>
+        </div>
+      </div>
+    `;
   }
+
 
   /* ===================== MONTHLY REPORT ===================== */
   function renderMonthly() {
@@ -909,6 +1008,6 @@ const KasModule = (() => {
     return full + ' ' + year;
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, _onNamaInput, _calcTotal, deleteRow, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal };
+  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal };
 })();
 window.KasModule = KasModule;
