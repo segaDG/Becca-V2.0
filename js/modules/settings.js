@@ -684,51 +684,8 @@ const SettingsModule = (() => {
           </div>
         </div>
 
-        <!-- Two-column layout -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s4)">
-
-          <!-- Kolom kiri: Object / Objek yang diubah -->
-          <div>
-            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
-                        color:var(--text-3);margin-bottom:var(--s2)">Objek</div>
-            <table style="width:100%;border-collapse:collapse;font-size:12px">
-              ${objRows.length ? objRows.map(r=>`
-                <tr>
-                  <td style="padding:6px 8px;color:var(--text-3);white-space:nowrap;
-                             border-bottom:1px solid var(--border);width:40%">${r.k}</td>
-                  <td style="padding:6px 8px;font-weight:500;color:var(--text);
-                             border-bottom:1px solid var(--border);word-break:break-all">${r.v}</td>
-                </tr>`).join('')
-              : `<tr><td colspan="2" style="padding:12px 8px;color:var(--text-3);font-style:italic">
-                  Tidak ada data objek tersimpan
-                </td></tr>`}
-            </table>
-          </div>
-
-          <!-- Kolom kanan: Detail lengkap -->
-          <div>
-            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
-                        color:var(--text-3);margin-bottom:var(--s2)">Keterangan</div>
-            <div style="background:var(--surface2);border-radius:var(--r-md);padding:12px;
-                        font-size:12px;color:var(--text);line-height:1.6;min-height:80px">
-              ${log.detail||'<span style="color:var(--text-3);font-style:italic">Tidak ada keterangan</span>'}
-            </div>
-            <div style="margin-top:var(--s3)">
-              <table style="width:100%;border-collapse:collapse;font-size:12px">
-                ${[
-                  {k:'Tipe', v:log.type||'-'},
-                  {k:'Tanggal', v:log.tgl||'-'},
-                  {k:'Log ID', v:(log.id||'-').substring(0,12)+'...'},
-                ].map(r=>`
-                  <tr>
-                    <td style="padding:5px 8px;color:var(--text-3);border-bottom:1px solid var(--border);width:40%">${r.k}</td>
-                    <td style="padding:5px 8px;font-family:var(--font-mono);font-size:11px;
-                               color:var(--text-2);border-bottom:1px solid var(--border)">${r.v}</td>
-                  </tr>`).join('')}
-              </table>
-            </div>
-          </div>
-        </div>
+        <!-- Snapshot / Before-After Section -->
+        ${_renderActivitySnapshot(log)}
       `,
       footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
     });
@@ -910,12 +867,136 @@ const SettingsModule = (() => {
     setTimeout(()=>location.reload(),1500);
   }
 
+
+  // Render cuplikan visual aktivitas
+  function _renderActivitySnapshot(log) {
+    const type   = log.type   || '';
+    const detail = log.detail || '';
+    const snap   = log.snapshot || {};
+
+    function cellStyle(color) {
+      return 'padding:5px 10px;color:' + color + ';border-bottom:1px solid var(--border)';
+    }
+
+    function fmtVal(val, key) {
+      if (val === null || val === undefined) return '-';
+      if (typeof val === 'number' && (key.includes('harga')||key.includes('gaji')||key.includes('jumlah')))
+        return Utils.formatRupiah(val);
+      return String(val).substring(0, 80);
+    }
+
+    const FIELD_NAMES = {
+      tgl:'Tanggal', nama:'Nama', type:'Type', jumlah:'Jumlah',
+      harga:'Harga (Rp)', hargaSatuan:'Harga/Sat', jenis:'Jenis',
+      itemNama:'Barang', kodeAktivitas:'Kode Aktivitas', vendor:'Vendor',
+      qty:'Qty', satuan:'Satuan', status:'Status', bulan:'Bulan',
+      user:'User', role:'Role', jabatan:'Jabatan', departemen:'Dept',
+      gajiPokok:'Gaji Pokok', noHp:'No. HP', catatan:'Catatan',
+      pengambil:'Pengambil', penanggungJawab:'Penanggung Jawab',
+    };
+
+    let html = '<div style="display:flex;flex-direction:column;gap:8px">';
+
+    // === BEFORE/AFTER DIFF (from snapshot) ===
+    if (snap.before || snap.after) {
+      if (snap.before && snap.after) {
+        const changed = Object.entries(snap.after).filter(([k,v]) =>
+          !k.startsWith('_') && k !== 'id' && k !== 'createdAt' &&
+          String(snap.before[k]) !== String(v)
+        ).slice(0, 10);
+
+        if (changed.length) {
+          html += '<div style="border:1px solid rgba(234,179,8,.3);border-radius:var(--r-md);overflow:hidden">';
+          html += '<div style="background:rgba(234,179,8,.1);padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--warning)">⚡ Perubahan</div>';
+          html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+          html += '<thead><tr>';
+          html += '<td style="' + cellStyle('var(--text-3)') + ';font-size:10px;width:28%">Field</td>';
+          html += '<td style="' + cellStyle('var(--danger)') + ';font-size:10px">Sebelum</td>';
+          html += '<td style="' + cellStyle('var(--success)') + ';font-size:10px">Sesudah</td>';
+          html += '</tr></thead><tbody>';
+          changed.forEach(function(entry) {
+            var k = entry[0]; var v = entry[1];
+            html += '<tr>';
+            html += '<td style="' + cellStyle('var(--text-3)') + '">' + (FIELD_NAMES[k]||k) + '</td>';
+            html += '<td style="' + cellStyle('var(--text-2)') + ';text-decoration:line-through">' + fmtVal(snap.before[k], k) + '</td>';
+            html += '<td style="' + cellStyle('var(--success)') + ';font-weight:600">' + fmtVal(v, k) + '</td>';
+            html += '</tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+      }
+
+      if (snap.after && !snap.before) {
+        var dataAfter = Object.entries(snap.after)
+          .filter(function(e) { return !e[0].startsWith('_') && e[0] !== 'id' && e[0] !== 'createdAt' && e[1] !== '' && e[1] !== null; })
+          .slice(0, 12);
+        if (dataAfter.length) {
+          html += '<div style="border:1px solid rgba(34,197,94,.3);border-radius:var(--r-md);overflow:hidden">';
+          html += '<div style="background:rgba(34,197,94,.1);padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--success)">✅ Data Ditambahkan</div>';
+          html += '<table style="width:100%;border-collapse:collapse;font-size:12px"><tbody>';
+          dataAfter.forEach(function(e) {
+            html += '<tr><td style="' + cellStyle('var(--text-3)') + ';width:35%">' + (FIELD_NAMES[e[0]]||e[0]) + '</td>';
+            html += '<td style="' + cellStyle('var(--text)') + ';font-weight:500">' + fmtVal(e[1], e[0]) + '</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+      }
+
+      if (snap.before && !snap.after) {
+        var dataBefore = Object.entries(snap.before)
+          .filter(function(e) { return !e[0].startsWith('_') && e[0] !== 'id' && e[0] !== 'createdAt' && e[1] !== '' && e[1] !== null; })
+          .slice(0, 12);
+        if (dataBefore.length) {
+          html += '<div style="border:1px solid rgba(239,68,68,.3);border-radius:var(--r-md);overflow:hidden">';
+          html += '<div style="background:rgba(239,68,68,.1);padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--danger)">🗑️ Data Dihapus</div>';
+          html += '<table style="width:100%;border-collapse:collapse;font-size:12px"><tbody>';
+          dataBefore.forEach(function(e) {
+            html += '<tr><td style="' + cellStyle('var(--text-3)') + ';width:35%">' + (FIELD_NAMES[e[0]]||e[0]) + '</td>';
+            html += '<td style="' + cellStyle('var(--text-2)') + ';text-decoration:line-through">' + fmtVal(e[1], e[0]) + '</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+      }
+    } else {
+      // No snapshot - fallback to parsed detail
+      var rows = _parseActivityObject(log);
+      if (rows.length) {
+        html += '<div style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">';
+        html += '<div style="background:var(--surface2);padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">📋 Ringkasan</div>';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:12px"><tbody>';
+        rows.forEach(function(r) {
+          html += '<tr><td style="' + cellStyle('var(--text-3)') + ';width:35%">' + r.k + '</td>';
+          html += '<td style="' + cellStyle('var(--text)') + ';font-weight:500">' + r.v + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+      }
+    }
+
+    // Raw detail
+    if (detail && detail.length > 3 && !detail.match(/^[a-z0-9]{10,}$/i)) {
+      html += '<div style="padding:8px 10px;background:var(--surface2);border-radius:var(--r-md);font-size:11px;color:var(--text-3)">';
+      html += '<span style="font-weight:600">Catatan:</span> ' + detail;
+      html += '</div>';
+    }
+
+    // Metadata
+    html += '<div style="display:flex;gap:16px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3)">';
+    html += '<span>Tipe: <strong style="color:var(--text-2)">' + type + '</strong></span>';
+    html += '<span>Tgl: <strong style="color:var(--text-2)">' + (log.tgl||'-') + '</strong></span>';
+    html += '<span style="font-family:var(--font-mono);font-size:10px">ID: ' + (log.id||'-').substring(0,10) + '</span>';
+    html += '</div>';
+
+    html += '</div>';
+    return html;
+  }
+
+
   return {
     init, switchTab,
     saveGeneralSettings, openChangePasswordModal, _changePassword,
     renderUsers, openUserModal, _submitUser, toggleUser,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
-    renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, clearActivityLog,
+    renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData,
   };
 })();
