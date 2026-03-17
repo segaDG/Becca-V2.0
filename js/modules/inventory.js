@@ -61,8 +61,15 @@ const InventoryModule = (() => {
       typeof DB.getOpnameLogs === 'function' ? DB.getOpnameLogs().catch(()=>[]) : Promise.resolve([]),
     ]);
 
-    // Hitung stok setiap item dari logs
+    // Hitung stok setiap item dari logs + auto-update hargaSatuan
     _recalcStok();
+    // Simpan hargaSatuan terbaru ke DB (batch, silent)
+    _items.forEach(item => {
+      if (item._hargaTerbaru && item._hargaTerbaru !== item._savedHarga) {
+        DB.saveInventoryItem({...item}).catch(()=>{});
+        item._savedHarga = item._hargaTerbaru;
+      }
+    });
     // Reset edit state on every page load
     _invEditId = null;
     switchTab('stok');
@@ -70,14 +77,64 @@ const InventoryModule = (() => {
 
   /* ===================== HITUNG STOK ===================== */
   function _recalcStok() {
-    // Stok hanya dari MASUK dan KELUAR - OPNAME terpisah, tidak mempengaruhi stok
+    // Stok hanya dari MASUK dan KELUAR - OPNAME terpisah
     _items.forEach(item => {
       const logsItem = _logs.filter(l => l.itemId === item.id);
+
+      // ---- Hitung stok ----
       item._stok = logsItem.reduce((acc, l) => {
         if (l.jenis === 'MASUK')  return acc + (l.jumlah || 0);
         if (l.jenis === 'KELUAR') return acc - (l.jumlah || 0);
         return acc;
       }, 0);
+
+      // ---- Hitung Weighted Average Price dari sisa stok (FIFO) ----
+      // Sort MASUK ascending (oldest first) untuk simulasi FIFO
+      const masukLogs = logsItem
+        .filter(l => l.jenis === 'MASUK' && (l.harga || 0) > 0 && (l.jumlah || 0) > 0)
+        .sort((a, b) => (a.tgl || '').localeCompare(b.tgl || ''));
+
+      const totalKeluar = logsItem
+        .filter(l => l.jenis === 'KELUAR')
+        .reduce((s, l) => s + (l.jumlah || 0), 0);
+
+      const currentStok = item._stok;
+
+      if (masukLogs.length === 0 || currentStok <= 0) {
+        item._weightedAvgPrice = item.hargaSatuan || 0;
+      } else {
+        // FIFO: consume KELUAR dari batch tertua, sisa = stok sekarang
+        // Kita perlu tahu batch mana yang tersisa
+        let consumed = totalKeluar;
+        let remainingBatches = [];
+
+        for (const log of masukLogs) {
+          if (consumed <= 0) {
+            // Batch ini masih fully tersedia
+            remainingBatches.push({ qty: log.jumlah, harga: log.harga });
+          } else if (consumed >= log.jumlah) {
+            // Batch ini habis dikonsumsi keluar
+            consumed -= log.jumlah;
+          } else {
+            // Batch ini sebagian dikonsumsi
+            const sisaBatch = log.jumlah - consumed;
+            remainingBatches.push({ qty: sisaBatch, harga: log.harga });
+            consumed = 0;
+          }
+        }
+
+        if (remainingBatches.length > 0) {
+          const totalNilai = remainingBatches.reduce((s, b) => s + b.qty * b.harga, 0);
+          const totalQty   = remainingBatches.reduce((s, b) => s + b.qty, 0);
+          item._weightedAvgPrice = totalQty > 0 ? Math.round(totalNilai / totalQty) : 0;
+        } else {
+          // Semua batch terkonsumsi, pakai harga masuk terbaru
+          item._weightedAvgPrice = masukLogs[masukLogs.length - 1]?.harga || 0;
+        }
+
+        // Update hargaSatuan = weighted average price
+        item.hargaSatuan = item._weightedAvgPrice;
+      }
     });
   }
 
@@ -199,7 +256,14 @@ const InventoryModule = (() => {
                       ${stok} ${item.satuan||''}
                     </td>
                     <td class="num text-muted text-small">${min} ${item.satuan||''}</td>
-                    <td class="num text-small">${Utils.formatRupiah(item.hargaSatuan||0)}</td>
+                    <td class="num text-small" title="${(() => {
+                      const masuk = _logs.filter(l=>l.itemId===item.id && l.jenis==='MASUK' && l.harga>0).sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||''));
+                      if (!masuk.length) return 'Belum ada data harga';
+                      const totalK = _logs.filter(l=>l.itemId===item.id && l.jenis==='KELUAR').reduce((s,l)=>s+(l.jumlah||0),0);
+                      let skip=totalK, batches=[];
+                      for(const l of masuk){if(skip<=0){batches.push(l.jumlah+'x'+Utils.formatRupiah(l.harga));}else if(skip>=l.jumlah){skip-=l.jumlah;}else{batches.push((l.jumlah-skip)+'x'+Utils.formatRupiah(l.harga));skip=0;}}
+                      return 'WAC dari sisa stok:\n'+batches.join(' + ');
+                    })()}">${Utils.formatRupiah(item._weightedAvgPrice||item.hargaSatuan||0)}</td>
                     <td class="num text-small">${Utils.formatRupiah(nilai)}</td>
                     <td>
                       <span class="badge ${isEmpty?'badge-danger':isLow?'badge-warning':'badge-success'}">
@@ -412,49 +476,72 @@ const InventoryModule = (() => {
     return null; // unknown
   }
 
-  // ============ FIFO Pricing (AI) ============
+  // ============ FIFO Weighted Average Price untuk KELUAR ============
+  // Contoh: stok 500 (250@17000 + 250@18000), keluar 300
+  // → ambil 250@17000 + 50@18000 = (250×17000 + 50×18000)/300 = Rp 17.167
   function _getFIFOAveragePrice(itemId, qty) {
+    if (!qty || qty <= 0) return 0;
+
+    // Semua MASUK logs, sort oldest first (FIFO)
     const masukLogs = _logs
-      .filter(l=>l.itemId===itemId && l.jenis==='MASUK' && (l.harga||0)>0)
-      .sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||''));
+      .filter(l => l.itemId === itemId && l.jenis === 'MASUK' && (l.harga||0) > 0 && (l.jumlah||0) > 0)
+      .sort((a, b) => (a.tgl||'').localeCompare(b.tgl||''));
+
     if (!masukLogs.length) {
-      const item = _items.find(i=>i.id===itemId);
+      const item = _items.find(i => i.id === itemId);
       return item?.hargaSatuan || 0;
     }
-    let remaining=qty||1, totalCost=0, totalConsumed=0;
+
+    // Hitung berapa yang sudah keluar sebelumnya (untuk tahu posisi FIFO)
+    const totalSudahKeluar = _logs
+      .filter(l => l.itemId === itemId && l.jenis === 'KELUAR')
+      .reduce((s, l) => s + (l.jumlah || 0), 0);
+
+    // Simulasi FIFO: skip batch yang sudah habis terpakai sebelumnya
+    let skipQty = totalSudahKeluar;
+    let ambilQty = qty;
+    let totalCost = 0;
+    let totalAmbil = 0;
+
     for (const log of masukLogs) {
-      if (remaining<=0) break;
-      const consume = Math.min(log.jumlah||0, remaining);
-      totalCost    += consume*(log.harga||0);
-      totalConsumed+= consume;
-      remaining    -= consume;
+      if (ambilQty <= 0) break;
+      const batchQty = log.jumlah || 0;
+
+      if (skipQty >= batchQty) {
+        // Batch ini sudah habis dipakai keluar sebelumnya
+        skipQty -= batchQty;
+        continue;
+      }
+
+      // Sisa batch ini yang belum terpakai
+      const tersedia = batchQty - skipQty;
+      skipQty = 0;
+
+      const diambil = Math.min(tersedia, ambilQty);
+      totalCost  += diambil * (log.harga || 0);
+      totalAmbil += diambil;
+      ambilQty   -= diambil;
     }
-    if (remaining>0) {
-      const lastPrice = masukLogs[masukLogs.length-1].harga||0;
-      totalCost    += remaining*lastPrice;
-      totalConsumed+= remaining;
+
+    // Jika masih kurang (stok tidak cukup), pakai harga batch terakhir
+    if (ambilQty > 0) {
+      const lastHarga = masukLogs[masukLogs.length - 1]?.harga || 0;
+      totalCost  += ambilQty * lastHarga;
+      totalAmbil += ambilQty;
     }
-    return totalConsumed>0 ? Math.round(totalCost/totalConsumed) : 0;
+
+    return totalAmbil > 0 ? Math.round(totalCost / totalAmbil) : 0;
   }
 
   function _getFIFOStockValue(itemId) {
-    const item = _items.find(i=>i.id===itemId);
-    const currentStok = item?._stok || 0;
-    if (currentStok<=0) return 0;
-    const masukLogs = _logs
-      .filter(l=>l.itemId===itemId && l.jenis==='MASUK' && (l.harga||0)>0)
-      .sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||''));
-    if (!masukLogs.length) return currentStok*(item?.hargaSatuan||0);
-    // Use most recent batches (FIFO: remaining stock = latest batches)
-    let remaining=currentStok, totalValue=0;
-    for (let i=masukLogs.length-1; i>=0; i--) {
-      if (remaining<=0) break;
-      const use = Math.min(masukLogs[i].jumlah||0, remaining);
-      totalValue += use*(masukLogs[i].harga||0);
-      remaining  -= use;
-    }
-    if (remaining>0) totalValue += remaining*(item?.hargaSatuan||0);
-    return Math.round(totalValue);
+    // Nilai stok = _weightedAvgPrice × sisa stok
+    // _weightedAvgPrice sudah dihitung di _recalcStok()
+    const item = _items.find(i => i.id === itemId);
+    if (!item) return 0;
+    const currentStok = item._stok || 0;
+    if (currentStok <= 0) return 0;
+    const hargaWAC = item._weightedAvgPrice || item.hargaSatuan || 0;
+    return Math.round(currentStok * hargaWAC);
   }
 
   function _ivOnItemSelect(id, itemId, labelText) {
@@ -474,11 +561,14 @@ const InventoryModule = (() => {
     const jumlahEl = document.getElementById('ivf-jumlah-'+id);
     const qty = parseFloat(jumlahEl?.value)||1;
     if (item) {
-      // AI: auto-fill harga
+      // Auto-fill harga:
+      // MASUK: pakai harga item (weighted avg dari sisa stok)
+      // KELUAR: pakai FIFO weighted avg sesuai qty yang diambil
       if (jenis==='KELUAR') {
         hargaEl.value = _getFIFOAveragePrice(itemId, qty);
       } else {
-        hargaEl.value = item.hargaSatuan||0;
+        // MASUK: tampilkan harga satuan terbaru (WAC)
+        hargaEl.value = item._weightedAvgPrice || item.hargaSatuan || 0;
       }
       // AI: suggest HPP
       const kodeEl = document.getElementById('ivf-kode-'+id);
@@ -1284,9 +1374,10 @@ const InventoryModule = (() => {
     const jumlahEl = document.getElementById('ivf-jumlah-'+id);
     const qty = parseFloat(jumlahEl?.value)||1;
     if (hargaEl) {
+      const itemRef = _items.find(i=>i.id===row.itemId);
       hargaEl.value = jenis==='KELUAR'
         ? _getFIFOAveragePrice(row.itemId, qty)
-        : (_items.find(i=>i.id===row.itemId)?.hargaSatuan||0);
+        : (itemRef?._weightedAvgPrice || itemRef?.hargaSatuan || 0);
     }
     // Re-suggest HPP
     const kodeEl = document.getElementById('ivf-kode-'+id);
