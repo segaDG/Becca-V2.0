@@ -414,6 +414,20 @@ const SettingsModule = (() => {
     Utils.ls.set('becca_privileges', custom);
     Notify.success('Hak akses disimpan! Refresh untuk menerapkan.');
     DB.logActivity({type:'update_privileges', detail:'Hak akses diperbarui'});
+    // Visual feedback langsung di tombol
+    const saveBtn = document.querySelector('[onclick="SettingsModule.savePrivileges()"]');
+    if (saveBtn) {
+      const origText = saveBtn.innerHTML;
+      const origBg   = saveBtn.style.background;
+      saveBtn.innerHTML = '✅ Tersimpan!';
+      saveBtn.style.background = 'var(--success)';
+      saveBtn.disabled = true;
+      setTimeout(() => {
+        saveBtn.innerHTML  = origText;
+        saveBtn.style.background = origBg;
+        saveBtn.disabled = false;
+      }, 2500);
+    }
   }
 
   function resetPrivileges() {
@@ -604,6 +618,7 @@ const SettingsModule = (() => {
     const logs = window._activityLogs || [];
     const log  = logs[idx];
     if (!log) return;
+
     const timeStr = log.timestamp
       ? new Date(log.timestamp).toLocaleString('id-ID', {
           weekday:'long', year:'numeric', month:'long', day:'numeric',
@@ -611,30 +626,197 @@ const SettingsModule = (() => {
         })
       : (log.tgl||'-');
 
+    // Parse object data from detail string
+    // Format detail biasanya: "Nama/ID: value" atau JSON-like
+    const objRows = _parseActivityObject(log);
+
+    // Action label yang lebih manusiawi
+    const actionLabels = {
+      login:'Login ke sistem', logout:'Logout dari sistem',
+      add_user:'Tambah user baru', edit_user:'Edit data user', change_password:'Ganti password',
+      update_privileges:'Update hak akses',
+      add_kas:'Tambah baris kas kecil', edit_kas:'Edit baris kas kecil', delete_kas:'Hapus baris kas kecil',
+      add_inventory:'Tambah transaksi inventory', edit_inventory:'Edit transaksi inventory',
+      delete_inventory:'Hapus transaksi inventory', opname:'Stok opname',
+      add_item:'Tambah barang baru', edit_item:'Edit data barang',
+      add_customer:'Tambah customer', edit_customer:'Edit customer', delete_customer:'Hapus customer',
+      add_invoice:'Buat invoice', edit_invoice:'Edit invoice', delete_invoice:'Hapus invoice',
+      add_task:'Tambah task', edit_task:'Edit task', complete_task:'Selesaikan task',
+      archive_task:'Arsip task', delete_task:'Hapus task',
+      add_ap:'Tambah AP', edit_ap:'Edit AP',
+      employee:'Aksi karyawan', add_role:'Tambah role baru',
+      export_data:'Export data', import_data:'Import data',
+    };
+
+    const actionLabel = actionLabels[log.type] || log.type || '-';
+    const typeColors = {
+      delete_kas:'var(--danger)', delete_inventory:'var(--danger)',
+      delete_customer:'var(--danger)', delete_invoice:'var(--danger)', delete_task:'var(--danger)',
+      add_kas:'var(--success)', add_inventory:'var(--success)', add_customer:'var(--success)',
+      login:'var(--info)', update_privileges:'var(--warning)',
+    };
+    const typeColor = typeColors[log.type] || 'var(--primary-h)';
+
     const mid = Utils.uid();
     Modal.open({ id: mid,
       title: '📋 Detail Aktivitas',
-      size: 'modal-sm',
-      body: `<div style="display:flex;flex-direction:column;gap:12px">
-        ${[
-          {l:'Waktu',     v: timeStr},
-          {l:'User',      v: log.user||'-'},
-          {l:'Role',      v: log.role||'-'},
-          {l:'Tipe',      v: log.type||'-'},
-          {l:'Detail',    v: log.detail||'-'},
-          {l:'Tanggal',   v: log.tgl||'-'},
-        ].map(f=>`
-          <div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
-            <div style="width:80px;font-size:12px;color:var(--text-3);flex-shrink:0">${f.l}</div>
-            <div style="font-size:13px;font-weight:500;color:var(--text);word-break:break-all">${f.v}</div>
-          </div>`).join('')}
-        <div style="display:flex;gap:12px;padding:8px 0">
-          <div style="width:80px;font-size:12px;color:var(--text-3);flex-shrink:0">ID</div>
-          <div style="font-size:11px;color:var(--text-3);font-family:var(--font-mono)">${log.id||'-'}</div>
+      size: 'modal-lg',
+      body: `
+        <!-- Header aktivitas -->
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;
+                    background:var(--surface2);border-radius:var(--r-md);margin-bottom:var(--s4)">
+          <div style="width:40px;height:40px;border-radius:50%;background:${typeColor}18;
+                      color:${typeColor};display:flex;align-items:center;justify-content:center;
+                      font-size:18px;flex-shrink:0">
+            ${({login:'🔑',logout:'🚪',add_user:'➕',edit_user:'✏️',delete_kas:'🗑️',
+                add_kas:'💰',edit_kas:'💰',add_inventory:'📦',edit_inventory:'📦',
+                delete_inventory:'🗑️',opname:'🔢',employee:'👷',update_privileges:'🔐',
+                add_task:'✅',complete_task:'✅',export_data:'📥',import_data:'📤'}[log.type]||'📝')}
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:15px;color:var(--heading)">${actionLabel}</div>
+            <div style="font-size:12px;color:var(--text-3)">${timeStr}</div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div style="font-size:12px;color:var(--text-3)">Oleh</div>
+            <div style="font-weight:600;font-size:13px">${log.user||'-'}</div>
+            <span class="badge badge-neutral" style="font-size:10px">${log.role||'-'}</span>
+          </div>
         </div>
-      </div>`,
+
+        <!-- Two-column layout -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s4)">
+
+          <!-- Kolom kiri: Object / Objek yang diubah -->
+          <div>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
+                        color:var(--text-3);margin-bottom:var(--s2)">Objek</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              ${objRows.length ? objRows.map(r=>`
+                <tr>
+                  <td style="padding:6px 8px;color:var(--text-3);white-space:nowrap;
+                             border-bottom:1px solid var(--border);width:40%">${r.k}</td>
+                  <td style="padding:6px 8px;font-weight:500;color:var(--text);
+                             border-bottom:1px solid var(--border);word-break:break-all">${r.v}</td>
+                </tr>`).join('')
+              : `<tr><td colspan="2" style="padding:12px 8px;color:var(--text-3);font-style:italic">
+                  Tidak ada data objek tersimpan
+                </td></tr>`}
+            </table>
+          </div>
+
+          <!-- Kolom kanan: Detail lengkap -->
+          <div>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
+                        color:var(--text-3);margin-bottom:var(--s2)">Keterangan</div>
+            <div style="background:var(--surface2);border-radius:var(--r-md);padding:12px;
+                        font-size:12px;color:var(--text);line-height:1.6;min-height:80px">
+              ${log.detail||'<span style="color:var(--text-3);font-style:italic">Tidak ada keterangan</span>'}
+            </div>
+            <div style="margin-top:var(--s3)">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                ${[
+                  {k:'Tipe', v:log.type||'-'},
+                  {k:'Tanggal', v:log.tgl||'-'},
+                  {k:'Log ID', v:(log.id||'-').substring(0,12)+'...'},
+                ].map(r=>`
+                  <tr>
+                    <td style="padding:5px 8px;color:var(--text-3);border-bottom:1px solid var(--border);width:40%">${r.k}</td>
+                    <td style="padding:5px 8px;font-family:var(--font-mono);font-size:11px;
+                               color:var(--text-2);border-bottom:1px solid var(--border)">${r.v}</td>
+                  </tr>`).join('')}
+              </table>
+            </div>
+          </div>
+        </div>
+      `,
       footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
     });
+  }
+
+  // Parse activity log detail string menjadi key-value rows untuk tabel Objek
+  function _parseActivityObject(log) {
+    const rows = [];
+    const detail = log.detail || '';
+    const type   = log.type   || '';
+
+    // Common patterns dari detail string
+    // "Edit: Minyak Kita @ 1 liter" → {k: 'Nama', v: 'Minyak Kita @ 1 liter'}
+    // "MASUK Minyak Kita: 200" → {k: 'Tipe', v: 'MASUK'}, {k: 'Barang', v: 'Minyak Kita'}, {k: 'Jumlah', v: '200'}
+    // "Opname Minyak Kita: 700→125" → {k: 'Barang', v: ...}, {k: 'Perubahan', v: ...}
+
+    // Extract by type pattern
+    if (type.includes('kas')) {
+      rows.push({k: 'Modul', v: 'Kas Kecil'});
+      if (detail.includes(':')) {
+        const parts = detail.split(':');
+        rows.push({k: 'Aksi', v: parts[0]?.trim()});
+        if (parts[1]) rows.push({k: 'Keterangan', v: parts.slice(1).join(':').trim()});
+      } else if (detail) {
+        rows.push({k: 'Info', v: detail});
+      }
+    } else if (type.includes('inventory') || type === 'opname') {
+      rows.push({k: 'Modul', v: 'Inventory'});
+      // "MASUK Minyak Kita @ 1 liter: 200"
+      const masukMatch = detail.match(/^(MASUK|KELUAR|OPNAME)\s+(.+?):\s*(.+)$/i);
+      if (masukMatch) {
+        rows.push({k: 'Jenis',  v: masukMatch[1]});
+        rows.push({k: 'Barang', v: masukMatch[2]});
+        rows.push({k: 'Jumlah', v: masukMatch[3]});
+      } else if (detail.includes('→')) {
+        // "Opname Minyak: 700→125"
+        const opMatch = detail.match(/Opname\s+(.+?):\s*(\d+)\s*→\s*(\d+)/i);
+        if (opMatch) {
+          rows.push({k: 'Barang',      v: opMatch[1]});
+          rows.push({k: 'Stok Lama',   v: opMatch[2]});
+          rows.push({k: 'Stok Baru',   v: opMatch[3]});
+          rows.push({k: 'Selisih',     v: String(parseInt(opMatch[3])-parseInt(opMatch[2]))});
+        }
+      } else if (detail.includes('Edit:')) {
+        rows.push({k: 'Aksi',  v: 'Edit'});
+        rows.push({k: 'Nama',  v: detail.replace('Edit:','').trim()});
+      } else if (detail) {
+        rows.push({k: 'Info', v: detail});
+      }
+    } else if (type.includes('customer')) {
+      rows.push({k: 'Modul', v: 'Customer'});
+      const m = detail.match(/^(Tambah|Edit|Hapus):\s*(.+)$/i);
+      if (m) { rows.push({k:'Aksi',v:m[1]}); rows.push({k:'Nama',v:m[2]}); }
+      else if (detail) rows.push({k:'Info',v:detail});
+    } else if (type.includes('invoice')) {
+      rows.push({k: 'Modul', v: 'Invoice'});
+      if (detail) rows.push({k:'Info',v:detail});
+    } else if (type.includes('task')) {
+      rows.push({k: 'Modul', v: 'Task'});
+      const m = detail.match(/^(Tambah|Edit|Hapus|Selesai|Arsip)\s+task:\s*(.+)$/i);
+      if (m) { rows.push({k:'Aksi',v:m[1]}); rows.push({k:'Task',v:m[2]}); }
+      else if (detail) rows.push({k:'Judul',v:detail});
+    } else if (type === 'add_user' || type === 'edit_user') {
+      rows.push({k: 'Modul', v: 'User Management'});
+      const m = detail.match(/^(Tambah|Edit)\s+user:\s*(.+)$/i);
+      if (m) { rows.push({k:'Aksi',v:m[1]}); rows.push({k:'Username',v:m[2]}); }
+      else if (detail) rows.push({k:'Info',v:detail});
+    } else if (type === 'employee') {
+      rows.push({k: 'Modul', v: 'Karyawan'});
+      const m = detail.match(/^(Tambah|Edit):\s*(.+)$/i);
+      if (m) { rows.push({k:'Aksi',v:m[1]}); rows.push({k:'Nama',v:m[2]}); }
+      else if (detail) rows.push({k:'Info',v:detail});
+    } else if (type === 'update_privileges') {
+      rows.push({k: 'Modul', v: 'Hak Akses'});
+      rows.push({k: 'Aksi',  v: 'Update privilege matrix'});
+    } else if (type === 'add_role') {
+      rows.push({k: 'Modul', v: 'Hak Akses'});
+      const m = detail.match(/Role baru:\s*(.+)/i);
+      if (m) rows.push({k:'Role',v:m[1]});
+    } else if (type === 'login' || type === 'logout') {
+      rows.push({k: 'Aksi',   v: type === 'login' ? 'Masuk sistem' : 'Keluar sistem'});
+      rows.push({k: 'User',   v: log.user||'-'});
+      rows.push({k: 'Role',   v: log.role||'-'});
+    } else {
+      if (detail) rows.push({k: 'Info', v: detail});
+    }
+
+    return rows;
   }
 
   async function clearActivityLog() {
@@ -733,7 +915,7 @@ const SettingsModule = (() => {
     saveGeneralSettings, openChangePasswordModal, _changePassword,
     renderUsers, openUserModal, _submitUser, toggleUser,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
-    renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, clearActivityLog,
+    renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, clearActivityLog,
     renderData, exportData, _doImport, clearData,
   };
 })();
