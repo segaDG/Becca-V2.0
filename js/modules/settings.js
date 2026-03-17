@@ -5,7 +5,12 @@
 ============================================ */
 const SettingsModule = (() => {
 
-  const ROLES    = ['superadmin','admin','operator','viewer'];
+  // ROLES - default + custom yang ditambah user
+  const _DEFAULT_ROLES = ['superadmin','admin','operator','viewer'];
+  function _getRoles() {
+    const extra = Utils.ls.get('becca_custom_roles') || [];
+    return [..._DEFAULT_ROLES, ...extra.filter(r=>!_DEFAULT_ROLES.includes(r))];
+  }
   const FEATURES = ['dashboard','order','invoice','customer','employee','inventory','kas','ap','task','report','settings'];
 
   /* ===================== INIT ===================== */
@@ -172,7 +177,7 @@ const SettingsModule = (() => {
       if (!merged.find(u=>u.id===du.id||u.username===du.username))
         merged.push({...du,_isDefault:true});
     });
-    merged.sort((a,b)=>ROLES.indexOf(a.role)-ROLES.indexOf(b.role));
+    merged.sort((a,b)=>_getRoles().indexOf(a.role)-_getRoles().indexOf(b.role));
 
     document.getElementById('set-tab-users').innerHTML = `
       <div style="display:flex;justify-content:flex-end;margin-bottom:var(--s4)">
@@ -257,7 +262,7 @@ const SettingsModule = (() => {
             <div class="form-group">
               <label class="form-label">Role</label>
               <select name="role" class="form-control">
-                ${ROLES.map(r=>`<option value="${r}" ${d.role===r?'selected':''}>${r}</option>`).join('')}
+                ${_getRoles().map(r=>`<option value="${r}" ${d.role===r?'selected':''}>${r}</option>`).join('')}
               </select>
             </div>
             <div class="form-group">
@@ -326,8 +331,12 @@ const SettingsModule = (() => {
 
     document.getElementById('set-tab-privilege').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4)">
-        <p style="color:var(--text-2);font-size:13px">Atur hak akses per role. Berlaku setelah refresh halaman.</p>
+        <p style="color:var(--text-2);font-size:13px">Atur hak akses per role. Centang = akses aktif. Berlaku setelah refresh.</p>
         <div style="display:flex;gap:var(--s2)">
+          <button class="btn btn-ghost btn-sm" onclick="SettingsModule.addCustomRole()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M12 5v14M5 12h14"/></svg>
+            Role
+          </button>
           <button class="btn btn-ghost btn-sm" onclick="SettingsModule.resetPrivileges()">↺ Reset Default</button>
           <button class="btn btn-primary btn-sm" onclick="SettingsModule.savePrivileges()">💾 Simpan</button>
         </div>
@@ -338,26 +347,41 @@ const SettingsModule = (() => {
             <thead>
               <tr>
                 <th>Modul</th>
-                ${ROLES.filter(r=>r!=='superadmin').map(r=>`<th style="text-align:center">${r}</th>`).join('')}
+                ${_getRoles().filter(r=>r!=='superadmin').map(r=>`<th style="text-align:center;min-width:110px"><div style="display:flex;align-items:center;justify-content:center;gap:4px">${r}${!['admin','operator','viewer'].includes(r)?'<span onclick="SettingsModule.deleteCustomRole(\''+r+'\')" style="cursor:pointer;color:var(--danger);font-size:12px" title="Hapus role">×</span>':''}</div></th>`).join('')}
               </tr>
             </thead>
             <tbody>
               <tr style="background:var(--surface2)">
-                <td colspan="4" style="font-size:11px;color:var(--primary-h);font-weight:600">
+                <td colspan="${_getRoles().length}" style="font-size:11px;color:var(--primary-h);font-weight:600">
                   ⭐ superadmin selalu punya akses penuh ke semua fitur
                 </td>
               </tr>
               ${FEATURES.map(feat=>`
                 <tr>
                   <td class="font-semibold">${_featLabel(feat)}</td>
-                  ${ROLES.filter(r=>r!=='superadmin').map(role=>{
+                  ${_getRoles().filter(r=>r!=='superadmin').map(role=>{
                     const val=privs[role]?.[feat]||'';
-                    return `<td style="text-align:center">
-                      <select class="form-control" id="priv_${role}_${feat}" style="width:95px;font-size:11px">
-                        <option value=""    ${!val      ?'selected':''}>❌ Tidak ada</option>
-                        <option value="view"${val==='view'?'selected':''}>👁️ View</option>
-                        <option value="all" ${val==='all' ?'selected':''}>✏️ Full</option>
-                      </select>
+                    const chkView = val==='view'||val==='all';
+                    const chkFull = val==='all';
+                    return `<td style="text-align:center;padding:6px 4px">
+                      <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--text-2)"
+                          title="View: dapat melihat data">
+                          <input type="checkbox" id="priv_${role}_${feat}_view"
+                            ${chkView?'checked':''}
+                            onchange="SettingsModule._onPrivChange('${role}','${feat}','view',this.checked)"
+                            style="accent-color:var(--info);width:14px;height:14px;cursor:pointer">
+                          <span>View</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--text-2)"
+                          title="Edit: dapat edit dan hapus data">
+                          <input type="checkbox" id="priv_${role}_${feat}_full"
+                            ${chkFull?'checked':''}
+                            onchange="SettingsModule._onPrivChange('${role}','${feat}','full',this.checked)"
+                            style="accent-color:var(--primary);width:14px;height:14px;cursor:pointer">
+                          <span>Edit</span>
+                        </label>
+                      </div>
                     </td>`;
                   }).join('')}
                 </tr>
@@ -378,16 +402,18 @@ const SettingsModule = (() => {
 
   function savePrivileges() {
     const custom = {};
-    ROLES.filter(r=>r!=='superadmin').forEach(role=>{
-      custom[role]={};
-      FEATURES.forEach(feat=>{
-        const v=document.getElementById(`priv_${role}_${feat}`)?.value;
-        if(v) custom[role][feat]=v;
+    _getRoles().filter(r=>r!=='superadmin').forEach(role => {
+      custom[role] = {};
+      FEATURES.forEach(feat => {
+        const viewEl = document.getElementById('priv_'+role+'_'+feat+'_view');
+        const fullEl = document.getElementById('priv_'+role+'_'+feat+'_full');
+        if (fullEl?.checked)      custom[role][feat] = 'all';
+        else if (viewEl?.checked) custom[role][feat] = 'view';
       });
     });
     Utils.ls.set('becca_privileges', custom);
     Notify.success('Hak akses disimpan! Refresh untuk menerapkan.');
-    DB.logActivity({type:'update_privileges',detail:'Hak akses diperbarui'});
+    DB.logActivity({type:'update_privileges', detail:'Hak akses diperbarui'});
   }
 
   function resetPrivileges() {
@@ -522,7 +548,7 @@ const SettingsModule = (() => {
     init, switchTab,
     saveGeneralSettings, openChangePasswordModal, _changePassword,
     renderUsers, openUserModal, _submitUser, toggleUser,
-    renderPrivilege, savePrivileges, resetPrivileges,
+    renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, clearActivityLog,
     renderData, exportData, _doImport, clearData,
   };
