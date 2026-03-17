@@ -83,8 +83,9 @@ const EmployeeModule = (() => {
 
   /* ===================== RENDER DATA ===================== */
   function renderData() {
-    // Show all in main table (including RESIGN), only hide 'Arsip'
-    const active   = _employees.filter(e => e.status !== 'Arsip');
+    // Data karyawan = hanya yang aktif; Arsip = RESIGN/Fired/dll
+    const ACTIVE_STATS = ['ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const active   = _employees.filter(e => ACTIVE_STATS.includes(e.status));
     const depts    = [...new Set(active.map(e=>e.divisi||e.departemen).filter(Boolean))].sort();
     const canEdit  = Auth.can('employee','edit');
 
@@ -122,18 +123,25 @@ const EmployeeModule = (() => {
       ? (_sortDir==='asc' ? ' ↑' : ' ↓') : ' ⇅';
 
     document.getElementById('emp-tab-data').innerHTML = `
-      <!-- Stats -->
+      <!-- Stats cards: Aktif + per Departemen -->
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
-        ${[
-          {l:'Total Aktif', v:active.length,                                        c:'var(--primary-h)'},
-          {l:'Aktif',    v:active.filter(e=>['Tetap','ACTIVE','Active'].includes(e.status)).length, c:'var(--success)'},
-          {l:'Lainnya',  v:active.filter(e=>!['Tetap','ACTIVE','Active'].includes(e.status)).length, c:'var(--warning)'},
-          {l:'Departemen',  v:depts.length+' dept',                                 c:'var(--text-2)'},
-        ].map(s=>`
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
-            <div style="font-size:18px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
-          </div>`).join('')}
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">
+          <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Aktif</div>
+          <div style="font-size:18px;font-weight:700;color:var(--success);font-family:var(--font-mono)">${active.filter(e=>['Tetap','ACTIVE','Active'].includes(e.status)).length}</div>
+        </div>
+        ${depts.map(dept => {
+          const count = active.filter(e=>(e.divisi||e.departemen)===dept).length;
+          const deptEsc = dept.replace(/'/g,"\'");
+          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer"
+            onclick="EmployeeModule.setFilter('dept','${deptEsc}')" title="Filter: ${dept}">
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">${dept}</div>
+            <div style="font-size:18px;font-weight:700;color:var(--primary-h);font-family:var(--font-mono)">${count}</div>
+          </div>`;
+        }).join('')}
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:120px">
+          <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Tanpa Divisi</div>
+          <div style="font-size:18px;font-weight:700;color:var(--text-2);font-family:var(--font-mono)">${active.filter(e=>!(e.divisi||e.departemen)).length}</div>
+        </div>
       </div>
 
       <!-- Filter & Sort -->
@@ -196,7 +204,7 @@ const EmployeeModule = (() => {
                   <td class="text-muted text-small">${emp.nik||emp.nip||'-'}</td>
                   <td>${emp.jabatan||'-'}</td>
                   <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
-                  <td><span class="badge ${statusColor}">${emp.status||'-'}</span></td>
+                  <td onclick="event.stopPropagation()">${_statusDropdown(emp)}</td>
                   <td class="text-small text-muted">${emp.tglJoin||emp.tglMasuk||'-'}</td>
                   <td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,true):'-'}</td>
                   <td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,true):'-'}</td>
@@ -456,7 +464,7 @@ const EmployeeModule = (() => {
       </div>
       <div class="table-wrapper"><div class="table-scroll">
         <table class="table">
-          <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Tipe</th><th>Catatan</th>
+          <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Tipe</th><th>Catatan</th><th>Jumlah</th>
             ${Auth.can('employee','edit')?'<th>Aksi</th>':''}
           </tr></thead>
           <tbody id="lb-tbody">${_renderLogRows()}</tbody>
@@ -472,19 +480,31 @@ const EmployeeModule = (() => {
     const canEdit   = Auth.can('employee','edit');
 
     let logs = [..._logs].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
-    if (empFilter) logs = logs.filter(l=>l.employeeId===empFilter);
-    if (from)      logs = logs.filter(l=>(l.tgl||'')>=from);
-    if (to)        logs = logs.filter(l=>(l.tgl||'')<=to);
+    if (empFilter) {
+      // Support both old format (nama match) and new format (employeeId)
+      const empName = _employees.find(e=>e.id===empFilter)?.nama||'';
+      logs = logs.filter(l=>l.employeeId===empFilter || l.nama===empName);
+    }
+    if (from) logs = logs.filter(l=>(l.tgl||'')>=from);
+    if (to)   logs = logs.filter(l=>(l.tgl||'')<=to);
 
-    if (!logs.length) return `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</td></tr>`;
+    if (!logs.length) return `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</td></tr>`;
 
     return logs.map(l => {
-      const emp = _employees.find(e=>e.id===l.employeeId);
+      // Support both old and new format
+      const emp      = _employees.find(e=>e.id===l.employeeId || e.nama===l.nama);
+      const namaEmp  = emp?.nama || l.nama || l.employeeId || '-';
+      // Old format fields: ket, bayar, hutang, pj, konfirmasi
+      // New format fields: type, catatan
+      const tipe     = l.type || l.konfirmasi || '-';
+      const catatan  = l.catatan || l.ket || '-';
+      const extra    = (l.bayar||l.hutang) ? Utils.formatRupiah((l.bayar||0)+(l.hutang||0)) : '';
       return `<tr>
         <td style="white-space:nowrap">${l.tgl||'-'}</td>
-        <td>${emp?.nama||l.employeeId||'-'}</td>
-        <td><span class="badge badge-neutral" style="font-size:10px">${l.type||'-'}</span></td>
-        <td>${l.catatan||'-'}</td>
+        <td>${namaEmp}</td>
+        <td><span class="badge badge-neutral" style="font-size:10px">${tipe}</span></td>
+        <td>${catatan}</td>
+        <td class="text-small" style="font-family:var(--font-mono);color:var(--warning)">${extra}</td>
         ${canEdit?`<td><div style="display:flex;gap:4px">
           <button class="btn-icon" title="Edit" onclick="EmployeeModule.openLogModal('${l.id}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
@@ -499,25 +519,36 @@ const EmployeeModule = (() => {
 
   /* ===================== RENDER ARSIP ===================== */
   function renderArsip() {
-    const arsip = _employees.filter(e=>['Arsip','RESIGN','Resign','Inactive','INACTIVE'].includes(e.status));
+    const ACTIVE_STATUSES = ['ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const arsip = _employees.filter(e=>!ACTIVE_STATUSES.includes(e.status));
     document.getElementById('emp-tab-arsip').innerHTML = `
       <div class="table-wrapper"><div class="table-scroll">
         <table class="table">
-          <thead><tr><th>Nama</th><th>NIP</th><th>Jabatan</th><th>Departemen</th><th>Tgl Keluar</th>
+          <thead><tr><th>#</th><th>Nama</th><th>NIK</th><th>Jabatan</th><th>Divisi</th><th>Status</th>
             ${Auth.can('employee','edit')?'<th>Aksi</th>':''}
           </tr></thead>
           <tbody>
-            ${arsip.length ? arsip.map(emp=>`<tr>
-              <td>${emp.nama}</td>
-              <td class="text-muted">${emp.nip||'-'}</td>
+            ${arsip.length ? arsip.map((emp,i)=>`<tr>
+              <td class="text-muted">${i+1}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  ${_empAvatar(emp,28)}
+                  <span style="font-weight:600">${emp.nama}</span>
+                </div>
+              </td>
+              <td class="text-muted">${emp.nik||emp.nip||'-'}</td>
               <td>${emp.jabatan||'-'}</td>
-              <td>${emp.departemen||'-'}</td>
-              <td class="text-muted">${emp.tglKeluar||'-'}</td>
+              <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
+              <td><span class="badge badge-danger" style="font-size:10px">${emp.status||'-'}</span></td>
               ${Auth.can('employee','edit')?`<td>
-                <button class="btn btn-ghost btn-sm" onclick="EmployeeModule.openEmpModal('${emp.id}')">Edit</button>
+                <div style="display:flex;gap:4px;align-items:center">
+                  <button class="btn btn-ghost btn-sm" onclick="EmployeeModule.openEmpModal('${emp.id}')">Edit</button>
+                  <button class="btn btn-primary btn-sm" onclick="EmployeeModule.changeStatus('${emp.id}','ACTIVE')"
+                    title="Kembalikan ke aktif">↩ Aktifkan</button>
+                </div>
               </td>`:''}
             </tr>`).join('')
-            : `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada karyawan arsip</td></tr>`}
+            : `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada karyawan arsip / resign</td></tr>`}
           </tbody>
         </table>
       </div></div>
@@ -741,10 +772,37 @@ const EmployeeModule = (() => {
     if (prev) prev.innerHTML = '<span style="font-size:20px">👤</span>';
   }
 
+  /* === Quick Status Change === */
+  async function changeStatus(empId, newStatus) {
+    const emp = _employees.find(e=>e.id===empId);
+    if (!emp) return;
+    const oldStatus = emp.status;
+    emp.status = newStatus;
+    try {
+      await DB.saveEmployee(emp);
+      const idx = _employees.findIndex(e=>e.id===empId);
+      if (idx>=0) _employees[idx]=emp;
+      Notify.success('Status '+emp.nama+' → '+newStatus);
+      DB.logActivity({type:'employee', detail:'Status: '+emp.nama+' '+oldStatus+'→'+newStatus});
+      // Re-render tab saat ini
+      if (_activeTab==='data')  renderData();
+      if (_activeTab==='arsip') renderArsip();
+    } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
+  function _statusDropdown(emp) {
+    const ALL_STATUSES = ['ACTIVE','Tetap','Kontrak','Percobaan','Harian','RESIGN','Fired','Arsip'];
+    const id = (emp.id||'').replace(/['"]/g,'');
+    const opts = ALL_STATUSES.map(s=>`<option value="${s}" ${emp.status===s?'selected':''}>${s}</option>`).join('');
+    return `<select class="form-control" style="font-size:11px;padding:3px 6px;height:auto;min-width:90px"
+      onchange="event.stopPropagation();EmployeeModule.changeStatus('${id}',this.value)"
+      onclick="event.stopPropagation()">${opts}</select>`;
+  }
+
 
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
-    _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp,
+    _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, changeStatus,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
     get _selectedEmpId() { return _selectedEmpId; },
