@@ -22,7 +22,7 @@ const Sidebar = {
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>` },
     { id: 'task',       label: 'Task',             section: 'MANAJEMEN',
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>` },
-    { id: 'report',     label: 'Laporan',          section: null,
+    { id: 'report',     label: 'Laporan',          section: 'LAPORAN',
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>` },
     { id: 'settings',   label: 'Pengaturan',       section: 'SISTEM',
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>` },
@@ -33,46 +33,38 @@ const Sidebar = {
     const user     = Auth.currentUser();
     const settings = Utils.ls.get('becca_settings') || {};
     const compName = settings.namaPerusahaan || '';
-    const tagline  = settings.tagline || '';
     const logoUrl  = settings.logoUrl || '';
 
-    // Brand: gunakan logo perusahaan jika ada, fallback ke BECCA default
-    let brandHtml;
-    if (compName || logoUrl) {
-      // Tampilkan logo + nama perusahaan
-      const logoEl = logoUrl
-        ? `<img src="${logoUrl}" style="width:32px;height:32px;object-fit:contain;display:block">`
-        : `<div class="sidebar-logo">${compName.substring(0,1).toUpperCase()}</div>`;
-      brandHtml = `
-      <div class="sidebar-brand">
-        <div style="display:flex;align-items:center;gap:10px;min-width:0">
-          <div style="flex-shrink:0;display:flex;align-items:center;justify-content:center;
-                      width:32px;height:32px;border-radius:8px;overflow:hidden">
-            ${logoEl}
-          </div>
-          <div style="min-width:0;flex:1;overflow:hidden">
-            <div style="font-weight:700;font-size:14px;line-height:1.2;
-                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${compName}</div>
-            ${tagline ? `<div style="font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tagline}</div>` : ''}
-          </div>
-        </div>
+    // ── Brand area: pakai class CSS asli ─────────────────────
+    // Jika ada nama/logo perusahaan → tampilkan perusahaan
+    // Jika tidak ada → tampilkan default BECCA (identik dengan versi asli)
+    let logoContent;
+    if (logoUrl) {
+      // Foto logo: img tanpa background tambahan, container pakai sidebar-logo sebagai ukuran
+      logoContent = `<div class="sidebar-logo" style="background:none;padding:0;overflow:hidden">
+        <img src="${logoUrl}" style="width:100%;height:100%;object-fit:contain;display:block">
       </div>`;
     } else {
-      // Default BECCA brand — IDENTIK dengan aslinya
-      brandHtml = `
-      <div class="sidebar-brand">
-        <div class="sidebar-logo">B</div>
-        <div class="sidebar-name">BECCA <span>v2.0</span></div>
-      </div>`;
+      // Default: huruf pertama nama perusahaan atau "B" untuk BECCA
+      const letter = compName ? compName.substring(0,1).toUpperCase() : 'B';
+      logoContent = `<div class="sidebar-logo">${letter}</div>`;
     }
 
-    let html = brandHtml + `
+    const nameText = compName || 'BECCA';
+    const nameSpan = compName
+      ? `<div class="sidebar-name">${compName}</div>`
+      : `<div class="sidebar-name">BECCA <span style="opacity:.5;font-weight:400;font-size:12px">v2.0</span></div>`;
+
+    let html = `
+      <div class="sidebar-brand">
+        ${logoContent}
+        ${nameSpan}
+      </div>
       <nav class="sidebar-nav">
     `;
 
     let lastSection = '';
     this._items.forEach(item => {
-      // Cek privilege
       if (!Auth.can(item.id, 'view')) return;
 
       if (item.section && item.section !== lastSection) {
@@ -99,8 +91,8 @@ const Sidebar = {
               <div class="user-role">${user.role}</div>
             </div>
           </div>
-          <div style="text-align:center;padding:6px 0 2px;font-size:9px;color:var(--text-3);opacity:.5;letter-spacing:.04em">
-            Powered by <strong style="color:var(--primary-h)">BECCA</strong>
+          <div style="text-align:center;padding:4px 0 2px;font-size:9px;color:var(--text-3);opacity:.45;letter-spacing:.04em">
+            Powered by <strong style="color:var(--primary-h)">BECCA</strong> System
           </div>
         </div>
       `;
