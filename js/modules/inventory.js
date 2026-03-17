@@ -286,7 +286,7 @@ const InventoryModule = (() => {
             <th style="width:75px" class="iv-num">Jumlah</th>
             <th style="width:100px" class="iv-num">Harga (Rp)</th>
             <th style="width:110px">Kode Aktivitas</th>
-            <th style="width:80px" style="text-align:center">HPP <span style="font-size:9px;opacity:.7">🤖AI</span></th>
+            <th style="width:80px;text-align:center">HPP <span style="font-size:9px;background:rgba(99,102,241,.2);color:var(--primary-h);border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;font-weight:700">AI</span></th>
             <th style="width:110px">Pengambil</th>
             <th style="width:130px">Penanggung Jawab</th>
             <th style="min-width:140px">Catatan</th>
@@ -313,7 +313,7 @@ const InventoryModule = (() => {
       <td class="iv-num"><div class="ivc">${r.harga?Utils.formatRupiah(r.harga):'-'}</div></td>
       <td><div class="ivc">${r.kodeAktivitas||''}</div></td>
       <td style="text-align:center"><div class="ivc" style="justify-content:center">
-        ${r.hpp===true||r.hpp==='ya'?'<span class="badge badge-success" style="font-size:10px">✅ HPP</span>':r.hpp===false||r.hpp==='tidak'?'<span class="badge badge-neutral" style="font-size:10px">❌ Non-HPP</span>':'<span style="color:var(--text-3);font-size:11px">—</span>'}
+        ${r.hpp===true||r.hpp==='ya'?'<span style="font-size:11px;font-weight:600;color:var(--success)">HPP</span>':r.hpp===false||r.hpp==='tidak'?'<span style="font-size:11px;color:var(--text-3)">Non-HPP</span>':'<span style="color:var(--text-3);font-size:11px">—</span>'}
       </div></td>
       <td><div class="ivc">${r.pengambil||''}</div></td>
       <td><div class="ivc">${r.penanggungJawab||''}</div></td>
@@ -350,22 +350,12 @@ const InventoryModule = (() => {
             <option value="ya" ${r.hpp===true||r.hpp==='ya'?'selected':''}>Ya</option>
             <option value="tidak" ${r.hpp===false||r.hpp==='tidak'?'selected':''}>Tidak</option>
           </select>
-          <span id="ivf-hpp-badge-${r.id}" 
-            style="cursor:pointer;display:inline-flex;align-items:center;border-radius:50%;padding:2px;
-                   background:rgba(129,140,248,.15);border:1px solid rgba(129,140,248,.3);transition:all .2s"
-            title="AI suggest HPP (klik)"
-            onmouseover="this.style.background='rgba(129,140,248,.3)'"
-            onmouseout="this.style.background='rgba(129,140,248,.15)'"
-            onclick="InventoryModule._aiSuggestHPP('${r.id}')">
-            <svg viewBox="0 0 20 20" fill="none" width="14" height="14">
-              <defs><linearGradient id="ag${r.id}" x1="0" y1="0" x2="20" y2="20">
-                <stop offset="0%" stop-color="#818cf8"/><stop offset="100%" stop-color="#a78bfa"/>
-              </linearGradient></defs>
-              <circle cx="10" cy="10" r="9" fill="url(#ag${r.id})" opacity=".2"/>
-              <path d="M10 5v1.5M10 13.5V15M5 10h1.5M13.5 10H15M6.4 6.4l1.1 1.1M12.5 12.5l1.1 1.1M6.4 13.6l1.1-1.1M12.5 7.5l1.1-1.1" stroke="url(#ag${r.id})" stroke-width="1.4" stroke-linecap="round"/>
-              <circle cx="10" cy="10" r="2.2" fill="url(#ag${r.id})"/>
-            </svg>
-          </span>
+          <span id="ivf-hpp-badge-${r.id}"
+            style="font-size:9px;background:rgba(99,102,241,.2);color:var(--primary-h);border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;cursor:pointer;font-weight:700;letter-spacing:.02em;border:none;transition:background .15s"
+            title="Klik untuk AI suggest HPP"
+            onmouseover="this.style.background='rgba(99,102,241,.35)'"
+            onmouseout="this.style.background='rgba(99,102,241,.2)'"
+            onclick="InventoryModule._aiSuggestHPP('${r.id}')">AI</span>
         </div>
       </td>
       <td><input class="iv-inp" type="text" value="${(r.pengambil||'').replace(/"/g,'&quot;')}" id="ivf-sup-${r.id}" placeholder="Pengambil"></td>
@@ -1127,9 +1117,21 @@ const InventoryModule = (() => {
   function _updateHPPBadge(id, isHPP) {
     const badge = document.getElementById('ivf-hpp-badge-'+id);
     if (!badge) return;
-    if (isHPP === true)  { badge.textContent='✅'; badge.title='HPP: Ya'; }
-    else if (isHPP === false) { badge.textContent='❌'; badge.title='HPP: Tidak'; }
-    else { badge.textContent='🤖'; badge.title='AI suggest HPP (klik)'; }
+    // Always show "AI" text - badge is the clickable trigger
+    badge.textContent = 'AI';
+    if (isHPP === true)  {
+      badge.style.background = 'rgba(34,197,94,.25)';
+      badge.style.color = 'var(--success)';
+      badge.title = 'AI: HPP = Ya (klik untuk ubah)';
+    } else if (isHPP === false) {
+      badge.style.background = 'rgba(148,163,184,.2)';
+      badge.style.color = 'var(--text-3)';
+      badge.title = 'AI: HPP = Tidak (klik untuk ubah)';
+    } else {
+      badge.style.background = 'rgba(99,102,241,.2)';
+      badge.style.color = 'var(--primary-h)';
+      badge.title = 'Klik untuk AI suggest HPP';
+    }
   }
 
   function _aiSuggestHPP(id) {
