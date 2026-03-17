@@ -77,9 +77,36 @@ const SettingsModule = (() => {
           <div class="card-header"><div class="card-title">🏢 Pengaturan Perusahaan</div></div>
           <div style="padding:var(--s5)">
             <form id="settings-form">
+              <!-- Logo Upload -->
+              <div class="form-group">
+                <label class="form-label">Logo Perusahaan</label>
+                <div style="display:flex;align-items:center;gap:var(--s4);margin-bottom:4px">
+                  <div id="logo-preview-wrap" style="width:64px;height:64px;border-radius:var(--r-md);
+                       border:2px dashed var(--border2);display:flex;align-items:center;justify-content:center;
+                       overflow:hidden;background:var(--surface2);flex-shrink:0">
+                    ${settings.logoUrl
+                      ? '<img src="'+settings.logoUrl+'" style="width:100%;height:100%;object-fit:contain">'
+                      : '<span style="font-size:22px">🏢</span>'}
+                  </div>
+                  <div>
+                    <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+                      📁 Pilih Logo
+                      <input type="file" id="logo-file-input" accept="image/*" style="display:none"
+                        onchange="SettingsModule._handleLogoUpload(this)">
+                    </label>
+                    ${settings.logoUrl ? '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);margin-left:4px" onclick="SettingsModule._removeLogo()">✕ Hapus</button>' : ''}
+                    <div class="form-hint">PNG/JPG/SVG · Max 500KB · Tampil di Sidebar</div>
+                  </div>
+                </div>
+              </div>
               <div class="form-group">
                 <label class="form-label">Nama Perusahaan</label>
                 <input name="namaPerusahaan" class="form-control" value="${settings.namaPerusahaan||'BECCA Catering'}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tagline / Slogan</label>
+                <input name="tagline" class="form-control" placeholder="Catering Professional"
+                  value="${settings.tagline||''}">
               </div>
               <div class="form-group">
                 <label class="form-label">Alamat</label>
@@ -112,10 +139,45 @@ const SettingsModule = (() => {
     `;
   }
 
+  function _handleLogoUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 512000) { Notify.warning('File terlalu besar. Maks 500KB.'); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      // Preview
+      const wrap = document.getElementById('logo-preview-wrap');
+      if (wrap) wrap.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:contain">`;
+      // Save to localStorage
+      const settings = Utils.ls.get('becca_settings') || {};
+      settings.logoUrl = dataUrl;
+      Utils.ls.set('becca_settings', settings);
+      // Update sidebar immediately
+      Sidebar.render();
+      Notify.success('Logo diperbarui!');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function _removeLogo() {
+    const settings = Utils.ls.get('becca_settings') || {};
+    delete settings.logoUrl;
+    Utils.ls.set('becca_settings', settings);
+    Sidebar.render();
+    renderUmum();
+    Notify.success('Logo dihapus');
+  }
+
   async function saveGeneralSettings() {
     const fd = new FormData(document.getElementById('settings-form'));
-    await DB.saveSettings(Object.fromEntries(fd.entries()));
-    Notify.success('Pengaturan disimpan');
+    const data = Object.fromEntries(fd.entries());
+    // Preserve logoUrl - not in form data
+    const existing = Utils.ls.get('becca_settings') || {};
+    if (existing.logoUrl) data.logoUrl = existing.logoUrl;
+    await DB.saveSettings(data);
+    Sidebar.render();  // Refresh sidebar with new company name/tagline
+    Notify.success('Pengaturan disimpan!');
   }
 
   /* ===================== CHANGE PASSWORD ===================== */
@@ -177,6 +239,14 @@ const SettingsModule = (() => {
       if (!merged.find(u=>u.id===du.id||u.username===du.username))
         merged.push({...du,_isDefault:true});
     });
+    // For superadmin: load passwords from DB for display
+    if (Auth.isSuperAdmin()) {
+      const allWithPwd = await DB.getUsers().catch(()=>[]);
+      merged.forEach(u => {
+        const dbU = allWithPwd.find(d=>d.username===u.username);
+        if (dbU?.password) u.password = dbU.password;
+      });
+    }
     merged.sort((a,b)=>_getRoles().indexOf(a.role)-_getRoles().indexOf(b.role));
 
     document.getElementById('set-tab-users').innerHTML = `
@@ -193,10 +263,16 @@ const SettingsModule = (() => {
             ${merged.map((u,i)=>`
               <tr>
                 <td class="text-muted">${i+1}</td>
-                <td class="font-semibold">${u.nama}</td>
+                <td>
+                  <div style="font-weight:600">${u.nama}</div>
+                  ${u.mustChangePassword?'<div style="font-size:10px;color:var(--warning)">⚠️ Harus ganti password</div>':''}
+                </td>
                 <td style="font-family:var(--font-mono);font-size:12px">${u.username}</td>
                 <td><span class="badge ${u.role==='superadmin'?'badge-danger':u.role==='admin'?'badge-warning':u.role==='operator'?'badge-info':'badge-neutral'}">${u.role}</span></td>
                 <td class="text-muted text-small">${u.email||'-'}</td>
+                ${Auth.isSuperAdmin()?`<td style="font-family:var(--font-mono);font-size:11px;color:var(--text-3)">
+                  <span style="user-select:all;cursor:pointer" title="Klik untuk copy">${u.password||u._pw||'—'}</span>
+                </td>`:''}
                 <td><span class="badge ${u.aktif===false?'badge-danger':'badge-success'}">${u.aktif===false?'Nonaktif':'Aktif'}</span></td>
                 <td class="actions">
                   <div style="display:flex;gap:4px">
@@ -880,19 +956,29 @@ const SettingsModule = (() => {
 
     function fmtVal(val, key) {
       if (val === null || val === undefined) return '-';
-      if (typeof val === 'number' && (key.includes('harga')||key.includes('gaji')||key.includes('jumlah')))
-        return Utils.formatRupiah(val);
+      if (val === false) return 'Tidak';
+      if (val === true)  return 'Ya';
+      // harga/gaji = Rupiah, jumlah/qty = angka biasa
+      if (typeof val === 'number') {
+        if (key.includes('harga') || key.includes('Harga') || key.includes('gaji') || key.includes('Gaji'))
+          return Utils.formatRupiah(val);
+        // jumlah/qty = plain number with unit if possible
+        return val.toLocaleString('id-ID');
+      }
       return String(val).substring(0, 80);
     }
 
     const FIELD_NAMES = {
-      tgl:'Tanggal', nama:'Nama', type:'Type', jumlah:'Jumlah',
-      harga:'Harga (Rp)', hargaSatuan:'Harga/Sat', jenis:'Jenis',
-      itemNama:'Barang', kodeAktivitas:'Kode Aktivitas', vendor:'Vendor',
+      tgl:'Tanggal', nama:'Nama', type:'Type',
+      jumlah:'Jumlah (Qty)', jumlahSatuan:'Satuan',
+      harga:'Harga (Rp)', hargaSatuan:'Harga/Sat (Rp)', jenis:'Jenis',
+      itemNama:'Barang', itemId:null,  // hide itemId
+      kodeAktivitas:'Kode Aktivitas', vendor:'Vendor',
       qty:'Qty', satuan:'Satuan', status:'Status', bulan:'Bulan',
       user:'User', role:'Role', jabatan:'Jabatan', departemen:'Dept',
-      gajiPokok:'Gaji Pokok', noHp:'No. HP', catatan:'Catatan',
+      gajiPokok:'Gaji Pokok (Rp)', noHp:'No. HP', catatan:'Catatan',
       pengambil:'Pengambil', penanggungJawab:'Penanggung Jawab',
+      stokAkhir:null, hpp:null, _weightedAvgPrice:null,  // hide internal fields
     };
 
     let html = '<div style="display:flex;flex-direction:column;gap:8px">';
@@ -928,7 +1014,12 @@ const SettingsModule = (() => {
 
       if (snap.after && !snap.before) {
         var dataAfter = Object.entries(snap.after)
-          .filter(function(e) { return !e[0].startsWith('_') && e[0] !== 'id' && e[0] !== 'createdAt' && e[1] !== '' && e[1] !== null; })
+          .filter(function(e) { 
+          if (e[0].startsWith('_')) return false;
+          if (['id','createdAt','itemId','stokAkhir','hpp'].includes(e[0])) return false;
+          if (FIELD_NAMES[e[0]] === null) return false; // explicitly hidden
+          return e[1] !== '' && e[1] !== null && e[1] !== undefined;
+        })
           .slice(0, 12);
         if (dataAfter.length) {
           html += '<div style="border:1px solid rgba(34,197,94,.3);border-radius:var(--r-md);overflow:hidden">';
@@ -944,7 +1035,12 @@ const SettingsModule = (() => {
 
       if (snap.before && !snap.after) {
         var dataBefore = Object.entries(snap.before)
-          .filter(function(e) { return !e[0].startsWith('_') && e[0] !== 'id' && e[0] !== 'createdAt' && e[1] !== '' && e[1] !== null; })
+          .filter(function(e) { 
+          if (e[0].startsWith('_')) return false;
+          if (['id','createdAt','itemId','stokAkhir','hpp'].includes(e[0])) return false;
+          if (FIELD_NAMES[e[0]] === null) return false; // explicitly hidden
+          return e[1] !== '' && e[1] !== null && e[1] !== undefined;
+        })
           .slice(0, 12);
         if (dataBefore.length) {
           html += '<div style="border:1px solid rgba(239,68,68,.3);border-radius:var(--r-md);overflow:hidden">';
@@ -993,7 +1089,7 @@ const SettingsModule = (() => {
 
   return {
     init, switchTab,
-    saveGeneralSettings, openChangePasswordModal, _changePassword,
+    saveGeneralSettings, _handleLogoUpload, _removeLogo, openChangePasswordModal, _changePassword,
     renderUsers, openUserModal, _submitUser, toggleUser,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
