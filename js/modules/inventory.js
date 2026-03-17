@@ -58,7 +58,7 @@ const InventoryModule = (() => {
     [_items, _logs, _opnameLogs] = await Promise.all([
       DB.getInventoryItems(),
       DB.getInventory(),
-      DB.getOpnameLogs().catch(()=>[]),
+      typeof DB.getOpnameLogs === 'function' ? DB.getOpnameLogs().catch(()=>[]) : Promise.resolve([]),
     ]);
 
     // Hitung stok setiap item dari logs
@@ -110,7 +110,8 @@ const InventoryModule = (() => {
       }).catch(() => renderTransaksi());
     } else if (tab === 'opname') {
       // Reload opname logs dari DB terpisah
-      DB.getOpnameLogs().catch(()=>[]).then(fresh => {
+      const _getOp = typeof DB.getOpnameLogs === 'function' ? DB.getOpnameLogs() : Promise.resolve([]);
+      _getOp.catch(()=>[]).then(fresh => {
         _opnameLogs = fresh;
         renderOpnameTab();
       });
@@ -977,7 +978,11 @@ const InventoryModule = (() => {
     const ok = await Modal.confirm({title:'Hapus Opname',message:'Data opname dihapus permanen.',danger:true,confirmText:'Hapus'});
     if (!ok) return;
     try {
-      await DB.deleteOpnameLog(id);
+      if (typeof DB.deleteOpnameLog === 'function') {
+        await DB.deleteOpnameLog(id);
+      } else {
+        await DB.delete('opname_logs', id);
+      }
       _opnameLogs = _opnameLogs.filter(r=>r.id!==id);
       renderOpnameTab();
       Notify.success('Data opname dihapus');
@@ -1049,6 +1054,10 @@ const InventoryModule = (() => {
     };
     try {
       // OPNAME disimpan ke DB terpisah - TIDAK masuk activity line
+      if (typeof DB.saveOpnameLog !== 'function') {
+        Notify.error('Update diperlukan', 'Upload db.js terbaru ke server');
+        return;
+      }
       const saved = await DB.saveOpnameLog(log);
       _opnameLogs.unshift(saved);
       // OPNAME tidak mempengaruhi _logs (activity line) dan tidak mempengaruhi stok via _recalcStok
