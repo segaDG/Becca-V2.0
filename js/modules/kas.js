@@ -15,6 +15,8 @@ const KasModule = (() => {
   let _page   = 1;
   const _perPage = 100;
   let _editingId  = null;
+  let _kasLocked  = new Set();
+  const _KAS_LOCK_KEY = 'becca_kas_locked_ids';
   let _pendingChanges = {};
 
   const TYPES = ['Raw Food','Sayuran','Buah segar','Raw Materials','Minuman','Snack',
@@ -61,6 +63,10 @@ const KasModule = (() => {
     page.innerHTML = _renderShell();
     [_kas, _masuk] = await Promise.all([DB.getKas(), DB.getKasMasuk()]);
     _saldoAwal = _loadSaldoAwal();
+    // Load locks + auto-lock semua rows existing saat init
+    try { _kasLocked = new Set(JSON.parse(localStorage.getItem(_KAS_LOCK_KEY)||'[]')); } catch { _kasLocked = new Set(); }
+    _kas.forEach(r => _kasLocked.add(r.id));
+    localStorage.setItem(_KAS_LOCK_KEY, JSON.stringify([..._kasLocked]));
     _editingId = null;
     _pendingChanges = {};
     switchTab('transaksi');
@@ -241,11 +247,13 @@ const KasModule = (() => {
       : r.status==='TBC'
       ? 'style="background:rgba(99,102,241,.04)"'
       : '';
-    return `<tr class="ks-view" id="ks-row-${r.id}" data-id="${r.id}" ${rowBg}
-              ${canEdit?`onclick="KasModule.startEdit('${r.id}')"`  :''}>
-      <td><div class="ks-cell" style="justify-content:center;color:var(--text-3);font-size:11px">${rowNum}</div></td>
-      <td><div class="ks-cell">${r.tgl||''}</div></td>
+    const ksOnClick = _kasLocked.has(r.id) ? 'void(0)' : 'KasModule.startEdit(\'' + r.id + '\''+')';
+    return `<tr class="ks-view" id="ks-row-${r.id}" data-id="${r.id}" ${rowBg} onclick="${ksOnClick}">
+      <td onclick="event.stopPropagation();KasModule.unlockKasRow('${r.id}')" title="${_kasLocked.has(r.id)?'Klik untuk buka kunci':''}" style="width:28px;cursor:${_kasLocked.has(r.id)?'pointer':'default'}">
+        <div class="ks-cell" style="justify-content:center;font-size:11px;color:var(--text-3)">${_kasLocked.has(r.id)?'🔒':rowNum}</div>
+      </td>
       <td><div class="ks-cell">${r.nama||''}</div></td>
+      <td style="white-space:nowrap"><div class="ks-cell">${r.tgl||''}</div></td>
       <td><div class="ks-cell"><span class="badge badge-neutral" style="font-size:10px">${r.type||''}</span></div></td>
       <td><div class="ks-cell">${r.vendor||''}</div></td>
       <td class="ks-num"><div class="ks-cell">${r.qty||0}</div></td>
@@ -323,6 +331,10 @@ const KasModule = (() => {
 
   function startEdit(id) {
     if (_editingId === id) return;
+    if (_kasLocked.has(id)) {
+      // Row terkunci - tidak bisa edit langsung, perlu unlock via # icon
+      return;
+    }
 
     // FIX: Remove old listener FIRST before committing
     document.removeEventListener('click', _handleOutsideClick);
@@ -384,6 +396,7 @@ const KasModule = (() => {
 
     // Save to DB async
     DB.saveKas(row).then(() => {
+      _kasLocked.add(id); localStorage.setItem(_KAS_LOCK_KEY, JSON.stringify([..._kasLocked]));
       DB.logActivity({type:'edit_kas', detail:'Edit: '+(row.nama||id), snapshot:{after:{nama:row.nama,type:row.type,jumlah:row.jumlah,vendor:row.vendor,tgl:row.tgl,status:row.status}}});
       const newTr = document.getElementById('ks-row-'+id);
       if (newTr) { newTr.classList.add('ks-saved'); setTimeout(()=>newTr.classList.remove('ks-saved'),500); }
@@ -398,6 +411,12 @@ const KasModule = (() => {
   }
 
   /* ===================== ADD / DELETE ===================== */
+  function unlockKasRow(id) {
+    _kasLocked.delete(id);
+    localStorage.setItem(_KAS_LOCK_KEY, JSON.stringify([..._kasLocked]));
+    startEdit(id);
+  }
+
   async function addRow() {
     if (_editingId) await commitEdit(_editingId);
     const today = new Date().toISOString().split('T')[0];
@@ -1008,6 +1027,6 @@ const KasModule = (() => {
     return full + ' ' + year;
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal };
+  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal };
 })();
 window.KasModule = KasModule;
