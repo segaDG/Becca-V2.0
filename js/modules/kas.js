@@ -248,9 +248,11 @@ const KasModule = (() => {
       ? 'style="background:rgba(99,102,241,.04)"'
       : '';
     const ksOnClick = _kasLocked.has(r.id) ? 'void(0)' : 'KasModule.startEdit(\'' + r.id + '\''+')';
-    return `<tr class="ks-view" id="ks-row-${r.id}" data-id="${r.id}" ${rowBg} onclick="${ksOnClick}">
-      <td onclick="event.stopPropagation();KasModule.unlockKasRow('${r.id}')" title="${_kasLocked.has(r.id)?'Klik untuk buka kunci':''}" style="width:28px;cursor:${_kasLocked.has(r.id)?'pointer':'default'}">
-        <div class="ks-cell" style="justify-content:center;font-size:11px;color:var(--text-3)">${_kasLocked.has(r.id)?'🔒':rowNum}</div>
+    return `<tr class="ks-view" id="ks-row-${r.id}" data-id="${r.id}" ${rowBg} style="${_kasLocked.has(r.id)?'opacity:.75':''}" onclick="${ksOnClick}">
+      <td style="width:28px">
+        <div class="ks-cell" style="justify-content:center;font-size:11px;color:var(--text-3)">
+          ${_kasLocked.has(r.id)?'<span style="opacity:.4">'+rowNum+'</span>':rowNum}
+        </div>
       </td>
       <td><div class="ks-cell">${r.nama||''}</div></td>
       <td style="white-space:nowrap"><div class="ks-cell">${r.tgl||''}</div></td>
@@ -262,11 +264,22 @@ const KasModule = (() => {
       <td class="ks-num"><div class="ks-cell"><strong>${Utils.formatRupiah(r.jumlah||0)}</strong></div></td>
       <td><div class="ks-cell">${r.penerima||''}</div></td>
       <td><div class="ks-cell"><span class="badge ${sc}" style="font-size:10px">${r.status||''}</span></div></td>
-      ${canEdit?`<td><button class="ks-del-btn" onclick="event.stopPropagation();KasModule.deleteRow('${r.id}')" title="Hapus">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-          <polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/>
-        </svg></button></td>`:''}
-    </tr>`;
+      ${canEdit?`<td>
+        <div style='display:flex;gap:2px;align-items:center'>
+          ${_kasLocked.has(r.id)?
+            `<button onclick='event.stopPropagation();KasModule.unlockKasRow("${r.id}")'
+              title='Buka kunci untuk edit'
+              style='width:22px;height:22px;border-radius:4px;border:1px solid rgba(99,102,241,.4);background:rgba(99,102,241,.1);cursor:pointer;color:var(--primary-h);font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0'
+              onmouseover='this.style.background="var(--primary)";this.style.color="white"'
+              onmouseout='this.style.background="rgba(99,102,241,.1)";this.style.color="var(--primary-h)"'>🔓</button>`
+            :`<button onclick='event.stopPropagation();KasModule.startEdit("${r.id}")'
+              title='Edit' style='width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0'
+              onmouseover='this.style.background="var(--surface2)"' onmouseout='this.style.background="transparent"'>✎</button>`}
+          <button class='ks-del-btn' onclick='event.stopPropagation();KasModule.deleteRow("${r.id}")' title='Hapus'>
+            <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='12' height='12'><polyline points='3,6 5,6 21,6'/><path d='M19 6l-1 14H6L5 6'/></svg>
+          </button>
+        </div>
+      </td>`:''}\n    </tr>`;
   }
 
   /* ---- EDIT ROW ---- */
