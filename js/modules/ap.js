@@ -411,9 +411,9 @@ const APModule = (() => {
             <tr>
               <th>#</th>
               <th>Nama Supplier</th>
-              <th>Kategori</th>
+              <th>Kategori / Bidang</th>
               <th>No. HP</th>
-              <th>Email</th>
+              <th>Kota</th>
               <th>Bank</th>
               <th>No. Rekening</th>
               <th>Atas Nama</th>
@@ -440,7 +440,7 @@ const APModule = (() => {
                 </td>
                 <td><span class="badge badge-neutral">${s.kategori||'-'}</span></td>
                 <td class="text-muted">${s.noHp||'-'}</td>
-                <td class="text-muted text-small">${s.email||'-'}</td>
+                <td class="text-muted text-small">${s.kota||'-'}</td>
                 <td class="text-muted">${s.bank||'-'}</td>
                 <td style="font-family:var(--font-mono);font-size:12px">${s.noRek||'-'}</td>
                 <td class="text-muted">${s.atasNama||'-'}</td>
@@ -505,7 +505,7 @@ const APModule = (() => {
             <table style="width:100%;border-collapse:collapse;font-size:13px">
               ${[
                 {l:'No. HP',        v: s.noHp||'-'},
-                {l:'Email',         v: s.email||'-'},
+                {l:'Kota',          v: s.kota||'-'},
                 {l:'Alamat',        v: s.alamat||'-'},
                 {l:'Bank',          v: s.bank||'-'},
                 {l:'No. Rekening',  v: s.noRek||'-'},
