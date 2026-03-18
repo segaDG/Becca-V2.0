@@ -72,6 +72,10 @@ const InventoryModule = (() => {
     });
     // Reset edit state on every page load
     _invEditId = null;
+    // Load + auto-lock all existing rows
+    try { _invLocked = new Set(JSON.parse(localStorage.getItem(_INV_LOCK_KEY)||'[]')); } catch { _invLocked = new Set(); }
+    _logs.forEach(l => _invLocked.add(l.id));
+    localStorage.setItem(_INV_LOCK_KEY, JSON.stringify([..._invLocked]));
     switchTab('stok');
   }
 
@@ -312,7 +316,9 @@ const InventoryModule = (() => {
 
   /* ===================== TAB: TRANSAKSI ===================== */
   /* ===================== ACTIVITY LINE — click to edit ===================== */
-  let _invEditId = null;
+  let _invEditId   = null;
+  let _invLocked   = new Set();
+  const _INV_LOCK_KEY = 'becca_inv_locked_ids';
 
   // FIX: named function so removeEventListener works correctly
   function _ivOutsideClick(e) {
@@ -395,8 +401,14 @@ const InventoryModule = (() => {
   function _ivRowView(r, rowNum, canEdit) {
     const jColor = r.jenis==='MASUK'?'var(--success)':r.jenis==='KELUAR'?'var(--danger)':'var(--warning)';
     return `<tr class="iv-view" id="iv-row-${r.id}" data-id="${r.id}"
-              ${canEdit?`onclick="InventoryModule.startLogEdit('${r.id}')"`  :''}>
-      <td><div class="ivc" style="justify-content:center;color:var(--text-3);font-size:11px">${rowNum}</div></td>
+              ${canEdit && !_invLocked.has(r.id) ? `onclick="InventoryModule.startLogEdit('${r.id}')"` : ''}>
+      <td onclick="event.stopPropagation();${_invLocked.has(r.id)?`InventoryModule.unlockInvRow('${r.id}')`:'void(0)'}"
+          title="${_invLocked.has(r.id)?'Klik untuk buka kunci':''}"
+          style="cursor:${_invLocked.has(r.id)?'pointer':'default'}">
+        <div class="ivc" style="justify-content:center;color:var(--text-3);font-size:11px">
+          ${_invLocked.has(r.id) ? '🔒' : rowNum}
+        </div>
+      </td>
       <td><div class="ivc">${r.tgl?(r.tgl.split('-').reverse().join('-')):''}</div></td>
       <td><div class="ivc">${r.itemNama||''}</div></td>
       <td><div class="ivc"><span class="badge" style="background:${jColor}18;color:${jColor};border:1px solid ${jColor}40;font-size:10px">${r.jenis||''}</span></div></td>
@@ -696,6 +708,7 @@ const InventoryModule = (() => {
 
   function startLogEdit(id) {
     if (_invEditId === id) return;
+    if (_invLocked.has(id)) return;  // Row terkunci
     // FIX: remove listener first
     document.removeEventListener('click', _ivOutsideClick);
     // Commit previous
@@ -751,7 +764,9 @@ const InventoryModule = (() => {
       }
       // Only log if there was actual change vs original
       if (row._hasChanged !== false) {
-        DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), snapshot:{after: {...row}}});
+        _invLocked.add(id);
+      localStorage.setItem(_INV_LOCK_KEY, JSON.stringify([..._invLocked]));
+      DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), snapshot:{after: {...row}}});
       }
       const newTr = document.getElementById('iv-row-'+id);
       if (newTr) { newTr.classList.add('iv-saved'); setTimeout(()=>newTr.classList.remove('iv-saved'),500); }
@@ -763,6 +778,12 @@ const InventoryModule = (() => {
     document.removeEventListener('click', _ivOutsideClick);
     _invEditId = null;
     _invCommit(id);
+  }
+
+  function unlockInvRow(id) {
+    _invLocked.delete(id);
+    localStorage.setItem(_INV_LOCK_KEY, JSON.stringify([..._invLocked]));
+    startLogEdit(id);
   }
 
   async function addLogRow() {
