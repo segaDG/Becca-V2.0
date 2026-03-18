@@ -1158,16 +1158,40 @@ const EmployeeModule = (() => {
 
   /* === Recalc Hutang Karyawan === */
   function _recalcHutang(namaKaryawan) {
-    // Hitung total hutang - total bayar untuk karyawan ini
-    const logsForEmp = _logs.filter(l => l.nama === namaKaryawan);
+    // Hitung dari EXACT match nama saja
+    const logsForEmp  = _logs.filter(l => l.nama === namaKaryawan);
     const totalHutang = logsForEmp.reduce((s,l)=>s+(l.hutang||0), 0);
     const totalBayar  = logsForEmp.reduce((s,l)=>s+(l.bayar||0),  0);
     const sisa        = Math.max(0, totalHutang - totalBayar);
-    // Find employee by nama
     const emp = _employees.find(e=>e.nama===namaKaryawan);
     if (!emp) return;
+    if (emp.sisaHutang === sisa) return; // tidak ada perubahan
     emp.sisaHutang = sisa;
     DB.saveEmployee(emp).catch(()=>{});
+    // Update UI jika sedang di tab data
+    if (_activeTab === 'data') _renderDataTable();
+  }
+
+  // Recalc semua karyawan sekaligus (bulk fix)
+  async function recalcAllHutang() {
+    let fixed = 0;
+    const empNames = new Set(_employees.map(e=>e.nama));
+    // Hanya proses nama yang exact match di employee list
+    const names = [...new Set(_logs.map(l=>l.nama).filter(n=>n&&empNames.has(n)))];
+    for (const nama of names) {
+      const logsForEmp  = _logs.filter(l=>l.nama===nama);
+      const totalH = logsForEmp.reduce((s,l)=>s+(l.hutang||0),0);
+      const totalB = logsForEmp.reduce((s,l)=>s+(l.bayar||0),0);
+      const sisa   = Math.max(0,totalH-totalB);
+      const emp    = _employees.find(e=>e.nama===nama);
+      if (emp && emp.sisaHutang !== sisa) {
+        emp.sisaHutang = sisa;
+        await DB.saveEmployee(emp).catch(()=>{});
+        fixed++;
+      }
+    }
+    if (fixed>0) { Notify.success('Hutang diperbarui: '+fixed+' karyawan'); }
+    return fixed;
   }
 
   function _refreshLbSummary() {
@@ -1330,7 +1354,7 @@ const EmployeeModule = (() => {
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
     _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter,
-    _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, _showLogDetail,
+    _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, recalcAllHutang, _showLogDetail,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
     get _selectedEmpId() { return _selectedEmpId; },
