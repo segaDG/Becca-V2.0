@@ -9,7 +9,10 @@ const EmployeeModule = (() => {
   let _activeTab = 'data';
   let _sortField = 'nama';
   let _sortDir   = 'asc';
-  let _searchQ   = '';
+  let _searchQ    = '';
+  let _lbEditId   = null;   // logbook row sedang diedit
+  let _lbLocked   = new Set(); // id yang terkunci
+  const _LB_LOCK_KEY = 'becca_lb_locked_ids';
   let _filterStatus = '';
   let _filterDept   = '';
   let _selectedEmpId = null;  // for card view
@@ -63,6 +66,10 @@ const EmployeeModule = (() => {
       DB.getEmployees().catch(()=>[]),
       DB.getEmployeeLogs().catch(()=>[]),
     ]);
+    _lbLoadLocks();
+    // Auto-lock semua rows yang sudah ada saat init (setelah reload)
+    _logs.forEach(l => _lbLocked.add(l.id));
+    _lbSaveLocks();
     switchTab('data');
   }
 
@@ -490,7 +497,8 @@ const EmployeeModule = (() => {
         <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._resetLbFilter()" title="Reset">↺</button>
         <span style="margin-left:auto;font-size:12px;color:var(--text-3)" id="lb-count-label"></span>
         ${Auth.can('employee','edit') ? `
-          <button class="btn btn-primary btn-sm" onclick="EmployeeModule.openLogModal()">+ Tambah Log</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._lbLockAll()" title="Kunci semua baris">🔒 Kunci Semua</button>
+          <button class="btn btn-primary btn-sm" onclick="EmployeeModule.addLogRow()">+ Tambah Log</button>` : ''}
       </div>
 
       <!-- Table -->
@@ -552,37 +560,7 @@ const EmployeeModule = (() => {
     const subHutang = logs.reduce((s,l)=>s+(l.hutang||0),0);
     const subBayar  = logs.reduce((s,l)=>s+(l.bayar||0),0);
 
-    const rows = logs.map(l => {
-      const namaEmp  = l.nama || '-';
-      const tglFmt   = l.tgl ? l.tgl.split('-').reverse().join('/') : '-';
-      const bulanLbl = BULAN_LABEL[l.bulan] || (l.bulan||'-');
-      const ket      = l.ket || l.catatan || '-';
-      const pj       = l.pj || '-';
-      const hutang   = l.hutang || 0;
-      const bayar    = l.bayar  || 0;
-      const konfBadge = l.konfirmasi==='CONFIRMED'
-        ? '<span class="badge badge-success" style="font-size:10px">✓ Konfirmasi</span>'
-        : '<span class="badge badge-neutral" style="font-size:10px">Pending</span>';
-
-      return `<tr>
-        <td style="white-space:nowrap;color:var(--text-2)">${tglFmt}</td>
-        <td style="font-weight:600">${namaEmp}</td>
-        <td style="text-align:center;color:var(--text-3)">${bulanLbl}</td>
-        <td style="color:var(--text-2)">${ket}</td>
-        <td style="color:var(--text-3);font-size:11px">${pj}</td>
-        <td class="num" style="font-family:var(--font-mono);color:${hutang>0?'var(--danger)':'var(--text-3)'};font-weight:${hutang>0?'600':'400'}">${hutang>0?Utils.formatRupiah(hutang):'-'}</td>
-        <td class="num" style="font-family:var(--font-mono);color:${bayar>0?'var(--success)':'var(--text-3)'};font-weight:${bayar>0?'600':'400'}">${bayar>0?Utils.formatRupiah(bayar):'-'}</td>
-        <td style="text-align:center">${konfBadge}</td>
-        ${canEdit?`<td><div style="display:flex;gap:3px">
-          <button class="btn-icon" title="Edit" onclick="EmployeeModule.openLogModal('${l.id}')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
-          </button>
-          <button class="btn-icon" title="Hapus" onclick="EmployeeModule.deleteLog('${l.id}')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-          </button>
-        </div></td>`:''}
-      </tr>`;
-    }).join('');
+    const rows = logs.map((l,i) => _lbRowView(l, i+1)).join('');
 
     // Footer subtotal
     const footer = `<tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--border2)">
@@ -894,9 +872,200 @@ const EmployeeModule = (() => {
   }
 
 
+  /* === Logbook Lock System === */
+  function _lbLoadLocks() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(_LB_LOCK_KEY) || '[]');
+      _lbLocked   = new Set(saved);
+    } catch { _lbLocked = new Set(); }
+  }
+
+  function _lbSaveLocks() {
+    localStorage.setItem(_LB_LOCK_KEY, JSON.stringify([..._lbLocked]));
+  }
+
+  function _lbLockAll() {
+    _logs.forEach(l => _lbLocked.add(l.id));
+    _lbSaveLocks();
+    renderLogbook();
+  }
+
+  function _lbUnlock(id) {
+    _lbLocked.delete(id);
+    _lbSaveLocks();
+    // Re-render row sebagai editable
+    _lbStartEdit(id);
+  }
+
+  function _lbStartEdit(id) {
+    if (_lbLocked.has(id)) return;
+    if (_lbEditId === id) return;
+    if (_lbEditId) _lbCommit(_lbEditId);
+    _lbEditId = id;
+    const tr = document.getElementById('lb-row-'+id);
+    if (!tr) return;
+    const log = _logs.find(l=>l.id===id);
+    if (!log) return;
+    const tbody = tr.closest('tbody');
+    const allTrs = Array.from(tbody?.querySelectorAll('tr[id^="lb-row-"]')||[]);
+    const rowNum = allTrs.indexOf(tr)+1;
+    tr.outerHTML = _lbRowEdit(log, rowNum);
+    // Focus first input
+    const newTr = document.getElementById('lb-row-'+id);
+    newTr?.querySelector('input,select')?.focus();
+  }
+
+  function _lbCommit(id) {
+    if (!id) return;
+    const tr = document.getElementById('lb-row-'+id);
+    if (!tr) { _lbEditId = null; return; }
+    const log = _logs.find(l=>l.id===id);
+    if (!log) { _lbEditId = null; return; }
+
+    // Read values from DOM
+    const get = (name) => tr.querySelector('[data-f="'+name+'"]')?.value ?? log[name];
+    const tgl       = get('tgl') || log.tgl;
+    const nama      = get('nama') || log.nama;
+    const bulan     = parseInt(get('bulan')) || log.bulan;
+    const hutang    = parseFloat(get('hutang')) || 0;
+    const bayar     = parseFloat(get('bayar'))  || 0;
+    const ket       = get('ket')  ?? log.ket;
+    const pj        = get('pj')   ?? log.pj;
+    const konfirmasi= get('konfirmasi') || log.konfirmasi;
+
+    Object.assign(log, {tgl, nama, bulan, hutang, bayar, ket, pj, konfirmasi});
+    _lbEditId = null;
+
+    DB.saveEmployeeLog(log).then(() => {
+      _lbLocked.add(id);
+      _lbSaveLocks();
+      const tbody = tr.closest('tbody');
+      const allTrs = Array.from(tbody?.querySelectorAll('tr')||[]);
+      const rowNum = allTrs.indexOf(tr)+1;
+      tr.outerHTML = _lbRowView(log, rowNum);
+    }).catch(e => Notify.error('Gagal simpan log', e.message));
+  }
+
+  function _lbRowView(l, rowNum) {
+    const BULAN_LABEL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const isLocked  = _lbLocked.has(l.id);
+    const hutang    = l.hutang || 0;
+    const bayar     = l.bayar  || 0;
+    const tglFmt    = l.tgl ? l.tgl.split('-').reverse().join('/') : '-';
+    const konfBadge = l.konfirmasi==='CONFIRMED'
+      ? '<span class="badge badge-success" style="font-size:10px">✓</span>'
+      : '<span class="badge badge-neutral" style="font-size:10px">—</span>';
+    const lockIcon  = isLocked
+      ? '<span style="color:var(--text-3);font-size:12px" title="Terkunci - klik untuk edit">🔒</span>'
+      : '<span style="color:var(--primary-h);font-size:12px" title="Klik untuk edit">✎</span>';
+    const canEdit   = Auth.can('employee','edit');
+    return `<tr id="lb-row-${l.id}" data-id="${l.id}"
+      style="cursor:${isLocked?'default':'pointer'}"
+      onclick="${isLocked?`EmployeeModule._lbUnlock('${l.id}')`:`EmployeeModule._lbStartEdit('${l.id}')`}">
+      <td style="white-space:nowrap;color:var(--text-2)">${tglFmt}</td>
+      <td style="font-weight:600">${l.nama||'-'}</td>
+      <td style="text-align:center;color:var(--text-3)">${BULAN_LABEL[l.bulan]||l.bulan||'-'}</td>
+      <td style="color:var(--text-2)">${l.ket||'-'}</td>
+      <td style="color:var(--text-3);font-size:11px">${l.pj||'-'}</td>
+      <td class="num" style="font-family:var(--font-mono);color:${hutang>0?'var(--danger)':'var(--text-3)'};font-weight:${hutang>0?600:400}">${hutang>0?Utils.formatRupiah(hutang):'-'}</td>
+      <td class="num" style="font-family:var(--font-mono);color:${bayar>0?'var(--success)':'var(--text-3)'};font-weight:${bayar>0?600:400}">${bayar>0?Utils.formatRupiah(bayar):'-'}</td>
+      <td style="text-align:center">${konfBadge}</td>
+      ${canEdit?`<td>
+        <div style="display:flex;gap:3px;align-items:center">
+          ${lockIcon}
+          <button class="btn-icon" title="Hapus" onclick="event.stopPropagation();EmployeeModule.deleteLog('${l.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+          </button>
+        </div>
+      </td>`:''}
+    </tr>`;
+  }
+
+  function _lbRowEdit(l, rowNum) {
+    const MONTHS = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+    const BULAN_LABEL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const allNamas = [...new Set(_employees.map(e=>e.nama).filter(Boolean))].sort();
+    const namaOpts = allNamas.map(n=>`<option value="${n}" ${l.nama===n?'selected':''}>${n}</option>`).join('');
+    const bulanOpts = MONTHS.map(m=>`<option value="${m}" ${String(l.bulan)===m?'selected':''}>${BULAN_LABEL[m]}</option>`).join('');
+    const inp = (field, val, type='text', extra='') =>
+      `<input data-f="${field}" type="${type}" value="${val||''}" ${extra}
+        style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px;font-family:inherit"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();EmployeeModule._lbCommit('${l.id}');}
+                   if(event.key==='Escape'){EmployeeModule._lbCancelEdit('${l.id}');}">`;
+    return `<tr id="lb-row-${l.id}" data-id="${l.id}"
+      style="background:rgba(99,102,241,.06);outline:1px solid var(--primary);outline-offset:-1px">
+      <td>${inp('tgl', l.tgl||'', 'date')}</td>
+      <td>
+        <select data-f="nama" style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px">
+          <option value="${l.nama||''}">${l.nama||'Pilih...'}</option>
+          ${namaOpts}
+        </select>
+      </td>
+      <td style="text-align:center">
+        <select data-f="bulan" style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px">
+          ${bulanOpts}
+        </select>
+      </td>
+      <td>${inp('ket', l.ket||l.catatan||'')}</td>
+      <td>${inp('pj', l.pj||'')}</td>
+      <td>${inp('hutang', l.hutang||0, 'number', 'min="0"')}</td>
+      <td>${inp('bayar', l.bayar||0, 'number', 'min="0"')}</td>
+      <td>
+        <select data-f="konfirmasi" style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:11px">
+          <option value="CONFIRMED" ${l.konfirmasi==='CONFIRMED'?'selected':''}>✓ Konfirmasi</option>
+          <option value="" ${!l.konfirmasi?'selected':''}>Pending</option>
+        </select>
+      </td>
+      <td>
+        <div style="display:flex;gap:3px">
+          <button class="btn-icon" title="Simpan (Enter)" onclick="event.stopPropagation();EmployeeModule._lbCommit('${l.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M20 6L9 17l-5-5"/></svg>
+          </button>
+          <button class="btn-icon" title="Batal (Esc)" onclick="event.stopPropagation();EmployeeModule._lbCancelEdit('${l.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }
+
+  function _lbCancelEdit(id) {
+    _lbEditId = null;
+    const log = _logs.find(l=>l.id===id);
+    if (!log) return;
+    const tr = document.getElementById('lb-row-'+id);
+    if (!tr) return;
+    const tbody = tr.closest('tbody');
+    const allTrs = Array.from(tbody?.querySelectorAll('tr')||[]);
+    const rowNum = allTrs.indexOf(tr)+1;
+    tr.outerHTML = _lbRowView(log, rowNum);
+  }
+
+  async function addLogRow() {
+    // Tambah baris baru di atas tabel (langsung editable)
+    if (_lbEditId) _lbCommit(_lbEditId);
+    const today = new Date().toISOString().split('T')[0];
+    const nowBulan = new Date().getMonth() + 1;
+    const newLog = {
+      tgl: today, nama: '', bulan: nowBulan,
+      hutang: 0, bayar: 0, ket: '', pj: '', konfirmasi: '',
+    };
+    try {
+      const saved = await DB.saveEmployeeLog(newLog);
+      _logs.unshift(saved);
+      // Jangan lock baris baru
+      _lbEditId = null;
+      renderLogbook();
+      // Auto-edit baris pertama
+      setTimeout(() => _lbStartEdit(saved.id), 50);
+    } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
+
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
     _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, changeStatus, _resetLbFilter,
+    _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
     get _selectedEmpId() { return _selectedEmpId; },
