@@ -721,6 +721,10 @@ const InventoryModule = (() => {
     const row  = _logs.find(r=>r.id===id);
     const trEl = document.getElementById('iv-row-'+id);
     if (!row || !trEl) { _invEditId = null; return; }
+    // Save original for change detection
+    row._original = JSON.stringify({tgl:row.tgl,itemId:row.itemId,jenis:row.jenis,
+      jumlah:row.jumlah,harga:row.harga,kodeAktivitas:row.kodeAktivitas,
+      hpp:row.hpp,pengambil:row.pengambil,penanggungJawab:row.penanggungJawab,catatan:row.catatan});
     const tbody   = document.getElementById('inv-tbody');
     const allRows = Array.from(tbody.querySelectorAll('tr'));
     const rowNum  = allRows.indexOf(trEl)+1;
