@@ -56,74 +56,74 @@ const APModule = (() => {
 
 
   function render() {
-    const sorted = [..._ap].sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+    const sorted     = [..._ap].sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
     const totalHutang = _ap.filter(r=>r.status!=='LUNAS').reduce((s,r) => s+(r.total||0),0);
     const totalLunas  = _ap.filter(r=>r.status==='LUNAS').reduce((s,r) => s+(r.total||0),0);
+    const totalSisa   = totalHutang;
+    const today       = new Date().toISOString().split('T')[0];
+    const canEdit     = Auth.can('ap','edit');
 
-    document.getElementById('ap-tab-list').innerHTML = `
-      <!-- Stats -->
-      <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
-        ${[
-          { l:'Total Hutang', v: Utils.formatRupiah(totalHutang,true), c:'var(--danger)' },
-          { l:'Sudah Dibayar',v: Utils.formatRupiah(totalLunas,true),  c:'var(--success)' },
-          { l:'Total AP',     v: sorted.length + ' tagihan',           c:'var(--primary-h)' },
-          { l:'Supplier',     v: _suppliers.length + ' supplier',      c:'var(--text-2)' },
-        ].map(s => `
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:150px">
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
-            <div style="font-size:16px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
-          </div>
-        `).join('')}
-      </div>
+    const statsHtml = [
+      { l:'Total Hutang',  v: Utils.formatRupiah(totalHutang,true), c:'var(--danger)'    },
+      { l:'Sudah Dibayar', v: Utils.formatRupiah(totalLunas,true),  c:'var(--success)'   },
+      { l:'Total Tagihan', v: sorted.length + ' item',              c:'var(--primary-h)' },
+      { l:'Supplier',      v: _suppliers.length + ' supplier',      c:'var(--text-2)'    },
+    ].map(s =>
+      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:150px">'
+      + '<div style="font-size:11px;color:var(--text-3);margin-bottom:4px">'+s.l+'</div>'
+      + '<div style="font-size:16px;font-weight:700;color:'+s.c+';font-family:var(--font-mono)">'+s.v+'</div>'
+      + '</div>'
+    ).join('');
 
-      <div class="table-wrapper">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>#</th><th>Tanggal</th><th>Supplier</th><th>Keterangan</th>
-              <th class="num">Total</th><th class="num">Terbayar</th><th class="num">Sisa</th>
-              <th>Jatuh Tempo</th><th>Status</th>
-              ${Auth.can('ap','edit') ? '<th>Aksi</th>' : ''}
-            </tr>
-          </thead>
-          <tbody>
-            ${sorted.length ? sorted.map((r,i) => {
-              const sisa = (r.total||0) - (r.terbayar||0);
-              const late = r.jatuhTempo && r.status!=='LUNAS' && r.jatuhTempo < new Date().toISOString().split('T')[0];
-              return `
-                <tr ${late?'style="background:rgba(239,68,68,0.05)"':''}>
-                  <td class="text-muted">${i+1}</td>
-                  <td style="white-space:nowrap">${r.tgl ? Utils.formatDate(r.tgl,'dd/mm/yyyy') : '-'}</td>
-                  <td class="font-semibold">${r.supplier||'-'}</td>
-                  <td class="text-muted text-small">${r.ket||'-'}</td>
-                  <td class="num">${Utils.formatRupiah(r.total||0)}</td>
-                  <td class="num" style="color:var(--success)">${r.terbayar ? Utils.formatRupiah(r.terbayar) : '-'}</td>
-                  <td class="num" style="color:${sisa>0?'var(--danger)':'var(--success)'}">${sisa>0?Utils.formatRupiah(sisa):'✓ Lunas'}</td>
-                  <td class="text-small ${late?'':''}">
-                    ${r.jatuhTempo ? Utils.formatDate(r.jatuhTempo,'dd/mm/yyyy') : '-'}
-                    ${late?' ⚠️':''}
-                  </td>
-                  <td>
-                    <span class="badge ${r.status==='LUNAS'?'badge-success':r.status==='PARTIAL'?'badge-warning':'badge-danger'}">
-                      ${r.status||'BELUM'}
-                    </span>
-                  </td>
-                  ${Auth.can('ap','edit') ? `
-                    <td><button class="btn-icon" onclick="APModule.openModal('${r.id}')">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                      </svg>
-                    </button></td>
-                  ` : ''}
-                </tr>
-              `;
-            }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data AP</td></tr>`}
-          </tbody>
-        </table>
-      </div>
-    `;
+    const theadHtml = '<tr>'
+      + '<th>#</th><th>Tanggal</th><th>Supplier</th><th>Keterangan</th>'
+      + '<th class="num">Qty</th><th>Sat</th><th class="num">Harga/Sat</th>'
+      + '<th class="num">Total</th><th class="num">Terbayar</th><th class="num">Sisa</th>'
+      + '<th>Jatuh Tempo</th><th>Status</th>'
+      + (canEdit ? '<th>Aksi</th>' : '')
+      + '</tr>';
+
+    const tbodyHtml = sorted.length
+      ? sorted.map((r, i) => {
+          const sisa = (r.total||0) - (r.terbayar||0);
+          const late = r.jatuhTempo && r.status!=='LUNAS' && r.jatuhTempo < today;
+          const sc   = r.status==='LUNAS' ? 'badge-success' : r.status==='CICILAN' ? 'badge-warning' : 'badge-danger';
+          const tglFmt = r.tgl ? r.tgl.split('-').reverse().join('/') : '-';
+          const jtFmt  = r.jatuhTempo ? r.jatuhTempo.split('-').reverse().join('/') : '-';
+          const cells  = ''
+            + '<td class="text-muted">' + (i+1) + '</td>'
+            + '<td style="white-space:nowrap;color:var(--text-2)">' + tglFmt + '</td>'
+            + '<td style="font-weight:600">' + (r.supplier||'-') + '</td>'
+            + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.keterangan||r.ket||'')+'">' + (r.keterangan||r.ket||'-') + '</td>'
+            + '<td class="num" style="color:var(--text-3)">' + (r.qty ? Number(r.qty).toLocaleString('id') : '-') + '</td>'
+            + '<td style="color:var(--text-3);font-size:11px">' + (r.satuan||'-') + '</td>'
+            + '<td class="num" style="font-family:var(--font-mono);color:var(--text-3)">' + (r.hargaSatuan ? Utils.formatRupiah(r.hargaSatuan,true) : '-') + '</td>'
+            + '<td class="num" style="font-family:var(--font-mono);font-weight:700">' + Utils.formatRupiah(r.total||0) + '</td>'
+            + '<td class="num" style="font-family:var(--font-mono);color:var(--success)">' + Utils.formatRupiah(r.terbayar||0) + '</td>'
+            + '<td class="num" style="font-family:var(--font-mono);color:' + (sisa>0?'var(--danger)':'var(--text-3)') + '">' + Utils.formatRupiah(sisa) + '</td>'
+            + '<td style="white-space:nowrap;color:' + (late?'var(--danger)':'var(--text-3)') + ';font-size:11px">' + jtFmt + '</td>'
+            + '<td><span class="badge ' + sc + '" style="font-size:10px">' + (r.status||'BELUM') + '</span></td>';
+          const acts = canEdit
+            ? '<td onclick="event.stopPropagation()"><div style="display:flex;gap:3px">'
+              + '<button class="btn-icon" title="Edit" onclick="APModule.openModal(\''+r.id+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg></button>'
+              + '<button class="btn-icon" title="Hapus" onclick="APModule._deleteAP(\''+r.id+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>'
+              + '</div></td>'
+            : '';
+          return '<tr style="cursor:pointer;background:' + (late?'rgba(239,68,68,0.05)':'') + '"'
+            + ' onclick="APModule.openModal(\''+r.id+'\')"'
+            + ' onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'
+            + cells + acts + '</tr>';
+        }).join('')
+      : '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data AP.</td></tr>';
+
+    document.getElementById('ap-tab-list').innerHTML =
+      '<div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">' + statsHtml + '</div>'
+      + '<div class="table-wrapper"><table class="table" style="font-size:12px">'
+      + '<thead>' + theadHtml + '</thead>'
+      + '<tbody>' + tbodyHtml + '</tbody>'
+      + '</table></div>';
   }
+
 
   function openModal(editId = null) {
     const existing = editId ? _ap.find(r => r.id === editId) : null;
@@ -135,7 +135,7 @@ const APModule = (() => {
         <form id="ap-form">
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">Tanggal</label>
+              <label class="form-label">Tanggal <span class="req">*</span></label>
               <input name="tgl" type="date" class="form-control" value="${d.tgl||''}">
             </div>
             <div class="form-group">
@@ -145,12 +145,30 @@ const APModule = (() => {
           </div>
           <div class="form-group">
             <label class="form-label">Supplier <span class="req">*</span></label>
-            <input name="supplier" class="form-control" list="sup-list" value="${d.supplier||''}" required>
-            <datalist id="sup-list">${suppOpts}</datalist>
+            <select name="supplier" class="form-control" required>
+              <option value="">— Pilih Supplier —</option>
+              ${suppOpts}
+            </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Keterangan</label>
-            <input name="ket" class="form-control" value="${d.ket||''}">
+            <label class="form-label">Keterangan / Item</label>
+            <input name="keterangan" class="form-control" placeholder="Nama barang / keterangan" value="${d.keterangan||d.ket||''}">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Qty</label>
+              <input name="qty" type="number" min="0" class="form-control" value="${d.qty||0}"
+                oninput="(function(){const q=parseFloat(this.value)||0;const h=parseFloat(document.querySelector('[name=hargaSatuan]')?.value)||0;const t=document.querySelector('[name=total]');if(t)t.value=q*h;}).call(this)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Satuan</label>
+              <input name="satuan" class="form-control" placeholder="Pcs, Kg, Ltr..." value="${d.satuan||''}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Harga Satuan (Rp)</label>
+              <input name="hargaSatuan" type="number" min="0" class="form-control" value="${d.hargaSatuan||0}"
+                oninput="(function(){const h=parseFloat(this.value)||0;const q=parseFloat(document.querySelector('[name=qty]')?.value)||0;const t=document.querySelector('[name=total]');if(t)t.value=q*h;}).call(this)">
+            </div>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -161,14 +179,14 @@ const APModule = (() => {
               <label class="form-label">Terbayar (Rp)</label>
               <input name="terbayar" type="number" min="0" class="form-control" value="${d.terbayar||0}">
             </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Status</label>
-            <select name="status" class="form-control">
-              <option value="BELUM"   ${(d.status||'BELUM')==='BELUM'  ?'selected':''}>⏳ Belum</option>
-              <option value="PARTIAL" ${d.status==='PARTIAL'?'selected':''}>🔸 Partial</option>
-              <option value="LUNAS"   ${d.status==='LUNAS'  ?'selected':''}>✅ Lunas</option>
-            </select>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select name="status" class="form-control">
+                <option value="BELUM"   ${(d.status||'BELUM')==='BELUM'  ?'selected':''}>⏳ Belum</option>
+                <option value="CICILAN" ${d.status==='CICILAN'?'selected':''}>🔸 Cicilan</option>
+                <option value="LUNAS"   ${d.status==='LUNAS'  ?'selected':''}>✅ Lunas</option>
+              </select>
+            </div>
           </div>
         </form>
       `,
@@ -324,6 +342,17 @@ const APModule = (() => {
     document.getElementById('new-sup-name').value = '';
   }
 
+  async function _deleteAP(id) {
+    const ok = await Utils.confirm({title:'Hapus AP?', msg:'Yakin hapus transaksi ini?', danger:true});
+    if (!ok) return;
+    try {
+      await DB.delete('ap', id);
+      _ap = _ap.filter(r => r.id !== id);
+      render();
+      Notify.success('AP dihapus');
+    } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
   async function _deleteSupplier(id) {
     await DB.delete('suppliers', id);
     _suppliers = _suppliers.filter(s => s.id !== id);
@@ -334,8 +363,12 @@ const APModule = (() => {
     const fd   = new FormData(document.getElementById('ap-form'));
     const data = Object.fromEntries(fd.entries());
     if (!data.supplier) { Notify.warning('Supplier wajib diisi'); return; }
-    data.total    = parseInt(data.total)    || 0;
-    data.terbayar = parseInt(data.terbayar) || 0;
+    data.total       = parseFloat(data.total)       || 0;
+    data.terbayar    = parseFloat(data.terbayar)    || 0;
+    data.qty         = parseFloat(data.qty)         || 0;
+    data.hargaSatuan = parseFloat(data.hargaSatuan) || 0;
+    // Normalize keterangan field
+    if (!data.keterangan) data.keterangan = data.ket || '';
     if (editId) data.id = editId;
     try {
       const saved = await DB.saveAP(data);
@@ -688,6 +721,6 @@ const APModule = (() => {
   }
 
 
-  return { init, render, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteSupplier };
+  return { init, render, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier };
 })();
 window.APModule = APModule;
