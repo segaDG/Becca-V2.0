@@ -688,6 +688,6 @@ const APModule = (() => {
   }
 
 
-  return { init, render, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _addSupplier, _addSupplierFull, _saveEditSupplier, _deleteSupplier };
+  return { init, render, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteSupplier };
 })();
 window.APModule = APModule;
