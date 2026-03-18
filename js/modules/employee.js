@@ -965,8 +965,8 @@ const EmployeeModule = (() => {
       : '<span style="color:var(--primary-h);font-size:12px" title="Klik untuk edit">✎</span>';
     const canEdit   = Auth.can('employee','edit');
     return `<tr id="lb-row-${l.id}" data-id="${l.id}"
-      style="cursor:${isLocked?'default':'pointer'}"
-      onclick="${isLocked?`EmployeeModule._lbUnlock('${l.id}')`:`EmployeeModule._lbStartEdit('${l.id}')`}">
+      style="cursor:pointer"
+      onclick="${isLocked?`EmployeeModule._showLogDetail('${l.id}')`:`EmployeeModule._lbStartEdit('${l.id}')`}">
       <td style="white-space:nowrap;color:var(--text-2)">${tglFmt}</td>
       <td style="font-weight:600">${l.nama||'-'}</td>
       <td style="text-align:center;color:var(--text-3)">${BULAN_LABEL[l.bulan]||l.bulan||'-'}</td>
@@ -1184,10 +1184,153 @@ const EmployeeModule = (() => {
   }
 
 
+  /* === Log Detail Modal (klik baris logbook) === */
+  function _showLogDetail(logId) {
+    const log  = _logs.find(l => l.id === logId);
+    if (!log) return;
+    const emp  = _employees.find(e => e.nama === log.nama);
+    const BULAN_LABEL = {1:'Januari',2:'Februari',3:'Maret',4:'April',5:'Mei',6:'Juni',
+      7:'Juli',8:'Agustus',9:'September',10:'Oktober',11:'November',12:'Desember'};
+    const mid  = Utils.uid();
+    const canEdit = Auth.can('employee','edit');
+
+    // Summary hutang karyawan ini dari semua log
+    const empLogs   = _logs.filter(l => l.nama === log.nama);
+    const totalH    = empLogs.reduce((s,l)=>s+(l.hutang||0),0);
+    const totalB    = empLogs.reduce((s,l)=>s+(l.bayar||0),0);
+    const sisaH     = Math.max(0, totalH - totalB);
+    const tglFmt    = log.tgl ? log.tgl.split('-').reverse().join('/') : '-';
+
+    Modal.open({ id: mid,
+      title: '📋 Detail Logbook',
+      size: 'modal-lg',
+      body: `
+        <!-- Header: info karyawan + foto -->
+        <div style="display:flex;align-items:center;gap:16px;padding:14px 16px;
+                    background:var(--surface2);border-radius:var(--r-md);margin-bottom:var(--s4)">
+          ${emp ? _empAvatar(emp, 52) :
+            '<div style="width:52px;height:52px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:22px">👤</div>'}
+          <div style="flex:1">
+            <div style="font-size:17px;font-weight:700;color:var(--heading)">${log.nama||'-'}</div>
+            ${emp ? `<div style="font-size:12px;color:var(--text-3)">${emp.jabatan||''} ${emp.divisi||emp.departemen?'· '+(emp.divisi||emp.departemen):''}</div>` : ''}
+            ${emp ? `<div style="margin-top:4px">${_statusDropdown(emp)}</div>` : ''}
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:10px;color:var(--text-3)">Sisa Hutang</div>
+            <div style="font-size:20px;font-weight:800;color:${sisaH>0?'var(--warning)':'var(--success)'};font-family:var(--font-mono)">
+              ${Utils.formatRupiah(sisaH,true)}
+            </div>
+            <div style="font-size:10px;color:var(--text-3)">${empLogs.length} entri log</div>
+          </div>
+        </div>
+
+        <!-- 2 kolom: Detail entri kiri, Info karyawan kanan -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s4)">
+
+          <!-- Kiri: Detail entri ini -->
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:var(--s2)">Detail Entri</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              ${[
+                {l:'Tanggal',         v: tglFmt},
+                {l:'Bulan',           v: BULAN_LABEL[log.bulan]||log.bulan||'-'},
+                {l:'Keterangan',      v: log.ket||log.catatan||'-'},
+                {l:'Penanggung Jawab',v: log.pj||'-'},
+                {l:'Hutang',          v: (log.hutang||0)>0 ? '<span style="color:var(--danger);font-weight:700">'+Utils.formatRupiah(log.hutang)+'</span>' : '-'},
+                {l:'Bayar',           v: (log.bayar||0)>0  ? '<span style="color:var(--success);font-weight:700">'+Utils.formatRupiah(log.bayar)+'</span>'  : '-'},
+                {l:'Status',          v: log.konfirmasi==='CONFIRMED'
+                  ? '<span class="badge badge-success">✓ Konfirmasi</span>'
+                  : '<span class="badge badge-neutral">Pending</span>'},
+              ].map(r=>`
+                <tr>
+                  <td style="padding:7px 8px;color:var(--text-3);border-bottom:1px solid var(--border);width:45%">${r.l}</td>
+                  <td style="padding:7px 8px;border-bottom:1px solid var(--border)">${r.v}</td>
+                </tr>`).join('')}
+            </table>
+            <!-- Hutang summary -->
+            <div style="margin-top:var(--s3);padding:10px 12px;background:var(--surface2);border-radius:var(--r-md)">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+                <span style="color:var(--text-3)">Total Hutang</span>
+                <span style="color:var(--danger);font-weight:600">${Utils.formatRupiah(totalH)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+                <span style="color:var(--text-3)">Total Bayar</span>
+                <span style="color:var(--success);font-weight:600">${Utils.formatRupiah(totalB)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1px solid var(--border);padding-top:6px;margin-top:4px">
+                <span>Sisa Hutang</span>
+                <span style="color:${sisaH>0?'var(--warning)':'var(--success)'}">${Utils.formatRupiah(sisaH)}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Kanan: Info karyawan lengkap -->
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:var(--s2)">Info Karyawan</div>
+            ${emp ? `<table style="width:100%;border-collapse:collapse;font-size:13px">
+              ${[
+                {l:'NIK',         v: emp.nik||emp.nip||'-'},
+                {l:'Jabatan',     v: emp.jabatan||'-'},
+                {l:'Divisi',      v: emp.divisi||emp.departemen||'-'},
+                {l:'No. HP',      v: emp.noHp||'-'},
+                {l:'Tgl Join',    v: emp.tglJoin||emp.tglMasuk||'-'},
+                {l:'Gaji',        v: emp.gaji ? Utils.formatRupiah(emp.gaji) : '-'},
+                {l:'Status',      v: emp.status||'-'},
+              ].map(r=>`
+                <tr>
+                  <td style="padding:7px 8px;color:var(--text-3);border-bottom:1px solid var(--border);width:45%">${r.l}</td>
+                  <td style="padding:7px 8px;font-weight:500;border-bottom:1px solid var(--border)">${r.v}</td>
+                </tr>`).join('')}
+            </table>
+            <div style="margin-top:var(--s3);display:flex;gap:var(--s2)">
+              <button class="btn btn-ghost btn-sm" onclick="Modal.close('${mid}');EmployeeModule.viewCard('${emp.id}')">
+                🪪 Lihat Employee Card
+              </button>
+              ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="EmployeeModule._lbUnlock('${logId}');Modal.close('${mid}')">
+                ✎ Edit Entri Ini
+              </button>` : ''}
+            </div>` : `<div style="text-align:center;padding:30px;color:var(--text-3)">
+              Data karyawan tidak ditemukan
+            </div>`}
+          </div>
+        </div>
+
+        <!-- Riwayat log terbaru karyawan ini -->
+        ${empLogs.length > 1 ? `
+        <div style="margin-top:var(--s4);border-top:1px solid var(--border);padding-top:var(--s4)">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:var(--s2)">
+            Riwayat Log ${log.nama} (${empLogs.length} entri)
+          </div>
+          <div style="max-height:180px;overflow-y:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead><tr style="background:var(--surface2)">
+                <th style="padding:5px 8px;text-align:left;color:var(--text-3)">Tgl</th>
+                <th style="padding:5px 8px;text-align:left;color:var(--text-3)">Keterangan</th>
+                <th style="padding:5px 8px;text-align:right;color:var(--danger)">Hutang</th>
+                <th style="padding:5px 8px;text-align:right;color:var(--success)">Bayar</th>
+              </tr></thead>
+              <tbody>
+                ${empLogs.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).map(ll=>`
+                  <tr style="background:${ll.id===logId?'rgba(99,102,241,.08)':''}">
+                    <td style="padding:5px 8px;border-bottom:1px solid var(--border);white-space:nowrap">${ll.tgl?ll.tgl.split('-').reverse().join('/'):'-'}</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid var(--border)">${ll.ket||'-'}</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--font-mono);color:var(--danger)">${(ll.hutang||0)>0?Utils.formatRupiah(ll.hutang):'-'}</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--font-mono);color:var(--success)">${(ll.bayar||0)>0?Utils.formatRupiah(ll.bayar):'-'}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>` : ''}
+      `,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+  }
+
+
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
     _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter,
-    _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang,
+    _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, _showLogDetail,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
     get _selectedEmpId() { return _selectedEmpId; },
