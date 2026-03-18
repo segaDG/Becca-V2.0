@@ -156,7 +156,7 @@ const TaskModule = (() => {
     _renderTabs(); render(); Notify.success('Task dihapus');
   }
 
-  function openModal(editId=null) {
+  async function openModal(editId=null) {
     const existing = editId ? _tasks.find(t => t.id===editId) : null;
     const d = existing || {status:'todo', priority:'medium'};
     const isEdit = !!editId;
@@ -192,7 +192,19 @@ const TaskModule = (() => {
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Assignee</label>
-            <input name="assignee" class="form-control" value="${d.assignee||''}">
+            <select name="assignee" class="form-control" id="task-assignee-sel">
+              <option value="">— Pilih Assignee —</option>
+              ${await (async()=>{
+                const users = await DB.getUsers().catch(()=>[]);
+                const emps  = await DB.getEmployees().catch(()=>[]);
+                const all   = [
+                  ...users.map(u=>u.nama||u.username),
+                  ...emps.filter(e=>['ACTIVE','Active','Tetap'].includes(e.status)).map(e=>e.nama)
+                ];
+                const unique = [...new Set(all.filter(Boolean))].sort();
+                return unique.map(n=>`<option value="${n}" ${d.assignee===n?'selected':''}>${n}</option>`).join('');
+              })()}
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label">Deadline</label>
@@ -216,6 +228,7 @@ const TaskModule = (() => {
       const saved = await DB.saveTask(data);
       const idx = _tasks.findIndex(t => t.id===saved.id);
       if (idx>=0) _tasks[idx]=saved; else _tasks.unshift(saved);
+      Notify.success(editId ? 'Task berhasil diperbarui!' : 'Task baru ditambahkan!');
       DB.logActivity({type:editId?'edit_task':'add_task', detail:'Task: '+data.judul});
       Modal.close(modalId);
       Notify.success('Task disimpan');
