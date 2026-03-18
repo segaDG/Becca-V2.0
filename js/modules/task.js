@@ -72,6 +72,23 @@ const TaskModule = (() => {
     else if (_filter==='arsip')      data = data.filter(t => t.status==='arsip');
     else if (_filter==='late')       data = data.filter(t => t.status!=='done' && t.status!=='arsip' && t.deadline && t.deadline < today);
 
+    // Assignee filter: non-admin/superadmin hanya lihat task miliknya
+    const user = Auth.currentUser();
+    const isAdmin = user && (user.role==='superadmin'||user.role==='admin');
+    if (!isAdmin && user) {
+      const myNama     = (user.nama||'').toLowerCase();
+      const myUsername = (user.username||'').toLowerCase();
+      data = data.filter(t => {
+        if (!t.assignee) return false;
+        const a = t.assignee.toLowerCase();
+        // Match: assignee === nama, assignee contains nama, or nama contains assignee
+        return a===myNama || a===myUsername ||
+               a.includes(myNama) || myNama.includes(a) ||
+               a.includes(myUsername) || myUsername.includes(a) ||
+               t.creator===user.username; // creator juga bisa lihat
+      });
+    }
+
     data.sort((a,b) => {
       const aLate = a.deadline && a.deadline < today ? 0 : 1;
       const bLate = b.deadline && b.deadline < today ? 0 : 1;
