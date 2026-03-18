@@ -421,11 +421,22 @@ const InventoryModule = (() => {
       <td><div class="ivc">${r.pengambil||''}</div></td>
       <td><div class="ivc">${r.penanggungJawab||''}</div></td>
       <td><div class="ivc">${r.catatan||''}</div></td>
-      ${canEdit?`<td><button class="iv-del" onclick="event.stopPropagation();InventoryModule.deleteLogRow('${r.id}')" title="Hapus">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-          <polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/>
-        </svg></button></td>`:''}
-    </tr>`;
+      ${canEdit?`<td>
+        <div style='display:flex;gap:2px;align-items:center'>
+          ${_invLocked.has(r.id)?
+            `<button onclick='event.stopPropagation();InventoryModule.unlockInvRow("${r.id}")'
+              title='Buka kunci untuk edit'
+              style='width:22px;height:22px;border-radius:4px;border:1px solid rgba(99,102,241,.4);background:rgba(99,102,241,.1);cursor:pointer;color:var(--primary-h);font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0'
+              onmouseover='this.style.background="var(--primary)";this.style.color="white"'
+              onmouseout='this.style.background="rgba(99,102,241,.1)";this.style.color="var(--primary-h)"'>🔓</button>`
+            :`<button onclick='event.stopPropagation();InventoryModule.startLogEdit("${r.id}")'
+              title='Edit baris' style='width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0'
+              onmouseover='this.style.background="var(--surface2)"' onmouseout='this.style.background="transparent"'>✎</button>`}
+          <button class='iv-del' onclick='event.stopPropagation();InventoryModule.deleteLogRow("${r.id}")' title='Hapus'>
+            <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='12' height='12'><polyline points='3,6 5,6 21,6'/><path d='M19 6l-1 14H6L5 6'/></svg>
+          </button>
+        </div>
+      </td>`:''}\n    </tr>`;
   }
 
   function _ivRowEdit(r, rowNum, canEdit) {
