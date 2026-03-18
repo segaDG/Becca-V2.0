@@ -350,6 +350,9 @@ const KasModule = (() => {
     const row  = _kas.find(r=>r.id===id);
     const trEl = document.getElementById('ks-row-'+id);
     if (!row || !trEl) { _editingId = null; return; }
+    row._original = JSON.stringify({tgl:row.tgl,nama:row.nama,type:row.type,vendor:row.vendor,
+      qty:row.qty,satuan:row.satuan,hargaSatuan:row.hargaSatuan,jumlah:row.jumlah,
+      penerima:row.penerima,status:row.status,bulan:row.bulan});
 
     const tbody   = document.getElementById('kas-tbody');
     const allRows = Array.from(tbody.querySelectorAll('tr'));
@@ -383,8 +386,15 @@ const KasModule = (() => {
   function _doCommit(id) {
     const row = _kas.find(r=>r.id===id);
     if (!row) return;
+    const origStr = row._original || '{}';
     const vals = _readRowFromDOM(id);
     Object.assign(row, vals);
+    // Change detection - skip save if nothing changed
+    const newStr = JSON.stringify({tgl:row.tgl,nama:row.nama,type:row.type,vendor:row.vendor,
+      qty:row.qty,satuan:row.satuan,hargaSatuan:row.hargaSatuan,jumlah:row.jumlah,
+      penerima:row.penerima,status:row.status,bulan:row.bulan});
+    delete row._original;
+    const hasChanged = origStr !== newStr;
 
     const trEl = document.getElementById('ks-row-'+id);
     if (trEl) {
@@ -393,6 +403,7 @@ const KasModule = (() => {
       const rowNum  = allRows.indexOf(trEl) + 1 + (_page-1)*_perPage;
       trEl.outerHTML = _rowView(row, rowNum, true);
     }
+    if (!hasChanged) return;  // Nothing changed - skip save+log
 
     // Save to DB async
     DB.saveKas(row).then(() => {
