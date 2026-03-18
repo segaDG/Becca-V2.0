@@ -236,7 +236,8 @@ const EmployeeModule = (() => {
 
   function _searchEmp(q) {
     _searchQ = q || '';
-    renderData();
+    // Render filtered tbody only, tidak re-render seluruh page
+    _renderDataTable();
   }
 
   function setFilter(key, val) {
@@ -468,7 +469,7 @@ const EmployeeModule = (() => {
         ].map(s=>`
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 16px;min-width:130px">
             <div style="font-size:10px;color:var(--text-3);margin-bottom:2px">${s.l}</div>
-            <div style="font-size:15px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
+            <div class="lb-summary-card" style="font-size:15px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
           </div>`).join('')}
       </div>
 
@@ -939,10 +940,14 @@ const EmployeeModule = (() => {
     DB.saveEmployeeLog(log).then(() => {
       _lbLocked.add(id);
       _lbSaveLocks();
+      // Update sisaHutang karyawan berdasarkan semua log mereka
+      _recalcHutang(log.nama);
       const tbody = tr.closest('tbody');
       const allTrs = Array.from(tbody?.querySelectorAll('tr')||[]);
       const rowNum = allTrs.indexOf(tr)+1;
       tr.outerHTML = _lbRowView(log, rowNum);
+      // Refresh summary cards
+      _refreshLbSummary();
     }).catch(e => Notify.error('Gagal simpan log', e.message));
   }
 
@@ -1061,11 +1066,128 @@ const EmployeeModule = (() => {
     } catch(e) { Notify.error('Gagal', e.message); }
   }
 
+  function _renderDataTable() {
+    // Re-filter dan update hanya tbody table + stats cards
+    const ACTIVE_STATS  = ['ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const active        = _employees.filter(e => ACTIVE_STATS.includes(e.status));
+    const depts         = [...new Set(active.map(e=>e.divisi||e.departemen).filter(Boolean))].sort();
+
+    let filtered = active;
+    if (_filterStatus) filtered = filtered.filter(e=>e.status===_filterStatus);
+    if (_filterDept)   filtered = filtered.filter(e=>(e.divisi||e.departemen)===_filterDept);
+    if (_searchQ) {
+      const q = _searchQ.toLowerCase();
+      filtered = filtered.filter(e =>
+        (e.nama||'').toLowerCase().includes(q) ||
+        (e.nik||e.nip||'').toLowerCase().includes(q) ||
+        (e.jabatan||'').toLowerCase().includes(q) ||
+        (e.divisi||e.departemen||'').toLowerCase().includes(q) ||
+        (e.panggilan||'').toLowerCase().includes(q)
+      );
+    }
+    filtered = [...filtered].sort((a,b) => {
+      const getVal = (e) => {
+        if (_sortField==='departemen') return e.divisi||e.departemen||'';
+        if (_sortField==='nip') return e.nik||e.nip||'';
+        if (_sortField==='tglMasuk') return e.tglJoin||e.tglMasuk||'';
+        if (_sortField==='gajiPokok') return e.gaji||e.gajiPokok||0;
+        return e[_sortField]||'';
+      };
+      const va = getVal(a).toString().toLowerCase();
+      const vb = getVal(b).toString().toLowerCase();
+      return _sortDir==='asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+
+    const canEdit  = Auth.can('employee','edit');
+    const tbody    = document.querySelector('#emp-tab-data tbody');
+    const countLbl = document.querySelector('#emp-tab-data .text-muted.text-small[style*="margin-left:auto"]');
+    if (countLbl) countLbl.textContent = filtered.length + ' karyawan';
+
+    if (!tbody) { renderData(); return; }
+
+    if (!filtered.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada data yang cocok</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = filtered.map((emp, i) => {
+      const _ACTIVE_STATUSES = ['Tetap','ACTIVE','Active'];
+      const _WARN_STATUSES   = ['Kontrak','CONTRACT','Percobaan'];
+      const _DANGER_STATUSES = ['RESIGN','Resign','Nonaktif'];
+      const statusColor = _ACTIVE_STATUSES.includes(emp.status)?'badge-success'
+        : _WARN_STATUSES.includes(emp.status)?'badge-warning'
+        : _DANGER_STATUSES.includes(emp.status)?'badge-danger'
+        : 'badge-neutral';
+      return `<tr style="cursor:pointer" onclick="EmployeeModule.viewCard('${emp.id}')"
+                  onmouseover="this.style.background='var(--surface2)'"
+                  onmouseout="this.style.background=''">
+        <td class="text-muted text-small">${i+1}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:10px">
+            ${_empAvatar(emp, 32)}
+            <div>
+              <div style="font-weight:600">${emp.nama||''}</div>
+              ${emp.noHp ? `<div class="text-small text-muted">${emp.noHp}</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td class="text-muted text-small">${emp.nik||emp.nip||'-'}</td>
+        <td>${emp.jabatan||'-'}</td>
+        <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
+        <td onclick="event.stopPropagation()">${_statusDropdown(emp)}</td>
+        <td class="text-small text-muted">${emp.tglJoin||emp.tglMasuk||'-'}</td>
+        <td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,true):'-'}</td>
+        <td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,true):'-'}</td>
+        ${canEdit ? `<td onclick="event.stopPropagation()">
+          <div style="display:flex;gap:4px">
+            <button class="btn-icon" title="Edit" onclick="EmployeeModule.openEmpModal('${emp.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+            </button>
+          </div>
+        </td>` : ''}
+      </tr>`;
+    }).join('');
+
+    // Restore search bar value dan focus
+    const searchBar = document.getElementById('emp-search-bar');
+    if (searchBar && document.activeElement !== searchBar) {
+      searchBar.value = _searchQ;
+    }
+  }
+
+
+  /* === Recalc Hutang Karyawan === */
+  function _recalcHutang(namaKaryawan) {
+    // Hitung total hutang - total bayar untuk karyawan ini
+    const logsForEmp = _logs.filter(l => l.nama === namaKaryawan);
+    const totalHutang = logsForEmp.reduce((s,l)=>s+(l.hutang||0), 0);
+    const totalBayar  = logsForEmp.reduce((s,l)=>s+(l.bayar||0),  0);
+    const sisa        = Math.max(0, totalHutang - totalBayar);
+    // Find employee by nama
+    const emp = _employees.find(e=>e.nama===namaKaryawan);
+    if (!emp) return;
+    emp.sisaHutang = sisa;
+    DB.saveEmployee(emp).catch(()=>{});
+  }
+
+  function _refreshLbSummary() {
+    // Update summary cards di atas logbook tanpa re-render seluruh halaman
+    const totalH = _logs.reduce((s,l)=>s+(l.hutang||0),0);
+    const totalB = _logs.reduce((s,l)=>s+(l.bayar||0),0);
+    const saldo  = totalH - totalB;
+    const cards  = document.querySelectorAll('#emp-tab-logbook .lb-summary-card');
+    if (cards.length >= 3) {
+      cards[0].textContent = Utils.formatRupiah(totalH, true);
+      cards[1].textContent = Utils.formatRupiah(totalB, true);
+      cards[2].textContent = Utils.formatRupiah(saldo,  true);
+    }
+  }
+
 
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
-    _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, changeStatus, _resetLbFilter,
-    _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow,
+    _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter,
+    _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
     get _selectedEmpId() { return _selectedEmpId; },
