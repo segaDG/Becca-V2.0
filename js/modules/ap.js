@@ -69,215 +69,204 @@ const APModule = (() => {
   function render() {
     const canEdit = Auth.can('ap','edit');
     const today   = new Date().toISOString().split('T')[0];
+    const BL      = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const sorted  = [..._ap].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
 
-    // Sort: newest first, group by bulan
-    const sorted = [..._ap].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    const totalHutang  = _ap.filter(r=>r.status!=='LUNAS').reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
+    const totalLunas   = _ap.filter(r=>r.status==='LUNAS').reduce((s,r)=>s+(r.total||0),0);
+    const totalTagihan = _ap.reduce((s,r)=>s+(r.total||0),0);
 
-    // Stats
-    const totalHutang = _ap.filter(r=>r.status!=='LUNAS').reduce((s,r)=>s+(r.total||0),0);
-    const totalLunas  = _ap.filter(r=>r.status==='LUNAS').reduce((s,r)=>s+(r.total||0),0);
+    // Month options
+    const months = [...new Set(sorted.map(r=>r.tgl?.substring(0,7)).filter(Boolean))].sort().reverse();
+    const monthOpts = months.map(m=>{
+      const [y,mo]=m.split('-');
+      return '<option value="'+m+'">'+BL[parseInt(mo)]+' '+y+'</option>';
+    }).join('');
 
-    const statsHtml = [
-      {l:'Total Hutang',  v:Utils.formatRupiah(totalHutang,true), c:'var(--danger)'},
-      {l:'Sudah Dibayar', v:Utils.formatRupiah(totalLunas,true),  c:'var(--success)'},
-      {l:'Total Tagihan', v:sorted.length+' item',                c:'var(--primary-h)'},
-      {l:'Supplier',      v:_suppliers.length+' supplier',         c:'var(--text-2)'},
-    ].map(s=>
-      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:150px">'
-      +'<div style="font-size:11px;color:var(--text-3);margin-bottom:4px">'+s.l+'</div>'
-      +'<div style="font-size:16px;font-weight:700;color:'+s.c+';font-family:var(--font-mono)">'+s.v+'</div>'
-      +'</div>'
-    ).join('');
+    // Supplier options
+    const supOpts = [...new Set(sorted.map(r=>r.supplier).filter(Boolean))].sort()
+      .map(s=>'<option value="'+s+'">'+s+'</option>').join('');
 
-    // Filter controls
-    const bulanOpts = [
-      '<option value="">Semua Bulan</option>',
-      ...[...new Set(sorted.map(r=>r.tgl?.substring(0,7)).filter(Boolean))].sort().reverse().map(b=>{
-        const [y,m] = b.split('-');
-        const BL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
-        return '<option value="'+b+'">'+BL[parseInt(m)]+' '+y+'</option>';
-      })
-    ].join('');
-
-    const supOpts = [
-      '<option value="">Semua Supplier</option>',
-      ...[...new Set(sorted.map(r=>r.supplier).filter(Boolean))].sort()
-        .map(s=>'<option value="'+s+'">'+s+'</option>')
-    ].join('');
-
-    const filterHtml =
-      '<div class="filter-bar" style="margin-bottom:var(--s3);flex-wrap:wrap">'
-      +'<select id="ap-fil-bulan" class="form-control" style="width:130px" onchange="APModule.applyFilter()">'
-      +bulanOpts+'</select>'
-      +'<select id="ap-fil-sup" class="form-control" style="width:180px" onchange="APModule.applyFilter()">'
-      +supOpts+'</select>'
-      +'<select id="ap-fil-status" class="form-control" style="width:120px" onchange="APModule.applyFilter()">'
-      +'<option value="">Semua Status</option>'
-      +'<option value="LUNAS">✅ Lunas</option>'
-      +'<option value="CICILAN">🔸 Cicilan</option>'
-      +'<option value="BELUM">⏳ Belum</option>'
-      +'</select>'
-      +'<button class="btn btn-ghost btn-sm" onclick="APModule.resetFilter()">↺ Reset</button>'
-      +'</div>';
-
-    // Build table
-    const theadHtml =
-      '<tr style="background:var(--surface2)">'
-      +'<th style="width:30px">#</th>'
-      +'<th style="min-width:90px">Tanggal</th>'
-      +'<th style="min-width:150px">Vendor / Supplier</th>'
-      +'<th>Item Description</th>'
-      +'<th class="num" style="width:80px">QTY</th>'
-      +'<th style="width:60px">Satuan</th>'
-      +'<th class="num" style="width:100px">Price/Item</th>'
-      +'<th class="num" style="width:110px">Total</th>'
-      +'<th class="num" style="width:100px">Terbayar</th>'
-      +'<th class="num" style="width:90px">Sisa</th>'
-      +'<th style="width:90px">Jatuh Tempo</th>'
-      +'<th style="width:80px">Status</th>'
-      +(canEdit ? '<th style="width:60px">Aksi</th>' : '')
-      +'</tr>';
-
-    // Supplier color map
-    const supList = [...new Set(sorted.map(r=>r.supplier).filter(Boolean))];
-    const supColors = [
-      'rgba(99,102,241,.06)', 'rgba(16,185,129,.06)', 'rgba(245,158,11,.06)',
-      'rgba(236,72,153,.06)', 'rgba(59,130,246,.06)', 'rgba(239,68,68,.06)',
+    // Color per supplier
+    const COLORS = [
+      {bg:'rgba(99,102,241,.07)',bar:'#6366f1'},
+      {bg:'rgba(16,185,129,.07)',bar:'#10b981'},
+      {bg:'rgba(245,158,11,.07)',bar:'#f59e0b'},
+      {bg:'rgba(236,72,153,.07)',bar:'#ec4899'},
+      {bg:'rgba(59,130,246,.07)',bar:'#3b82f6'},
+      {bg:'rgba(239,68,68,.07)', bar:'#ef4444'},
     ];
-    const supColorMap = {};
-    supList.forEach((s,i)=>{ supColorMap[s] = supColors[i % supColors.length]; });
+    const supList = [...new Set(sorted.map(r=>r.supplier).filter(Boolean))].sort();
+    const supColor = {};
+    supList.forEach((s,i)=>{ supColor[s]=COLORS[i%COLORS.length]; });
 
-    const tbodyHtml = !sorted.length
-      ? '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data AP. Klik "+ Tambah AP" untuk menambah.</td></tr>'
-      : sorted.map((r,i)=>{
-          const sisa   = (r.total||0)-(r.terbayar||0);
-          const late   = r.jatuhTempo && r.status!=='LUNAS' && r.jatuhTempo<today;
-          const sc     = r.status==='LUNAS'?'badge-success':r.status==='CICILAN'?'badge-warning':'badge-danger';
-          const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
-          const jtFmt  = r.jatuhTempo?r.jatuhTempo.split('-').reverse().join('/'):'-';
-          const bg     = supColorMap[r.supplier]||'';
-          const rowBg  = late ? 'rgba(239,68,68,0.06)' : bg;
-          const cells =
-            '<td class="text-muted" style="text-align:center">'+(i+1)+'</td>'
-            +'<td style="white-space:nowrap;font-size:12px;color:var(--text-2)">'+tglFmt+'</td>'
-            +'<td style="font-weight:700;font-size:12px">'+( r.supplier||'-')+'</td>'
-            +'<td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.keterangan||r.ket||'')+'">'+(r.keterangan||r.ket||'-')+'</td>'
-            +'<td class="num" style="font-size:12px;color:var(--text-2)">'+(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0}):'-')+'</td>'
-            +'<td style="font-size:11px;color:var(--text-3)">'+(r.satuan||'-')+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);font-size:11px;color:var(--text-3)">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'-')+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);font-weight:700;font-size:12px">'+Utils.formatRupiah(r.total||0)+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);font-size:12px;color:var(--success)">'+Utils.formatRupiah(r.terbayar||0)+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);font-size:12px;color:'+(sisa>0?'var(--danger)':'var(--text-3)')+'">'+Utils.formatRupiah(sisa)+'</td>'
-            +'<td style="white-space:nowrap;font-size:11px;color:'+(late?'var(--danger)':'var(--text-3)')+'">'+jtFmt+'</td>'
-            +'<td><span class="badge '+sc+'" style="font-size:10px">'+(r.status||'BELUM')+'</span></td>';
-          const acts = canEdit
-            ? '<td onclick="event.stopPropagation()"><div style="display:flex;gap:2px">'
-              +'<button class="btn-icon" title="Edit" onclick="APModule.openModal(\''+r.id+'\')">'
-              +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>'
-              +'</button>'
-              +'<button class="btn-icon" title="Hapus" onclick="APModule._deleteAP(\''+r.id+'\')">'
-              +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>'
-              +'</button>'
-              +'</div></td>'
-            : '';
-          return '<tr style="cursor:pointer;background:'+rowBg+'" onclick="APModule.openModal(\''+r.id+'\') ">'
-            +cells+acts+'</tr>';
-        }).join('');
+    const el = document.getElementById('ap-tab-list');
+    el.innerHTML = `
+      <!-- STATS CARDS -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s3);margin-bottom:var(--s5)">
+        ${[
+          {l:'Sisa Hutang',    v:Utils.formatRupiah(totalHutang,true),  c:'#ef4444', ic:'⚠️', sub:_ap.filter(r=>r.status!=='LUNAS').length+' tagihan belum lunas'},
+          {l:'Sudah Dibayar',  v:Utils.formatRupiah(totalLunas,true),   c:'#10b981', ic:'✅', sub:_ap.filter(r=>r.status==='LUNAS').length+' transaksi lunas'},
+          {l:'Total AP',       v:Utils.formatRupiah(totalTagihan,true),  c:'#6366f1', ic:'📋', sub:sorted.length+' total transaksi'},
+          {l:'Supplier Aktif', v:_suppliers.length+' supplier',          c:'#f59e0b', ic:'🏭', sub:supList.length+' supplier punya tagihan'},
+        ].map(s=>`
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;position:relative;overflow:hidden">
+            <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:${s.c};border-radius:4px 0 0 4px"></div>
+            <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:6px">${s.l}</div>
+            <div style="font-size:20px;font-weight:800;color:${s.c};font-family:var(--font-mono);letter-spacing:-.02em">${s.v}</div>
+            <div style="font-size:10px;color:var(--text-3);margin-top:4px">${s.sub}</div>
+          </div>`).join('')}
+      </div>
 
-    // Grand total row
-    const grandTotal = sorted.reduce((s,r)=>s+(r.total||0),0);
-    const grandBayar = sorted.reduce((s,r)=>s+(r.terbayar||0),0);
-    const grandSisa  = grandTotal - grandBayar;
-    const totalRow =
-      '<tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--border2);font-size:13px">'
-      +'<td colspan="7" style="text-align:right;padding:8px 12px;color:var(--text-2)">Total ('+sorted.length+' transaksi)</td>'
-      +'<td class="num" style="font-family:var(--font-mono)">'+Utils.formatRupiah(grandTotal)+'</td>'
-      +'<td class="num" style="font-family:var(--font-mono);color:var(--success)">'+Utils.formatRupiah(grandBayar)+'</td>'
-      +'<td class="num" style="font-family:var(--font-mono);color:var(--danger)">'+Utils.formatRupiah(grandSisa)+'</td>'
-      +'<td colspan="'+(canEdit?3:2)+'"></td>'
-      +'</tr>';
+      <!-- FILTER BAR -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:var(--s4);display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">🔍 Filter</span>
+        <input type="date" id="ap-fil-from" class="form-control" style="width:140px" title="Dari Tanggal" onchange="APModule.applyFilter()">
+        <span style="font-size:12px;color:var(--text-3)">—</span>
+        <input type="date" id="ap-fil-to" class="form-control" style="width:140px" title="Sampai Tanggal" onchange="APModule.applyFilter()">
+        <select id="ap-fil-bulan" class="form-control" style="width:130px" onchange="APModule.applyFilter()">
+          <option value="">Semua Bulan</option>${monthOpts}
+        </select>
+        <select id="ap-fil-sup" class="form-control" style="width:170px" onchange="APModule.applyFilter()">
+          <option value="">Semua Supplier</option>${supOpts}
+        </select>
+        <select id="ap-fil-status" class="form-control" style="width:130px" onchange="APModule.applyFilter()">
+          <option value="">Semua Status</option>
+          <option value="LUNAS">✅ Lunas</option>
+          <option value="CICILAN">🔸 Cicilan</option>
+          <option value="BELUM">⏳ Belum Lunas</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="APModule.resetFilter()" style="white-space:nowrap">↺ Reset</button>
+        <span id="ap-count-label" style="margin-left:auto;font-size:11px;color:var(--text-3);white-space:nowrap"></span>
+      </div>
 
-    document.getElementById('ap-tab-list').innerHTML =
-      '<div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">'+statsHtml+'</div>'
-      +filterHtml
-      +'<div class="table-wrapper"><table class="table" id="ap-main-table">'
-      +'<thead>'+theadHtml+'</thead>'
-      +'<tbody id="ap-tbody">'+tbodyHtml+totalRow+'</tbody>'
-      +'</table></div>';
+      <!-- TABLE -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;min-width:900px" id="ap-main-table">
+            <thead>
+              <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
+                <th style="padding:10px 12px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:36px">#</th>
+                <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);white-space:nowrap;width:88px">Tanggal</th>
+                <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);min-width:130px">Supplier</th>
+                <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);min-width:160px">Keterangan</th>
+                <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:70px">Qty</th>
+                <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:50px">Sat</th>
+                <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:90px">Harga/Sat</th>
+                <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:100px">Total</th>
+                <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:100px">Terbayar</th>
+                <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:90px">Sisa</th>
+                <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:82px;white-space:nowrap">Jth Tempo</th>
+                <th style="padding:10px 12px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:72px">Status</th>
+                ${canEdit?'<th style="padding:10px 12px;width:56px"></th>':''}
+              </tr>
+            </thead>
+            <tbody id="ap-tbody"><tr><td colspan="13" style="text-align:center;padding:48px;color:var(--text-3)">Memuat data...</td></tr></tbody>
+          </table>
+        </div>
+        <!-- Footer total -->
+        <div id="ap-footer-total" style="border-top:2px solid var(--border);background:var(--surface2);padding:10px 16px;display:flex;gap:var(--s5);justify-content:flex-end;font-size:12px;font-family:var(--font-mono)"></div>
+      </div>
+    `;
+
+    // Initial render rows
+    setTimeout(() => APModule.applyFilter(), 10);
   }
 
+
   function applyFilter() {
+    const from   = document.getElementById('ap-fil-from')?.value   || '';
+    const to     = document.getElementById('ap-fil-to')?.value     || '';
     const bulan  = document.getElementById('ap-fil-bulan')?.value  || '';
     const sup    = document.getElementById('ap-fil-sup')?.value    || '';
     const status = document.getElementById('ap-fil-status')?.value || '';
     const today  = new Date().toISOString().split('T')[0];
     const canEdit = Auth.can('ap','edit');
 
-    const supColorMap = {};
-    const supColors = ['rgba(99,102,241,.06)','rgba(16,185,129,.06)','rgba(245,158,11,.06)','rgba(236,72,153,.06)','rgba(59,130,246,.06)','rgba(239,68,68,.06)'];
-    [...new Set(_ap.map(r=>r.supplier).filter(Boolean))].sort().forEach((s,i)=>{ supColorMap[s]=supColors[i%supColors.length]; });
+    const COLORS = [
+      {bg:'rgba(99,102,241,.07)',bar:'#6366f1'},{bg:'rgba(16,185,129,.07)',bar:'#10b981'},
+      {bg:'rgba(245,158,11,.07)',bar:'#f59e0b'},{bg:'rgba(236,72,153,.07)',bar:'#ec4899'},
+      {bg:'rgba(59,130,246,.07)',bar:'#3b82f6'},{bg:'rgba(239,68,68,.07)', bar:'#ef4444'},
+    ];
+    const supList = [...new Set(_ap.map(r=>r.supplier).filter(Boolean))].sort();
+    const supColor = {};
+    supList.forEach((s,i)=>{ supColor[s]=COLORS[i%COLORS.length]; });
 
     let data = [..._ap].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    if (from)   data = data.filter(r=>(r.tgl||'')>=from);
+    if (to)     data = data.filter(r=>(r.tgl||'')<=to);
     if (bulan)  data = data.filter(r=>r.tgl?.startsWith(bulan));
     if (sup)    data = data.filter(r=>r.supplier===sup);
     if (status) data = data.filter(r=>r.status===status);
 
     const tbody = document.getElementById('ap-tbody');
-    if (!tbody) { render(); return; }
+    const footEl = document.getElementById('ap-footer-total');
+    const countEl = document.getElementById('ap-count-label');
+    if (countEl) countEl.textContent = data.length+' transaksi';
+    if (!tbody) return;
 
-    const BL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
-    const rows = !data.length
-      ? '<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--text-3)">Tidak ada data</td></tr>'
-      : data.map((r,i)=>{
-          const sisa   = (r.total||0)-(r.terbayar||0);
-          const late   = r.jatuhTempo&&r.status!=='LUNAS'&&r.jatuhTempo<today;
-          const sc     = r.status==='LUNAS'?'badge-success':r.status==='CICILAN'?'badge-warning':'badge-danger';
-          const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
-          const jtFmt  = r.jatuhTempo?r.jatuhTempo.split('-').reverse().join('/'):'-';
-          const bg     = supColorMap[r.supplier]||'';
-          const cells =
-            '<td class="text-muted" style="text-align:center">'+(i+1)+'</td>'
-            +'<td style="white-space:nowrap;font-size:12px;color:var(--text-2)">'+tglFmt+'</td>'
-            +'<td style="font-weight:700;font-size:12px">'+(r.supplier||'-')+'</td>'
-            +'<td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.keterangan||r.ket||'')+'">'+( r.keterangan||r.ket||'-')+'</td>'
-            +'<td class="num" style="font-size:12px;color:var(--text-2)">'+(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0}):'-')+'</td>'
-            +'<td style="font-size:11px;color:var(--text-3)">'+(r.satuan||'-')+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);font-size:11px;color:var(--text-3)">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'-')+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);font-weight:700;font-size:12px">'+Utils.formatRupiah(r.total||0)+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);font-size:12px;color:var(--success)">'+Utils.formatRupiah(r.terbayar||0)+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);font-size:12px;color:'+(sisa>0?'var(--danger)':'var(--text-3)')+'">'+Utils.formatRupiah(sisa)+'</td>'
-            +'<td style="white-space:nowrap;font-size:11px;color:'+(late?'var(--danger)':'var(--text-3)')+'">'+jtFmt+'</td>'
-            +'<td><span class="badge '+sc+'" style="font-size:10px">'+(r.status||'BELUM')+'</span></td>';
-          const acts = canEdit
-            ? '<td onclick="event.stopPropagation()"><div style="display:flex;gap:2px">'
-              +'<button class="btn-icon" title="Edit" onclick="APModule.openModal(\''+r.id+'\')">'
-              +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>'
-              +'</button>'
-              +'<button class="btn-icon" title="Hapus" onclick="APModule._deleteAP(\''+r.id+'\')">'
-              +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>'
-              +'</button>'
-              +'</div></td>'
-            : '';
-          return '<tr style="cursor:pointer;background:'+(late?'rgba(239,68,68,0.06)':bg)+'" onclick="APModule.openModal(\''+r.id+'\')">'
-            +cells+acts+'</tr>';
-        }).join('');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data yang cocok</td></tr>';
+      if (footEl) footEl.innerHTML = '';
+      return;
+    }
 
-    const gt = data.reduce((s,r)=>s+(r.total||0),0);
-    const gb = data.reduce((s,r)=>s+(r.terbayar||0),0);
-    const totalRow =
-      '<tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--border2);font-size:13px">'
-      +'<td colspan="7" style="text-align:right;padding:8px 12px;color:var(--text-2)">Total ('+data.length+' transaksi)</td>'
-      +'<td class="num" style="font-family:var(--font-mono)">'+Utils.formatRupiah(gt)+'</td>'
-      +'<td class="num" style="font-family:var(--font-mono);color:var(--success)">'+Utils.formatRupiah(gb)+'</td>'
-      +'<td class="num" style="font-family:var(--font-mono);color:var(--danger)">'+Utils.formatRupiah(gt-gb)+'</td>'
-      +'<td colspan="'+(canEdit?3:2)+'"></td>'
-      +'</tr>';
+    tbody.innerHTML = data.map((r,i) => {
+      const sisa   = (r.total||0)-(r.terbayar||0);
+      const late   = r.jatuhTempo && r.status!=='LUNAS' && r.jatuhTempo<today;
+      const cl     = supColor[r.supplier] || COLORS[0];
+      const sc     = r.status==='LUNAS'?'#10b981':r.status==='CICILAN'?'#f59e0b':'#ef4444';
+      const scBg   = r.status==='LUNAS'?'rgba(16,185,129,.1)':r.status==='CICILAN'?'rgba(245,158,11,.1)':'rgba(239,68,68,.1)';
+      const scTxt  = r.status==='LUNAS'?'LUNAS':r.status==='CICILAN'?'CICILAN':'BELUM';
+      const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
+      const jtFmt  = r.jatuhTempo?r.jatuhTempo.split('-').reverse().join('/'):'-';
+      const rowBg  = late ? 'rgba(239,68,68,0.04)' : (i%2===1?'var(--surface2)':'transparent');
+      const hoverBg = 'rgba(99,102,241,.06)';
+      const p = 'padding:9px 10px;';
+      const acts = canEdit
+        ? '<td style="'+p+'width:56px"><div style="display:flex;gap:2px;justify-content:center">'
+          +'<button onclick="event.stopPropagation();APModule.openModal(\''+r.id+'\');" title="Edit" style="width:24px;height:24px;border-radius:5px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);display:flex;align-items:center;justify-content:center;font-size:10px">'
+          +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>'
+          +'</button>'
+          +'<button onclick="event.stopPropagation();APModule._deleteAP(\''+r.id+'\');" title="Hapus" style="width:24px;height:24px;border-radius:5px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);display:flex;align-items:center;justify-content:center">'
+          +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>'
+          +'</button>'
+          +'</div></td>'
+        : '';
 
-    tbody.innerHTML = rows + totalRow;
+      return '<tr onclick="APModule.openModal(\''+r.id+'\');" data-bg="'+rowBg+'" style="cursor:pointer;background:'+rowBg+';border-bottom:1px solid var(--border);border-left:3px solid '+cl.bar+'" onmouseover="this.style.background=this.dataset.bg" onmouseout="this.style.background=this.dataset.bg">'
+        +'<td style="'+p+'text-align:center;font-size:11px;color:var(--text-3);width:36px">'+(i+1)+'</td>'
+        +'<td style="'+p+'font-size:12px;color:var(--text-2);white-space:nowrap;width:88px">'+tglFmt+'</td>'
+        +'<td style="'+p+'min-width:130px"><div style="font-weight:700;font-size:12px;color:var(--heading)">'+( r.supplier||'-')+'</div>'
+          +'<div style="font-size:10px;font-weight:600;color:'+cl.bar+';background:'+cl.bg+';display:inline-block;padding:1px 6px;border-radius:3px;margin-top:2px">'
+          +(supList.indexOf(r.supplier)+1 > 0 ? 'V'+(supList.indexOf(r.supplier)+1).toString().padStart(2,'0') : '')+'</div></td>'
+        +'<td style="'+p+'font-size:12px;min-width:160px;max-width:200px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.keterangan||r.ket||'')+'">'+(r.keterangan||r.ket||'-')+'</div></td>'
+        +'<td style="'+p+'text-align:right;font-size:12px;font-family:var(--font-mono);width:70px">'+(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0}):'-')+'</td>'
+        +'<td style="'+p+'font-size:11px;color:var(--text-3);width:50px">'+(r.satuan||'-')+'</td>'
+        +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--text-3);width:90px">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'-')+'</td>'
+        +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-weight:700;font-size:12px;width:100px">'+Utils.formatRupiah(r.total||0)+'</td>'
+        +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:12px;color:#10b981;width:100px">'+Utils.formatRupiah(r.terbayar||0)+'</td>'
+        +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:12px;color:'+(sisa>0?'#ef4444':'var(--text-3)')+';font-weight:'+(sisa>0?700:400)+';width:90px">'+Utils.formatRupiah(sisa)+'</td>'
+        +'<td style="'+p+'font-size:11px;color:'+(late?'#ef4444':'var(--text-3)')+';white-space:nowrap;width:82px">'+(late?'⚠️ ':'')+jtFmt+'</td>'
+        +'<td style="'+p+'text-align:center;width:72px"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:'+scBg+';color:'+sc+'">'+scTxt+'</span></td>'
+        +acts
+        +'</tr>';
+    }).join('');
+
+    // Footer total
+    const gt  = data.reduce((s,r)=>s+(r.total||0),0);
+    const gb  = data.reduce((s,r)=>s+(r.terbayar||0),0);
+    const gs  = gt-gb;
+    if (footEl) footEl.innerHTML =
+      '<span style="color:var(--text-3);font-size:11px">'+data.length+' transaksi</span>'
+      +'<span style="margin-left:auto;color:var(--text-2)">Total: <strong>'+Utils.formatRupiah(gt)+'</strong></span>'
+      +'<span style="color:#10b981">Dibayar: <strong>'+Utils.formatRupiah(gb)+'</strong></span>'
+      +'<span style="color:#ef4444">Sisa: <strong>'+Utils.formatRupiah(gs)+'</strong></span>';
   }
 
+
   function resetFilter() {
-    ['ap-fil-bulan','ap-fil-sup','ap-fil-status'].forEach(id=>{
+    ['ap-fil-from','ap-fil-to','ap-fil-bulan','ap-fil-sup','ap-fil-status'].forEach(id=>{
       const el = document.getElementById(id); if(el) el.value='';
     });
     applyFilter();
