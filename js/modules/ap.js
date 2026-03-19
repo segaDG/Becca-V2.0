@@ -876,38 +876,33 @@ const APModule = (() => {
   function renderVAP() {
     const el = document.getElementById('ap-tab-payment');
     if (!el) return;
-    const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-    const BL     = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
-
-    // Month options
+    const BL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
     const allMonths = [...new Set(_ap.map(r=>r.tgl?.substring(0,7)).filter(Boolean))].sort().reverse();
     const monthOpts = ['<option value="">Semua (Belum Lunas)</option>',
       ...allMonths.map(m=>{ const[y,mo]=m.split('-'); return '<option value="'+m+'">'+BL[parseInt(mo)]+' '+y+'</option>'; })
     ].join('');
 
     el.innerHTML = `
-      <!-- CONTROL BAR: Filter + Print dalam satu baris -->
       <div style="display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:var(--s2);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px">
-          <span style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em">Periode</span>
-          <select id="vap-fil-bulan" class="form-control" style="width:150px;height:30px;font-size:12px" onchange="APModule.applyVAPFilter()">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px">
+          <span style="font-size:10px;font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em">Periode</span>
+          <select id="vap-fil-bulan" class="form-control" style="width:160px;height:32px;font-size:13px;font-weight:500" onchange="APModule.applyVAPFilter()">
             ${monthOpts}
           </select>
-          <select id="vap-fil-status" class="form-control" style="width:140px;height:30px;font-size:12px" onchange="APModule.applyVAPFilter()">
+          <select id="vap-fil-status" class="form-control" style="width:140px;height:32px;font-size:13px;font-weight:500" onchange="APModule.applyVAPFilter()">
             <option value="unpaid">Belum Lunas</option>
             <option value="all">Semua Transaksi</option>
           </select>
         </div>
-
+        <button onclick="APModule.printVAP()" style="margin-left:auto;height:42px;padding:0 20px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;font-size:12px;font-weight:700;color:var(--text-2);display:flex;align-items:center;gap:8px;transition:all .15s" onmouseover="this.style.background='var(--primary-h)';this.style.color='white';this.style.borderColor='var(--primary-h)'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--text-2)';this.style.borderColor='var(--border)'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Cetak / Print
+        </button>
       </div>
-
-      <!-- MAIN CONTENT -->
       <div id="vap-content"></div>
     `;
-
     APModule.applyVAPFilter();
   }
-
 
   function applyVAPFilter() {
     const bulan  = document.getElementById('vap-fil-bulan')?.value  || '';
@@ -920,178 +915,203 @@ const APModule = (() => {
     const today  = new Date();
     const todayFmt = today.getDate()+' '+MONTHS[today.getMonth()]+' '+today.getFullYear();
 
-    // Filter data
     let data = [..._ap];
     if (bulan)  data = data.filter(r=>r.tgl?.startsWith(bulan));
     if (status==='unpaid') data = data.filter(r=>r.status!=='LUNAS');
 
-    // Group by supplier
     const supGroups = {};
     data.forEach(r=>{ if(!supGroups[r.supplier]) supGroups[r.supplier]=[]; supGroups[r.supplier].push(r); });
 
     const totalUnpaid = data.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
     const vendorCount = Object.keys(supGroups).length;
 
-    // Periode label
     let periodeLabel = 'Semua Belum Lunas';
-    if (bulan) {
-      const [y,m] = bulan.split('-');
-      periodeLabel = BL[parseInt(m)] + ' ' + y;
-    }
+    if (bulan) { const[y,m]=bulan.split('-'); periodeLabel=BL[parseInt(m)]+' '+y; }
 
-    // Get company settings
-    DB.getSettings().then(sets => {
-      const co = (Array.isArray(sets)?sets[0]:sets)||{};
-      const cName  = co.namaPerusahaan || 'BOGA PANGAN SENTOSA PT';
-      const cAddr  = co.alamat  || 'Jl. Baladewa, Blok PB no.1, Perumnas bumi teluk jambe, RT. 006/020 Karawang Barat, Indonesia';
-      const cPhone = co.telepon || '(+62)815-7818-1888';
+    // Palette: per vendor distinct color
+    const PALETTE = [
+      {grad:'135deg,#667eea,#764ba2', acc:'#667eea', lt:'rgba(102,126,234,.06)', border:'rgba(102,126,234,.2)'},
+      {grad:'135deg,#11998e,#38ef7d', acc:'#11998e', lt:'rgba(17,153,142,.06)', border:'rgba(17,153,142,.2)'},
+      {grad:'135deg,#f7971e,#ffd200', acc:'#d97706', lt:'rgba(217,119,6,.06)', border:'rgba(217,119,6,.2)'},
+      {grad:'135deg,#e96c6c,#f7797d', acc:'#e96c6c', lt:'rgba(233,108,108,.06)', border:'rgba(233,108,108,.2)'},
+      {grad:'135deg,#4facfe,#00f2fe', acc:'#3b82f6', lt:'rgba(59,130,246,.06)', border:'rgba(59,130,246,.2)'},
+      {grad:'135deg,#a18cd1,#fbc2eb', acc:'#8b5cf6', lt:'rgba(139,92,246,.06)', border:'rgba(139,92,246,.2)'},
+    ];
 
-      // --- Build vendor rows ---
-      const VENDOR_COLORS = [
-        {h:'#6366f1',bg:'rgba(99,102,241,.08)',lt:'rgba(99,102,241,.03)'},
-        {h:'#10b981',bg:'rgba(16,185,129,.08)',lt:'rgba(16,185,129,.03)'},
-        {h:'#f59e0b',bg:'rgba(245,158,11,.08)',lt:'rgba(245,158,11,.03)'},
-        {h:'#ec4899',bg:'rgba(236,72,153,.08)',lt:'rgba(236,72,153,.03)'},
-        {h:'#3b82f6',bg:'rgba(59,130,246,.08)',lt:'rgba(59,130,246,.03)'},
-        {h:'#ef4444',bg:'rgba(239,68,68,.08)', lt:'rgba(239,68,68,.03)'},
-      ];
+    let rowsHtml = '';
+    let vendorIdx = 0;
+    Object.entries(supGroups).forEach(([supName, items]) => {
+      const sup      = _suppliers.find(s=>s.nama===supName);
+      const payable  = items.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
+      if (payable<=0 && status==='unpaid') return;
+      const P = PALETTE[vendorIdx % PALETTE.length];
+      vendorIdx++;
 
-      let rowsHtml = '';
-      let vendorNum = 0;
-
-      Object.entries(supGroups).forEach(([supName, items]) => {
-        const sup = _suppliers.find(s=>s.nama===supName);
-        const payable = items.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
-        if (payable<=0 && status==='unpaid') return;
-        const c = VENDOR_COLORS[vendorNum % VENDOR_COLORS.length];
-        vendorNum++;
-
-        // Supplier header row
-        rowsHtml +=
-          '<tr style="background:'+c.bg+';border-top:2px solid '+c.h+'">'
-          +'<td style="padding:12px 14px;border-bottom:1px solid '+c.h+'22">'
-            +'<div style="display:flex;align-items:center;gap:10px">'
-              +'<div style="width:32px;height:32px;border-radius:8px;background:'+c.h+';color:white;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'
-                +supName.substring(0,1).toUpperCase()
-              +'</div>'
-              +'<div>'
-                +'<div style="font-weight:800;font-size:14px;color:var(--heading)">'+supName+'</div>'
-                +'<div style="font-size:10px;color:var(--text-3);margin-top:1px">'+(sup?.kategori||'Supplier')+'</div>'
-              +'</div>'
-            +'</div>'
-          +'</td>'
-          +'<td style="padding:12px 14px;border-bottom:1px solid '+c.h+'22">'
-            +'<div style="font-weight:600;font-size:13px">'+( sup?.bank||'-')+'</div>'
-          +'</td>'
-          +'<td style="padding:12px 14px;border-bottom:1px solid '+c.h+'22;font-family:var(--font-mono);font-size:13px;letter-spacing:.05em">'+(sup?.noRek||'-')+'</td>'
-          +'<td style="padding:12px 14px;border-bottom:1px solid '+c.h+'22;font-size:13px">'+(sup?.atasNama||'-')+'</td>'
-          +'<td style="padding:12px 14px;border-bottom:1px solid '+c.h+'22;text-align:right">'
-            +'<div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:'+c.h+'">'+Utils.formatRupiah(payable)+'</div>'
-            +'<div style="font-size:10px;color:var(--text-3);margin-top:2px">'+items.length+' tagihan</div>'
-          +'</td>'
-          +'</tr>';
-
-        // Detail rows per item
-        items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach(r=>{
-          const sisa = (r.total||0)-(r.terbayar||0);
-          const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
-          rowsHtml +=
-            '<tr style="background:'+c.lt+';border-bottom:1px solid var(--border)">'
-            +'<td style="padding:7px 14px 7px 56px;font-size:12px;color:var(--text-2);font-style:italic">'
-              +(r.keterangan||r.ket||'-')
-            +'</td>'
-            +'<td style="padding:7px 14px;font-size:11px;color:var(--text-3)">'+tglFmt+'</td>'
-            +'<td style="padding:7px 14px;font-size:11px;color:var(--text-3);font-family:var(--font-mono)">'
-              +(r.qty?Number(r.qty).toLocaleString('id'):'')+(r.satuan?' '+r.satuan:'')
-            +'</td>'
-            +'<td style="padding:7px 14px;font-size:11px;color:var(--text-3);font-family:var(--font-mono);text-align:right">'
-              +(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'')
-            +'</td>'
-            +'<td style="padding:7px 14px;text-align:right;font-family:var(--font-mono);font-size:12px;color:'+(sisa>0?'#ef4444':'var(--text-3)')+'">'+Utils.formatRupiah(sisa)+'</td>'
-            +'</tr>';
-        });
-      });
-
-      // Grand total row
+      // Vendor header row
       rowsHtml +=
-        '<tr style="background:linear-gradient(135deg,rgba(239,68,68,.12),rgba(239,68,68,.06));border-top:3px solid #ef4444">'
-        +'<td colspan="4" style="padding:16px 14px">'
-          +'<div style="font-weight:800;font-size:15px;color:#ef4444;letter-spacing:.02em">TOTAL PAYABLE</div>'
-          +'<div style="font-size:11px;color:var(--text-3);margin-top:2px">'+vendorNum+' vendor · '+data.length+' transaksi · Periode: '+periodeLabel+'</div>'
+        '<tr class="vap-vendor-row" style="border-bottom:1px solid '+P.border+'">'
+        +'<td style="padding:14px 16px;width:44%">'
+          +'<div style="display:flex;align-items:center;gap:12px">'
+            +'<div style="width:36px;height:36px;border-radius:10px;background:linear-gradient('+P.grad+');'
+              +'color:white;font-weight:900;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;'
+              +'box-shadow:0 4px 12px rgba(0,0,0,.15)">'
+              +supName.trim().substring(0,1).toUpperCase()
+            +'</div>'
+            +'<div>'
+              +'<div style="font-weight:800;font-size:14px;color:var(--heading)">'+supName+'</div>'
+              +'<div style="font-size:11px;color:'+P.acc+';font-weight:600;margin-top:1px">'+(sup?.kategori||'Supplier')+'</div>'
+            +'</div>'
+          +'</div>'
         +'</td>'
-        +'<td style="padding:16px 14px;text-align:right">'
-          +'<div style="font-family:var(--font-mono);font-size:22px;font-weight:900;color:#ef4444">'+Utils.formatRupiah(totalUnpaid)+'</div>'
+        +'<td style="padding:14px 16px;font-weight:700;font-size:13px;width:12%">'+(sup?.bank||'—')+'</td>'
+        +'<td style="padding:14px 16px;font-family:var(--font-mono);font-size:12px;letter-spacing:.04em;width:22%">'+(sup?.noRek||'—')+'</td>'
+        +'<td style="padding:14px 16px;font-size:13px;width:14%">'+(sup?.atasNama||'—')+'</td>'
+        +'<td style="padding:14px 16px;text-align:right;white-space:nowrap;width:10%">'
+          +'<div style="font-family:var(--font-mono);font-size:17px;font-weight:900;color:'+P.acc+'">'+Utils.formatRupiah(payable)+'</div>'
+          +'<div style="font-size:10px;color:var(--text-3);margin-top:2px;font-weight:500">'+items.length+' tagihan</div>'
         +'</td>'
         +'</tr>';
 
-      el.innerHTML = `
-        <!-- DOCUMENT -->
-        <div id="vap-print-area" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      // Detail rows
+      items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach(r=>{
+        const sisa   = (r.total||0)-(r.terbayar||0);
+        const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
+        const hs     = r.hargaSatuan ? Utils.formatRupiah(r.hargaSatuan) : '-';
+        rowsHtml +=
+          '<tr style="background:'+P.lt+';border-bottom:1px solid '+P.border+'40">'
+          +'<td style="padding:8px 16px 8px 68px;font-size:12px;color:var(--text-2);font-style:italic">'
+            +(r.keterangan||r.ket||'-')
+          +'</td>'
+          +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3)">'+tglFmt+'</td>'
+          +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);font-family:var(--font-mono)">'
+            +(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0})+' '+(r.satuan||''):'-')
+          +'</td>'
+          +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);text-align:right;font-family:var(--font-mono)">'+hs+'</td>'
+          +'<td style="padding:8px 16px;text-align:right;font-family:var(--font-mono);font-size:12px;'
+            +'font-weight:700;color:'+P.acc+';white-space:nowrap">'+Utils.formatRupiah(sisa)+'</td>'
+          +'</tr>';
+      });
+    });
 
-          <!-- DOC HEADER -->
-          <div style="padding:24px 28px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s4)">
-            <div style="flex:1">
-              <div style="font-size:24px;font-weight:900;color:var(--primary-h);letter-spacing:.02em">${cName}</div>
-              <div style="font-size:11px;color:var(--text-3);font-style:italic;margin-top:2px;letter-spacing:.06em;text-transform:uppercase">Your Catering Service Solution</div>
-              <div style="font-size:11px;color:var(--text-2);margin-top:10px;line-height:1.6">${cAddr}<br>${cPhone}</div>
+    // Grand total
+    rowsHtml +=
+      '<tr style="border-top:3px solid rgba(0,0,0,.1)">'
+      +'<td colspan="4" style="padding:18px 20px">'
+        +'<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2)">Total Payable</div>'
+        +'<div style="font-size:11px;color:var(--text-3);margin-top:3px">'+vendorCount+' vendor · '+data.length+' transaksi · '+periodeLabel+'</div>'
+      +'</td>'
+      +'<td style="padding:18px 20px;text-align:right;white-space:nowrap">'
+        +'<div style="font-family:var(--font-mono);font-size:24px;font-weight:900;'
+          +'background:linear-gradient(135deg,#ef4444,#dc2626);-webkit-background-clip:text;'
+          +'-webkit-text-fill-color:transparent;background-clip:text">'+Utils.formatRupiah(totalUnpaid)+'</div>'
+      +'</td>'
+      +'</tr>';
+
+    DB.getSettings().then(sets=>{
+      const co     = (Array.isArray(sets)?sets[0]:sets)||{};
+      const cName  = co.namaPerusahaan || 'BOGA PANGAN SENTOSA';
+      const cAddr  = co.alamat  || 'Jl. Baladewa, Blok PB no.1, Perumnas bumi teluk jambe, RT. 006/020 Karawang Barat, Indonesia';
+      const cPhone = co.telepon || '(+62)815-7818-1888';
+      const cTag   = co.tagline || 'YOUR CATERING SERVICE SOLUTION';
+
+      el.innerHTML = `
+        <!-- DOCUMENT CARD -->
+        <div id="vap-print-area" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.06)">
+
+          <!-- GRADIENT HEADER -->
+          <div style="background:linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#7c3aed 100%);padding:28px 32px;position:relative;overflow:hidden">
+            <!-- decorative circles -->
+            <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.06)"></div>
+            <div style="position:absolute;bottom:-60px;right:80px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.04)"></div>
+
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;position:relative">
+              <!-- Company Info -->
+              <div>
+                <div style="font-size:28px;font-weight:900;color:white;letter-spacing:.02em;line-height:1.1">${cName}</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.6);letter-spacing:.12em;text-transform:uppercase;margin-top:4px;font-weight:500">${cTag}</div>
+                <div style="margin-top:14px;font-size:11px;color:rgba(255,255,255,.75);line-height:1.7">${cAddr}<br>${cPhone}</div>
+              </div>
+              <!-- Date + Total -->
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-size:10px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px">Tanggal Cetak</div>
+                <div style="font-size:16px;font-weight:800;color:white">${todayFmt}</div>
+                <div style="margin-top:14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:12px 18px;backdrop-filter:blur(8px)">
+                  <div style="font-size:10px;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.08em;font-weight:600">Total Unpaid</div>
+                  <div style="font-family:var(--font-mono);font-size:20px;font-weight:900;color:#fbbf24;margin-top:3px;white-space:nowrap">${Utils.formatRupiah(totalUnpaid)}</div>
+                </div>
+              </div>
             </div>
-            <div style="text-align:right;flex-shrink:0">
-              <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em">Tanggal Cetak</div>
-              <div style="font-size:16px;font-weight:800;color:var(--heading)">${todayFmt}</div>
-              <div style="margin-top:10px;padding:6px 14px;background:rgba(99,102,241,.1);border-radius:6px;border:1px solid rgba(99,102,241,.3)">
-                <div style="font-size:10px;color:var(--primary-h);font-weight:700;text-transform:uppercase;letter-spacing:.06em">Total Unpaid</div>
-                <div style="font-family:var(--font-mono);font-size:18px;font-weight:900;color:#ef4444">${Utils.formatRupiah(totalUnpaid,true)}</div>
+
+            <!-- Doc Title Bar -->
+            <div style="margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:18px;font-weight:800;color:white;letter-spacing:.06em;text-transform:uppercase">Vendor Account Payable</div>
+              <div style="display:flex;gap:20px;font-size:12px;color:rgba(255,255,255,.75);font-weight:500">
+                <span>${data.length} Tagihan</span>
+                <span>${vendorCount} Vendor</span>
+                <span>${periodeLabel}</span>
               </div>
             </div>
           </div>
 
-          <!-- DOC TITLE BAR -->
-          <div style="background:var(--primary-h);padding:12px 28px;display:flex;align-items:center;justify-content:space-between">
-            <span style="font-size:16px;font-weight:800;color:white;letter-spacing:.04em">VENDOR ACCOUNT PAYABLE</span>
-            <div style="display:flex;gap:var(--s4);font-size:12px;color:rgba(255,255,255,.8)">
-              <span>📋 <strong style="color:white">${data.length}</strong> Tagihan</span>
-              <span>🏭 <strong style="color:white">${vendorNum}</strong> Vendor</span>
-              <span>📅 <strong style="color:white">${periodeLabel}</strong></span>
-            </div>
-          </div>
-
-          <!-- TABLE HEADER -->
+          <!-- TABLE -->
           <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;min-width:700px">
+            <table style="width:100%;border-collapse:collapse;min-width:680px" id="vap-table">
               <thead>
                 <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
-                  <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);min-width:220px">Vendor / Supplier</th>
-                  <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);width:100px">Nama Bank</th>
-                  <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);width:160px">Bank Account Number</th>
-                  <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);min-width:140px">Bank Account Name</th>
-                  <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);width:140px">Total Payable</th>
+                  <th style="padding:11px 16px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Vendor / Supplier</th>
+                  <th style="padding:11px 16px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Nama Bank</th>
+                  <th style="padding:11px 16px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Bank Account Number</th>
+                  <th style="padding:11px 16px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Atas Nama</th>
+                  <th style="padding:11px 16px;text-align:right;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Total Payable</th>
                 </tr>
               </thead>
               <tbody>${rowsHtml||'<tr><td colspan="5" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada tagihan belum lunas</td></tr>'}</tbody>
             </table>
           </div>
 
-          <!-- FOOTER NOTE -->
-          <div style="padding:14px 28px;border-top:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between">
-            <span style="font-size:11px;color:var(--text-3);font-style:italic">* Seluruh transaksi telah dicek kebenarannya dan dapat dipertanggung jawabkan</span>
-            <span style="font-size:11px;color:var(--text-3)">${todayFmt}</span>
+          <!-- FOOTER -->
+          <div style="padding:14px 24px;border-top:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:4px;height:4px;border-radius:50%;background:var(--text-3)"></div>
+              <span style="font-size:11px;color:var(--text-3);font-style:italic">Seluruh transaksi telah dicek kebenarannya dan dapat dipertanggung jawabkan</span>
+            </div>
+            <span style="font-size:11px;color:var(--text-3);font-weight:600">${todayFmt}</span>
           </div>
         </div>
       `;
     }).catch(()=>{});
   }
 
-
   function printVAP() {
     const area = document.getElementById('vap-print-area');
     if (!area) { Notify.warning('Buka tab Vendor AP Payment terlebih dahulu'); return; }
+    const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const today  = new Date();
+    const todayFmt = today.getDate()+' '+MONTHS[today.getMonth()]+' '+today.getFullYear();
+
+    const printCSS = `
+      @page { margin: 12mm 14mm; size: A4; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
+      body { margin:0; padding:0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #111; background: white; }
+      table { width: 100%; border-collapse: collapse; }
+      .vap-vendor-row td { background: #f8f7ff !important; }
+      thead tr { background: #f1f0ff !important; }
+      th { padding: 9px 14px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #555; border-bottom: 2px solid #e5e7eb; }
+      td { vertical-align: middle; }
+      .grad-header { background: linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#7c3aed 100%) !important; color: white !important; padding: 22px 26px; }
+      @media print { .no-print { display: none !important; } }
+    `;
+
+    const cloneEl  = area.cloneNode(true);
+    // Remove decorative elements that won't print well
+    const deco = cloneEl.querySelectorAll('[style*="position:absolute"]');
+    deco.forEach(d => d.remove());
+
     const w = window.open('','_blank','width=900,height=700');
-    w.document.write('<html><head><title>Vendor Account Payable - BPS</title><style>'
-      +'@page{margin:15mm}body{font-family:Arial,sans-serif;font-size:11px;color:#000}'
-      +'table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 10px}'
-      +'th{background:#4c1d95;color:white;font-size:10px;text-transform:uppercase}'
-      +'.no-print{display:none}'
-      +'</style></head><body>'+area.innerHTML+'<script>window.onload=()=>{window.print();window.close();}<\/script></body></html>');
+    if (!w) { Notify.error('Pop-up diblokir', 'Izinkan pop-up untuk mencetak'); return; }
+    w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>VAP — '+todayFmt+'</title><style>'+printCSS+'</style></head><body>');
+    w.document.write(cloneEl.outerHTML);
+    w.document.write('<script>setTimeout(()=>{window.print();},400);<\/script></body></html>');
     w.document.close();
   }
 
