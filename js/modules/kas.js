@@ -1027,7 +1027,19 @@ const KasModule = (() => {
     return full + ' ' + year;
   }
   /* ============ Stacked Bar Chart - Chart.js ============ */
-  function _ksDrawStackedChart(selBulan, filtered, byBulan, allBulan, typeRows) {
+  function _ksDrawStackedChart(selBulan, filtered, byBulanParam, allBulan, typeRows) {
+    const kasRaw = JSON.parse(localStorage.getItem('becca_kas')||'[]');
+    const NORM2 = {'Jan':'Januari','Febuari':'Februari','Feb':'Februari','Mar':'Maret'};
+    const byBulan = {};
+    kasRaw.forEach(r => {
+      const b = NORM2[r.bulan||'']||r.bulan||''; if(!b) return;
+      const t = r.type||'Lain-lain';
+      if(!byBulan[b]) byBulan[b]={};
+      byBulan[b][t]=(byBulan[b][t]||0)+(r.jumlah||0);
+    });
+    const typeMap2={};
+    kasRaw.forEach(r=>{ const t=r.type||'Lain-lain'; typeMap2[t]=(typeMap2[t]||0)+(r.jumlah||0); });
+    typeRows = Object.entries(typeMap2).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([t,total])=>({t,total}));
     const canvas = document.getElementById('ks-stacked-chart');
     const legend = document.getElementById('ks-chart-legend');
     if (!canvas) return;
