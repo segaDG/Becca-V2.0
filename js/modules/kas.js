@@ -254,8 +254,8 @@ const KasModule = (() => {
           ${_kasLocked.has(r.id)?'<span style="opacity:.4">'+rowNum+'</span>':rowNum}
         </div>
       </td>
-      <td><div class="ks-cell">${r.nama||''}</div></td>
       <td style="white-space:nowrap"><div class="ks-cell">${r.tgl||''}</div></td>
+      <td><div class="ks-cell">${r.nama||''}</div></td>
       <td><div class="ks-cell"><span class="badge badge-neutral" style="font-size:10px">${r.type||''}</span></div></td>
       <td><div class="ks-cell">${r.vendor||''}</div></td>
       <td class="ks-num"><div class="ks-cell">${r.qty||0}</div></td>
@@ -588,17 +588,48 @@ const KasModule = (() => {
           <div style="padding:var(--s4);border-top:1px solid var(--border)">
             <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--s3)">Grafik Kategori</div>
             <div style="display:flex;flex-direction:column;gap:8px">
-              ${chartByType.map((r,i)=>`
-                <div style="display:flex;align-items:center;gap:8px">
-                  <div style="width:100px;font-size:11px;color:var(--text-2);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.t||'—'}</div>
-                  <div style="flex:1;height:16px;background:var(--surface2);border-radius:3px;overflow:hidden">
-                    <div style="width:${Math.round(r.total/maxTypeVal*100)}%;height:100%;background:${CHART_COLORS[i%8]};border-radius:3px;
-                      display:flex;align-items:center;padding-left:6px;transition:width .3s">
-                      ${r.total/maxTypeVal > 0.2 ? `<span style="font-size:10px;color:white;font-weight:600">${Math.round(r.total/grand*100)}%</span>` : ''}
-                    </div>
-                  </div>
-                  <div style="width:90px;font-size:11px;color:var(--text-2);font-family:var(--font-mono);text-align:right">${Utils.formatRupiah(r.total,true)}</div>
-                </div>`).join('')}
+              ${selBulan
+                ? /* Single month: simple horizontal bars per kategori */
+                  chartByType.map((r,i)=>`
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <div style="width:100px;font-size:11px;color:var(--text-2);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.t||'—'}</div>
+                      <div style="flex:1;height:16px;background:var(--surface2);border-radius:3px;overflow:hidden">
+                        <div style="width:${Math.round(r.total/maxTypeVal*100)}%;height:100%;background:${CHART_COLORS[i%8]};border-radius:3px;
+                          display:flex;align-items:center;padding-left:6px;transition:width .3s">
+                          ${r.total/maxTypeVal > 0.2 ? `<span style="font-size:10px;color:white;font-weight:600">${Math.round(r.total/grand*100)}%</span>` : ''}
+                        </div>
+                      </div>
+                      <div style="width:90px;font-size:11px;color:var(--text-2);font-family:var(--font-mono);text-align:right">${Utils.formatRupiah(r.total,true)}</div>
+                    </div>`).join('')
+                : /* All months: grouped bars per kategori, each bar = 1 bulan */
+                  (()=>{
+                    const topTypes = typeRows.slice(0,6);
+                    const BL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+                    return topTypes.map((typeRow, ti) => {
+                      const perBulan = allBulan.map(b => ({b, total: Utils.sumBy((byBulan[b]||[]).filter(r=>r.type===typeRow.t),'jumlah')}));
+                      const maxV = Math.max(...perBulan.map(p=>p.total), 1);
+                      const clr  = CHART_COLORS[ti%8];
+                      const bars = perBulan.map(p=>{
+                        const h = p.total ? Math.max(Math.round(p.total/maxV*38), 2) : 0;
+                        const bLabel = BL[parseInt(p.b.split('-')[1])]||p.b;
+                        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">'
+                          +'<div style="width:100%;height:40px;display:flex;align-items:flex-end">'
+                          +'<div style="width:100%;height:'+h+'px;background:'+clr+';border-radius:3px 3px 0 0;opacity:'+(p.total?1:.15)+'" title="'+bLabel+': '+Utils.formatRupiah(p.total)+'"></div>'
+                          +'</div>'
+                          +'<div style="font-size:9px;color:var(--text-3);white-space:nowrap">'+bLabel+'</div>'
+                          +'</div>';
+                      }).join('');
+                      return '<div style="margin-bottom:10px">'
+                        +'<div style="font-size:11px;font-weight:700;color:var(--text-2);margin-bottom:5px;display:flex;align-items:center;gap:6px">'
+                        +'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+clr+';flex-shrink:0"></span>'
+                        +(typeRow.t||'—')
+                        +'<span style="font-size:10px;font-weight:400;color:var(--text-3)">'+Utils.formatRupiah(typeRow.total,true)+'</span>'
+                        +'</div>'
+                        +'<div style="display:flex;gap:3px;align-items:flex-end;height:40px">'+bars+'</div>'
+                        +'</div>';
+                    }).join('');
+                  })()
+              }
             </div>
           </div>
         </div>
@@ -912,7 +943,7 @@ const KasModule = (() => {
         + '<tbody>'
         + rows.map(r =>
             '<tr><td style="white-space:nowrap">'+(r.tgl||'-')+'</td>'
-            + '<td>'+(r.keterangan||r.ket||'-')+'</td>'
+            + '<td>'+(r.keterangan||r.ket||r.nama||'Kas Masuk / Setoran')+'</td>'
             + '<td class="num" style="font-family:var(--font-mono)">'+Utils.formatRupiah(r.kredit||0)+'</td></tr>'
           ).join('')
         + '<tr style="background:var(--surface2);font-weight:700">'
