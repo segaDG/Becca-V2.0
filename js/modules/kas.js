@@ -1023,210 +1023,164 @@ const KasModule = (() => {
     const year = yearFromData || new Date().getFullYear();
     return full + ' ' + year;
   }
-
   /* ============ Stacked Bar Chart - Chart.js ============ */
   function _ksDrawStackedChart(selBulan, filtered, byBulan, allBulan, typeRows) {
     const canvas = document.getElementById('ks-stacked-chart');
     const legend = document.getElementById('ks-chart-legend');
     if (!canvas) return;
 
-    // Destroy previous chart if any
-    if (window._ksBsChart) { try { window._ksBsChart.destroy(); } catch(e){} }
+    if (window._ksBsChart) { try { window._ksBsChart.destroy(); } catch(e){} window._ksBsChart = null; }
 
-    // ── Normalize bulan labels & merge duplicates ─────────────
-    const BULAN_NORM = {
-      'Jan':'Januari','Januari':'Januari','January':'Januari',
-      'Feb':'Februari','Febuari':'Februari','Februari':'Februari','February':'Februari',
-      'Mar':'Maret','Maret':'Maret','March':'Maret',
-      'Apr':'April','April':'April',
-      'Mei':'Mei','May':'Mei','Mei':'Mei',
-      'Jun':'Juni','Juni':'Juni',
-      'Jul':'Juli','Juli':'Juli',
-      'Ags':'Agustus','Agustus':'Agustus','Aug':'Agustus',
-      'Sep':'September','September':'September',
-      'Okt':'Oktober','Oktober':'Oktober','Oct':'Oktober',
-      'Nov':'November','November':'November',
-      'Des':'Desember','Desember':'Desember','Dec':'Desember',
+    const NORM = {
+      'Jan':'Januari','January':'Januari',
+      'Feb':'Februari','Febuari':'Februari','February':'Februari',
+      'Mar':'Maret','March':'Maret',
+      'Apr':'April','Mei':'Mei','May':'Mei',
+      'Jun':'Juni','Jul':'Juli','Ags':'Agustus','Aug':'Agustus',
+      'Sep':'September','Okt':'Oktober','Oct':'Oktober',
+      'Nov':'November','Des':'Desember','Dec':'Desember',
     };
     const BULAN_ORDER = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-
-    // Top categories (max 8)
-    const COLORS = [
-      '#6366f1','#10b981','#f59e0b','#ef4444','#ec4899',
-      '#3b82f6','#8b5cf6','#06b6d4','#84cc16','#f97316'
-    ];
+    const SHORT = {Januari:'Jan',Februari:'Feb',Maret:'Mar',April:'Apr',Mei:'Mei',
+      Juni:'Jun',Juli:'Jul',Agustus:'Ags',September:'Sep',Oktober:'Okt',November:'Nov',Desember:'Des'};
+    const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#ec4899','#3b82f6','#8b5cf6','#06b6d4','#84cc16','#f97316'];
     const top8 = typeRows.slice(0, 8);
 
-    let chartLabels, chartDatasets;
-
+    // SINGLE MONTH: horizontal bar
     if (selBulan) {
-      // Single month: horizontal bar per category (not stacked)
-      const grand = top8.reduce((s,r)=>s+r.total, 0);
-      chartLabels   = top8.map(r => r.t || 'Lain-lain');
-      chartDatasets = [{
-        label: 'Pengeluaran',
-        data: top8.map(r => r.total),
-        backgroundColor: top8.map((_,i) => COLORS[i%10]),
-        borderRadius: 6,
-        borderSkipped: false,
-      }];
-
-      const ctx = canvas.getContext('2d');
-      window._ksBsChart = new Chart(ctx, {
-        type: 'bar',
-        data: { labels: chartLabels, datasets: chartDatasets },
-        options: {
-          indexAxis: 'y',
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: ctx => ' ' + Utils.formatRupiah(ctx.raw),
-                afterLabel: ctx => '  ' + Math.round(ctx.raw/grand*100) + '% dari total',
-              }
-            }
-          },
-          scales: {
-            x: {
-              grid: { color: 'rgba(0,0,0,.06)' },
-              ticks: {
-                callback: v => 'Rp'+Math.round(v/1e6)+'jt',
-                color: '#888', font: { size: 11 }
-              }
-            },
-            y: {
-              grid: { display: false },
-              ticks: { color: '#555', font: { size: 11 } }
-            }
-          }
-        }
-      });
-
-      // Legend
-      if (legend) legend.innerHTML = top8.map((r,i)=>
-        '<div style="display:flex;align-items:center;gap:5px">'
-        +'<span style="width:10px;height:10px;border-radius:3px;background:'+COLORS[i%10]+';display:inline-block"></span>'
-        +'<span style="font-size:11px;color:var(--text-2)">'+( r.t||'Lain-lain')+' — '+Utils.formatRupiah(r.total,true)+'</span>'
-        +'</div>'
-      ).join('');
+      const grand = top8.reduce((s,r)=>s+r.total,0);
       canvas.style.maxHeight = '320px';
-
-    } else {
-      // All months: STACKED COLUMN chart, X=bulan, stack=kategori
-      // Merge/normalize bulan keys
-      const normalizedData = {};  // {bulanNorm: {type: total}}
-      Object.entries(byBulan).forEach(([b, types]) => {
-        const nb = BULAN_NORM[b] || b;
-        if (!normalizedData[nb]) normalizedData[nb] = {};
-        Object.entries(types).forEach(([t, v]) => {
-          normalizedData[nb][t] = (normalizedData[nb][t]||0) + v;
-        });
-      });
-
-      // Sort labels by calendar order
-      const rawLabels = Object.keys(normalizedData);
-      chartLabels = BULAN_ORDER.filter(b => rawLabels.includes(b));
-      // Add any not in order
-      rawLabels.forEach(b=>{ if(!chartLabels.includes(b)) chartLabels.push(b); });
-
-      // Short labels for display
-      const shortLabel = {
-        'Januari':'Jan','Februari':'Feb','Maret':'Mar','April':'Apr',
-        'Mei':'Mei','Juni':'Jun','Juli':'Jul','Agustus':'Ags',
-        'September':'Sep','Oktober':'Okt','November':'Nov','Desember':'Des'
-      };
-
-      // Build datasets (one per category)
-      chartDatasets = top8.map((typeRow, i) => ({
-        label: typeRow.t || 'Lain-lain',
-        data: chartLabels.map(b => normalizedData[b]?.[typeRow.t] || 0),
-        backgroundColor: COLORS[i%10],
-        borderColor: COLORS[i%10],
-        borderWidth: 0,
-        borderRadius: i === top8.length-1 ? {topLeft:5,topRight:5,bottomLeft:0,bottomRight:0} : 0,
-        stack: 'stack0',
-      }));
-
-      const ctx = canvas.getContext('2d');
-      canvas.style.maxHeight = '340px';
-
-      window._ksBsChart = new Chart(ctx, {
+      window._ksBsChart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
-          labels: chartLabels.map(b => shortLabel[b]||b),
-          datasets: chartDatasets
+          labels: top8.map(r=>r.t||'Lain-lain'),
+          datasets: [{ label:'Pengeluaran', data:top8.map(r=>r.total),
+            backgroundColor:top8.map((_,i)=>COLORS[i%10]+'cc'),
+            borderColor:top8.map((_,i)=>COLORS[i%10]),
+            borderWidth:1, borderRadius:6, borderSkipped:false }]
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                title: items => chartLabels[items[0].dataIndex] || items[0].label,
-                label: ctx => '  ' + ctx.dataset.label + ': ' + Utils.formatRupiah(ctx.raw, true),
-                footer: items => {
-                  const total = items.reduce((s,i)=>s+i.raw,0);
-                  return 'Total: ' + Utils.formatRupiah(total, true);
-                }
-              },
-              backgroundColor: 'rgba(15,15,25,.92)',
-              titleColor: '#fff',
-              bodyColor: 'rgba(255,255,255,.85)',
-              footerColor: '#fff',
-              footerFont: { weight: 'bold' },
-              padding: 12,
-              cornerRadius: 8,
-              displayColors: true,
-              boxWidth: 10,
-              boxHeight: 10,
-            }
-          },
+        options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
+          plugins: { legend:{display:false}, tooltip:{callbacks:{
+            label:ctx=>'  '+Utils.formatRupiah(ctx.raw),
+            afterLabel:ctx=>'  '+Math.round(ctx.raw/grand*100)+'% dari total'
+          }}},
           scales: {
-            x: {
-              stacked: true,
-              grid: { display: false },
-              ticks: {
-                color: '#666',
-                font: { size: 12, weight: '600' }
-              },
-              border: { color: 'rgba(0,0,0,.08)' }
-            },
-            y: {
-              stacked: true,
-              grid: { color: 'rgba(0,0,0,.05)', drawTicks: false },
-              border: { dash: [4,4], color: 'transparent' },
-              ticks: {
-                callback: v => v >= 1e9 ? 'Rp'+Math.round(v/1e9)+'M'
-                               : v >= 1e6 ? 'Rp'+Math.round(v/1e6)+'jt'
-                               : v >= 1e3 ? 'Rp'+Math.round(v/1e3)+'rb' : 'Rp'+v,
-                color: '#999',
-                font: { size: 11 },
-                maxTicksLimit: 6,
-                padding: 8,
-              }
-            }
+            x:{ grid:{color:'rgba(0,0,0,.05)'}, ticks:{callback:v=>v>=1e6?'Rp'+Math.round(v/1e6)+'jt':'Rp'+Math.round(v/1e3)+'rb',color:'#888',font:{size:11}} },
+            y:{ grid:{display:false}, ticks:{color:'#555',font:{size:11}} }
           }
         }
       });
-
-      // Legend
-      // Legend
-      if (legend) {
-        legend.innerHTML = top8.map((r,i)=>{
-          return '<div style="display:flex;align-items:center;gap:6px">'
-            +'<span style="width:12px;height:12px;border-radius:3px;flex-shrink:0;background:'+COLORS[i%10]+'"></span>'
-            +'<span style="font-size:11px;color:var(--text-2)">'+(r.t||'Lain-lain')+'</span>'
-            +'<span style="font-size:10px;color:var(--text-3)">'+Utils.formatRupiah(r.total,true)+'</span>'
-            +'</div>';
-        }).join('');
-      }
+      if (legend) legend.innerHTML = top8.map((r,i)=>
+        '<div style="display:flex;align-items:center;gap:5px">'
+        +'<span style="width:12px;height:12px;border-radius:3px;background:'+COLORS[i%10]+';display:inline-block;flex-shrink:0"></span>'
+        +'<span style="font-size:11px;color:var(--text-2)">'+(r.t||'Lain-lain')+'</span>'
+        +'<span style="font-size:10px;color:var(--text-3)">'+Utils.formatRupiah(r.total,true)+'</span>'
+        +'</div>').join('');
+      return;
     }
-  }
 
+    // ALL MONTHS: STACKED COLUMN
+    const nd = {};
+    Object.entries(byBulan).forEach(([b, types]) => {
+      const nb = NORM[b] || b;
+      if (!nd[nb]) nd[nb] = {};
+      Object.entries(types).forEach(([t,v])=>{ nd[nb][t]=(nd[nb][t]||0)+v; });
+    });
+    const labels = BULAN_ORDER.filter(b=>nd[b]);
+    const grandPerBulan = labels.map(b=>Object.values(nd[b]).reduce((s,v)=>s+v,0));
+
+    const datasets = top8.map((typeRow, i) => ({
+      label: typeRow.t||'Lain-lain',
+      data:  labels.map(b=>nd[b]?.[typeRow.t]||0),
+      backgroundColor: COLORS[i%10]+'d9',
+      borderColor:     COLORS[i%10],
+      borderWidth:     0,
+      stack:           'stack0',
+    }));
+
+    // Plugin: angka total di atas tiap kolom
+    const topLabelPlugin = {
+      id: 'topLabel',
+      afterDatasetsDraw(chart) {
+        const c    = chart.ctx;
+        const yScale = chart.scales.y;
+        chart.getDatasetMeta(datasets.length-1).data.forEach((bar, colIdx) => {
+          const total = grandPerBulan[colIdx];
+          if (!total) return;
+          const topY = yScale.getPixelForValue(total);
+          c.save();
+          c.fillStyle    = getComputedStyle(document.documentElement).getPropertyValue('--text-1')||'#222';
+          c.font         = 'bold 12px system-ui,Arial,sans-serif';
+          c.textAlign    = 'center';
+          c.textBaseline = 'bottom';
+          c.fillText(total>=1e9?'Rp'+Math.round(total/1e9)+'M':total>=1e6?'Rp'+Math.round(total/1e6)+'jt':'Rp'+Math.round(total/1e3)+'rb', bar.x, topY-5);
+          c.restore();
+        });
+      }
+    };
+
+    canvas.style.maxHeight = '380px';
+    window._ksBsChart = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      plugins: [topLabelPlugin],
+      data: { labels: labels.map(b=>SHORT[b]||b), datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode:'index', intersect:false },
+        layout: { padding:{ top:32 } },
+        plugins: {
+          legend: { display:false },
+          tooltip: {
+            filter: item=>(item.raw||0)>0,
+            callbacks: {
+              title: items => labels[items[0].dataIndex]||items[0].label,
+              label: ctx  => {
+                if (!ctx.raw) return null;
+                const v = ctx.raw;
+                return '  '+ctx.dataset.label+': '+(v>=1e6?'Rp'+Math.round(v/1e6)+'jt':'Rp'+Math.round(v/1e3)+'rb');
+              },
+              footer: items => {
+                const t = items.reduce((s,i)=>s+(i.raw||0),0);
+                return 'Total: '+Utils.formatRupiah(t,true);
+              }
+            },
+            backgroundColor:'rgba(15,15,25,.92)', titleColor:'#fff',
+            bodyColor:'rgba(255,255,255,.8)', footerColor:'#ffd700',
+            footerFont:{weight:'bold'}, padding:12, cornerRadius:8,
+            displayColors:true, boxWidth:10, boxHeight:10,
+          }
+        },
+        scales: {
+          x: {
+            stacked: true,
+            grid:    { display:false },
+            border:  { color:'rgba(0,0,0,.12)' },
+            ticks:   { color:'#444', font:{size:14,weight:'700'}, padding:8 }
+          },
+          y: {
+            stacked: true,
+            grid:    { color:'rgba(0,0,0,.05)', drawTicks:false },
+            border:  { dash:[4,4], color:'transparent' },
+            ticks:   {
+              callback: v => v>=1e9?'Rp'+Math.round(v/1e9)+'M':v>=1e6?'Rp'+Math.round(v/1e6)+'jt':v>=1e3?'Rp'+Math.round(v/1e3)+'rb':v?'Rp'+v:'',
+              color:'#aaa', font:{size:11}, maxTicksLimit:6, padding:10
+            }
+          }
+        }
+      }
+    });
+
+    // Legend
+    if (legend) legend.innerHTML = top8.map((r,i)=>{
+      const total = labels.reduce((s,b)=>s+(nd[b]?.[r.t]||0),0);
+      return '<div style="display:flex;align-items:center;gap:5px">'
+        +'<span style="width:12px;height:12px;border-radius:3px;background:'+COLORS[i%10]+';display:inline-block;flex-shrink:0"></span>'
+        +'<span style="font-size:11px;color:var(--text-2)">'+(r.t||'Lain-lain')+'</span>'
+        +'<span style="font-size:10px;color:var(--text-3)">'+Utils.formatRupiah(total,true)+'</span>'
+        +'</div>';
+    }).join('');
+  }
 
   return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal };
 })();
