@@ -127,17 +127,19 @@ const KasModule = (() => {
         <button class="tab-btn" data-tab="summary"   onclick="KasModule.switchTab('summary')">Summary</button>
         <button class="tab-btn" data-tab="monthly"   onclick="KasModule.switchTab('monthly')">Monthly Report</button>
         <button class="tab-btn" data-tab="cashflow"  onclick="KasModule.switchTab('cashflow')">Cash Flow</button>
+        <button class="tab-btn" data-tab="compare"   onclick="KasModule.switchTab('compare')">📊 Compare</button>
       </div>
       <div id="kas-tab-transaksi"></div>
       <div id="kas-tab-summary"  style="display:none"></div>
       <div id="kas-tab-monthly"  style="display:none"></div>
       <div id="kas-tab-cashflow" style="display:none"></div>
+      <div id="kas-tab-compare"  style="display:none"></div>
     `;
   }
 
   function switchTab(tab) {
     _activeTab = tab;
-    ['transaksi','summary','monthly','cashflow'].forEach(t => {
+    ['transaksi','summary','monthly','cashflow','compare'].forEach(t => {
       const el = document.getElementById('kas-tab-'+t);
       if (el) el.style.display = t===tab?'':'none';
       document.querySelector('[data-tab="'+t+'"]')?.classList.toggle('active', t===tab);
@@ -148,6 +150,7 @@ const KasModule = (() => {
       : '';
     if (tab==='transaksi') { renderTransaksi(); _renderBalanceCards(); }
     else if (tab==='summary')  renderSummary();
+    if (_activeTab==='compare')  renderMonthlyCompare();
     else if (tab==='monthly')  renderMonthly();
     else if (tab==='cashflow') renderCashflow();
   }
@@ -1182,6 +1185,104 @@ const KasModule = (() => {
     }).join('');
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal, _loadChartJs, _ksDrawStackedChart };
+  /* ===== MONTHLY COMPARE ===== */
+  function renderMonthlyCompare() {
+    const el = document.getElementById('kas-tab-compare');
+    if (!el) return;
+    const kas = _kas;
+    const NORM = {'Jan':'Januari','Febuari':'Februari','Feb':'Februari','Mar':'Maret','Apr':'April','Mei':'Mei','Jun':'Juni','Jul':'Juli','Ags':'Agustus','Sep':'September','Okt':'Oktober','Nov':'November','Des':'Desember'};
+    const ORDER = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#ec4899','#3b82f6','#8b5cf6','#06b6d4','#84cc16','#f97316'];
+    const SHORT  = {Januari:'Jan',Februari:'Feb',Maret:'Mar',April:'Apr',Mei:'Mei',Juni:'Jun',Juli:'Jul',Agustus:'Ags',September:'Sep',Oktober:'Okt',November:'Nov',Desember:'Des'};
+    const nd = {};
+    kas.forEach(r => {
+      const b = NORM[r.bulan||'']||r.bulan||''; if(!b) return;
+      const t = r.type||'Lain-lain';
+      if(!nd[b]) nd[b]={};
+      nd[b][t]=(nd[b][t]||0)+(r.jumlah||0);
+    });
+    const bulan = ORDER.filter(b=>nd[b]);
+    if (!bulan.length) { el.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-3)">Tidak ada data</div>'; return; }
+    const typeMap={};
+    kas.forEach(r=>{ const t=r.type||'Lain-lain'; typeMap[t]=(typeMap[t]||0)+(r.jumlah||0); });
+    const allTypes=Object.entries(typeMap).sort((a,b)=>b[1]-a[1]).map(([t])=>t);
+    const fmtS=n=>{
+      if(!n) return '<span style="color:var(--text-3)">—</span>';
+      if(n>=1e9) return 'Rp '+Math.round(n/1e9).toLocaleString('id')+'<sup style="font-size:10px;color:var(--text-3)">M</sup>';
+      if(n>=1e6) return 'Rp '+Math.round(n/1e6).toLocaleString('id')+'<sup style="font-size:10px;color:var(--text-3)">jt</sup>';
+      if(n>=1e3) return 'Rp '+Math.round(n/1e3).toLocaleString('id')+'<sup style="font-size:10px;color:var(--text-3)">rb</sup>';
+      return 'Rp '+n;
+    };
+    const delta=(curr,prev)=>{
+      if(!prev||!curr) return '';
+      const pct=Math.round((curr-prev)/prev*100), up=curr>=prev;
+      return '<span style="font-size:10px;font-weight:700;color:'+(up?'#ef4444':'#10b981')+';margin-left:4px">'+(up?'▲':'▼')+Math.abs(pct)+'%</span>';
+    };
+    const headerCols=bulan.map((b,i)=>{
+      const total=Object.values(nd[b]).reduce((s,v)=>s+v,0);
+      const prev=i>0?Object.values(nd[bulan[i-1]]).reduce((s,v)=>s+v,0):0;
+      const rows=kas.filter(r=>(NORM[r.bulan||'']||r.bulan)===b).length;
+      const pct=prev?Math.round((total-prev)/prev*100):null;
+      const clr=COLORS[i%COLORS.length];
+      const badge=pct!==null
+        ?'<div style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:'+(pct>=0?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)')+';color:'+(pct>=0?'#ef4444':'#10b981')+'">'+(pct>=0?'▲':'▼')+Math.abs(pct)+'% vs '+SHORT[bulan[i-1]]+'</div>'
+        :'<div style="font-size:11px;color:var(--text-3);padding:2px 8px;border-radius:20px;background:var(--surface2)">Base Month</div>';
+      return '<div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden">'
+        +'<div style="position:absolute;top:0;left:0;width:4px;height:100%;background:'+clr+'"></div>'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+          +'<div style="font-size:20px;font-weight:900;color:'+clr+'">'+(SHORT[b]||b)+'</div>'+badge
+        +'</div>'
+        +'<div style="font-family:var(--font-mono);font-size:22px;font-weight:900;color:var(--heading)">'+fmtS(total)+'</div>'
+        +'<div style="font-size:11px;color:var(--text-3);margin-top:4px">'+rows.toLocaleString('id')+' transaksi</div>'
+        +'</div>';
+    }).join('');
+    const tableRows=allTypes.map((type,ti)=>{
+      const clr=COLORS[ti%COLORS.length];
+      const vals=bulan.map(b=>nd[b]?.[type]||0);
+      if(vals.every(v=>v===0)) return '';
+      const maxV=Math.max(...vals,1);
+      const cells=bulan.map((b,i)=>{
+        const v=nd[b]?.[type]||0, prev=i>0?(nd[bulan[i-1]]?.[type]||0):null;
+        const bw=Math.round(v/maxV*100);
+        return '<td style="padding:8px 10px;vertical-align:middle;min-width:140px">'
+          +(v?'<div style="font-family:var(--font-mono);font-size:12px;font-weight:700;white-space:nowrap">'+fmtS(v)+(prev!==null?delta(v,prev):'')+' </div>'
+              +'<div style="height:5px;background:var(--surface2);border-radius:3px;margin-top:4px;overflow:hidden"><div style="width:'+bw+'%;height:100%;background:'+clr+';border-radius:3px"></div></div>'
+            :'<span style="color:var(--text-3);font-size:12px">—</span>')
+          +'</td>';
+      }).join('');
+      return '<tr style="border-bottom:1px solid var(--border)">'
+        +'<td style="padding:8px 12px;position:sticky;left:0;background:var(--surface);z-index:1;min-width:130px">'
+          +'<div style="display:flex;align-items:center;gap:7px">'
+            +'<div style="width:10px;height:10px;border-radius:3px;background:'+clr+';flex-shrink:0"></div>'
+            +'<span style="font-size:12px;font-weight:600">'+type+'</span></div></td>'+cells+'</tr>';
+    }).join('');
+    const totalCells=bulan.map((b,i)=>{
+      const t=Object.values(nd[b]).reduce((s,v)=>s+v,0);
+      const p=i>0?Object.values(nd[bulan[i-1]]).reduce((s,v)=>s+v,0):null;
+      return '<td style="padding:10px;font-family:var(--font-mono);font-size:13px;font-weight:800;white-space:nowrap">'+fmtS(t)+(p!==null?delta(t,p):'')+'</td>';
+    }).join('');
+    const mh=bulan.map((b,i)=>'<th style="padding:10px;text-align:left;font-size:11px;font-weight:800;color:'+COLORS[i%COLORS.length]+';white-space:nowrap;min-width:140px;border-bottom:2px solid '+COLORS[i%COLORS.length]+'">'+b+'</th>').join('');
+    el.innerHTML='<div style="margin-bottom:var(--s4)">'
+      +'<div style="display:flex;gap:var(--s3);margin-bottom:var(--s4)">'+headerCols+'</div>'
+      +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">'
+        +'<div style="padding:14px 18px;border-bottom:1px solid var(--border)">'
+          +'<div style="font-size:14px;font-weight:800;color:var(--heading)">Perbandingan per Kategori</div>'
+          +'<div style="font-size:11px;color:var(--text-3);margin-top:2px">'+bulan.join(' · ')+' — ▲▼ delta vs bulan sebelumnya</div>'
+        +'</div>'
+        +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+          +'<thead><tr style="background:var(--surface2)">'
+            +'<th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);position:sticky;left:0;background:var(--surface2);z-index:2;min-width:130px">Kategori</th>'+mh
+          +'</tr></thead>'
+          +'<tbody>'+tableRows
+            +'<tr style="background:var(--surface2);border-top:2px solid var(--border)">'
+              +'<td style="padding:10px 12px;font-size:12px;font-weight:800;position:sticky;left:0;background:var(--surface2);z-index:1">TOTAL</td>'+totalCells
+            +'</tr>'
+          +'</tbody>'
+        +'</table></div>'
+      +'</div></div>';
+  }
+
+
+  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal, _loadChartJs, _ksDrawStackedChart, renderMonthlyCompare };
 })();
 window.KasModule = KasModule;
