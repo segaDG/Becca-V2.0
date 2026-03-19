@@ -1183,6 +1183,6 @@ const KasModule = (() => {
     }).join('');
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal };
+  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal, _loadChartJs, _ksDrawStackedChart };
 })();
 window.KasModule = KasModule;
