@@ -7,19 +7,28 @@ const APModule = (() => {
 
   async function init() {
     const page = document.getElementById('page-ap');
+    // Inject hover CSS
+    if (!document.getElementById('ap-hover-style')) {
+      const st = document.createElement('style');
+      st.id = 'ap-hover-style';
+      st.textContent = '#ap-main-table tbody tr:hover{filter:brightness(1.08);cursor:pointer}';
+      document.head.appendChild(st);
+    }
     page.innerHTML = `
       <div class="page-header">
         <div class="page-header-left">
           <h2>Account Payable</h2>
-          <p>Manajemen hutang dan tagihan supplier</p>
+          <p>Transaksi hutang dan tagihan vendor/supplier</p>
         </div>
         <div class="page-header-right" id="ap-header-actions"></div>
       </div>
       <div class="tabs">
-        <button class="tab-btn active" id="ap-tab-btn-list"     onclick="APModule.switchTab('list')">📋 Daftar AP</button>
+        <button class="tab-btn active" id="ap-tab-btn-list"     onclick="APModule.switchTab('list')">📋 Transaksi AP</button>
+        <button class="tab-btn"        id="ap-tab-btn-payment"  onclick="APModule.switchTab('payment')">💳 Vendor AP Payment</button>
         <button class="tab-btn"        id="ap-tab-btn-supplier" onclick="APModule.switchTab('supplier')">🏭 Supplier</button>
       </div>
       <div id="ap-tab-list"></div>
+      <div id="ap-tab-payment" class="hidden"></div>
       <div id="ap-tab-supplier" class="hidden"></div>
     `;
     Promise.all([DB.getAP().catch(()=>[]), DB.getSuppliers().catch(()=>[])]).then(([ap, sup]) => {
@@ -33,95 +42,245 @@ const APModule = (() => {
 
   function switchTab(tab) {
     _activeTab = tab;
-    ['list','supplier'].forEach(t => {
+    ['list','payment','supplier'].forEach(t => {
       const el  = document.getElementById('ap-tab-'+t);
       const btn = document.getElementById('ap-tab-btn-'+t);
       if (el)  el.classList.toggle('hidden', t !== tab);
       if (btn) btn.classList.toggle('active', t === tab);
     });
-    // Update header actions
     const hdr = document.getElementById('ap-header-actions');
     if (hdr) {
       if (tab === 'list' && Auth.can('ap','edit')) {
         hdr.innerHTML = '<button class="btn btn-primary" onclick="APModule.openModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 5v14M5 12h14"/></svg> Tambah AP</button>';
       } else if (tab === 'supplier' && Auth.can('ap','edit')) {
         hdr.innerHTML = '<button class="btn btn-primary" onclick="APModule.openAddSupplierModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 5v14M5 12h14"/></svg> Tambah Supplier</button>';
+      } else if (tab === 'payment') {
+        hdr.innerHTML = '<button class="btn btn-ghost btn-sm" onclick="APModule.printVAP()">🖨️ Print</button>';
       } else {
         hdr.innerHTML = '';
       }
     }
     if (tab === 'list')     render();
+    if (tab === 'payment')  renderVAP();
     if (tab === 'supplier') renderSuppliers();
   }
 
 
   function render() {
-    const sorted     = [..._ap].sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
-    const totalHutang = _ap.filter(r=>r.status!=='LUNAS').reduce((s,r) => s+(r.total||0),0);
-    const totalLunas  = _ap.filter(r=>r.status==='LUNAS').reduce((s,r) => s+(r.total||0),0);
-    const totalSisa   = totalHutang;
-    const today       = new Date().toISOString().split('T')[0];
-    const canEdit     = Auth.can('ap','edit');
+    const canEdit = Auth.can('ap','edit');
+    const today   = new Date().toISOString().split('T')[0];
+
+    // Sort: newest first, group by bulan
+    const sorted = [..._ap].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+
+    // Stats
+    const totalHutang = _ap.filter(r=>r.status!=='LUNAS').reduce((s,r)=>s+(r.total||0),0);
+    const totalLunas  = _ap.filter(r=>r.status==='LUNAS').reduce((s,r)=>s+(r.total||0),0);
 
     const statsHtml = [
-      { l:'Total Hutang',  v: Utils.formatRupiah(totalHutang,true), c:'var(--danger)'    },
-      { l:'Sudah Dibayar', v: Utils.formatRupiah(totalLunas,true),  c:'var(--success)'   },
-      { l:'Total Tagihan', v: sorted.length + ' item',              c:'var(--primary-h)' },
-      { l:'Supplier',      v: _suppliers.length + ' supplier',      c:'var(--text-2)'    },
-    ].map(s =>
+      {l:'Total Hutang',  v:Utils.formatRupiah(totalHutang,true), c:'var(--danger)'},
+      {l:'Sudah Dibayar', v:Utils.formatRupiah(totalLunas,true),  c:'var(--success)'},
+      {l:'Total Tagihan', v:sorted.length+' item',                c:'var(--primary-h)'},
+      {l:'Supplier',      v:_suppliers.length+' supplier',         c:'var(--text-2)'},
+    ].map(s=>
       '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:150px">'
-      + '<div style="font-size:11px;color:var(--text-3);margin-bottom:4px">'+s.l+'</div>'
-      + '<div style="font-size:16px;font-weight:700;color:'+s.c+';font-family:var(--font-mono)">'+s.v+'</div>'
-      + '</div>'
+      +'<div style="font-size:11px;color:var(--text-3);margin-bottom:4px">'+s.l+'</div>'
+      +'<div style="font-size:16px;font-weight:700;color:'+s.c+';font-family:var(--font-mono)">'+s.v+'</div>'
+      +'</div>'
     ).join('');
 
-    const theadHtml = '<tr>'
-      + '<th>#</th><th>Tanggal</th><th>Supplier</th><th>Keterangan</th>'
-      + '<th class="num">Qty</th><th>Sat</th><th class="num">Harga/Sat</th>'
-      + '<th class="num">Total</th><th class="num">Terbayar</th><th class="num">Sisa</th>'
-      + '<th>Jatuh Tempo</th><th>Status</th>'
-      + (canEdit ? '<th>Aksi</th>' : '')
-      + '</tr>';
+    // Filter controls
+    const bulanOpts = [
+      '<option value="">Semua Bulan</option>',
+      ...[...new Set(sorted.map(r=>r.tgl?.substring(0,7)).filter(Boolean))].sort().reverse().map(b=>{
+        const [y,m] = b.split('-');
+        const BL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+        return '<option value="'+b+'">'+BL[parseInt(m)]+' '+y+'</option>';
+      })
+    ].join('');
 
-    const tbodyHtml = sorted.length
-      ? sorted.map((r, i) => {
-          const sisa = (r.total||0) - (r.terbayar||0);
-          const late = r.jatuhTempo && r.status!=='LUNAS' && r.jatuhTempo < today;
-          const sc   = r.status==='LUNAS' ? 'badge-success' : r.status==='CICILAN' ? 'badge-warning' : 'badge-danger';
-          const tglFmt = r.tgl ? r.tgl.split('-').reverse().join('/') : '-';
-          const jtFmt  = r.jatuhTempo ? r.jatuhTempo.split('-').reverse().join('/') : '-';
-          const cells  = ''
-            + '<td class="text-muted">' + (i+1) + '</td>'
-            + '<td style="white-space:nowrap;color:var(--text-2)">' + tglFmt + '</td>'
-            + '<td style="font-weight:600">' + (r.supplier||'-') + '</td>'
-            + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.keterangan||r.ket||'')+'">' + (r.keterangan||r.ket||'-') + '</td>'
-            + '<td class="num" style="color:var(--text-3)">' + (r.qty ? Number(r.qty).toLocaleString('id') : '-') + '</td>'
-            + '<td style="color:var(--text-3);font-size:11px">' + (r.satuan||'-') + '</td>'
-            + '<td class="num" style="font-family:var(--font-mono);color:var(--text-3)">' + (r.hargaSatuan ? Utils.formatRupiah(r.hargaSatuan,true) : '-') + '</td>'
-            + '<td class="num" style="font-family:var(--font-mono);font-weight:700">' + Utils.formatRupiah(r.total||0) + '</td>'
-            + '<td class="num" style="font-family:var(--font-mono);color:var(--success)">' + Utils.formatRupiah(r.terbayar||0) + '</td>'
-            + '<td class="num" style="font-family:var(--font-mono);color:' + (sisa>0?'var(--danger)':'var(--text-3)') + '">' + Utils.formatRupiah(sisa) + '</td>'
-            + '<td style="white-space:nowrap;color:' + (late?'var(--danger)':'var(--text-3)') + ';font-size:11px">' + jtFmt + '</td>'
-            + '<td><span class="badge ' + sc + '" style="font-size:10px">' + (r.status||'BELUM') + '</span></td>';
+    const supOpts = [
+      '<option value="">Semua Supplier</option>',
+      ...[...new Set(sorted.map(r=>r.supplier).filter(Boolean))].sort()
+        .map(s=>'<option value="'+s+'">'+s+'</option>')
+    ].join('');
+
+    const filterHtml =
+      '<div class="filter-bar" style="margin-bottom:var(--s3);flex-wrap:wrap">'
+      +'<select id="ap-fil-bulan" class="form-control" style="width:130px" onchange="APModule.applyFilter()">'
+      +bulanOpts+'</select>'
+      +'<select id="ap-fil-sup" class="form-control" style="width:180px" onchange="APModule.applyFilter()">'
+      +supOpts+'</select>'
+      +'<select id="ap-fil-status" class="form-control" style="width:120px" onchange="APModule.applyFilter()">'
+      +'<option value="">Semua Status</option>'
+      +'<option value="LUNAS">✅ Lunas</option>'
+      +'<option value="CICILAN">🔸 Cicilan</option>'
+      +'<option value="BELUM">⏳ Belum</option>'
+      +'</select>'
+      +'<button class="btn btn-ghost btn-sm" onclick="APModule.resetFilter()">↺ Reset</button>'
+      +'</div>';
+
+    // Build table
+    const theadHtml =
+      '<tr style="background:var(--surface2)">'
+      +'<th style="width:30px">#</th>'
+      +'<th style="min-width:90px">Tanggal</th>'
+      +'<th style="min-width:150px">Vendor / Supplier</th>'
+      +'<th>Item Description</th>'
+      +'<th class="num" style="width:80px">QTY</th>'
+      +'<th style="width:60px">Satuan</th>'
+      +'<th class="num" style="width:100px">Price/Item</th>'
+      +'<th class="num" style="width:110px">Total</th>'
+      +'<th class="num" style="width:100px">Terbayar</th>'
+      +'<th class="num" style="width:90px">Sisa</th>'
+      +'<th style="width:90px">Jatuh Tempo</th>'
+      +'<th style="width:80px">Status</th>'
+      +(canEdit ? '<th style="width:60px">Aksi</th>' : '')
+      +'</tr>';
+
+    // Supplier color map
+    const supList = [...new Set(sorted.map(r=>r.supplier).filter(Boolean))];
+    const supColors = [
+      'rgba(99,102,241,.06)', 'rgba(16,185,129,.06)', 'rgba(245,158,11,.06)',
+      'rgba(236,72,153,.06)', 'rgba(59,130,246,.06)', 'rgba(239,68,68,.06)',
+    ];
+    const supColorMap = {};
+    supList.forEach((s,i)=>{ supColorMap[s] = supColors[i % supColors.length]; });
+
+    const tbodyHtml = !sorted.length
+      ? '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data AP. Klik "+ Tambah AP" untuk menambah.</td></tr>'
+      : sorted.map((r,i)=>{
+          const sisa   = (r.total||0)-(r.terbayar||0);
+          const late   = r.jatuhTempo && r.status!=='LUNAS' && r.jatuhTempo<today;
+          const sc     = r.status==='LUNAS'?'badge-success':r.status==='CICILAN'?'badge-warning':'badge-danger';
+          const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
+          const jtFmt  = r.jatuhTempo?r.jatuhTempo.split('-').reverse().join('/'):'-';
+          const bg     = supColorMap[r.supplier]||'';
+          const rowBg  = late ? 'rgba(239,68,68,0.06)' : bg;
+          const cells =
+            '<td class="text-muted" style="text-align:center">'+(i+1)+'</td>'
+            +'<td style="white-space:nowrap;font-size:12px;color:var(--text-2)">'+tglFmt+'</td>'
+            +'<td style="font-weight:700;font-size:12px">'+( r.supplier||'-')+'</td>'
+            +'<td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.keterangan||r.ket||'')+'">'+(r.keterangan||r.ket||'-')+'</td>'
+            +'<td class="num" style="font-size:12px;color:var(--text-2)">'+(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0}):'-')+'</td>'
+            +'<td style="font-size:11px;color:var(--text-3)">'+(r.satuan||'-')+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);font-size:11px;color:var(--text-3)">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'-')+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);font-weight:700;font-size:12px">'+Utils.formatRupiah(r.total||0)+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);font-size:12px;color:var(--success)">'+Utils.formatRupiah(r.terbayar||0)+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);font-size:12px;color:'+(sisa>0?'var(--danger)':'var(--text-3)')+'">'+Utils.formatRupiah(sisa)+'</td>'
+            +'<td style="white-space:nowrap;font-size:11px;color:'+(late?'var(--danger)':'var(--text-3)')+'">'+jtFmt+'</td>'
+            +'<td><span class="badge '+sc+'" style="font-size:10px">'+(r.status||'BELUM')+'</span></td>';
           const acts = canEdit
-            ? '<td onclick="event.stopPropagation()"><div style="display:flex;gap:3px">'
-              + '<button class="btn-icon" title="Edit" onclick="APModule.openModal(\''+r.id+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg></button>'
-              + '<button class="btn-icon" title="Hapus" onclick="APModule._deleteAP(\''+r.id+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>'
-              + '</div></td>'
+            ? '<td onclick="event.stopPropagation()"><div style="display:flex;gap:2px">'
+              +'<button class="btn-icon" title="Edit" onclick="APModule.openModal(\''+r.id+'\')">'
+              +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>'
+              +'</button>'
+              +'<button class="btn-icon" title="Hapus" onclick="APModule._deleteAP(\''+r.id+'\')">'
+              +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>'
+              +'</button>'
+              +'</div></td>'
             : '';
-          return '<tr style="cursor:pointer;background:' + (late?'rgba(239,68,68,0.05)':'') + '"'
-            + ' onclick="APModule.openModal(\''+r.id+'\')"'
-            + ' onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'
-            + cells + acts + '</tr>';
-        }).join('')
-      : '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data AP.</td></tr>';
+          return '<tr style="cursor:pointer;background:'+rowBg+'" onclick="APModule.openModal(\''+r.id+'\') ">'
+            +cells+acts+'</tr>';
+        }).join('');
+
+    // Grand total row
+    const grandTotal = sorted.reduce((s,r)=>s+(r.total||0),0);
+    const grandBayar = sorted.reduce((s,r)=>s+(r.terbayar||0),0);
+    const grandSisa  = grandTotal - grandBayar;
+    const totalRow =
+      '<tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--border2);font-size:13px">'
+      +'<td colspan="7" style="text-align:right;padding:8px 12px;color:var(--text-2)">Total ('+sorted.length+' transaksi)</td>'
+      +'<td class="num" style="font-family:var(--font-mono)">'+Utils.formatRupiah(grandTotal)+'</td>'
+      +'<td class="num" style="font-family:var(--font-mono);color:var(--success)">'+Utils.formatRupiah(grandBayar)+'</td>'
+      +'<td class="num" style="font-family:var(--font-mono);color:var(--danger)">'+Utils.formatRupiah(grandSisa)+'</td>'
+      +'<td colspan="'+(canEdit?3:2)+'"></td>'
+      +'</tr>';
 
     document.getElementById('ap-tab-list').innerHTML =
-      '<div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">' + statsHtml + '</div>'
-      + '<div class="table-wrapper"><table class="table" style="font-size:12px">'
-      + '<thead>' + theadHtml + '</thead>'
-      + '<tbody>' + tbodyHtml + '</tbody>'
-      + '</table></div>';
+      '<div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">'+statsHtml+'</div>'
+      +filterHtml
+      +'<div class="table-wrapper"><table class="table" id="ap-main-table">'
+      +'<thead>'+theadHtml+'</thead>'
+      +'<tbody id="ap-tbody">'+tbodyHtml+totalRow+'</tbody>'
+      +'</table></div>';
+  }
+
+  function applyFilter() {
+    const bulan  = document.getElementById('ap-fil-bulan')?.value  || '';
+    const sup    = document.getElementById('ap-fil-sup')?.value    || '';
+    const status = document.getElementById('ap-fil-status')?.value || '';
+    const today  = new Date().toISOString().split('T')[0];
+    const canEdit = Auth.can('ap','edit');
+
+    const supColorMap = {};
+    const supColors = ['rgba(99,102,241,.06)','rgba(16,185,129,.06)','rgba(245,158,11,.06)','rgba(236,72,153,.06)','rgba(59,130,246,.06)','rgba(239,68,68,.06)'];
+    [...new Set(_ap.map(r=>r.supplier).filter(Boolean))].sort().forEach((s,i)=>{ supColorMap[s]=supColors[i%supColors.length]; });
+
+    let data = [..._ap].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    if (bulan)  data = data.filter(r=>r.tgl?.startsWith(bulan));
+    if (sup)    data = data.filter(r=>r.supplier===sup);
+    if (status) data = data.filter(r=>r.status===status);
+
+    const tbody = document.getElementById('ap-tbody');
+    if (!tbody) { render(); return; }
+
+    const BL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const rows = !data.length
+      ? '<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--text-3)">Tidak ada data</td></tr>'
+      : data.map((r,i)=>{
+          const sisa   = (r.total||0)-(r.terbayar||0);
+          const late   = r.jatuhTempo&&r.status!=='LUNAS'&&r.jatuhTempo<today;
+          const sc     = r.status==='LUNAS'?'badge-success':r.status==='CICILAN'?'badge-warning':'badge-danger';
+          const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
+          const jtFmt  = r.jatuhTempo?r.jatuhTempo.split('-').reverse().join('/'):'-';
+          const bg     = supColorMap[r.supplier]||'';
+          const cells =
+            '<td class="text-muted" style="text-align:center">'+(i+1)+'</td>'
+            +'<td style="white-space:nowrap;font-size:12px;color:var(--text-2)">'+tglFmt+'</td>'
+            +'<td style="font-weight:700;font-size:12px">'+(r.supplier||'-')+'</td>'
+            +'<td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.keterangan||r.ket||'')+'">'+( r.keterangan||r.ket||'-')+'</td>'
+            +'<td class="num" style="font-size:12px;color:var(--text-2)">'+(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0}):'-')+'</td>'
+            +'<td style="font-size:11px;color:var(--text-3)">'+(r.satuan||'-')+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);font-size:11px;color:var(--text-3)">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'-')+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);font-weight:700;font-size:12px">'+Utils.formatRupiah(r.total||0)+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);font-size:12px;color:var(--success)">'+Utils.formatRupiah(r.terbayar||0)+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);font-size:12px;color:'+(sisa>0?'var(--danger)':'var(--text-3)')+'">'+Utils.formatRupiah(sisa)+'</td>'
+            +'<td style="white-space:nowrap;font-size:11px;color:'+(late?'var(--danger)':'var(--text-3)')+'">'+jtFmt+'</td>'
+            +'<td><span class="badge '+sc+'" style="font-size:10px">'+(r.status||'BELUM')+'</span></td>';
+          const acts = canEdit
+            ? '<td onclick="event.stopPropagation()"><div style="display:flex;gap:2px">'
+              +'<button class="btn-icon" title="Edit" onclick="APModule.openModal(\''+r.id+'\')">'
+              +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>'
+              +'</button>'
+              +'<button class="btn-icon" title="Hapus" onclick="APModule._deleteAP(\''+r.id+'\')">'
+              +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>'
+              +'</button>'
+              +'</div></td>'
+            : '';
+          return '<tr style="cursor:pointer;background:'+(late?'rgba(239,68,68,0.06)':bg)+'" onclick="APModule.openModal(\''+r.id+'\')">'
+            +cells+acts+'</tr>';
+        }).join('');
+
+    const gt = data.reduce((s,r)=>s+(r.total||0),0);
+    const gb = data.reduce((s,r)=>s+(r.terbayar||0),0);
+    const totalRow =
+      '<tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--border2);font-size:13px">'
+      +'<td colspan="7" style="text-align:right;padding:8px 12px;color:var(--text-2)">Total ('+data.length+' transaksi)</td>'
+      +'<td class="num" style="font-family:var(--font-mono)">'+Utils.formatRupiah(gt)+'</td>'
+      +'<td class="num" style="font-family:var(--font-mono);color:var(--success)">'+Utils.formatRupiah(gb)+'</td>'
+      +'<td class="num" style="font-family:var(--font-mono);color:var(--danger)">'+Utils.formatRupiah(gt-gb)+'</td>'
+      +'<td colspan="'+(canEdit?3:2)+'"></td>'
+      +'</tr>';
+
+    tbody.innerHTML = rows + totalRow;
+  }
+
+  function resetFilter() {
+    ['ap-fil-bulan','ap-fil-sup','ap-fil-status'].forEach(id=>{
+      const el = document.getElementById(id); if(el) el.value='';
+    });
+    applyFilter();
   }
 
 
@@ -721,6 +880,213 @@ const APModule = (() => {
   }
 
 
-  return { init, render, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier };
+  /* ===================== VAP PAYMENT PAGE ===================== */
+  function renderVAP() {
+    const el = document.getElementById('ap-tab-payment');
+    if (!el) return;
+    const today   = new Date();
+    const MONTHS  = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const BL      = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+
+    // Filter by month/status unpaid
+    const unpaidAP = _ap.filter(r => r.status !== 'LUNAS');
+    const totalUnpaid = unpaidAP.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
+
+    // Get unique months available
+    const allMonths = [...new Set(_ap.map(r=>r.tgl?.substring(0,7)).filter(Boolean))].sort().reverse();
+    const monthOpts = allMonths.map(m=>{
+      const [y,mo] = m.split('-');
+      return '<option value="'+m+'">'+BL[parseInt(mo)]+' '+y+'</option>';
+    }).join('');
+
+    // Group unpaid by supplier, match with supplier details
+    const supGroups = {};
+    unpaidAP.forEach(r => {
+      if (!supGroups[r.supplier]) supGroups[r.supplier] = [];
+      supGroups[r.supplier].push(r);
+    });
+
+    // Build payment detail per supplier
+    const buildSupRows = (apItems, sup) => {
+      const totalPayable = apItems.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
+      if (totalPayable <= 0) return '';
+      const bankInfo = sup
+        ? sup.bank+' | '+sup.noRek+' a.n. '+sup.atasNama
+        : '-';
+      return '<tr style="background:rgba(99,102,241,.04)">'
+        +'<td style="font-weight:700;font-size:13px;padding:10px 12px">'+apItems[0].supplier+'</td>'
+        +'<td style="font-size:12px;color:var(--text-2)">'+(sup?.bank||'-')+'</td>'
+        +'<td style="font-family:var(--font-mono);font-size:12px">'+(sup?.noRek||'-')+'</td>'
+        +'<td style="font-size:12px;color:var(--text-2)">'+(sup?.atasNama||'-')+'</td>'
+        +'<td class="num" style="font-family:var(--font-mono);font-weight:700;color:var(--danger);font-size:14px">'+Utils.formatRupiah(totalPayable)+'</td>'
+        +'</tr>'
+        +apItems.map(r=>{
+          const sisa = (r.total||0)-(r.terbayar||0);
+          return '<tr style="font-size:11px;color:var(--text-3)">'
+            +'<td style="padding-left:24px;font-style:italic">'+(r.keterangan||r.ket||'-')+'</td>'
+            +'<td style="color:var(--text-3)">'+(r.tgl?r.tgl.split('-').reverse().join('/'):'')+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);color:var(--text-2)">'+(r.qty?Number(r.qty).toLocaleString('id'):'')+'  '+(r.satuan||'')+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);color:var(--text-2)">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'')+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);color:var(--danger)">'+Utils.formatRupiah(sisa)+'</td>'
+            +'</tr>';
+        }).join('');
+    };
+
+    const supRows = Object.entries(supGroups).map(([supName, items]) => {
+      const sup = _suppliers.find(s=>s.nama===supName);
+      return buildSupRows(items, sup);
+    }).join('');
+
+    // Grand total row
+    const grandRow =
+      '<tr style="background:rgba(239,68,68,.1);font-weight:800;border-top:3px solid var(--danger);font-size:15px">'
+      +'<td colspan="4" style="padding:12px;color:var(--danger)">TOTAL PAYABLE</td>'
+      +'<td class="num" style="font-family:var(--font-mono);color:var(--danger)">'+Utils.formatRupiah(totalUnpaid)+'</td>'
+      +'</tr>';
+
+    // Settings from DB
+    const settings = DB.getSettings ? DB.getSettings() : Promise.resolve([{}]);
+    Promise.resolve(settings).then(sets => {
+      const co = (Array.isArray(sets)?sets[0]:sets)||{};
+      const companyName = co.namaPerusahaan || 'BOGA PANGAN SENTOSA PT';
+      const companyAddr = co.alamat || 'Jl. Baladewa, Blok PB no.1, Perumnas bumi teluk jambe, RT. 006/020 Karawang Barat, Indonesia';
+      const companyPhone = co.telepon || '(+62)815-7818-1888';
+      const todayFmt = today.getDate()+' '+MONTHS[today.getMonth()]+' '+today.getFullYear();
+
+      el.innerHTML = `
+        <!-- Company Header -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s5);margin-bottom:var(--s4)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div style="font-size:22px;font-weight:800;color:var(--primary-h);letter-spacing:.03em">${companyName}</div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:2px;font-style:italic">YOUR CATERING SERVICE SOLUTION</div>
+              <div style="font-size:11px;color:var(--text-2);margin-top:8px">${companyAddr}</div>
+              <div style="font-size:11px;color:var(--text-2)">${companyPhone}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:11px;color:var(--text-3)">Tanggal</div>
+              <div style="font-weight:700;color:var(--text-1)">${todayFmt}</div>
+            </div>
+          </div>
+          <div style="margin-top:var(--s4);padding-top:var(--s3);border-top:2px solid var(--primary-h)">
+            <span style="font-size:18px;font-weight:800;color:var(--heading)">VENDOR ACCOUNT PAYABLE</span>
+          </div>
+        </div>
+
+        <!-- Filter Periode -->
+        <div class="filter-bar" style="margin-bottom:var(--s4)">
+          <label style="font-size:12px;color:var(--text-3);align-self:center">Periode</label>
+          <select id="vap-fil-bulan" class="form-control" style="width:160px" onchange="APModule.applyVAPFilter()">
+            <option value="">Semua (Belum Lunas)</option>
+            ${monthOpts}
+          </select>
+          <select id="vap-fil-status" class="form-control" style="width:130px" onchange="APModule.applyVAPFilter()">
+            <option value="unpaid">Belum Lunas</option>
+            <option value="all">Semua Transaksi</option>
+          </select>
+        </div>
+
+        <!-- Stats -->
+        <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
+          ${[
+            {l:'Total Unpaid',    v:Utils.formatRupiah(totalUnpaid,true), c:'var(--danger)'},
+            {l:'Jumlah Vendor',   v:Object.keys(supGroups).length+' vendor', c:'var(--primary-h)'},
+            {l:'Jumlah Tagihan',  v:unpaidAP.length+' item',                 c:'var(--text-2)'},
+          ].map(s=>'<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 16px;min-width:140px">'
+            +'<div style="font-size:10px;color:var(--text-3);margin-bottom:2px">'+s.l+'</div>'
+            +'<div style="font-size:15px;font-weight:700;color:'+s.c+';font-family:var(--font-mono)">'+s.v+'</div>'
+            +'</div>').join('')}
+        </div>
+
+        <!-- PAYMENT DETAIL Table -->
+        <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-bottom:var(--s2)">PAYMENT DETAIL</div>
+        <div class="table-wrapper" id="vap-table-wrap">
+          <table class="table" style="font-size:12px" id="vap-table">
+            <thead>
+              <tr style="background:var(--primary-h);color:white">
+                <th style="color:white">Vendor / Supplier</th>
+                <th style="color:white">Nama Bank</th>
+                <th style="color:white">Bank Account Number</th>
+                <th style="color:white">Bank Account Name</th>
+                <th class="num" style="color:white">Total Payable</th>
+              </tr>
+            </thead>
+            <tbody id="vap-tbody">${supRows + grandRow}</tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:var(--s5);font-size:11px;color:var(--text-3);font-style:italic">
+          * Seluruh transaksi telah dicek kebenarannya dan dapat dipertanggung jawabkan
+        </div>
+      `;
+    });
+  }
+
+  function applyVAPFilter() {
+    const bulan  = document.getElementById('vap-fil-bulan')?.value  || '';
+    const status = document.getElementById('vap-fil-status')?.value || 'unpaid';
+    const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+    let data = [..._ap];
+    if (bulan)  data = data.filter(r=>r.tgl?.startsWith(bulan));
+    if (status==='unpaid') data = data.filter(r=>r.status!=='LUNAS');
+
+    const supGroups = {};
+    data.forEach(r => {
+      if (!supGroups[r.supplier]) supGroups[r.supplier] = [];
+      supGroups[r.supplier].push(r);
+    });
+
+    const buildRows = (apItems, sup) => {
+      const totalPayable = apItems.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
+      if (totalPayable <= 0 && status==='unpaid') return '';
+      return '<tr style="background:rgba(99,102,241,.04)">'
+        +'<td style="font-weight:700;font-size:13px;padding:10px 12px">'+apItems[0].supplier+'</td>'
+        +'<td style="font-size:12px;color:var(--text-2)">'+(sup?.bank||'-')+'</td>'
+        +'<td style="font-family:var(--font-mono);font-size:12px">'+(sup?.noRek||'-')+'</td>'
+        +'<td style="font-size:12px;color:var(--text-2)">'+(sup?.atasNama||'-')+'</td>'
+        +'<td class="num" style="font-family:var(--font-mono);font-weight:700;color:'+(totalPayable>0?'var(--danger)':'var(--success)')+';font-size:14px">'+Utils.formatRupiah(totalPayable)+'</td>'
+        +'</tr>'
+        +apItems.map(r=>{
+          const sisa = (r.total||0)-(r.terbayar||0);
+          return '<tr style="font-size:11px;color:var(--text-3)">'
+            +'<td style="padding-left:24px;font-style:italic">'+(r.keterangan||r.ket||'-')+'</td>'
+            +'<td style="color:var(--text-3)">'+(r.tgl?r.tgl.split('-').reverse().join('/'):'')+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);color:var(--text-2)">'+(r.qty?Number(r.qty).toLocaleString('id'):'')+'  '+(r.satuan||'')+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);color:var(--text-2)">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'')+'</td>'
+            +'<td class="num" style="font-family:var(--font-mono);color:'+(sisa>0?'var(--danger)':'var(--text-3)')+'">'+Utils.formatRupiah(sisa)+'</td>'
+            +'</tr>';
+        }).join('');
+    };
+
+    const totalPayable = Object.values(supGroups).flat().reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
+    const rows = Object.entries(supGroups).map(([supName, items]) => {
+      const sup = _suppliers.find(s=>s.nama===supName);
+      return buildRows(items, sup);
+    }).join('');
+
+    const grand = '<tr style="background:rgba(239,68,68,.1);font-weight:800;border-top:3px solid var(--danger);font-size:15px">'
+      +'<td colspan="4" style="padding:12px;color:var(--danger)">TOTAL PAYABLE</td>'
+      +'<td class="num" style="font-family:var(--font-mono);color:var(--danger)">'+Utils.formatRupiah(totalPayable)+'</td>'
+      +'</tr>';
+
+    const tbody = document.getElementById('vap-tbody');
+    if (tbody) tbody.innerHTML = rows + grand;
+  }
+
+  function printVAP() {
+    const tbl = document.getElementById('vap-table-wrap');
+    if (!tbl) return;
+    const w = window.open('','_blank');
+    w.document.write('<html><head><title>VAP Payment</title><style>'
+      +'body{font-family:Arial,sans-serif;font-size:12px}table{width:100%;border-collapse:collapse}'
+      +'th,td{border:1px solid #ddd;padding:6px 10px}th{background:#4c1d95;color:white}'
+      +'</style></head><body>'+tbl.outerHTML+'</body></html>');
+    w.document.close();
+    w.print();
+  }
+
+
+  return { init, render, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier };
 })();
 window.APModule = APModule;
