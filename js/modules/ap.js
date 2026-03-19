@@ -25,10 +25,12 @@ const APModule = (() => {
       <div class="tabs">
         <button class="tab-btn active" id="ap-tab-btn-list"     onclick="APModule.switchTab('list')">📋 Transaksi AP</button>
         <button class="tab-btn"        id="ap-tab-btn-payment"  onclick="APModule.switchTab('payment')">💳 Vendor AP Payment</button>
+        <button class="tab-btn"        id="ap-tab-btn-summary"  onclick="APModule.switchTab('summary')">📊 Summary</button>
         <button class="tab-btn"        id="ap-tab-btn-supplier" onclick="APModule.switchTab('supplier')">🏭 Supplier</button>
       </div>
       <div id="ap-tab-list"></div>
       <div id="ap-tab-payment" class="hidden"></div>
+      <div id="ap-tab-summary" class="hidden"></div>
       <div id="ap-tab-supplier" class="hidden"></div>
     `;
     Promise.all([DB.getAP().catch(()=>[]), DB.getSuppliers().catch(()=>[])]).then(([ap, sup]) => {
@@ -45,7 +47,7 @@ const APModule = (() => {
 
   function switchTab(tab) {
     _activeTab = tab;
-    ['list','payment','supplier'].forEach(t => {
+    ['list','payment','summary','supplier'].forEach(t => {
       const el  = document.getElementById('ap-tab-'+t);
       const btn = document.getElementById('ap-tab-btn-'+t);
       if (el)  el.classList.toggle('hidden', t !== tab);
@@ -58,13 +60,16 @@ const APModule = (() => {
       } else if (tab === 'supplier' && Auth.can('ap','edit')) {
         hdr.innerHTML = '<button class="btn btn-primary" onclick="APModule.openAddSupplierModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 5v14M5 12h14"/></svg> Tambah Supplier</button>';
       } else if (tab === 'payment') {
-        hdr.innerHTML = '<button class="btn btn-ghost btn-sm" onclick="APModule.printVAP()">🖨️ Print</button>';
+        hdr.innerHTML = '';
+      } else if (tab === 'summary') {
+        hdr.innerHTML = '';
       } else {
         hdr.innerHTML = '';
       }
     }
     if (tab === 'list')     render();
     if (tab === 'payment')  renderVAP();
+    if (tab === 'summary')  renderSummaryAP();
     if (tab === 'supplier') renderSuppliers();
   }
 
@@ -1019,7 +1024,7 @@ const APModule = (() => {
         <div id="vap-print-area" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.06)">
 
           <!-- GRADIENT HEADER -->
-          <div style="background:linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#7c3aed 100%);padding:28px 32px;position:relative;overflow:hidden">
+          <div style="background:linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#7c3aed 100%);padding:18px 28px;position:relative;overflow:hidden">
             <!-- decorative circles -->
             <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.06)"></div>
             <div style="position:absolute;bottom:-60px;right:80px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.04)"></div>
@@ -1027,23 +1032,23 @@ const APModule = (() => {
             <div style="display:flex;align-items:flex-start;justify-content:space-between;position:relative">
               <!-- Company Info -->
               <div>
-                <div style="font-size:28px;font-weight:900;color:white;letter-spacing:.02em;line-height:1.1">${cName}</div>
+                <div style="font-size:22px;font-weight:900;color:white;letter-spacing:.02em;line-height:1.1">${cName}</div>
                 <div style="font-size:11px;color:rgba(255,255,255,.6);letter-spacing:.12em;text-transform:uppercase;margin-top:4px;font-weight:500">${cTag}</div>
-                <div style="margin-top:14px;font-size:11px;color:rgba(255,255,255,.75);line-height:1.7">${cAddr}<br>${cPhone}</div>
+                <div style="margin-top:8px;font-size:11px;color:rgba(255,255,255,.75);line-height:1.6">${cAddr}<br>${cPhone}</div>
               </div>
               <!-- Date + Total -->
               <div style="text-align:right;flex-shrink:0">
                 <div style="font-size:10px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px">Tanggal Cetak</div>
                 <div style="font-size:16px;font-weight:800;color:white">${todayFmt}</div>
-                <div style="margin-top:14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:12px 18px;backdrop-filter:blur(8px)">
+                <div style="margin-top:10px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:12px 18px;backdrop-filter:blur(8px)">
                   <div style="font-size:10px;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.08em;font-weight:600">Total Unpaid</div>
-                  <div style="font-family:var(--font-mono);font-size:20px;font-weight:900;color:#fbbf24;margin-top:3px;white-space:nowrap">${Utils.formatRupiah(totalUnpaid)}</div>
+                  <div style="font-family:var(--font-mono);font-size:17px;font-weight:900;color:#fbbf24;margin-top:2px;white-space:nowrap">${Utils.formatRupiah(totalUnpaid)}</div>
                 </div>
               </div>
             </div>
 
             <!-- Doc Title Bar -->
-            <div style="margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:space-between">
+            <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:space-between">
               <div style="font-size:18px;font-weight:800;color:white;letter-spacing:.06em;text-transform:uppercase">Vendor Account Payable</div>
               <div style="display:flex;gap:20px;font-size:12px;color:rgba(255,255,255,.75);font-weight:500">
                 <span>${data.length} Tagihan</span>
@@ -1211,6 +1216,187 @@ const APModule = (() => {
   }
 
 
-  return { init, render, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, apStartEdit, _apCommit, _apCancel, apAddRow, _apKey };
+  /* ============= AP SUMMARY PER SUPPLIER ============= */
+  function renderSummaryAP() {
+    const el = document.getElementById('ap-tab-summary');
+    if (!el) return;
+
+    const MONTHS_ORDER = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const BL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const NORM = {'Jan':'Januari','Febuari':'Februari','Feb':'Februari','Mar':'Maret','Apr':'April','Ags':'Agustus','Sep':'September','Okt':'Oktober','Des':'Desember'};
+
+    // All AP months
+    const allMonths = [...new Set(_ap.map(r=>r.tgl?.substring(0,7)).filter(Boolean))].sort();
+    const monthLabels = allMonths.map(m=>{ const[y,mo]=m.split('-'); return BL[parseInt(mo)]+'\''+(y.slice(2)); });
+
+    // Per-supplier stats
+    const supMap = {};
+    _ap.forEach(r => {
+      if (!r.supplier) return;
+      if (!supMap[r.supplier]) supMap[r.supplier] = {
+        nama: r.supplier, totalAll:0, terbayarAll:0,
+        lunas:0, belum:0, cicilan:0, total:0,
+        byMonth: {},
+      };
+      const s    = supMap[r.supplier];
+      const sisa = (r.total||0)-(r.terbayar||0);
+      s.totalAll    += r.total||0;
+      s.terbayarAll += r.terbayar||0;
+      s.total++;
+      if (r.status==='LUNAS')   s.lunas++;
+      else if (r.status==='CICILAN') s.cicilan++;
+      else s.belum++;
+      // Monthly breakdown
+      const mo = r.tgl?.substring(0,7)||'';
+      if (!s.byMonth[mo]) s.byMonth[mo] = {total:0, terbayar:0};
+      s.byMonth[mo].total    += r.total||0;
+      s.byMonth[mo].terbayar += r.terbayar||0;
+    });
+
+    const supList = Object.values(supMap).sort((a,b)=>b.totalAll-a.totalAll);
+    const grandTotal    = supList.reduce((s,x)=>s+x.totalAll,0);
+    const grandTerbayar = supList.reduce((s,x)=>s+x.terbayarAll,0);
+    const grandSisa     = grandTotal - grandTerbayar;
+
+    // Stats cards
+    const statsHtml = [
+      {l:'Total AP',      v:Utils.formatRupiah(grandTotal,true),    c:'#6366f1', sub:_ap.length+' transaksi'},
+      {l:'Sudah Dibayar', v:Utils.formatRupiah(grandTerbayar,true), c:'#10b981', sub:_ap.filter(r=>r.status==='LUNAS').length+' lunas'},
+      {l:'Sisa Hutang',   v:Utils.formatRupiah(grandSisa,true),     c:'#ef4444', sub:_ap.filter(r=>r.status!=='LUNAS').length+' belum lunas'},
+      {l:'Supplier',      v:supList.length+' supplier',              c:'#f59e0b', sub:allMonths.length+' bulan data'},
+    ].map(s=>
+      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;position:relative;overflow:hidden">'
+      +'<div style="position:absolute;top:0;left:0;width:4px;height:100%;background:'+s.c+'"></div>'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:4px">'+s.l+'</div>'
+      +'<div style="font-size:20px;font-weight:800;color:'+s.c+';font-family:var(--font-mono)">'+s.v+'</div>'
+      +'<div style="font-size:10px;color:var(--text-3);margin-top:3px">'+s.sub+'</div>'
+      +'</div>'
+    ).join('');
+
+    // Table rows per supplier
+    const PALETTE = ['#6366f1','#10b981','#f59e0b','#ef4444','#ec4899','#3b82f6','#8b5cf6','#06b6d4','#84cc16','#f97316'];
+    const rowsHtml = supList.map((s, idx) => {
+      const sup  = _suppliers.find(x=>x.nama===s.nama);
+      const sisa = s.totalAll - s.terbayarAll;
+      const pct  = s.totalAll ? Math.round(s.terbayarAll/s.totalAll*100) : 0;
+      const clr  = PALETTE[idx % PALETTE.length];
+      // Monthly cells
+      const moCells = allMonths.map(m=>{
+        const d = s.byMonth[m];
+        if (!d || !d.total) return '<td style="padding:10px 12px;text-align:right;color:var(--text-3);font-size:11px">—</td>';
+        const s2 = d.total - d.terbayar;
+        return '<td style="padding:10px 12px;text-align:right">'
+          +'<div style="font-family:var(--font-mono);font-size:12px;font-weight:600">'+Utils.formatRupiah(d.total,true)+'</div>'
+          +(s2>0?'<div style="font-size:10px;color:#ef4444">-'+Utils.formatRupiah(s2,true)+'</div>':'<div style="font-size:10px;color:#10b981">✓ Lunas</div>')
+          +'</td>';
+      }).join('');
+
+      return '<tr style="border-bottom:1px solid var(--border);transition:background .1s">'
+        // Supplier name
+        +'<td style="padding:10px 14px;min-width:160px">'
+          +'<div style="display:flex;align-items:center;gap:8px">'
+            +'<div style="width:28px;height:28px;border-radius:7px;background:'+clr+';color:white;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+s.nama.substring(0,1)+'</div>'
+            +'<div>'
+              +'<div style="font-weight:700;font-size:12px;color:var(--heading)">'+s.nama+'</div>'
+              +(sup?.kategori?'<div style="font-size:10px;color:'+clr+';font-weight:600">'+sup.kategori+'</div>':'')
+            +'</div>'
+          +'</div>'
+        +'</td>'
+        // Total
+        +'<td style="padding:10px 12px;text-align:right;white-space:nowrap">'
+          +'<div style="font-family:var(--font-mono);font-weight:700;font-size:13px">'+Utils.formatRupiah(s.totalAll,true)+'</div>'
+          +'<div style="font-size:10px;color:var(--text-3)">'+s.total+' trx</div>'
+        +'</td>'
+        // Dibayar
+        +'<td style="padding:10px 12px;text-align:right;white-space:nowrap">'
+          +'<div style="font-family:var(--font-mono);font-size:12px;color:#10b981">'+Utils.formatRupiah(s.terbayarAll,true)+'</div>'
+        +'</td>'
+        // Sisa
+        +'<td style="padding:10px 12px;text-align:right;white-space:nowrap">'
+          +'<div style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:'+(sisa>0?'#ef4444':'var(--text-3)')+'">'+Utils.formatRupiah(sisa,true)+'</div>'
+        +'</td>'
+        // Progress bar
+        +'<td style="padding:10px 14px;min-width:100px">'
+          +'<div style="display:flex;align-items:center;gap:6px">'
+            +'<div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden">'
+              +'<div style="width:'+pct+'%;height:100%;background:'+clr+';border-radius:3px"></div>'
+            +'</div>'
+            +'<span style="font-size:10px;font-weight:700;color:'+clr+';width:28px;flex-shrink:0">'+pct+'%</span>'
+          +'</div>'
+        +'</td>'
+        // Status pills
+        +'<td style="padding:10px 12px;white-space:nowrap">'
+          +(s.lunas?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.3)">✓ '+s.lunas+'</span> ':'')
+          +(s.belum?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3)">⏳ '+s.belum+'</span> ':'')
+          +(s.cicilan?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(245,158,11,.1);color:#d97706;border:1px solid rgba(245,158,11,.3)">🔸 '+s.cicilan+'</span>':'')
+        +'</td>'
+        // Monthly breakdown
+        +moCells
+        +'</tr>';
+    }).join('');
+
+    // Grand total row
+    const grandMonthCells = allMonths.map(m=>{
+      const mTotal = _ap.filter(r=>r.tgl?.startsWith(m)).reduce((s,r)=>s+(r.total||0),0);
+      const mBayar = _ap.filter(r=>r.tgl?.startsWith(m)).reduce((s,r)=>s+(r.terbayar||0),0);
+      return '<td style="padding:10px 12px;text-align:right;background:var(--surface2)">'
+        +(mTotal?'<div style="font-family:var(--font-mono);font-size:12px;font-weight:800">'+Utils.formatRupiah(mTotal,true)+'</div>':'<div style="color:var(--text-3)">—</div>')
+        +'</td>';
+    }).join('');
+
+    const moHeaders = allMonths.map(m=>{
+      const[y,mo]=m.split('-');
+      return '<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);white-space:nowrap">'+BL[parseInt(mo)]+'\''+(y.slice(2))+'</th>';
+    }).join('');
+
+    el.innerHTML = `
+      <!-- Stats -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s3);margin-bottom:var(--s4)">
+        ${statsHtml}
+      </div>
+
+      <!-- Summary Table -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        <!-- Title bar -->
+        <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:14px;font-weight:800;color:var(--heading)">Summary Transaksi per Supplier</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:2px">${supList.length} supplier · ${_ap.length} total transaksi · ${allMonths.length} bulan</div>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;min-width:700px">
+            <thead>
+              <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
+                <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);min-width:160px">Supplier</th>
+                <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Total AP</th>
+                <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Dibayar</th>
+                <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Sisa</th>
+                <th style="padding:10px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);min-width:120px">Lunas %</th>
+                <th style="padding:10px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Status</th>
+                ${moHeaders}
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+              <!-- Grand total -->
+              <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:800">
+                <td style="padding:12px 14px;font-size:12px;font-weight:800;color:var(--text-2)">GRAND TOTAL</td>
+                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:800">${Utils.formatRupiah(grandTotal,true)}</td>
+                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;color:#10b981">${Utils.formatRupiah(grandTerbayar,true)}</td>
+                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;color:#ef4444;font-weight:800">${Utils.formatRupiah(grandSisa,true)}</td>
+                <td style="padding:12px 14px"></td>
+                <td style="padding:12px 12px"></td>
+                ${grandMonthCells}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+
+  return { init, render, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, apStartEdit, _apCommit, _apCancel, apAddRow, _apKey };
 })();
 window.APModule = APModule;
