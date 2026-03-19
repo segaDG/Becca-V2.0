@@ -873,195 +873,214 @@ const APModule = (() => {
   function renderVAP() {
     const el = document.getElementById('ap-tab-payment');
     if (!el) return;
-    const today   = new Date();
-    const MONTHS  = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-    const BL      = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const BL     = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
 
-    // Filter by month/status unpaid
-    const unpaidAP = _ap.filter(r => r.status !== 'LUNAS');
-    const totalUnpaid = unpaidAP.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
-
-    // Get unique months available
+    // Month options
     const allMonths = [...new Set(_ap.map(r=>r.tgl?.substring(0,7)).filter(Boolean))].sort().reverse();
-    const monthOpts = allMonths.map(m=>{
-      const [y,mo] = m.split('-');
-      return '<option value="'+m+'">'+BL[parseInt(mo)]+' '+y+'</option>';
-    }).join('');
+    const monthOpts = ['<option value="">Semua (Belum Lunas)</option>',
+      ...allMonths.map(m=>{ const[y,mo]=m.split('-'); return '<option value="'+m+'">'+BL[parseInt(mo)]+' '+y+'</option>'; })
+    ].join('');
 
-    // Group unpaid by supplier, match with supplier details
-    const supGroups = {};
-    unpaidAP.forEach(r => {
-      if (!supGroups[r.supplier]) supGroups[r.supplier] = [];
-      supGroups[r.supplier].push(r);
-    });
-
-    // Build payment detail per supplier
-    const buildSupRows = (apItems, sup) => {
-      const totalPayable = apItems.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
-      if (totalPayable <= 0) return '';
-      const bankInfo = sup
-        ? sup.bank+' | '+sup.noRek+' a.n. '+sup.atasNama
-        : '-';
-      return '<tr style="background:rgba(99,102,241,.04)">'
-        +'<td style="font-weight:700;font-size:13px;padding:10px 12px">'+apItems[0].supplier+'</td>'
-        +'<td style="font-size:12px;color:var(--text-2)">'+(sup?.bank||'-')+'</td>'
-        +'<td style="font-family:var(--font-mono);font-size:12px">'+(sup?.noRek||'-')+'</td>'
-        +'<td style="font-size:12px;color:var(--text-2)">'+(sup?.atasNama||'-')+'</td>'
-        +'<td class="num" style="font-family:var(--font-mono);font-weight:700;color:var(--danger);font-size:14px">'+Utils.formatRupiah(totalPayable)+'</td>'
-        +'</tr>'
-        +apItems.map(r=>{
-          const sisa = (r.total||0)-(r.terbayar||0);
-          return '<tr style="font-size:11px;color:var(--text-3)">'
-            +'<td style="padding-left:24px;font-style:italic">'+(r.keterangan||r.ket||'-')+'</td>'
-            +'<td style="color:var(--text-3)">'+(r.tgl?r.tgl.split('-').reverse().join('/'):'')+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);color:var(--text-2)">'+(r.qty?Number(r.qty).toLocaleString('id'):'')+'  '+(r.satuan||'')+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);color:var(--text-2)">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'')+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);color:var(--danger)">'+Utils.formatRupiah(sisa)+'</td>'
-            +'</tr>';
-        }).join('');
-    };
-
-    const supRows = Object.entries(supGroups).map(([supName, items]) => {
-      const sup = _suppliers.find(s=>s.nama===supName);
-      return buildSupRows(items, sup);
-    }).join('');
-
-    // Grand total row
-    const grandRow =
-      '<tr style="background:rgba(239,68,68,.1);font-weight:800;border-top:3px solid var(--danger);font-size:15px">'
-      +'<td colspan="4" style="padding:12px;color:var(--danger)">TOTAL PAYABLE</td>'
-      +'<td class="num" style="font-family:var(--font-mono);color:var(--danger)">'+Utils.formatRupiah(totalUnpaid)+'</td>'
-      +'</tr>';
-
-    // Settings from DB
-    const settings = DB.getSettings ? DB.getSettings() : Promise.resolve([{}]);
-    Promise.resolve(settings).then(sets => {
-      const co = (Array.isArray(sets)?sets[0]:sets)||{};
-      const companyName = co.namaPerusahaan || 'BOGA PANGAN SENTOSA PT';
-      const companyAddr = co.alamat || 'Jl. Baladewa, Blok PB no.1, Perumnas bumi teluk jambe, RT. 006/020 Karawang Barat, Indonesia';
-      const companyPhone = co.telepon || '(+62)815-7818-1888';
-      const todayFmt = today.getDate()+' '+MONTHS[today.getMonth()]+' '+today.getFullYear();
-
-      el.innerHTML = `
-        <!-- Company Header -->
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s5);margin-bottom:var(--s4)">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start">
-            <div>
-              <div style="font-size:22px;font-weight:800;color:var(--primary-h);letter-spacing:.03em">${companyName}</div>
-              <div style="font-size:12px;color:var(--text-3);margin-top:2px;font-style:italic">YOUR CATERING SERVICE SOLUTION</div>
-              <div style="font-size:11px;color:var(--text-2);margin-top:8px">${companyAddr}</div>
-              <div style="font-size:11px;color:var(--text-2)">${companyPhone}</div>
-            </div>
-            <div style="text-align:right">
-              <div style="font-size:11px;color:var(--text-3)">Tanggal</div>
-              <div style="font-weight:700;color:var(--text-1)">${todayFmt}</div>
-            </div>
-          </div>
-          <div style="margin-top:var(--s4);padding-top:var(--s3);border-top:2px solid var(--primary-h)">
-            <span style="font-size:18px;font-weight:800;color:var(--heading)">VENDOR ACCOUNT PAYABLE</span>
-          </div>
-        </div>
-
-        <!-- Filter Periode -->
-        <div class="filter-bar" style="margin-bottom:var(--s4)">
-          <label style="font-size:12px;color:var(--text-3);align-self:center">Periode</label>
-          <select id="vap-fil-bulan" class="form-control" style="width:160px" onchange="APModule.applyVAPFilter()">
-            <option value="">Semua (Belum Lunas)</option>
+    el.innerHTML = `
+      <!-- CONTROL BAR: Filter + Print dalam satu baris -->
+      <div style="display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:var(--s2);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px">
+          <span style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em">Periode</span>
+          <select id="vap-fil-bulan" class="form-control" style="width:150px;height:30px;font-size:12px" onchange="APModule.applyVAPFilter()">
             ${monthOpts}
           </select>
-          <select id="vap-fil-status" class="form-control" style="width:130px" onchange="APModule.applyVAPFilter()">
+          <select id="vap-fil-status" class="form-control" style="width:140px;height:30px;font-size:12px" onchange="APModule.applyVAPFilter()">
             <option value="unpaid">Belum Lunas</option>
             <option value="all">Semua Transaksi</option>
           </select>
         </div>
+        <button onclick="APModule.printVAP()" style="margin-left:auto;padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-2);display:flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Print / Export
+        </button>
+      </div>
 
-        <!-- Stats -->
-        <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
-          ${[
-            {l:'Total Unpaid',    v:Utils.formatRupiah(totalUnpaid,true), c:'var(--danger)'},
-            {l:'Jumlah Vendor',   v:Object.keys(supGroups).length+' vendor', c:'var(--primary-h)'},
-            {l:'Jumlah Tagihan',  v:unpaidAP.length+' item',                 c:'var(--text-2)'},
-          ].map(s=>'<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 16px;min-width:140px">'
-            +'<div style="font-size:10px;color:var(--text-3);margin-bottom:2px">'+s.l+'</div>'
-            +'<div style="font-size:15px;font-weight:700;color:'+s.c+';font-family:var(--font-mono)">'+s.v+'</div>'
-            +'</div>').join('')}
-        </div>
+      <!-- MAIN CONTENT -->
+      <div id="vap-content"></div>
+    `;
 
-        <!-- PAYMENT DETAIL Table -->
-        <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-bottom:var(--s2)">PAYMENT DETAIL</div>
-        <div class="table-wrapper" id="vap-table-wrap">
-          <table class="table" style="font-size:12px" id="vap-table">
-            <thead>
-              <tr style="background:var(--primary-h);color:white">
-                <th style="color:white">Vendor / Supplier</th>
-                <th style="color:white">Nama Bank</th>
-                <th style="color:white">Bank Account Number</th>
-                <th style="color:white">Bank Account Name</th>
-                <th class="num" style="color:white">Total Payable</th>
-              </tr>
-            </thead>
-            <tbody id="vap-tbody">${supRows + grandRow}</tbody>
-          </table>
-        </div>
-
-        <div style="margin-top:var(--s5);font-size:11px;color:var(--text-3);font-style:italic">
-          * Seluruh transaksi telah dicek kebenarannya dan dapat dipertanggung jawabkan
-        </div>
-      `;
-    });
+    APModule.applyVAPFilter();
   }
+
 
   function applyVAPFilter() {
     const bulan  = document.getElementById('vap-fil-bulan')?.value  || '';
     const status = document.getElementById('vap-fil-status')?.value || 'unpaid';
-    const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const el     = document.getElementById('vap-content');
+    if (!el) return;
 
+    const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const BL     = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const today  = new Date();
+    const todayFmt = today.getDate()+' '+MONTHS[today.getMonth()]+' '+today.getFullYear();
+
+    // Filter data
     let data = [..._ap];
     if (bulan)  data = data.filter(r=>r.tgl?.startsWith(bulan));
     if (status==='unpaid') data = data.filter(r=>r.status!=='LUNAS');
 
+    // Group by supplier
     const supGroups = {};
-    data.forEach(r => {
-      if (!supGroups[r.supplier]) supGroups[r.supplier] = [];
-      supGroups[r.supplier].push(r);
-    });
+    data.forEach(r=>{ if(!supGroups[r.supplier]) supGroups[r.supplier]=[]; supGroups[r.supplier].push(r); });
 
-    const buildRows = (apItems, sup) => {
-      const totalPayable = apItems.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
-      if (totalPayable <= 0 && status==='unpaid') return '';
-      return '<tr style="background:rgba(99,102,241,.04)">'
-        +'<td style="font-weight:700;font-size:13px;padding:10px 12px">'+apItems[0].supplier+'</td>'
-        +'<td style="font-size:12px;color:var(--text-2)">'+(sup?.bank||'-')+'</td>'
-        +'<td style="font-family:var(--font-mono);font-size:12px">'+(sup?.noRek||'-')+'</td>'
-        +'<td style="font-size:12px;color:var(--text-2)">'+(sup?.atasNama||'-')+'</td>'
-        +'<td class="num" style="font-family:var(--font-mono);font-weight:700;color:'+(totalPayable>0?'var(--danger)':'var(--success)')+';font-size:14px">'+Utils.formatRupiah(totalPayable)+'</td>'
-        +'</tr>'
-        +apItems.map(r=>{
+    const totalUnpaid = data.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
+    const vendorCount = Object.keys(supGroups).length;
+
+    // Periode label
+    let periodeLabel = 'Semua Belum Lunas';
+    if (bulan) {
+      const [y,m] = bulan.split('-');
+      periodeLabel = BL[parseInt(m)] + ' ' + y;
+    }
+
+    // Get company settings
+    DB.getSettings().then(sets => {
+      const co = (Array.isArray(sets)?sets[0]:sets)||{};
+      const cName  = co.namaPerusahaan || 'BOGA PANGAN SENTOSA PT';
+      const cAddr  = co.alamat  || 'Jl. Baladewa, Blok PB no.1, Perumnas bumi teluk jambe, RT. 006/020 Karawang Barat, Indonesia';
+      const cPhone = co.telepon || '(+62)815-7818-1888';
+
+      // --- Build vendor rows ---
+      const VENDOR_COLORS = [
+        {h:'#6366f1',bg:'rgba(99,102,241,.08)',lt:'rgba(99,102,241,.03)'},
+        {h:'#10b981',bg:'rgba(16,185,129,.08)',lt:'rgba(16,185,129,.03)'},
+        {h:'#f59e0b',bg:'rgba(245,158,11,.08)',lt:'rgba(245,158,11,.03)'},
+        {h:'#ec4899',bg:'rgba(236,72,153,.08)',lt:'rgba(236,72,153,.03)'},
+        {h:'#3b82f6',bg:'rgba(59,130,246,.08)',lt:'rgba(59,130,246,.03)'},
+        {h:'#ef4444',bg:'rgba(239,68,68,.08)', lt:'rgba(239,68,68,.03)'},
+      ];
+
+      let rowsHtml = '';
+      let vendorNum = 0;
+
+      Object.entries(supGroups).forEach(([supName, items]) => {
+        const sup = _suppliers.find(s=>s.nama===supName);
+        const payable = items.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
+        if (payable<=0 && status==='unpaid') return;
+        const c = VENDOR_COLORS[vendorNum % VENDOR_COLORS.length];
+        vendorNum++;
+
+        // Supplier header row
+        rowsHtml +=
+          '<tr style="background:'+c.bg+';border-top:2px solid '+c.h+'">'
+          +'<td style="padding:12px 14px;border-bottom:1px solid '+c.h+'22">'
+            +'<div style="display:flex;align-items:center;gap:10px">'
+              +'<div style="width:32px;height:32px;border-radius:8px;background:'+c.h+';color:white;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+                +supName.substring(0,1).toUpperCase()
+              +'</div>'
+              +'<div>'
+                +'<div style="font-weight:800;font-size:14px;color:var(--heading)">'+supName+'</div>'
+                +'<div style="font-size:10px;color:var(--text-3);margin-top:1px">'+(sup?.kategori||'Supplier')+'</div>'
+              +'</div>'
+            +'</div>'
+          +'</td>'
+          +'<td style="padding:12px 14px;border-bottom:1px solid '+c.h+'22">'
+            +'<div style="font-weight:600;font-size:13px">'+( sup?.bank||'-')+'</div>'
+          +'</td>'
+          +'<td style="padding:12px 14px;border-bottom:1px solid '+c.h+'22;font-family:var(--font-mono);font-size:13px;letter-spacing:.05em">'+(sup?.noRek||'-')+'</td>'
+          +'<td style="padding:12px 14px;border-bottom:1px solid '+c.h+'22;font-size:13px">'+(sup?.atasNama||'-')+'</td>'
+          +'<td style="padding:12px 14px;border-bottom:1px solid '+c.h+'22;text-align:right">'
+            +'<div style="font-family:var(--font-mono);font-size:16px;font-weight:800;color:'+c.h+'">'+Utils.formatRupiah(payable)+'</div>'
+            +'<div style="font-size:10px;color:var(--text-3);margin-top:2px">'+items.length+' tagihan</div>'
+          +'</td>'
+          +'</tr>';
+
+        // Detail rows per item
+        items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach(r=>{
           const sisa = (r.total||0)-(r.terbayar||0);
-          return '<tr style="font-size:11px;color:var(--text-3)">'
-            +'<td style="padding-left:24px;font-style:italic">'+(r.keterangan||r.ket||'-')+'</td>'
-            +'<td style="color:var(--text-3)">'+(r.tgl?r.tgl.split('-').reverse().join('/'):'')+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);color:var(--text-2)">'+(r.qty?Number(r.qty).toLocaleString('id'):'')+'  '+(r.satuan||'')+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);color:var(--text-2)">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'')+'</td>'
-            +'<td class="num" style="font-family:var(--font-mono);color:'+(sisa>0?'var(--danger)':'var(--text-3)')+'">'+Utils.formatRupiah(sisa)+'</td>'
+          const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
+          rowsHtml +=
+            '<tr style="background:'+c.lt+';border-bottom:1px solid var(--border)">'
+            +'<td style="padding:7px 14px 7px 56px;font-size:12px;color:var(--text-2);font-style:italic">'
+              +(r.keterangan||r.ket||'-')
+            +'</td>'
+            +'<td style="padding:7px 14px;font-size:11px;color:var(--text-3)">'+tglFmt+'</td>'
+            +'<td style="padding:7px 14px;font-size:11px;color:var(--text-3);font-family:var(--font-mono)">'
+              +(r.qty?Number(r.qty).toLocaleString('id'):'')+(r.satuan?' '+r.satuan:'')
+            +'</td>'
+            +'<td style="padding:7px 14px;font-size:11px;color:var(--text-3);font-family:var(--font-mono);text-align:right">'
+              +(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'')
+            +'</td>'
+            +'<td style="padding:7px 14px;text-align:right;font-family:var(--font-mono);font-size:12px;color:'+(sisa>0?'#ef4444':'var(--text-3)')+'">'+Utils.formatRupiah(sisa)+'</td>'
             +'</tr>';
-        }).join('');
-    };
+        });
+      });
 
-    const totalPayable = Object.values(supGroups).flat().reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
-    const rows = Object.entries(supGroups).map(([supName, items]) => {
-      const sup = _suppliers.find(s=>s.nama===supName);
-      return buildRows(items, sup);
-    }).join('');
+      // Grand total row
+      rowsHtml +=
+        '<tr style="background:linear-gradient(135deg,rgba(239,68,68,.12),rgba(239,68,68,.06));border-top:3px solid #ef4444">'
+        +'<td colspan="4" style="padding:16px 14px">'
+          +'<div style="font-weight:800;font-size:15px;color:#ef4444;letter-spacing:.02em">TOTAL PAYABLE</div>'
+          +'<div style="font-size:11px;color:var(--text-3);margin-top:2px">'+vendorNum+' vendor · '+data.length+' transaksi · Periode: '+periodeLabel+'</div>'
+        +'</td>'
+        +'<td style="padding:16px 14px;text-align:right">'
+          +'<div style="font-family:var(--font-mono);font-size:22px;font-weight:900;color:#ef4444">'+Utils.formatRupiah(totalUnpaid)+'</div>'
+        +'</td>'
+        +'</tr>';
 
-    const grand = '<tr style="background:rgba(239,68,68,.1);font-weight:800;border-top:3px solid var(--danger);font-size:15px">'
-      +'<td colspan="4" style="padding:12px;color:var(--danger)">TOTAL PAYABLE</td>'
-      +'<td class="num" style="font-family:var(--font-mono);color:var(--danger)">'+Utils.formatRupiah(totalPayable)+'</td>'
-      +'</tr>';
+      el.innerHTML = `
+        <!-- DOCUMENT -->
+        <div id="vap-print-area" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
 
-    const tbody = document.getElementById('vap-tbody');
-    if (tbody) tbody.innerHTML = rows + grand;
+          <!-- DOC HEADER -->
+          <div style="padding:24px 28px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s4)">
+            <div style="flex:1">
+              <div style="font-size:24px;font-weight:900;color:var(--primary-h);letter-spacing:.02em">${cName}</div>
+              <div style="font-size:11px;color:var(--text-3);font-style:italic;margin-top:2px;letter-spacing:.06em;text-transform:uppercase">Your Catering Service Solution</div>
+              <div style="font-size:11px;color:var(--text-2);margin-top:10px;line-height:1.6">${cAddr}<br>${cPhone}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em">Tanggal Cetak</div>
+              <div style="font-size:16px;font-weight:800;color:var(--heading)">${todayFmt}</div>
+              <div style="margin-top:10px;padding:6px 14px;background:rgba(99,102,241,.1);border-radius:6px;border:1px solid rgba(99,102,241,.3)">
+                <div style="font-size:10px;color:var(--primary-h);font-weight:700;text-transform:uppercase;letter-spacing:.06em">Total Unpaid</div>
+                <div style="font-family:var(--font-mono);font-size:18px;font-weight:900;color:#ef4444">${Utils.formatRupiah(totalUnpaid,true)}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DOC TITLE BAR -->
+          <div style="background:var(--primary-h);padding:12px 28px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:16px;font-weight:800;color:white;letter-spacing:.04em">VENDOR ACCOUNT PAYABLE</span>
+            <div style="display:flex;gap:var(--s4);font-size:12px;color:rgba(255,255,255,.8)">
+              <span>📋 <strong style="color:white">${data.length}</strong> Tagihan</span>
+              <span>🏭 <strong style="color:white">${vendorNum}</strong> Vendor</span>
+              <span>📅 <strong style="color:white">${periodeLabel}</strong></span>
+            </div>
+          </div>
+
+          <!-- TABLE HEADER -->
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;min-width:700px">
+              <thead>
+                <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
+                  <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);min-width:220px">Vendor / Supplier</th>
+                  <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);width:100px">Nama Bank</th>
+                  <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);width:160px">Bank Account Number</th>
+                  <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);min-width:140px">Bank Account Name</th>
+                  <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);width:140px">Total Payable</th>
+                </tr>
+              </thead>
+              <tbody>${rowsHtml||'<tr><td colspan="5" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada tagihan belum lunas</td></tr>'}</tbody>
+            </table>
+          </div>
+
+          <!-- FOOTER NOTE -->
+          <div style="padding:14px 28px;border-top:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:11px;color:var(--text-3);font-style:italic">* Seluruh transaksi telah dicek kebenarannya dan dapat dipertanggung jawabkan</span>
+            <span style="font-size:11px;color:var(--text-3)">${todayFmt}</span>
+          </div>
+        </div>
+      `;
+    }).catch(()=>{});
   }
+
 
   function printVAP() {
     const tbl = document.getElementById('vap-table-wrap');
