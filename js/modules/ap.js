@@ -38,7 +38,10 @@ const APModule = (() => {
     });
   }
 
-  let _activeTab = 'list';
+  let _activeTab  = 'list';
+  let _apEditId   = null;
+  let _apLocked   = new Set();
+  const _AP_LOCK_KEY = 'becca_ap_locked_ids';
 
   function switchTab(tab) {
     _activeTab = tab;
@@ -243,12 +246,12 @@ const APModule = (() => {
         +'<td style="'+p+'font-size:12px;min-width:160px;max-width:200px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.keterangan||r.ket||'')+'">'+(r.keterangan||r.ket||'-')+'</div></td>'
         +'<td style="'+p+'text-align:right;font-size:12px;font-family:var(--font-mono);width:70px">'+(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0}):'-')+'</td>'
         +'<td style="'+p+'font-size:11px;color:var(--text-3);width:50px">'+(r.satuan||'-')+'</td>'
-        +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--text-3);width:90px">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan,true):'-')+'</td>'
+        +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--text-3);width:90px">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan):'-')+'</td>'
         +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-weight:700;font-size:12px;width:100px">'+Utils.formatRupiah(r.total||0)+'</td>'
         +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:12px;color:#10b981;width:100px">'+Utils.formatRupiah(r.terbayar||0)+'</td>'
         +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:12px;color:'+(sisa>0?'#ef4444':'var(--text-3)')+';font-weight:'+(sisa>0?700:400)+';width:90px">'+Utils.formatRupiah(sisa)+'</td>'
         +'<td style="'+p+'font-size:11px;color:'+(late?'#ef4444':'var(--text-3)')+';white-space:nowrap;width:82px">'+(late?'⚠️ ':'')+jtFmt+'</td>'
-        +'<td style="'+p+'text-align:center;width:72px"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:'+scBg+';color:'+sc+'">'+scTxt+'</span></td>'
+        +'<td style="'+p+'text-align:center;width:72px"><span style="font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;background:'+scBg+';color:'+sc+';border:1px solid '+sc+'44">'+scTxt+'</span></td>'
         +acts
         +'</tr>';
     }).join('');
@@ -895,10 +898,7 @@ const APModule = (() => {
             <option value="all">Semua Transaksi</option>
           </select>
         </div>
-        <button onclick="APModule.printVAP()" style="margin-left:auto;padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-2);display:flex;align-items:center;gap:6px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-          Print / Export
-        </button>
+
       </div>
 
       <!-- MAIN CONTENT -->
@@ -1083,18 +1083,114 @@ const APModule = (() => {
 
 
   function printVAP() {
-    const tbl = document.getElementById('vap-table-wrap');
-    if (!tbl) return;
-    const w = window.open('','_blank');
-    w.document.write('<html><head><title>VAP Payment</title><style>'
-      +'body{font-family:Arial,sans-serif;font-size:12px}table{width:100%;border-collapse:collapse}'
-      +'th,td{border:1px solid #ddd;padding:6px 10px}th{background:#4c1d95;color:white}'
-      +'</style></head><body>'+tbl.outerHTML+'</body></html>');
+    const area = document.getElementById('vap-print-area');
+    if (!area) { Notify.warning('Buka tab Vendor AP Payment terlebih dahulu'); return; }
+    const w = window.open('','_blank','width=900,height=700');
+    w.document.write('<html><head><title>Vendor Account Payable - BPS</title><style>'
+      +'@page{margin:15mm}body{font-family:Arial,sans-serif;font-size:11px;color:#000}'
+      +'table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 10px}'
+      +'th{background:#4c1d95;color:white;font-size:10px;text-transform:uppercase}'
+      +'.no-print{display:none}'
+      +'</style></head><body>'+area.innerHTML+'<script>window.onload=()=>{window.print();window.close();}<\/script></body></html>');
     w.document.close();
-    w.print();
   }
 
 
-  return { init, render, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier };
+  /* ============= AP INLINE EDIT ============= */
+  function _apKey(event) {
+    const k   = event.key;
+    const eid = event.target?.dataset?.eid;
+    if (!eid) return;
+    if (k === 'Enter')  { event.preventDefault(); APModule._apCommit(eid); }
+    if (k === 'Escape') { APModule._apCancel(eid); }
+  }
+
+  function _apLoadLocks() {
+    try { _apLocked = new Set(JSON.parse(localStorage.getItem(_AP_LOCK_KEY)||'[]')); } catch { _apLocked=new Set(); }
+  }
+  function _apSaveLocks() { localStorage.setItem(_AP_LOCK_KEY, JSON.stringify([..._apLocked])); }
+
+  function apStartEdit(id) {
+    if (_apLocked.has(id)) { _apLocked.delete(id); _apSaveLocks(); }
+    if (_apEditId === id) return;
+    if (_apEditId) _apCommit(_apEditId);
+    _apEditId = id;
+    const tr = document.getElementById('ap-row-'+id);
+    if (!tr) return;
+    const row = _ap.find(r=>r.id===id);
+    if (!row) return;
+    row._orig = JSON.stringify({tgl:row.tgl,supplier:row.supplier,keterangan:row.keterangan,qty:row.qty,satuan:row.satuan,hargaSatuan:row.hargaSatuan,total:row.total,terbayar:row.terbayar,status:row.status,jatuhTempo:row.jatuhTempo});
+    tr.outerHTML = _apRowEdit(row);
+    document.getElementById('ap-row-'+id)?.querySelector('input,select')?.focus();
+  }
+
+  function _apCommit(id) {
+    if (!id) return;
+    const tr = document.getElementById('ap-row-'+id);
+    if (!tr) { _apEditId=null; return; }
+    const row = _ap.find(r=>r.id===id);
+    if (!row) { _apEditId=null; return; }
+    const g = f => tr.querySelector('[data-f="'+f+'"]')?.value ?? row[f];
+    const qty = parseFloat(g('qty'))||0;
+    const hs  = parseFloat(g('hargaSatuan'))||0;
+    Object.assign(row, {
+      tgl:g('tgl')||row.tgl, supplier:g('supplier')||row.supplier,
+      keterangan:g('keterangan')||row.keterangan, qty, satuan:g('satuan')||row.satuan,
+      hargaSatuan:hs, total:qty&&hs?qty*hs:(parseFloat(g('total'))||row.total||0),
+      terbayar:parseFloat(g('terbayar'))||0, status:g('status')||row.status,
+      jatuhTempo:g('jatuhTempo')||row.jatuhTempo,
+    });
+    const orig = row._orig; delete row._orig;
+    _apEditId = null;
+    DB.saveAP(row).then(()=>{ _apLocked.add(id); _apSaveLocks(); applyFilter(); Notify.success('AP disimpan!'); }).catch(e=>Notify.error('Gagal',e.message));
+  }
+
+  function _apCancel(id) {
+    _apEditId = null;
+    const row = _ap.find(r=>r.id===id);
+    if (row && row._orig) { const orig=JSON.parse(row._orig); Object.keys(orig).forEach(k=>{ row[k]=orig[k]; }); delete row._orig; }
+    applyFilter();
+  }
+
+  function _apRowEdit(r) {
+    const supOpts = _suppliers.map(s=>'<option value="'+s.nama+'" '+(r.supplier===s.nama?'selected':'')+'>'+s.nama+'</option>').join('');
+    const stOpts  = ['BELUM','CICILAN','LUNAS'].map(s=>'<option value="'+s+'" '+(r.status===s?'selected':'')+'>'+s+'</option>').join('');
+    const eid = (r.id||'').replace(/'/g,'');
+    const inp = (f,v,t,ex) => '<input data-f="'+f+'" data-eid="'+eid+'" type="'+(t||'text')+'" value="'+(v===0?0:v||'')+'" '+(ex||'')+' style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px;font-family:inherit" onkeydown="APModule._apKey(event)">';
+    const p = 'padding:6px 8px;';
+    return '<tr id="ap-row-'+eid+'" style="background:rgba(99,102,241,.06);outline:2px solid var(--primary);outline-offset:-1px">'
+      +'<td style="'+p+'text-align:center"><div style="display:flex;gap:2px;justify-content:center">'
+        +'<button onclick="event.stopPropagation();APModule._apCommit(\"'+eid+'\")" style="width:20px;height:20px;border-radius:4px;border:1px solid #10b981;background:rgba(16,185,129,.1);cursor:pointer;color:#10b981;font-size:11px;display:flex;align-items:center;justify-content:center" title="Simpan">✓</button>'
+        +'<button onclick="event.stopPropagation();APModule._apCancel(\"'+eid+'\")" style="width:20px;height:20px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);font-size:11px;display:flex;align-items:center;justify-content:center" title="Batal">✕</button>'
+      +'</div></td>'
+      +'<td style="'+p+'">'+inp('tgl',r.tgl,'date')+'</td>'
+      +'<td style="'+p+'"><select data-f="supplier" style="width:100%;border:none;outline:none;background:transparent;font-size:12px;padding:0 4px">'+supOpts+'</select></td>'
+      +'<td style="'+p+'">'+inp('keterangan',r.keterangan||r.ket)+'</td>'
+      +'<td style="'+p+'">'+inp('qty',r.qty,'number','min=0 style="text-align:right"')+'</td>'
+      +'<td style="'+p+'">'+inp('satuan',r.satuan)+'</td>'
+      +'<td style="'+p+'">'+inp('hargaSatuan',r.hargaSatuan,'number','min=0')+'</td>'
+      +'<td style="'+p+'">'+inp('total',r.total,'number','min=0')+'</td>'
+      +'<td style="'+p+'">'+inp('terbayar',r.terbayar,'number','min=0')+'</td>'
+      +'<td style="'+p+'"></td>'
+      +'<td style="'+p+'">'+inp('jatuhTempo',r.jatuhTempo,'date')+'</td>'
+      +'<td style="'+p+'"><select data-f="status" style="width:100%;border:none;outline:none;background:transparent;font-size:11px;font-weight:700;padding:0 4px">'+stOpts+'</select></td>'
+      +'<td style="'+p+'"></td>'
+      +'</tr>';
+  }
+
+  async function apAddRow() {
+    if (_apEditId) _apCommit(_apEditId);
+    const today = new Date().toISOString().split('T')[0];
+    const newRow = { tgl:today, supplier:'', keterangan:'', qty:0, satuan:'Pcs', hargaSatuan:0, total:0, terbayar:0, status:'BELUM', jatuhTempo:'' };
+    try {
+      const saved = await DB.saveAP(newRow);
+      _ap.unshift(saved);
+      applyFilter();
+      setTimeout(()=>apStartEdit(saved.id), 60);
+    } catch(e) { Notify.error('Gagal',e.message); }
+  }
+
+
+  return { init, render, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, apStartEdit, _apCommit, _apCancel, apAddRow, _apKey };
 })();
 window.APModule = APModule;
