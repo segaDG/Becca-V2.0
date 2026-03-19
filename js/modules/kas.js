@@ -1,4 +1,5 @@
 /* ============================================
+   @updated: 2026-03-19T05:25:55.894Z
    BECCA V2.0 — Kas Kecil Module
    Spreadsheet: click row to edit inline
    AI type suggestion from nama field
