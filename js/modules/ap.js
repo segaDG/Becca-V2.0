@@ -127,25 +127,25 @@ const APModule = (() => {
       </div>
 
       <!-- FILTER BAR -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:var(--s4);display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap">
-        <span style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">🔍 Filter</span>
-        <input type="date" id="ap-fil-from" class="form-control" style="width:140px" title="Dari Tanggal" onchange="APModule.applyFilter()">
-        <span style="font-size:12px;color:var(--text-3)">—</span>
-        <input type="date" id="ap-fil-to" class="form-control" style="width:140px" title="Sampai Tanggal" onchange="APModule.applyFilter()">
-        <select id="ap-fil-bulan" class="form-control" style="width:130px" onchange="APModule.applyFilter()">
+      <div style="display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:var(--s4);flex-wrap:wrap">
+        <span style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">🔍 Filter</span>
+        <input type="date" id="ap-fil-from" class="form-control" style="width:128px;height:28px;font-size:11px" title="Dari" onchange="APModule.applyFilter()">
+        <span style="font-size:11px;color:var(--text-3)">—</span>
+        <input type="date" id="ap-fil-to" class="form-control" style="width:128px;height:28px;font-size:11px" title="Sampai" onchange="APModule.applyFilter()">
+        <select id="ap-fil-bulan" class="form-control" style="width:110px;height:28px;font-size:11px" onchange="APModule.applyFilter()">
           <option value="">Semua Bulan</option>${monthOpts}
         </select>
-        <select id="ap-fil-sup" class="form-control" style="width:170px" onchange="APModule.applyFilter()">
+        <select id="ap-fil-sup" class="form-control" style="width:150px;height:28px;font-size:11px" onchange="APModule.applyFilter()">
           <option value="">Semua Supplier</option>${supOpts}
         </select>
-        <select id="ap-fil-status" class="form-control" style="width:130px" onchange="APModule.applyFilter()">
+        <select id="ap-fil-status" class="form-control" style="width:110px;height:28px;font-size:11px" onchange="APModule.applyFilter()">
           <option value="">Semua Status</option>
           <option value="LUNAS">✅ Lunas</option>
-          <option value="CICILAN">🔸 Cicilan</option>
-          <option value="BELUM">⏳ Belum Lunas</option>
+          <option value="BELUM">⏳ Belum Bayar</option>
         </select>
-        <button class="btn btn-ghost btn-sm" onclick="APModule.resetFilter()" style="white-space:nowrap">↺ Reset</button>
+        <button onclick="APModule.resetFilter()" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:11px;color:var(--text-3);white-space:nowrap">↺ Reset</button>
         <span id="ap-count-label" style="margin-left:auto;font-size:11px;color:var(--text-3);white-space:nowrap"></span>
+      </div>
       </div>
 
       <!-- TABLE -->
@@ -223,9 +223,9 @@ const APModule = (() => {
       const sisa   = (r.total||0)-(r.terbayar||0);
       const late   = r.jatuhTempo && r.status!=='LUNAS' && r.jatuhTempo<today;
       const cl     = supColor[r.supplier] || COLORS[0];
-      const sc     = r.status==='LUNAS'?'#10b981':r.status==='CICILAN'?'#f59e0b':'#ef4444';
-      const scBg   = r.status==='LUNAS'?'rgba(16,185,129,.1)':r.status==='CICILAN'?'rgba(245,158,11,.1)':'rgba(239,68,68,.1)';
-      const scTxt  = r.status==='LUNAS'?'LUNAS':r.status==='CICILAN'?'CICILAN':'BELUM';
+      const sc     = r.status==='LUNAS'?'#10b981':'#ef4444';
+      const scBg   = r.status==='LUNAS'?'rgba(16,185,129,.1)':'rgba(239,68,68,.1)';
+      const scTxt  = r.status==='LUNAS'?'LUNAS':'BELUM';
       const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
       const jtFmt  = r.jatuhTempo?r.jatuhTempo.split('-').reverse().join('/'):'-';
       const rowBg  = late ? 'rgba(239,68,68,0.04)' : (i%2===1?'var(--surface2)':'transparent');
@@ -242,7 +242,7 @@ const APModule = (() => {
           +'</div></td>'
         : '';
 
-      return '<tr onclick="APModule.openModal(\''+r.id+'\');" data-bg="'+rowBg+'" style="cursor:pointer;background:'+rowBg+';border-bottom:1px solid var(--border);border-left:3px solid '+cl.bar+'" onmouseover="this.style.background=this.dataset.bg" onmouseout="this.style.background=this.dataset.bg">'
+      return '<tr id="ap-row-'+r.id+'" onclick="APModule.apStartEdit(\''+r.id+'\');" data-bg="'+rowBg+'" style="cursor:pointer;background:'+rowBg+';border-bottom:1px solid var(--border);border-left:3px solid '+cl.bar+'" onmouseover="this.style.background=\'rgba(99,102,241,.08)\'" onmouseout="this.style.background=this.dataset.bg">'
         +'<td style="'+p+'text-align:center;font-size:11px;color:var(--text-3);width:36px">'+(i+1)+'</td>'
         +'<td style="'+p+'font-size:12px;color:var(--text-2);white-space:nowrap;width:88px">'+tglFmt+'</td>'
         +'<td style="'+p+'min-width:130px"><div style="font-weight:700;font-size:12px;color:var(--heading)">'+( r.supplier||'-')+'</div>'
@@ -1179,7 +1179,7 @@ const APModule = (() => {
 
   function _apRowEdit(r) {
     const supOpts = _suppliers.map(s=>'<option value="'+s.nama+'" '+(r.supplier===s.nama?'selected':'')+'>'+s.nama+'</option>').join('');
-    const stOpts  = ['BELUM','CICILAN','LUNAS'].map(s=>'<option value="'+s+'" '+(r.status===s?'selected':'')+'>'+s+'</option>').join('');
+    const stOpts  = ['BELUM','LUNAS'].map(s=>'<option value="'+s+'" '+(r.status===s?'selected':'')+'>'+s+'</option>').join('');
     const eid = (r.id||'').replace(/'/g,'');
     const inp = (f,v,t,ex) => '<input data-f="'+f+'" data-eid="'+eid+'" type="'+(t||'text')+'" value="'+(v===0?0:v||'')+'" '+(ex||'')+' style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px;font-family:inherit" onkeydown="APModule._apKey(event)">';
     const p = 'padding:6px 8px;';
@@ -1313,7 +1313,7 @@ const APModule = (() => {
         +'</td>'
         // Sisa
         +'<td style="padding:10px 12px;text-align:right;white-space:nowrap">'
-          +'<div style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:'+(sisa>0?'#ef4444':'var(--text-3)')+'">'+Utils.formatRupiah(sisa,true)+'</div>'
+          +'<div style="font-size:12px;font-weight:700;color:'+(sisa>0?'#ef4444':'var(--text-3)')+'">'+_fmtJt(sisa)+'</div>'
         +'</td>'
         // Progress bar
         +'<td style="padding:10px 14px;min-width:100px">'
@@ -1385,9 +1385,9 @@ const APModule = (() => {
               <!-- Grand total -->
               <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:800">
                 <td style="padding:12px 14px;font-size:12px;font-weight:800;color:var(--text-2);position:sticky;left:0;background:var(--surface2);z-index:1">GRAND TOTAL</td>
-                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:800">${Utils.formatRupiah(grandTotal,true)}</td>
-                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;color:#10b981">${Utils.formatRupiah(grandTerbayar,true)}</td>
-                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;color:#ef4444;font-weight:800">${Utils.formatRupiah(grandSisa,true)}</td>
+                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:800">${Utils.formatRupiah(grandTotal)}</td>
+                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;color:#10b981">${Utils.formatRupiah(grandTerbayar)}</td>
+                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;color:#ef4444;font-weight:800">${Utils.formatRupiah(grandSisa)}</td>
                 <td style="padding:12px 14px"></td>
                 <td style="padding:12px 12px"></td>
                 ${grandMonthCells}
@@ -1400,6 +1400,6 @@ const APModule = (() => {
   }
 
 
-  return { init, render, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, apStartEdit, _apCommit, _apCancel, apAddRow, _apKey };
+  return { init, render, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, apStartEdit, _apCommit, _apCancel, apAddRow, _apKey };
 })();
 window.APModule = APModule;
