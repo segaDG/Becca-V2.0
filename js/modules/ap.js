@@ -1216,6 +1216,20 @@ const APModule = (() => {
   }
 
 
+  function _fmtJt(n) {
+    if (!n) return '<span style="font-family:var(--font-mono)">Rp 0</span>';
+    if (n >= 1e9) return '<span style="font-family:var(--font-mono)">Rp '
+      + Math.round(n/1e9).toLocaleString('id')
+      + '<sup style="font-size:9px;font-weight:400;color:var(--text-3);font-family:inherit">M</sup></span>';
+    if (n >= 1e6) return '<span style="font-family:var(--font-mono)">Rp '
+      + Math.round(n/1e6).toLocaleString('id')
+      + '<sup style="font-size:9px;font-weight:400;color:var(--text-3);font-family:inherit">jt</sup></span>';
+    if (n >= 1e3) return '<span style="font-family:var(--font-mono)">Rp '
+      + Math.round(n/1e3).toLocaleString('id')
+      + '<sup style="font-size:9px;font-weight:400;color:var(--text-3);font-family:inherit">rb</sup></span>';
+    return '<span style="font-family:var(--font-mono)">' + Utils.formatRupiah(n) + '</span>';
+  }
+
   /* ============= AP SUMMARY PER SUPPLIER ============= */
   function renderSummaryAP() {
     const el = document.getElementById('ap-tab-summary');
