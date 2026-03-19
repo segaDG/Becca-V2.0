@@ -1293,7 +1293,7 @@ const APModule = (() => {
 
       return '<tr style="border-bottom:1px solid var(--border);transition:background .1s">'
         // Supplier name
-        +'<td style="padding:10px 14px;min-width:160px">'
+        +'<td style="padding:10px 14px;min-width:180px;position:sticky;left:0;background:var(--surface);z-index:1">'
           +'<div style="display:flex;align-items:center;gap:8px">'
             +'<div style="width:28px;height:28px;border-radius:7px;background:'+clr+';color:white;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+s.nama.substring(0,1)+'</div>'
             +'<div>'
@@ -1351,7 +1351,7 @@ const APModule = (() => {
 
     el.innerHTML = `
       <!-- Stats -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s3);margin-bottom:var(--s4)">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s3);margin-bottom:var(--s4);min-width:0">
         ${statsHtml}
       </div>
 
@@ -1363,12 +1363,15 @@ const APModule = (() => {
             <div style="font-size:14px;font-weight:800;color:var(--heading)">Summary Transaksi per Supplier</div>
             <div style="font-size:11px;color:var(--text-3);margin-top:2px">${supList.length} supplier · ${_ap.length} total transaksi · ${allMonths.length} bulan</div>
           </div>
+          <div style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:4px">
+            <span style="opacity:.5">← scroll horizontal →</span>
+          </div>
         </div>
-        <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;min-width:700px">
+        <div style="overflow-x:auto;width:100%">
+          <table style="width:100%;border-collapse:collapse;table-layout:auto">
             <thead>
               <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
-                <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);min-width:160px">Supplier</th>
+                <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);min-width:180px;position:sticky;left:0;background:var(--surface2);z-index:2">Supplier</th>
                 <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Total AP</th>
                 <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Dibayar</th>
                 <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Sisa</th>
@@ -1381,7 +1384,7 @@ const APModule = (() => {
               ${rowsHtml}
               <!-- Grand total -->
               <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:800">
-                <td style="padding:12px 14px;font-size:12px;font-weight:800;color:var(--text-2)">GRAND TOTAL</td>
+                <td style="padding:12px 14px;font-size:12px;font-weight:800;color:var(--text-2);position:sticky;left:0;background:var(--surface2);z-index:1">GRAND TOTAL</td>
                 <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:800">${Utils.formatRupiah(grandTotal,true)}</td>
                 <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;color:#10b981">${Utils.formatRupiah(grandTerbayar,true)}</td>
                 <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;color:#ef4444;font-weight:800">${Utils.formatRupiah(grandSisa,true)}</td>
