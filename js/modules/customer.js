@@ -195,10 +195,10 @@ const CustomerModule = (() => {
         : 'background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25)';
 
       /* onmouseenter/leave: set background SEMUA td dalam row ke warna hover/normal */
-      const hoverIn  = `var tds=this.querySelectorAll('td');tds.forEach(function(t){t.style.background='${BG_HOV}'})`;
-      const hoverOut = `var tds=this.querySelectorAll('td');tds.forEach(function(t){t.style.background=''})`;
+      const hoverIn  = `var b=this.dataset.bg;var tds=this.querySelectorAll('td');tds.forEach(function(t){t.style.background='${BG_HOV}'})`;
+      const hoverOut = `var b=this.dataset.bg;var tds=this.querySelectorAll('td');tds.forEach(function(t){t.style.background=b})`;
 
-      return `<tr onmouseenter="${hoverIn}" onmouseleave="${hoverOut}" style="border-bottom:1px solid var(--border)">
+      return `<tr onmouseenter="${hoverIn}" onmouseleave="${hoverOut}" data-bg="${bg}" style="border-bottom:1px solid var(--border)">
         <td class="s-no"   style="padding:8px 6px;text-align:center;font-size:10px;color:var(--text-3);border-right:none;background:${bg}">${i+1}</td>
         <td class="s-nama" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap;background:${bg}">${c.nama||'-'}</td>
         <td style="padding:8px 10px;text-align:center;background:${bg}">${_badge(c.jenisPelayanan)}</td>
