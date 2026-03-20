@@ -113,9 +113,8 @@ const CustomerModule = (() => {
           #cust-table tbody tr:nth-child(odd)  td.s-nama { background:var(--surface)  !important; }
           #cust-table tbody tr:nth-child(even) td.s-no,
           #cust-table tbody tr:nth-child(even) td.s-nama { background:var(--surface2) !important; }
-          /* Hover: update via JS sekaligus update td sticky */
-          #cust-table tbody tr.row-hov td.s-no,
-          #cust-table tbody tr.row-hov td.s-nama { background:rgba(99,102,241,.12) !important; }
+          /* Hover td sticky dihandle pure JS — tidak ada CSS hover untuk s-no/s-nama
+             supaya JS inline style selalu menang */
         </style>
         <table id="cust-table" style="width:100%;border-collapse:collapse;min-width:2400px;font-size:11px">
           <thead>
@@ -216,8 +215,8 @@ const CustomerModule = (() => {
         : 'background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25)';
 
       return `<tr
-          onmouseenter="this.classList.add('row-hov')"
-          onmouseleave="this.classList.remove('row-hov')"
+          onmouseenter="var s=this.querySelectorAll('.s-no,.s-nama');s.forEach(function(t){t.style.setProperty('background','rgba(99,102,241,.12)','important')})"
+          onmouseleave="var s=this.querySelectorAll('.s-no,.s-nama');s.forEach(function(t){t.style.removeProperty('background')})"
           style="border-bottom:1px solid var(--border)"
         >
         <td class="s-no"  style="padding:8px 6px;text-align:center;font-size:10px;color:var(--text-3);border-right:none">${i+1}</td>
