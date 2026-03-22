@@ -509,33 +509,113 @@ const InvoiceModule = (() => {
     const orderRec = _getOrderRec(inv.invoiceNum);
     const isFromOrder = !!orderRec;
 
-    // Build detail modal
+    // Ambil order list untuk rekap editable
+    let orderList = [];
+    if (orderRec?.orderIds) {
+      try {
+        const allOrders = JSON.parse(localStorage.getItem('becca_orders')||'[]');
+        orderList = allOrders.filter(o => orderRec.orderIds.includes(o.id));
+        orderList.sort((a,b) => a.tglOrder.localeCompare(b.tglOrder));
+      } catch(e) {}
+    }
+
+    const ALL_KEYS = ['breakfast','shift1','spare1','ot1','snack1',
+                      'shift2','spare2','ot2','snack2',
+                      'shift3','spare3','ot3','snack3','snackBerat'];
+    const ALL_LABELS = {breakfast:'Breakfast',shift1:'Shift I',spare1:'Spare I',ot1:'OT1',snack1:'Snk1',
+      shift2:'Shift II',spare2:'Spare II',ot2:'OT2',snack2:'Snk2',
+      shift3:'Shift III',spare3:'Spare III',ot3:'OT3',snack3:'Snk3',snackBerat:'SnkBrt'};
+
+    // Kolom yang aktif (ada datanya)
+    const activeCols = ALL_KEYS.filter(k =>
+      orderList.some(o => Number(o[k]) > 0) ||
+      (orderRec?.totals && (orderRec.totals[k]||0) > 0)
+    ).map(k => ({key:k, label:ALL_LABELS[k]||k}));
+
+    const rKol = activeCols.length;
+
+    // Build rekap editable table (hanya tampil jika isFromOrder)
+    const rekapEditable = isFromOrder && orderList.length ? `
+      <div style="margin-bottom:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+          color:var(--text-3);margin-bottom:6px;display:flex;align-items:center;gap:8px">
+          Rekapitulasi Order
+          <span style="font-weight:400;color:var(--text-3);font-size:10px;text-transform:none">
+            — edit langsung, nomor invoice akan berubah jika ada perubahan data
+          </span>
+        </div>
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:500px">
+            <thead>
+              <tr style="background:var(--primary-h)">
+                <th style="padding:6px 8px;color:#fff;font-weight:700;text-align:center;white-space:nowrap">DD</th>
+                <th style="padding:6px 8px;color:#fff;font-weight:700;text-align:center;white-space:nowrap">Bulan</th>
+                ${activeCols.map(c=>`<th style="padding:6px 5px;color:#fff;font-weight:700;text-align:center">${c.label}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody id="rekap-edit-tbody">
+              ${orderList.map((o,i)=>{
+                const bg = i%2===0?'var(--surface)':'var(--surface2)';
+                const dd = o.tglOrder?o.tglOrder.slice(8):'';
+                const mm = o.tglOrder?o.tglOrder.slice(5,7):'';
+                const bulan=['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][parseInt(mm)]||mm;
+                return `<tr style="background:${bg};border-bottom:1px solid var(--border)" data-order-id="${o.id}">
+                  <td style="padding:4px 6px;text-align:center;font-weight:700">${dd}</td>
+                  <td style="padding:4px 6px;text-align:center;color:var(--text-3)">${bulan}</td>
+                  ${activeCols.map(c=>`
+                    <td style="padding:3px">
+                      <input type="number" min="0" value="${Number(o[c.key])||0}"
+                        data-order-id="${o.id}" data-key="${c.key}"
+                        onchange="InvoiceModule._markChanged()"
+                        style="width:52px;padding:3px 4px;text-align:center;border:1px solid var(--border);
+                          border-radius:4px;background:var(--surface);color:var(--text);
+                          font-size:11px;font-family:var(--font-mono)">
+                    </td>`).join('')}
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div id="rekap-changed-badge" style="display:none;margin-top:6px;padding:6px 10px;
+          background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px;
+          font-size:11px;color:#f59e0b">
+          ⚠ Ada perubahan — nomor invoice akan direvisi saat disimpan
+        </div>
+      </div>
+    ` : '';
+
     Modal.open({
-      title: `🧾 Detail Invoice`,
+      title: '🧾 Detail Invoice',
       size: 'modal-xl',
       body: `
         <style>
-          .inv-det-row{display:grid;grid-template-columns:140px 1fr;gap:4px 12px;align-items:start;margin-bottom:4px}
+          .inv-det-row{display:grid;grid-template-columns:120px 1fr;gap:4px 12px;align-items:start;margin-bottom:5px}
           .inv-det-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)}
           .inv-det-val{font-size:12px;color:var(--text)}
         </style>
 
         <!-- Header info -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px">
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px">Info Invoice</div>
             <div class="inv-det-row"><span class="inv-det-lbl">Nomor</span>
-              <span class="inv-det-val" style="font-family:var(--font-mono);font-weight:700;font-size:13px;color:#6366f1">${inv.invoiceNum||'-'}</span></div>
+              <span class="inv-det-val" id="det-nomor-display"
+                style="font-family:var(--font-mono);font-weight:700;font-size:13px;color:#6366f1">${inv.invoiceNum||'-'}</span></div>
             <div class="inv-det-row"><span class="inv-det-lbl">Customer</span>
               <span class="inv-det-val" style="font-weight:600">${inv.customer}</span></div>
-            <div class="inv-det-row"><span class="inv-det-lbl">Tgl Invoice</span>
-              <span class="inv-det-val">${_fmtDate(inv.tglInvoice)||'-'}</span></div>
+            <div class="inv-det-row"><span class="inv-det-lbl">Periode</span>
+              <span class="inv-det-val">${orderRec?(_fmtDate(orderRec.dari)+' s/d '+_fmtDate(orderRec.sampai)):(inv.tglInvoice||'-')}</span></div>
             <div class="inv-det-row"><span class="inv-det-lbl">Jatuh Tempo</span>
               <span class="inv-det-val">${_fmtDate(inv.tglBayar)||'-'}</span></div>
             <div class="inv-det-row"><span class="inv-det-lbl">PO #</span>
               <span class="inv-det-val" style="font-family:var(--font-mono);font-size:11px">${inv.po||'-'}</span></div>
+            ${inv.invoiceNum&&inv.invoiceNum.match(/R+$/) ? `
+              <div style="margin-top:6px;padding:4px 8px;background:rgba(245,158,11,.1);
+                border:1px solid rgba(245,158,11,.3);border-radius:5px;font-size:10px;color:#f59e0b">
+                ⚠ Sudah direvisi ${inv.invoiceNum.match(/R+$/)[0].length}x
+              </div>` : ''}
           </div>
-          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px">
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px">Finansial</div>
             <div class="inv-det-row"><span class="inv-det-lbl">Total Invoice</span>
               <span class="inv-det-val" style="font-weight:700">${_rpFull(inv.total)}</span></div>
@@ -545,71 +625,122 @@ const InvoiceModule = (() => {
               <span class="inv-det-val" style="color:${inv.sisa>0?'#f59e0b':inv.sisa<0?'#ef4444':'var(--text-3)'}">
                 ${inv.sisa!==0?_rpFull(inv.sisa):'-'}</span></div>
             <div class="inv-det-row"><span class="inv-det-lbl">Tgl Bayar</span>
-              <span class="inv-det-val">${_fmtDate(inv.tglTerbayar)||'-'} ${inv.lamaTerbayar?'<span style="font-size:10px;color:var(--text-3)">('+inv.lamaTerbayar+')</span>':''}</span></div>
+              <span class="inv-det-val">${_fmtDate(inv.tglTerbayar)||'-'}${inv.lamaTerbayar?' <span style="font-size:10px;color:var(--text-3)">('+inv.lamaTerbayar+')</span>':''}</span></div>
             <div class="inv-det-row"><span class="inv-det-lbl">Status</span>
               <span class="inv-det-val">${_statusBadge(inv)}</span></div>
           </div>
         </div>
 
-        ${isFromOrder ? `
-          <!-- Order summary dari becca_order_invoices -->
-          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px">
-              Order Summary &nbsp;<span style="font-weight:400;font-size:10px;color:var(--text-3)">• ${orderRec.orderCount} order · ${_fmtDate(orderRec.dari)} s/d ${_fmtDate(orderRec.sampai)}</span>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px">
-              ${Object.entries(orderRec.totals||{}).filter(([k,v])=>v>0).map(([k,v])=>
-                `<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px">
-                  <span style="color:var(--text-3)">${k}</span>
-                  <span style="font-weight:700;font-family:var(--font-mono);margin-left:6px">${v}</span>
-                </div>`
-              ).join('')}
-            </div>
-          </div>
-        ` : ''}
-
-        <!-- Revisi warning jika nomor sudah ada R -->
-        ${inv.invoiceNum && inv.invoiceNum.includes('R') ? `
-          <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:#f59e0b">
-            ⚠ Invoice ini sudah direvisi ${(inv.invoiceNum.match(/R+$/) || [''])[0].length}x
-          </div>
-        ` : ''}
+        <!-- Rekap editable -->
+        ${rekapEditable}
 
         <!-- Action buttons -->
         <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
           <button class="btn btn-ghost" onclick="Modal.close()">Tutup</button>
-          <button class="btn" onclick="InvoiceModule.reviseInv('${inv.id||inv.invoiceNum}')"
-            style="background:rgba(245,158,11,.1);color:#f59e0b;border:1px solid rgba(245,158,11,.35)">
-            ✏ Revisi Invoice
-          </button>
           <button class="btn btn-primary" onclick="InvoiceModule._printFromDetail('${inv.id||inv.invoiceNum}')">
             🖨 Cetak Ulang
           </button>
+          ${isFromOrder ? `
+          <button class="btn" id="btn-simpan-revisi"
+            onclick="InvoiceModule.reviseInv('${inv.id||inv.invoiceNum}')"
+            style="background:rgba(245,158,11,.1);color:#f59e0b;border:1px solid rgba(245,158,11,.35);opacity:.4;pointer-events:none">
+            💾 Simpan Revisi
+          </button>` : ''}
         </div>`,
       buttons: []
     });
+
+    // Simpan key di window untuk akses dari _markChanged
+    window._currentInvKey = inv.id || inv.invoiceNum;
   }
 
-  // Revisi invoice: update nomor + refresh
+  // Dipanggil saat input rekap berubah
+  function _markChanged() {
+    const badge = document.getElementById('rekap-changed-badge');
+    const btn   = document.getElementById('btn-simpan-revisi');
+    if (badge) badge.style.display = 'block';
+    if (btn) { btn.style.opacity='1'; btn.style.pointerEvents='auto'; }
+  }
+
+  // Simpan revisi: baca semua input → bandingkan → jika berubah → update + nomor R
   function reviseInv(key) {
     const inv = _findInv(key);
     if (!inv) return;
 
+    const orderRec = _getOrderRec(inv.invoiceNum);
+    if (!orderRec?.orderIds) { Notify.warning('Data order tidak ditemukan untuk revisi'); return; }
+
+    // Baca semua input perubahan
+    const inputs = document.querySelectorAll('#rekap-edit-tbody input[data-order-id]');
+    if (!inputs.length) return;
+
+    // Load orders dari localStorage
+    let allOrders;
+    try { allOrders = JSON.parse(localStorage.getItem('becca_orders')||'[]'); }
+    catch(e) { Notify.error('Gagal baca data order'); return; }
+
+    // Kumpulkan perubahan per order id
+    const changes = {};
+    inputs.forEach(inp => {
+      const oid = inp.dataset.orderId;
+      const key2 = inp.dataset.key;
+      const newVal = parseInt(inp.value) || 0;
+      if (!changes[oid]) changes[oid] = {};
+      changes[oid][key2] = newVal;
+    });
+
+    // Cek apakah ada yang berubah vs data asli
+    let hasChange = false;
+    allOrders.forEach(o => {
+      if (!changes[o.id]) return;
+      Object.entries(changes[o.id]).forEach(([k,newVal]) => {
+        if ((Number(o[k])||0) !== newVal) hasChange = true;
+      });
+    });
+
+    if (!hasChange) {
+      Notify.info('Tidak ada perubahan data — nomor invoice tetap');
+      Modal.close();
+      return;
+    }
+
+    // Ada perubahan → terapkan ke becca_orders
     const oldNomor = inv.invoiceNum;
     const newNomor = _reviseNomor(oldNomor);
 
-    if (!confirm(`Revisi invoice ini?\n\nNomor lama: ${oldNomor}\nNomor baru: ${newNomor}\n\nPerubahan ini akan memperbarui nomor invoice di semua data terkait.`)) return;
+    allOrders.forEach(o => {
+      if (!changes[o.id]) return;
+      Object.entries(changes[o.id]).forEach(([k,newVal]) => {
+        o[k] = newVal;
+      });
+      // Update invoiceRef ke nomor baru
+      if (o.invoiceRef === oldNomor) o.invoiceRef = newNomor;
+    });
+    localStorage.setItem('becca_orders', JSON.stringify(allOrders));
+
+    // Update totals di becca_order_invoices
+    try {
+      const recs = JSON.parse(localStorage.getItem('becca_order_invoices')||'[]');
+      const recIdx = recs.findIndex(r => r.nomor === oldNomor);
+      if (recIdx >= 0) {
+        // Recalc totals dari order yang baru
+        const updatedOrders = allOrders.filter(o => orderRec.orderIds.includes(o.id));
+        const newTotals = {};
+        ['breakfast','shift1','spare1','ot1','snack1','shift2','spare2','ot2','snack2',
+         'shift3','spare3','ot3','snack3','snackBerat'].forEach(k => {
+          newTotals[k] = updatedOrders.reduce((s,o)=>s+(Number(o[k])||0),0);
+        });
+        recs[recIdx].totals = newTotals;
+        recs[recIdx].nomor  = newNomor;
+        localStorage.setItem('becca_order_invoices', JSON.stringify(recs));
+      }
+    } catch(e) { console.warn('update order_invoices error', e); }
 
     // Update di _invoices (in-memory)
     inv.invoiceNum = newNomor;
 
-    // Update di localStorage (becca_order_invoices + becca_orders)
-    _updateOrderInvNomor(oldNomor, newNomor);
-
     Modal.close();
-    Notify.success(`Invoice direvisi: ${oldNomor} → ${newNomor}`);
-
-    // Re-render
+    Notify.success(`Revisi tersimpan: ${oldNomor} → ${newNomor}`);
     setTimeout(() => _renderFull(), 50);
   }
 
@@ -813,10 +944,14 @@ const InvoiceModule = (() => {
     }
 
     const css = `
-      *{box-sizing:border-box;margin:0;padding:0}
+      *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
       body{font-family:Arial,sans-serif;font-size:10px;color:#1a1a2e;background:#fff}
       @page{size:A4 portrait;margin:12mm 12mm 14mm 12mm}
-      @media print{.no-print{display:none!important}.page-break{page-break-after:always}}
+      @media print{
+        .no-print{display:none!important}
+        .page-break{page-break-before:always}
+        body,*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+      }
       .print-btn{position:fixed;top:14px;right:16px;padding:8px 20px;background:${C.NAVY};
         color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;
         box-shadow:0 4px 14px rgba(59,78,135,.45);z-index:999}
@@ -935,7 +1070,7 @@ const InvoiceModule = (() => {
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, _printFromDetail };
+  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, _printFromDetail, _markChanged };
 })();
 
 window.InvoiceModule = InvoiceModule;
