@@ -251,8 +251,8 @@ const InvoiceModule = (() => {
               <td class="inv-td" style="font-size:10px;color:var(--text-3);background:${bg}">${inv.po||'-'}</td>
               <td class="inv-td" style="text-align:center;font-size:10px;color:var(--text-2);background:${bg};white-space:nowrap">${_fmtDate(inv.tglInvoice)}</td>
               <td class="inv-td" style="text-align:center;font-size:10px;background:${bg};white-space:nowrap">${_fmtDate(inv.tglBayar)}</td>
-              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:600;background:${bg}">${_rp(inv.total)}</td>
-              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);background:${bg};color:${inv.totalTerbayar?'#10b981':'var(--text-3)'}">${inv.totalTerbayar?_rp(inv.totalTerbayar):'-'}</td>
+              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:600;background:${bg}">${_rpFull(inv.total)}</td>
+              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);background:${bg};color:${inv.totalTerbayar?'#10b981':'var(--text-3)'}">${inv.totalTerbayar?_rpFull(inv.totalTerbayar):'-'}</td>
               <td class="inv-td" style="text-align:center;font-size:10px;color:var(--text-2);background:${bg};white-space:nowrap">${_fmtDate(inv.tglTerbayar)}${inv.lamaTerbayar?'<br><span style="font-size:9px;color:var(--text-3)">'+inv.lamaTerbayar+'</span>':''}</td>
               <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:600;background:${bg};color:${inv.sisa>0?'#f59e0b':inv.sisa<0?'#ef4444':'var(--text-3)'}">${inv.sisa!==0?_rpFull(inv.sisa):'-'}</td>
               <td class="inv-td" style="text-align:center;background:${bg}">${_statusBadge(inv)}</td>
@@ -289,11 +289,11 @@ const InvoiceModule = (() => {
               return `<tr style="border-bottom:1px solid var(--border);opacity:${on?1:.45}">
                 <td class="inv-td" style="font-size:10px;color:var(--text-3);background:${bg}">${m.no}</td>
                 <td class="inv-td" style="font-weight:600;background:${bg}">${m.bulan}</td>
-                <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:600;color:${on?'#6366f1':'var(--text-3)'};background:${bg}">${on?_rp(m.omzetInvoice):'-'}</td>
+                <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:600;color:${on?'#6366f1':'var(--text-3)'};background:${bg}">${on?_rpFull(m.omzetInvoice):'-'}</td>
                 <td class="inv-td" style="text-align:center;font-weight:600;background:${bg}">${on?m.totalInvoice:'-'}</td>
                 <td class="inv-td" style="text-align:center;background:${bg}">${on?m.totalClient:'-'}</td>
-                <td class="inv-td" style="text-align:right;font-family:var(--font-mono);color:${m.unpaid>0?'#f59e0b':'var(--text-3)'};background:${bg}">${m.unpaid>0?_rp(m.unpaid):'-'}</td>
-                <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:var(--text-3);background:${bg}">${m.pb1>0?_rp(m.pb1):'-'}</td>
+                <td class="inv-td" style="text-align:right;font-family:var(--font-mono);color:${m.unpaid>0?'#f59e0b':'var(--text-3)'};background:${bg}">${m.unpaid>0?_rpFull(m.unpaid):'-'}</td>
+                <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:var(--text-3);background:${bg}">${m.pb1>0?_rpFull(m.pb1):'-'}</td>
               </tr>`;
             }).join('')}
             <tr style="background:rgba(99,102,241,.08);border-top:2px solid var(--border)">
@@ -301,7 +301,7 @@ const InvoiceModule = (() => {
               <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:900;color:#6366f1">Rp2,34M</td>
               <td class="inv-td" style="text-align:center;font-weight:700">55</td>
               <td class="inv-td" style="text-align:center;font-weight:700">11</td>
-              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:700;color:#f59e0b">${_rp(_invoices.filter(i=>i.status!=='Paid').reduce((s,i)=>s+i.sisa,0))}</td>
+              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:700;color:#f59e0b">${_rpFull(_invoices.filter(i=>i.status!=='Paid').reduce((s,i)=>s+i.sisa,0))}</td>
               <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:700">Rp132,8jt</td>
             </tr>
             </tbody>
@@ -392,8 +392,8 @@ const InvoiceModule = (() => {
                 <div style="width:${pct}%;height:100%;background:${col};border-radius:2px"></div>
               </div>
             </td>
-            <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:600;background:${bg}">${_rp(inv.total)}</td>
-            <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:700;color:${col};background:${bg}">${_rp(inv.sisa)}</td>
+            <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:600;background:${bg}">${_rpFull(inv.total)}</td>
+            <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:700;color:${col};background:${bg}">${_rpFull(inv.sisa)}</td>
           </tr>`;
         }).join('')}
         <tr style="background:rgba(245,158,11,.08);border-top:2px solid rgba(245,158,11,.3)">
