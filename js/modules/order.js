@@ -873,10 +873,14 @@ const OrderModule = (() => {
 
     /* ─── CSS ─── */
     const css = `
-      *{box-sizing:border-box;margin:0;padding:0}
+      *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
       body{font-family:Arial,sans-serif;font-size:10px;color:#1a1a2e;background:#fff}
       @page{size:A4 portrait;margin:12mm 12mm 14mm 12mm}
-      @media print{.no-print{display:none!important}.page-break{page-break-after:always}}
+      @media print{
+        .no-print{display:none!important}
+        .page-break{page-break-after:always}
+        body,*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+      }
 
       /* ── SHARED ── */
       .doc{width:100%;max-width:210mm;margin:0 auto;padding:0}
