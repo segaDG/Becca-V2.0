@@ -644,6 +644,19 @@ const OrderModule = (() => {
         <div id="ic-preview" style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:20px;min-height:80px;background:var(--surface2);color:var(--text-3);text-align:center">
           Pilih customer dan periode untuk melihat preview
         </div>
+        <div style="margin-top:12px;display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+          <input type="checkbox" id="ic-add-chk" style="width:16px;height:16px;cursor:pointer;accent-color:#3B4E87"
+            onchange="OrderModule._toggleAdditional(this.checked)">
+          <label for="ic-add-chk" style="font-size:12px;font-weight:600;cursor:pointer;color:var(--text)">
+            Additional Order
+            <span style="font-size:11px;font-weight:400;color:var(--text-3);margin-left:4px">— centang untuk tambahkan section additional order yang bisa diedit</span>
+          </label>
+        </div>
+        <div id="ic-additional" style="display:none;margin-top:8px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+          <div style="font-size:11px;font-weight:700;color:#1A7340;margin-bottom:8px">✚ Additional Order Rows</div>
+          <div id="ic-add-rows"></div>
+          <button onclick="OrderModule._addAdditionalRow()" style="margin-top:8px;padding:5px 12px;font-size:11px;background:#1A7340;color:#fff;border:none;border-radius:5px;cursor:pointer">+ Tambah Baris</button>
+        </div>
         <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:10px">
           <button class="btn btn-ghost" onclick="Modal.close()">Batal</button>
           <button class="btn btn-primary" onclick="OrderModule._printInvoice()" style="padding:8px 22px;font-size:13px">
@@ -716,6 +729,57 @@ const OrderModule = (() => {
       </div>`;
   }
 
+  function _toggleAdditional(checked) {
+    const el = document.getElementById('ic-additional');
+    if (el) el.style.display = checked ? 'block' : 'none';
+    if (checked) {
+      const rows = document.getElementById('ic-add-rows');
+      if (rows && !rows.children.length) _addAdditionalRow();
+    }
+  }
+
+  function _addAdditionalRow() {
+    const rows = document.getElementById('ic-add-rows');
+    if (!rows) return;
+    const idx = rows.children.length;
+    const today = new Date().toISOString().slice(0,10);
+    // Build input cols from active _cols
+    const colInputs = _cols.map(col => `
+      <td style="padding:3px">
+        <input type="number" min="0" value="0"
+          data-add="${idx}" data-key="${col.key}"
+          style="width:52px;padding:3px 5px;text-align:center;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px;font-family:var(--font-mono)">
+      </td>`).join('');
+    const row = document.createElement('div');
+    row.style.cssText = 'margin-bottom:4px';
+    row.innerHTML = `<table style="width:100%;font-size:11px;border-collapse:collapse">
+      <tr>
+        <td style="padding:3px;font-size:10px;color:var(--text-3);width:22px">${idx+1}</td>
+        <td style="padding:3px">
+          <input type="date" value="${today}" data-add="${idx}" data-key="tglOrder"
+            style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px">
+        </td>
+        ${colInputs}
+        <td style="padding:3px">
+          <button onclick="this.closest('div').remove()" style="padding:2px 7px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);border-radius:4px;color:#ef4444;cursor:pointer;font-size:10px">✕</button>
+        </td>
+      </tr>
+    </table>`;
+    rows.appendChild(row);
+  }
+
+  function _getAdditionalRows() {
+    const rows = document.getElementById('ic-add-rows');
+    if (!rows) return [];
+    const result = [];
+    rows.querySelectorAll('[data-add]').forEach(inp => {
+      const idx = inp.dataset.add;
+      if (!result[idx]) result[idx] = {};
+      result[idx][inp.dataset.key] = inp.value;
+    });
+    return result.filter(Boolean);
+  }
+
   function _printInvoice() {
     const cust   = document.getElementById('ic-cust')?.value;
     const dari   = document.getElementById('ic-dari')?.value;
@@ -746,84 +810,470 @@ const OrderModule = (() => {
     _invRecs.push({nomor, customer:cust, dari, sampai, invoiceDate:invDate, orderCount:list.length, orderIds:ids, totals:tots});
     _saveInvs();
 
+    const includeAdd = document.getElementById('ic-add-chk')?.checked || false;
+    const addRows    = includeAdd ? _getAdditionalRows() : [];
+
     Modal.close();
     Notify.success(`Invoice ${nomor} berhasil — ${list.length} order ditandai`);
     _renderFull();
 
-    _openPrintWin(nomor, cust, dari, sampai, list, tots);
+    _openPrintWin(nomor, cust, dari, sampai, list, tots, includeAdd, addRows);
   }
 
-  function _openPrintWin(nomor, cust, dari, sampai, list, tots) {
-    const now = new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
-    const html = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Invoice ${nomor}</title>
-    <style>
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#1a1a2e;padding:28px;max-width:900px;margin:0 auto}
-      .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;padding-bottom:16px;border-bottom:3px solid #6366f1}
-      .co{font-size:20px;font-weight:900;color:#6366f1}.co-sub{font-size:11px;color:#666;margin-top:3px}
-      .inv-n{font-size:17px;font-weight:800}.inv-d{font-size:11px;color:#666;margin-top:3px;text-align:right}
-      .to{background:#f0f0ff;border-left:4px solid #6366f1;padding:10px 14px;margin-bottom:18px;border-radius:0 6px 6px 0}
-      .to-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#888;font-weight:700}
-      .to-name{font-size:15px;font-weight:700;margin-top:2px}.to-per{font-size:11px;color:#666;margin-top:2px}
-      table{width:100%;border-collapse:collapse;margin-bottom:18px}
-      thead tr{background:#6366f1;color:#fff}
-      th{padding:7px 6px;font-size:10px;font-weight:700;text-transform:uppercase;text-align:center}
-      th:first-child{text-align:left;padding-left:12px}
-      td{padding:6px;border-bottom:1px solid #e8e8f0;text-align:center}
-      td:first-child{text-align:left;padding-left:12px;font-weight:600}
-      tr:nth-child(even) td{background:#f9f9ff}
-      .tot-row td{background:#ededff;font-weight:700;color:#6366f1;border-top:2px solid #6366f1}
-      .badge-r{font-size:8px;background:#d1fae5;color:#065f46;padding:1px 5px;border-radius:8px;font-weight:700}
-      .badge-e{font-size:8px;background:#ede9fe;color:#5b21b6;padding:1px 5px;border-radius:8px;font-weight:700}
-      .sign{display:flex;justify-content:flex-end;margin-top:24px}
-      .sign-box{width:180px;text-align:center}
-      .sign-line{border-top:1px solid #333;margin-top:52px;padding-top:4px;font-size:10px}
-      .print-btn{position:fixed;top:16px;right:16px;padding:9px 22px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(99,102,241,.4)}
-      @media print{.print-btn{display:none!important}}
-    </style></head><body>
-    <button class="print-btn" onclick="window.print()">🖨 Print / Save PDF</button>
-    <div class="top">
-      <div>
-        <div class="co">BOGA PANGAN SENTOSA</div>
-        <div class="co-sub">Industrial Catering Service — Karawang, Jawa Barat</div>
-      </div>
-      <div>
-        <div class="inv-n">Invoice #${nomor}</div>
-        <div class="inv-d">Dicetak: ${now}</div>
-      </div>
-    </div>
-    <div class="to">
-      <div class="to-lbl">Tagihan Kepada</div>
-      <div class="to-name">${cust}</div>
-      <div class="to-per">Periode: ${dari?_fmtDate(dari):'--'} s/d ${sampai?_fmtDate(sampai):'--'}</div>
-    </div>
-    <table>
-      <thead><tr>
-        <th>Tgl Order</th>
-        ${_cols.map(c=>`<th>${c.label}</th>`).join('')}
-        <th>Jenis</th>
-      </tr></thead>
-      <tbody>
-        ${list.map(o=>`<tr>
-          <td>${_fmtDate(o.tglOrder)}</td>
-          ${_cols.map(c=>`<td>${(o[c.key]||0)>0?`<b>${o[c.key]}</b>`:'-'}</td>`).join('')}
-          <td>${(o.catatan||'').includes('real')?'<span class="badge-r">REAL</span>':'<span class="badge-e">EST</span>'}</td>
-        </tr>`).join('')}
-        <tr class="tot-row">
-          <td>TOTAL (${list.length} order)</td>
-          ${_cols.map(c=>`<td>${tots[c.key]||0}</td>`).join('')}
-          <td></td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="sign"><div class="sign-box"><div class="sign-line">Manager / Admin BPS</div></div></div>
-    </body></html>`;
+  function _openPrintWin(nomor, cust, dari, sampai, list, tots, includeAdd, addRows) {
+    addRows = addRows || [];
 
-    const w = window.open('','_blank','width=1000,height=720');
+    /* ─── Helpers ─── */
+    const C  = { NAVY:'#3B4E87', NAVY_D:'#2C3B65', NAVY_M:'#4A5E99', BL:'#C9DAF8', BP:'#E8F0FE',
+                 SUB:'#ACC9FE', STR:'#F4F6FC', ADD:'#EAF4EE', ADD_H:'#1A7340',
+                 GRY:'#666666', GLT:'#AAAAAA', URL:'#0070C0', RED:'#FF0000' };
+
+    const MONTHS_ID = {January:'Januari',February:'Februari',March:'Maret',April:'April',
+      May:'Mei',June:'Juni',July:'Juli',August:'Agustus',September:'September',
+      October:'Oktober',November:'November',December:'Desember'};
+
+    // Parse dates
+    const tgl1 = dari   ? new Date(dari)   : null;
+    const tgl2 = sampai ? new Date(sampai) : null;
+    const fmtD = d => d ? `${d.getDate()} ${Object.values(MONTHS_ID)[d.getMonth()]} ${d.getFullYear()}` : '--';
+    const sd   = tgl1 ? tgl1.getDate()   : '--';
+    const ed   = tgl2 ? tgl2.getDate()   : '--';
+    const mth  = tgl1 ? Object.values(MONTHS_ID)[tgl1.getMonth()] : '';
+    const yr   = tgl1 ? tgl1.getFullYear() : '';
+    const periodeStr = tgl1 && tgl2 ? `${sd} – ${ed} ${mth} ${yr}` : '--';
+
+    // Get customer info from becca_customers
+    const custDB = (() => {
+      try { return JSON.parse(localStorage.getItem('becca_customers')||'[]'); } catch(e){return[];}
+    })();
+    const custObj = custDB.find(c => c.nama === cust) || {};
+
+    // Determine active columns (only cols with data)
+    const ALL_KEYS = _cols.map(c => c.key);
+    const activeCols = _cols.filter(c => {
+      const total = list.reduce((s,o)=>s+(Number(o[c.key])||0),0)
+                  + addRows.reduce((s,o)=>s+(Number(o[c.key])||0),0);
+      return total > 0;
+    });
+
+    // Sub-totals per active col
+    const mainTots = {};
+    const addTots  = {};
+    activeCols.forEach(c => {
+      mainTots[c.key] = list.reduce((s,o)=>s+(Number(o[c.key])||0),0);
+      addTots[c.key]  = addRows.reduce((s,o)=>s+(Number(o[c.key])||0),0);
+    });
+    const mainQty = Object.values(mainTots).reduce((a,b)=>a+b,0);
+    const addQty  = Object.values(addTots).reduce((a,b)=>a+b,0);
+
+    // Harga default 17500 — bisa override dari custObj
+    const harga = 17500;
+    const rp = n => n ? `Rp ${Number(n).toLocaleString('id')}` : '-';
+
+    /* ─── CSS ─── */
+    const css = `
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;font-size:10px;color:#1a1a2e;background:#fff}
+      @page{size:A4 portrait;margin:12mm 12mm 14mm 12mm}
+      @media print{.no-print{display:none!important}.page-break{page-break-after:always}}
+
+      /* ── SHARED ── */
+      .doc{width:100%;max-width:210mm;margin:0 auto;padding:0}
+      .page{padding:0;margin-bottom:0}
+      .navy-bar{background:${C.NAVY};color:#fff;padding:5px 10px;font-weight:700;font-size:9px}
+      .navy-mid{background:${C.NAVY_M};color:#fff;padding:5px 10px;font-weight:700}
+      .period-row{display:flex;height:26px}
+      .period-lbl{background:${C.NAVY};color:#fff;display:flex;align-items:center;justify-content:center;
+        padding:0 12px;font-weight:700;font-size:9px;white-space:nowrap;min-width:72px}
+      .period-val{background:${C.NAVY_M};color:#fff;display:flex;align-items:center;justify-content:center;
+        flex:1;font-weight:700;font-size:12px;letter-spacing:.02em}
+
+      /* ── HEADER COMPANY ── */
+      .co-hdr{display:flex;justify-content:space-between;align-items:flex-start;
+        padding-bottom:8px;border-bottom:3px solid ${C.NAVY};margin-bottom:0}
+      .co-name{font-size:20px;font-weight:900;color:${C.NAVY_D};line-height:1.1}
+      .co-sub{font-size:10px;color:${C.NAVY};font-style:italic;margin-top:2px}
+      .co-addr{font-size:8px;color:${C.GRY};margin-top:2px;line-height:1.5}
+      .co-right{text-align:right}
+      .doc-title{font-size:26px;font-weight:900;color:${C.NAVY};line-height:1}
+      .doc-num{font-size:11px;font-weight:700;color:${C.NAVY_D};margin-top:3px}
+
+      /* ── BILL TO ── */
+      .bill-hdr{background:${C.NAVY};color:#fff;padding:4px 10px;font-weight:700;font-size:9px;
+        letter-spacing:.08em;margin-top:6px}
+      .bill-body{padding:5px 10px 6px;border:1px solid #dde3f0;border-top:none;margin-bottom:6px}
+      .bill-recv{font-size:8px;color:${C.GRY}}
+      .bill-name{font-size:12px;font-weight:700;color:${C.NAVY_D};margin:2px 0}
+      .bill-addr{font-size:8px;color:${C.GRY};line-height:1.5}
+
+      /* ── TABLES ── */
+      .tbl{width:100%;border-collapse:collapse;margin-bottom:0}
+      .tbl th{background:${C.NAVY};color:#fff;padding:5px 5px;font-size:9px;font-weight:700;
+        text-align:center;border:1px solid ${C.NAVY_M};white-space:nowrap}
+      .tbl th.left{text-align:left;padding-left:8px}
+      .tbl td{padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center;
+        vertical-align:middle}
+      .tbl td.left{text-align:left;padding-left:8px;font-weight:600}
+      .tbl td.right{text-align:right;padding-right:6px}
+      .tbl td.num{font-family:Arial,sans-serif;font-weight:700}
+      .tbl tr:nth-child(even) td{background:${C.BP}}
+      .tbl tr.sub-tot td{background:${C.SUB};font-weight:700;font-size:9px;color:${C.NAVY_D}}
+      .tbl tr.add-hdr th{background:${C.ADD_H}}
+      .tbl tr.add-row td{background:#fff}
+      .tbl tr.add-row:nth-child(even) td{background:${C.ADD}}
+
+      /* ── DESCRIPTION LABEL ── */
+      .desc-lbl{background:${C.BL};padding:4px 10px;font-size:9px;font-weight:700;
+        border-bottom:1px solid #aac4e8;margin-bottom:0}
+
+      /* ── INVOICE ITEMS ── */
+      .inv-tbl th{background:${C.NAVY};color:#fff;padding:6px 8px;font-size:9px;font-weight:700;
+        border:1px solid ${C.NAVY_M}}
+      .inv-tbl td{padding:5px 8px;border:1px solid #dde3f0;font-size:9px;vertical-align:middle}
+      .inv-tbl tr.stripe td{background:${C.STR}}
+      .inv-tbl tr.add-sep td{background:${C.ADD};font-weight:700;color:${C.ADD_H};font-size:9px}
+      .inv-tbl tr.add-item td{background:#fff}
+      .inv-tbl tr.add-item:nth-child(even) td{background:${C.ADD}}
+
+      /* ── TOTALS BOX ── */
+      .tot-box{margin-top:8px;border:1px solid #dde3f0;border-radius:4px;overflow:hidden}
+      .tot-row{display:flex;justify-content:space-between;padding:4px 12px;
+        border-bottom:1px solid #eee;font-size:10px}
+      .tot-row.total-final{background:${C.NAVY};color:#fff;font-weight:700;font-size:12px;
+        padding:7px 12px;border-bottom:none}
+      .tot-row.oc-hdr{background:${C.NAVY};color:#fff;font-weight:700;font-size:9px;padding:4px 12px}
+      .tot-lbl{color:inherit}
+      .tot-val{font-weight:700;font-family:Arial,sans-serif}
+
+      /* ── FOOTER ── */
+      .footer-bar{background:${C.NAVY};color:#fff;text-align:center;padding:6px;
+        font-size:12px;font-weight:700;margin-top:10px}
+      .footer-sub{text-align:center;font-size:8px;color:${C.GRY};padding:3px}
+      .sign-area{display:flex;justify-content:space-between;margin-top:14px;align-items:flex-end}
+      .sign-left{font-size:9px;color:${C.GRY}}
+      .sign-box{text-align:center;width:160px}
+      .sign-line{border-top:1px solid #333;margin-top:46px;padding-top:3px;font-size:9px}
+      .sign-name{font-weight:700;font-size:10px}
+      .sign-title{font-size:8px;color:${C.GRY}}
+      .bank-area{display:flex;justify-content:space-between;margin-top:8px;
+        padding:8px 12px;border:1px solid #dde3f0;border-radius:4px;font-size:8px;color:${C.GRY}}
+      .materai-box{border:1px dashed #ccc;width:80px;height:50px;display:flex;
+        align-items:center;justify-content:center;font-size:8px;color:#ccc;border-radius:4px}
+
+      /* ── PRINT BTN ── */
+      .print-btn{position:fixed;top:14px;right:16px;padding:8px 20px;background:${C.NAVY};
+        color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;
+        box-shadow:0 4px 14px rgba(59,78,135,.45);z-index:999}
+      @media print{.print-btn,.no-print{display:none!important}}
+    `;
+
+    /* ─── REKAP HTML ─── */
+    const rekapTable = () => {
+      // Header row 1 (group)
+      const grpH = `<tr>
+        <th class="left" style="width:24px">#</th>
+        <th style="width:38px">DD</th>
+        <th style="width:60px">BULAN</th>
+        <th colspan="${activeCols.length}">ORDER</th>
+        <th style="width:42px">QTY</th>
+        <th style="width:80px">TOTAL</th>
+      </tr>`;
+      // Header row 2 (sub)
+      const subH = `<tr>
+        <th></th><th></th><th></th>
+        ${activeCols.map(c=>`<th>${c.label}</th>`).join('')}
+        <th></th><th></th>
+      </tr>`;
+      // Data rows
+      const dataRows = list.map((o,i) => {
+        const stripe = i%2===0 ? '' : 'background:'+C.BP;
+        const qty = activeCols.reduce((s,c)=>s+(Number(o[c.key])||0),0);
+        const tot = qty * harga;
+        return `<tr>
+          <td style="${stripe};text-align:center;color:${C.GRY}">${i+1}</td>
+          <td style="${stripe};text-align:center;font-weight:700">${o.tglOrder?o.tglOrder.slice(8):''}</td>
+          <td style="${stripe};text-align:center">${mth}</td>
+          ${activeCols.map(c=>`<td style="${stripe}">${Number(o[c.key])||0||'–'}</td>`).join('')}
+          <td style="${stripe};font-weight:700;text-align:center">${qty||'–'}</td>
+          <td style="${stripe};text-align:right;padding-right:6px">${tot?rp(tot):'–'}</td>
+        </tr>`;
+      }).join('');
+      // Sub total
+      const subRow = `<tr class="sub-tot">
+        <td colspan="3" class="left">SUB TOTAL</td>
+        ${activeCols.map(c=>`<td style="text-align:center">${mainTots[c.key]||'–'}</td>`).join('')}
+        <td style="text-align:center">${mainQty||'–'}</td>
+        <td class="right">${rp(mainQty*harga)}</td>
+      </tr>`;
+      // Additional rows
+      let addSection = '';
+      if (includeAdd && addRows.length) {
+        const addGrpH = `<tr class="add-hdr">
+          <th class="left">#</th><th>DD</th><th>BULAN</th>
+          ${activeCols.map(c=>`<th>${c.label}</th>`).join('')}
+          <th>QTY</th><th>TOTAL</th>
+        </tr>`;
+        const addDataRows = addRows.map((o,i) => {
+          const d = o.tglOrder ? new Date(o.tglOrder) : null;
+          const dd = d ? d.getDate() : '';
+          const mm = d ? Object.values(MONTHS_ID)[d.getMonth()] : '';
+          const qty = activeCols.reduce((s,c)=>s+(Number(o[c.key])||0),0);
+          const tot = qty*harga;
+          const stripe = i%2===0?'':'background:'+C.ADD;
+          return `<tr class="add-row">
+            <td style="${stripe};text-align:center;color:${C.GRY}">${i+1}</td>
+            <td style="${stripe};text-align:center;font-weight:700">${dd}</td>
+            <td style="${stripe};text-align:center">${mm}</td>
+            ${activeCols.map(c=>`<td style="${stripe}">${Number(o[c.key])||0||'–'}</td>`).join('')}
+            <td style="${stripe};font-weight:700;text-align:center">${qty||'–'}</td>
+            <td style="${stripe};text-align:right;padding-right:6px">${tot?rp(tot):'–'}</td>
+          </tr>`;
+        }).join('');
+        const addSubRow = `<tr class="sub-tot" style="background:${C.SUB};color:${C.ADD_H}">
+          <td colspan="3" class="left">SUB TOTAL ADDITIONAL</td>
+          ${activeCols.map(c=>`<td style="text-align:center">${addTots[c.key]||'–'}</td>`).join('')}
+          <td style="text-align:center">${addQty||'–'}</td>
+          <td class="right">${rp(addQty*harga)}</td>
+        </tr>`;
+        addSection = `<tr><td colspan="${3+activeCols.length+2}" style="padding:0;background:${C.ADD_H}"></td></tr>
+          ${addGrpH}${addDataRows}${addSubRow}`;
+      }
+      return `<table class="tbl">${grpH}${subH}${dataRows}${subRow}${addSection}</table>`;
+    };
+
+    /* ─── INVOICE HTML ─── */
+    const invoiceItems = () => {
+      // Main line items: one row per active shift col
+      const mainLines = activeCols.map((c,i) => {
+        const qty = mainTots[c.key];
+        if (!qty) return '';
+        const stripe = i%2===0?'':'class="stripe"';
+        return `<tr ${stripe}>
+          <td class="inv-tbl" style="width:24px"></td>
+          <td class="left" colspan="2">${
+            c.key==='s1'?'Food Catering Service Shift I — Makan Siang':
+            c.key==='s2'?'Food Catering Service Shift II — Makan Sore':
+            c.key==='s3'?'Food Catering Service Shift III — Makan Malam':
+            c.key==='snack2'?'Food Catering Service Shift II — Takjil':
+            c.key==='snack3'?'Food Catering Service Shift III — Takjil':
+            c.key==='bf'?'Food Catering Service — Breakfast':
+            'Food Catering Service — '+c.label
+          }</td>
+          <td class="right">${rp(harga)}</td>
+          <td style="text-align:center;font-weight:700">${qty}</td>
+          <td style="text-align:center"></td>
+          <td></td>
+          <td class="right num">${rp(qty*harga)}</td>
+        </tr>`;
+      }).join('');
+
+      // Additional lines
+      let addLines = '';
+      if (includeAdd && addRows.length) {
+        const sepRow = `<tr class="add-sep">
+          <td></td>
+          <td colspan="7">Additional Order</td>
+        </tr>`;
+        const addItemLines = activeCols.map((c,i) => {
+          const qty = addTots[c.key];
+          if (!qty) return '';
+          const cls = i%2===0?'add-item':'add-item';
+          return `<tr class="${cls}">
+            <td></td>
+            <td class="left" colspan="2" style="color:${C.ADD_H}">Additional Order — ${c.label}</td>
+            <td class="right" style="color:${C.ADD_H}">${rp(harga)}</td>
+            <td style="text-align:center;font-weight:700;color:${C.ADD_H}">${qty}</td>
+            <td style="text-align:center"></td>
+            <td></td>
+            <td class="right num" style="color:${C.ADD_H};font-weight:700">${rp(qty*harga)}</td>
+          </tr>`;
+        }).join('');
+        addLines = sepRow + addItemLines;
+      }
+
+      // Empty filler rows
+      const filled = activeCols.filter(c => mainTots[c.key]>0).length
+                   + (includeAdd ? activeCols.filter(c => addTots[c.key]>0).length + 1 : 0);
+      const MAX = 12;
+      const fillers = Array(Math.max(0, MAX - filled)).fill(0).map((_,i) => {
+        const cls = (filled+i)%2===0 ? '' : 'class="stripe"';
+        return `<tr ${cls}><td></td><td colspan="2"></td><td></td><td></td><td></td><td></td>
+          <td style="text-align:center;color:#ddd">–</td></tr>`;
+      }).join('');
+
+      return mainLines + addLines + fillers;
+    };
+
+    const totalQty  = mainQty + (includeAdd ? addQty : 0);
+    const subtotal  = totalQty * harga;
+    const pb1Rate   = 0.10;
+    const pph23Rate = 0.02;
+    const pb1Tax    = subtotal * pb1Rate;
+    const pphTax    = subtotal * pph23Rate;
+    const grandTotal = subtotal + pb1Tax - pphTax;
+
+    /* ─── COMPANY HEADER (shared) ─── */
+    const coHeader = (docTitle, docNum) => `
+      <div class="co-hdr">
+        <div>
+          <div class="co-name">PT. BOGA PANGAN SENTOSA</div>
+          <div class="co-sub">Your Best Catering Service</div>
+          <div class="co-addr">
+            Perumnas Bumi Telukjambe, blok PB No.1 RT.006/020 Desa Sukaluyu<br>
+            Kec. Telukjambe Timur, Kab. Karawang, Jawa Barat 41361<br>
+            📞 0267-8407252 &nbsp;•&nbsp; admin@pangansentosa.com &nbsp;•&nbsp; <span style="color:${C.URL}">www.pangan.co.id</span>
+          </div>
+        </div>
+        <div class="co-right">
+          <div class="doc-title">${docTitle}</div>
+          <div class="doc-num">#${docNum}</div>
+        </div>
+      </div>`;
+
+    /* ─── BILL TO (shared) ─── */
+    const billTo = () => `
+      <div class="bill-hdr">  BILL TO</div>
+      <div class="bill-body">
+        <div class="bill-recv">Invoice Receiving</div>
+        <div class="bill-name">${cust}</div>
+        <div class="bill-addr">
+          ${custObj.alamat||''}${custObj.kota?'<br>'+custObj.kota:''}<br>
+          ${custObj.telp||''}
+        </div>
+      </div>`;
+
+    /* ─── PERIODE BAR (shared) ─── */
+    const periodeBar = () => `
+      <div class="period-row" style="margin-bottom:6px">
+        <div class="period-lbl">PERIODE</div>
+        <div class="period-val">${periodeStr}</div>
+      </div>`;
+
+    /* ─── SIGN AREA (shared) ─── */
+    const signArea = () => `
+      <div class="sign-area">
+        <div class="sign-left">Karawang, ${periodeStr}</div>
+        <div class="sign-box">
+          <div class="sign-line">
+            <div class="sign-name">Manager / PIC</div>
+            <div class="sign-title">${cust}</div>
+          </div>
+        </div>
+      </div>`;
+
+    /* ════════════════════════════════════════════
+       PAGE 1 — REKAPITULASI
+    ════════════════════════════════════════════ */
+    const rekapPage = `
+      <div class="page">
+        ${coHeader('REKAPITULASI', nomor)}
+        ${billTo()}
+        ${periodeBar()}
+        <div class="desc-lbl">DESCRIPTION : FOOD CATERING SERVICE</div>
+        ${rekapTable()}
+        ${signArea()}
+      </div>`;
+
+    /* ════════════════════════════════════════════
+       PAGE 2 — INVOICE
+    ════════════════════════════════════════════ */
+    const invoicePage = `
+      <div class="page-break"></div>
+      <div class="page">
+        ${coHeader('INVOICE', nomor)}
+        ${billTo()}
+        ${periodeBar()}
+        <table class="tbl inv-tbl" style="margin-bottom:0">
+          <thead>
+            <tr>
+              <th style="width:22px"></th>
+              <th class="left" colspan="2">DESCRIPTION</th>
+              <th style="width:88px">UNIT PRICE</th>
+              <th style="width:46px">QTY</th>
+              <th style="width:34px">TAXED<br>(Pb1)</th>
+              <th style="width:18px"></th>
+              <th style="width:88px">AMOUNT</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${invoiceItems()}
+          </tbody>
+        </table>
+
+        <!-- Totals -->
+        <div style="display:flex;justify-content:flex-end;margin-top:4px">
+          <div style="min-width:280px">
+            <div class="tot-row" style="border-top:2px solid ${C.NAVY}">
+              <span class="tot-lbl" style="font-weight:700">Subtotal</span>
+              <span class="tot-val" style="font-size:11px;color:${C.NAVY_D}">${rp(subtotal)}</span>
+            </div>
+            <div class="tot-row">
+              <span class="tot-lbl">Pb1</span>
+              <span class="tot-val">${(pb1Rate*100).toFixed(0)}%</span>
+            </div>
+            <div class="tot-row">
+              <span class="tot-lbl">Tax due (Pb1)</span>
+              <span class="tot-val">${rp(pb1Tax)}</span>
+            </div>
+            <div class="tot-row oc-hdr">
+              <span>OTHER COMMENTS</span>
+              <span>PPh 23 &nbsp; ${(pph23Rate*100).toFixed(0)}%</span>
+            </div>
+            <div class="tot-row" style="font-size:9px;color:${C.GRY}">
+              <span>1. Total payment due in 45 days</span>
+              <span style="color:${C.RED};font-weight:700">- ${rp(pphTax)}</span>
+            </div>
+            <div class="tot-row total-final">
+              <span class="tot-lbl">TOTAL</span>
+              <span class="tot-val" style="font-size:13px">${rp(grandTotal)}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Comments -->
+        <div style="margin-top:6px;font-size:8px;color:${C.GRY};line-height:1.7">
+          2. Please include the invoice number on your check<br>
+          3. PPh a/n PT. Boga Pangan Sentosa &nbsp;|&nbsp; 4. NPWP : 75.260.202.9-408.000 &nbsp;|&nbsp; 5. NPWPD : 03.0012478.03.005
+        </div>
+
+        ${signArea()}
+
+        <!-- Bank + footer -->
+        <div class="bank-area">
+          <div>
+            <div style="font-weight:700;color:#333;margin-bottom:3px">Make all checks payable to PT. BOGA PANGAN SENTOSA</div>
+            Bank Mandiri KC Karawang 17300 &nbsp;|&nbsp; No. Rekening : 173-00-0153197-0
+          </div>
+          <div class="materai-box">MATERAI</div>
+        </div>
+
+        <div class="footer-bar">Thank You For Your Business!</div>
+        <div class="footer-sub">If you have any questions, please contact Mr. Somat  •  +62 822-1033-8880  •  umad@pangansentosa.com</div>
+      </div>`;
+
+    /* ─── Assemble & open window ─── */
+    const html = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice ${nomor} — ${cust}</title>
+  <style>${css}</style>
+</head>
+<body>
+  <button class="print-btn no-print" onclick="window.print()">🖨 Print / Save PDF</button>
+  <div class="doc">
+    ${rekapPage}
+    ${invoicePage}
+  </div>
+</body>
+</html>`;
+
+    const w = window.open('','_blank','width=900,height=780');
     w.document.write(html);
     w.document.close();
   }
 
+  /* ─── CONTROLS ─── */
   /* ─── CONTROLS ─── */
   function setSearch(val)          { _search = (val||'').toLowerCase().trim(); _renderTbody(); }
   function setFilterCustomer(val)  { _filterCustomer = val; _renderTbody(); }
@@ -835,6 +1285,7 @@ const OrderModule = (() => {
     editHeader, _saveHdr,
     startEdit, deleteOrder,
     openInvoiceModal, _previewInv, _printInvoice,
+    _toggleAdditional, _addAdditionalRow, _getAdditionalRows,
     setSearch, setFilterCustomer, setFilterDate,
   };
 })();
