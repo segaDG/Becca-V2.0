@@ -294,7 +294,8 @@ const InvoiceModule = (() => {
         ${!list.length ? `<tr><td colspan="12" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data.</td></tr>` :
           list.map((inv,i) => {
             const bg = _rowBg(i, inv);
-            return `<tr ${_hov()} style="border-bottom:1px solid var(--border)">
+            return `<tr ${_hov()} style="border-bottom:1px solid var(--border);cursor:pointer"
+              onclick="InvoiceModule.openInvDetail('${inv.id||inv.invoiceNum}')">
               <td class="inv-td" style="text-align:center;font-size:10px;color:var(--text-3);background:${bg}">${inv.no}</td>
               <td class="inv-td" style="text-align:center;background:${bg}">
                 ${inv.customerId ? `<span style="font-size:9px;font-weight:700;font-family:var(--font-mono);background:rgba(99,102,241,.12);color:#6366f1;padding:2px 5px;border-radius:4px">${inv.customerId}</span>` : '<span style="color:var(--border2)">-</span>'}
@@ -458,6 +459,466 @@ const InvoiceModule = (() => {
     </div>`;
   }
 
+  /* ─── DETAIL & REVISI ─── */
+
+  // Cari invoice berdasarkan id atau invoiceNum
+  function _findInv(key) {
+    return _invoices.find(i => i.id === key || i.invoiceNum === key);
+  }
+
+  // Ambil data order terkait dari becca_order_invoices
+  function _getOrderRec(invoiceNum) {
+    try {
+      const recs = JSON.parse(localStorage.getItem('becca_order_invoices') || '[]');
+      return recs.find(r => r.nomor === invoiceNum) || null;
+    } catch(e) { return null; }
+  }
+
+  // Simpan perubahan nomor invoice ke becca_order_invoices
+  function _updateOrderInvNomor(oldNomor, newNomor) {
+    try {
+      const recs = JSON.parse(localStorage.getItem('becca_order_invoices') || '[]');
+      const idx = recs.findIndex(r => r.nomor === oldNomor);
+      if (idx >= 0) {
+        recs[idx].nomor = newNomor;
+        localStorage.setItem('becca_order_invoices', JSON.stringify(recs));
+      }
+      // Update becca_orders yang invoiceRef = oldNomor
+      const orders = JSON.parse(localStorage.getItem('becca_orders') || '[]');
+      let changed = false;
+      orders.forEach(o => {
+        if (o.invoiceRef === oldNomor) { o.invoiceRef = newNomor; changed = true; }
+      });
+      if (changed) localStorage.setItem('becca_orders', JSON.stringify(orders));
+    } catch(e) { console.warn('updateOrderInvNomor error', e); }
+  }
+
+  // Hitung nomor revisi: base + R suffix
+  function _reviseNomor(nomor) {
+    // Cari berapa R sudah ada
+    const base = nomor.replace(/R+$/, '');
+    const rCount = (nomor.match(/R+$/) || [''])[0].length;
+    return base + 'R'.repeat(rCount + 1);
+  }
+
+  // Buka modal detail invoice
+  function openInvDetail(key) {
+    const inv = _findInv(key);
+    if (!inv) return;
+
+    const orderRec = _getOrderRec(inv.invoiceNum);
+    const isFromOrder = !!orderRec;
+
+    // Build detail modal
+    Modal.open({
+      title: `🧾 Detail Invoice`,
+      size: 'modal-xl',
+      body: `
+        <style>
+          .inv-det-row{display:grid;grid-template-columns:140px 1fr;gap:4px 12px;align-items:start;margin-bottom:4px}
+          .inv-det-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)}
+          .inv-det-val{font-size:12px;color:var(--text)}
+        </style>
+
+        <!-- Header info -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px">Info Invoice</div>
+            <div class="inv-det-row"><span class="inv-det-lbl">Nomor</span>
+              <span class="inv-det-val" style="font-family:var(--font-mono);font-weight:700;font-size:13px;color:#6366f1">${inv.invoiceNum||'-'}</span></div>
+            <div class="inv-det-row"><span class="inv-det-lbl">Customer</span>
+              <span class="inv-det-val" style="font-weight:600">${inv.customer}</span></div>
+            <div class="inv-det-row"><span class="inv-det-lbl">Tgl Invoice</span>
+              <span class="inv-det-val">${_fmtDate(inv.tglInvoice)||'-'}</span></div>
+            <div class="inv-det-row"><span class="inv-det-lbl">Jatuh Tempo</span>
+              <span class="inv-det-val">${_fmtDate(inv.tglBayar)||'-'}</span></div>
+            <div class="inv-det-row"><span class="inv-det-lbl">PO #</span>
+              <span class="inv-det-val" style="font-family:var(--font-mono);font-size:11px">${inv.po||'-'}</span></div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px">Finansial</div>
+            <div class="inv-det-row"><span class="inv-det-lbl">Total Invoice</span>
+              <span class="inv-det-val" style="font-weight:700">${_rpFull(inv.total)}</span></div>
+            <div class="inv-det-row"><span class="inv-det-lbl">Terbayar</span>
+              <span class="inv-det-val" style="color:${inv.totalTerbayar?'#10b981':'var(--text-3)'}">${inv.totalTerbayar?_rpFull(inv.totalTerbayar):'-'}</span></div>
+            <div class="inv-det-row"><span class="inv-det-lbl">Sisa</span>
+              <span class="inv-det-val" style="color:${inv.sisa>0?'#f59e0b':inv.sisa<0?'#ef4444':'var(--text-3)'}">
+                ${inv.sisa!==0?_rpFull(inv.sisa):'-'}</span></div>
+            <div class="inv-det-row"><span class="inv-det-lbl">Tgl Bayar</span>
+              <span class="inv-det-val">${_fmtDate(inv.tglTerbayar)||'-'} ${inv.lamaTerbayar?'<span style="font-size:10px;color:var(--text-3)">('+inv.lamaTerbayar+')</span>':''}</span></div>
+            <div class="inv-det-row"><span class="inv-det-lbl">Status</span>
+              <span class="inv-det-val">${_statusBadge(inv)}</span></div>
+          </div>
+        </div>
+
+        ${isFromOrder ? `
+          <!-- Order summary dari becca_order_invoices -->
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px">
+              Order Summary &nbsp;<span style="font-weight:400;font-size:10px;color:var(--text-3)">• ${orderRec.orderCount} order · ${_fmtDate(orderRec.dari)} s/d ${_fmtDate(orderRec.sampai)}</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              ${Object.entries(orderRec.totals||{}).filter(([k,v])=>v>0).map(([k,v])=>
+                `<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px">
+                  <span style="color:var(--text-3)">${k}</span>
+                  <span style="font-weight:700;font-family:var(--font-mono);margin-left:6px">${v}</span>
+                </div>`
+              ).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Revisi warning jika nomor sudah ada R -->
+        ${inv.invoiceNum && inv.invoiceNum.includes('R') ? `
+          <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:#f59e0b">
+            ⚠ Invoice ini sudah direvisi ${(inv.invoiceNum.match(/R+$/) || [''])[0].length}x
+          </div>
+        ` : ''}
+
+        <!-- Action buttons -->
+        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="Modal.close()">Tutup</button>
+          <button class="btn" onclick="InvoiceModule.reviseInv('${inv.id||inv.invoiceNum}')"
+            style="background:rgba(245,158,11,.1);color:#f59e0b;border:1px solid rgba(245,158,11,.35)">
+            ✏ Revisi Invoice
+          </button>
+          <button class="btn btn-primary" onclick="InvoiceModule._printFromDetail('${inv.id||inv.invoiceNum}')">
+            🖨 Cetak Ulang
+          </button>
+        </div>`,
+      buttons: []
+    });
+  }
+
+  // Revisi invoice: update nomor + refresh
+  function reviseInv(key) {
+    const inv = _findInv(key);
+    if (!inv) return;
+
+    const oldNomor = inv.invoiceNum;
+    const newNomor = _reviseNomor(oldNomor);
+
+    if (!confirm(`Revisi invoice ini?\n\nNomor lama: ${oldNomor}\nNomor baru: ${newNomor}\n\nPerubahan ini akan memperbarui nomor invoice di semua data terkait.`)) return;
+
+    // Update di _invoices (in-memory)
+    inv.invoiceNum = newNomor;
+
+    // Update di localStorage (becca_order_invoices + becca_orders)
+    _updateOrderInvNomor(oldNomor, newNomor);
+
+    Modal.close();
+    Notify.success(`Invoice direvisi: ${oldNomor} → ${newNomor}`);
+
+    // Re-render
+    setTimeout(() => _renderFull(), 50);
+  }
+
+  // Cetak ulang dari detail modal
+  function _printFromDetail(key) {
+    const inv = _findInv(key);
+    if (!inv) return;
+    const orderRec = _getOrderRec(inv.invoiceNum);
+
+    // Ambil order list dari becca_orders jika ada
+    let orderList = [];
+    if (orderRec?.orderIds) {
+      try {
+        const allOrders = JSON.parse(localStorage.getItem('becca_orders') || '[]');
+        orderList = allOrders.filter(o => orderRec.orderIds.includes(o.id));
+        orderList.sort((a,b) => a.tglOrder.localeCompare(b.tglOrder));
+      } catch(e) {}
+    }
+
+    Modal.close();
+    _openInvPrintWin(inv, orderRec, orderList);
+  }
+
+  // Print window untuk invoice yang sudah ada
+  function _openInvPrintWin(inv, orderRec, orderList) {
+    const C = { NAVY:'#3B4E87', NAVY_D:'#2C3B65', NAVY_M:'#4A5E99',
+                BL:'#C9DAF8', BP:'#E8F0FE', SUB:'#ACC9FE',
+                GRY:'#666666', GLT:'#AAAAAA', URL:'#0070C0', RED:'#FF0000' };
+    const MONTHS_ID = {January:'Januari',February:'Februari',March:'Maret',
+      April:'April',May:'Mei',June:'Juni',July:'Juli',August:'Agustus',
+      September:'September',October:'Oktober',November:'November',December:'Desember'};
+
+    const rp = n => n ? `Rp ${Number(n).toLocaleString('id')}` : '-';
+
+    // Parse periode dari orderRec jika ada
+    const tgl1 = orderRec?.dari ? new Date(orderRec.dari) : null;
+    const tgl2 = orderRec?.sampai ? new Date(orderRec.sampai) : null;
+    const sd = tgl1 ? tgl1.getDate() : '--';
+    const ed = tgl2 ? tgl2.getDate() : '--';
+    const mth = tgl1 ? Object.values(MONTHS_ID)[tgl1.getMonth()] : '';
+    const yr  = tgl1 ? tgl1.getFullYear() : '';
+    const periodeStr = tgl1 && tgl2 ? `${sd} – ${ed} ${mth} ${yr}` : '--';
+
+    // Kolom aktif dari order
+    const ALL_COLS_KEYS = ['breakfast','shift1','spare1','ot1','snack1',
+                           'shift2','spare2','ot2','snack2',
+                           'shift3','spare3','ot3','snack3','snackBerat'];
+    const ALL_COLS_LABEL = {
+      breakfast:'Breakfast',shift1:'Shift I',spare1:'Spare I',ot1:'OT1',snack1:'Snk1',
+      shift2:'Shift II',spare2:'Spare II',ot2:'OT2',snack2:'Snk2',
+      shift3:'Shift III',spare3:'Spare III',ot3:'OT3',snack3:'Snk3',snackBerat:'SnkBrt'
+    };
+
+    // Hitung kolom aktif dari orderRec.totals atau orderList
+    let activeCols = [];
+    if (orderRec?.totals) {
+      activeCols = ALL_COLS_KEYS
+        .filter(k => (orderRec.totals[k]||0) > 0)
+        .map(k => ({ key: k, label: ALL_COLS_LABEL[k] || k }));
+    } else if (orderList.length) {
+      activeCols = ALL_COLS_KEYS
+        .filter(k => orderList.some(o => Number(o[k]) > 0))
+        .map(k => ({ key: k, label: ALL_COLS_LABEL[k] || k }));
+    }
+
+    const harga = 17500;
+    const pb1Rate = 0.10, pph23Rate = 0.02;
+    const subtotal = inv.total || 0;
+    const pb1Tax   = Math.round(subtotal * pb1Rate);
+    const pphTax   = Math.round(subtotal * pph23Rate);
+    const grandTotal = subtotal + pb1Tax - pphTax;
+
+    const coHeader = (docTitle, docNum) => `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:10px;border-bottom:3px solid ${C.NAVY};margin-bottom:0">
+        <div>
+          <div style="font-size:21px;font-weight:900;color:${C.NAVY_D}">PT. BOGA PANGAN SENTOSA</div>
+          <div style="font-size:10px;color:${C.NAVY};font-style:italic;margin-top:2px">Your Best Catering Service</div>
+          <div style="font-size:8px;color:${C.GRY};margin-top:4px;line-height:1.7">
+            Perumnas Bumi Telukjambe, blok PB No.1 RT.006/020 Desa Sukaluyu<br>
+            Kec. Telukjambe Timur, Kab. Karawang, Jawa Barat 41361<br>
+            📞 0267-8407252 • admin@pangansentosa.com • <span style="color:${C.URL}">www.pangan.co.id</span>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:28px;font-weight:900;color:${C.NAVY}">${docTitle}</div>
+          <div style="font-size:11px;font-weight:700;color:${C.NAVY_D};background:${C.BP};padding:3px 8px;border-radius:3px;margin-top:4px">#${docNum}</div>
+        </div>
+      </div>`;
+
+    const billTo = `
+      <div style="background:${C.NAVY};color:#fff;padding:4px 10px;font-weight:700;font-size:9px;letter-spacing:.08em;margin-top:6px">  BILL TO</div>
+      <div style="padding:5px 10px 6px;border:1px solid #dde3f0;border-top:none;margin-bottom:6px">
+        <div style="font-size:8px;color:${C.GRY}">Invoice Receiving</div>
+        <div style="font-size:12px;font-weight:700;color:${C.NAVY_D};margin:2px 0">${inv.customer}</div>
+      </div>`;
+
+    const periodeBar = `
+      <div style="display:flex;height:26px;margin-bottom:6px">
+        <div style="background:${C.NAVY};color:#fff;display:flex;align-items:center;justify-content:center;padding:0 12px;font-weight:700;font-size:9px;white-space:nowrap;min-width:72px">PERIODE</div>
+        <div style="background:${C.NAVY_M};color:#fff;display:flex;align-items:center;justify-content:center;flex:1;font-weight:700;font-size:12px">${periodeStr}</div>
+      </div>`;
+
+    const signArea = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
+        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:180px">
+          <div style="font-size:10px;color:#333;margin-bottom:46px">Karawang, ${periodeStr}</div>
+          <div style="border-top:1px solid #333;width:160px;padding-top:3px;font-size:9px;color:${C.GRY}">Admin / Pembuat Invoice</div>
+        </div>
+        <div style="text-align:center;min-width:160px">
+          <div style="margin-top:46px;border-top:1px solid #333;padding-top:3px">
+            <div style="font-weight:700;font-size:10px">Manager / PIC</div>
+            <div style="font-size:8px;color:${C.GRY}">${inv.customer}</div>
+          </div>
+        </div>
+      </div>`;
+
+    /* ── REKAP ── */
+    let rekapTableHtml = '';
+    if (orderList.length && activeCols.length) {
+      const grpH = `<tr>
+        <th style="background:${C.NAVY};color:#fff;padding:5px;font-size:9px;font-weight:700;text-align:left">#</th>
+        <th style="background:${C.NAVY};color:#fff;padding:5px;font-size:9px;font-weight:700">DD</th>
+        <th style="background:${C.NAVY};color:#fff;padding:5px;font-size:9px;font-weight:700">BULAN</th>
+        ${activeCols.map(c=>`<th style="background:${C.NAVY};color:#fff;padding:5px;font-size:9px;font-weight:700;text-align:center">${c.label}</th>`).join('')}
+        <th style="background:${C.NAVY};color:#fff;padding:5px;font-size:9px;font-weight:700;text-align:center">QTY</th>
+        <th style="background:${C.NAVY};color:#fff;padding:5px;font-size:9px;font-weight:700;text-align:right">TOTAL</th>
+      </tr>`;
+      const dataRows = orderList.map((o,i) => {
+        const stripe = i%2===0?'#ffffff':'${C.BP}';
+        const dd = o.tglOrder ? o.tglOrder.slice(8) : '';
+        const mm = tgl1 ? Object.values(MONTHS_ID)[tgl1.getMonth()] : '';
+        const qty = activeCols.reduce((s,c)=>s+(Number(o[c.key])||0),0);
+        return `<tr style="background:${i%2===0?'#ffffff':C.BP}">
+          <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center;color:${C.GRY}">${i+1}</td>
+          <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${dd}</td>
+          <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center">${mm}</td>
+          ${activeCols.map(c=>`<td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center">${Number(o[c.key])||0||'–'}</td>`).join('')}
+          <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${qty||'–'}</td>
+          <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:right">${qty?rp(qty*harga):'–'}</td>
+        </tr>`;
+      }).join('');
+      const subTots = activeCols.map(c => orderList.reduce((s,o)=>s+(Number(o[c.key])||0),0));
+      const subQty = subTots.reduce((a,b)=>a+b,0);
+      const subRow = `<tr style="background:${C.SUB}">
+        <td colspan="3" style="padding:5px;border:1px solid #dde3f0;font-weight:700;font-size:9px;color:${C.NAVY_D}">SUB TOTAL</td>
+        ${subTots.map(v=>`<td style="padding:5px;border:1px solid #dde3f0;font-weight:700;font-size:9px;text-align:center">${v||'–'}</td>`).join('')}
+        <td style="padding:5px;border:1px solid #dde3f0;font-weight:700;font-size:9px;text-align:center">${subQty}</td>
+        <td style="padding:5px;border:1px solid #dde3f0;font-weight:700;font-size:9px;text-align:right">${rp(subQty*harga)}</td>
+      </tr>`;
+      rekapTableHtml = `<table style="width:100%;border-collapse:collapse">${grpH}${dataRows}${subRow}</table>`;
+    } else {
+      rekapTableHtml = `<div style="color:${C.GRY};font-size:10px;padding:16px;text-align:center">
+        Data order detail tidak tersedia untuk invoice ini</div>`;
+    }
+
+    /* ── INVOICE ITEMS ── */
+    let invItemsHtml = '';
+    if (activeCols.length && orderRec?.totals) {
+      const totals = orderRec.totals;
+      invItemsHtml = activeCols.map((c,i) => {
+        const qty = totals[c.key]||0;
+        if (!qty) return '';
+        const descMap = {
+          shift1:'Food Catering Service Shift I — Makan Siang',
+          shift2:'Food Catering Service Shift II — Makan Sore',
+          shift3:'Food Catering Service Shift III — Makan Malam',
+          snack1:'Food Catering Service Shift I — Snack',
+          snack2:'Food Catering Service Shift II — Takjil',
+          snack3:'Food Catering Service Shift III — Takjil',
+          ot1:'Food Catering Service — OT Shift I',
+          ot2:'Food Catering Service — OT Shift II',
+          ot3:'Food Catering Service — OT Shift III',
+          spare1:'Food Catering Service — Spare I',
+          spare2:'Food Catering Service — Spare II',
+          spare3:'Food Catering Service — Spare III',
+          snackBerat:'Food Catering Service — Snack Berat',
+          breakfast:'Food Catering Service — Breakfast',
+        };
+        const stripe = i%2===0?'#ffffff':C.BP;
+        return `<tr style="background:${stripe}">
+          <td style="padding:5px 8px;border:1px solid #dde3f0;width:24px"></td>
+          <td colspan="2" style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:left">${descMap[c.key]||c.label}</td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right">${rp(harga)}</td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${qty}</td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:center"></td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;width:18px"></td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right;font-weight:700">${rp(qty*harga)}</td>
+        </tr>`;
+      }).join('');
+    } else {
+      // Fallback: just show total
+      invItemsHtml = `<tr>
+        <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
+        <td colspan="2" style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px">Food Catering Service</td>
+        <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
+        <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
+        <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
+        <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
+        <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right;font-weight:700">${rp(subtotal)}</td>
+      </tr>`;
+    }
+
+    const css = `
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;font-size:10px;color:#1a1a2e;background:#fff}
+      @page{size:A4 portrait;margin:12mm 12mm 14mm 12mm}
+      @media print{.no-print{display:none!important}.page-break{page-break-after:always}}
+      .print-btn{position:fixed;top:14px;right:16px;padding:8px 20px;background:${C.NAVY};
+        color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;
+        box-shadow:0 4px 14px rgba(59,78,135,.45);z-index:999}
+      @media print{.print-btn{display:none!important}}
+    `;
+
+    const html = `<!DOCTYPE html>
+<html lang="id">
+<head><meta charset="UTF-8"><title>${inv.invoiceNum} — ${inv.customer}</title>
+<style>${css}</style>
+</head>
+<body>
+<button class="print-btn no-print" onclick="window.print()">🖨 Print / Save PDF</button>
+
+<!-- PAGE 1: REKAPITULASI -->
+<div style="padding:0;max-width:210mm;margin:0 auto">
+  ${coHeader('REKAPITULASI', inv.invoiceNum)}
+  ${billTo}${periodeBar}
+  <div style="background:${C.BL};padding:4px 10px;font-size:9px;font-weight:700;border-bottom:1px solid #aac4e8;margin-bottom:0">
+    DESCRIPTION : FOOD CATERING SERVICE
+  </div>
+  ${rekapTableHtml}
+  ${signArea}
+</div>
+
+<!-- PAGE 2: INVOICE -->
+<div style="page-break-before:always;max-width:210mm;margin:0 auto">
+  ${coHeader('INVOICE', inv.invoiceNum)}
+  ${billTo}${periodeBar}
+
+  <!-- Table DESCRIPTION -->
+  <table style="width:100%;border-collapse:collapse;margin-bottom:0">
+    <thead>
+      <tr style="background:${C.NAVY}">
+        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:22px"></th>
+        <th colspan="2" style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};text-align:left">DESCRIPTION</th>
+        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:88px">UNIT PRICE</th>
+        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:46px">QTY</th>
+        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:34px">TAXED<br>(Pb1)</th>
+        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:18px"></th>
+        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:88px;text-align:right">AMOUNT</th>
+      </tr>
+    </thead>
+    <tbody>${invItemsHtml}</tbody>
+  </table>
+
+  <!-- Totals + Comments -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:8px;gap:16px">
+    <div style="font-size:8.5px;color:${C.GRY};line-height:2;flex:1">
+      <div style="font-size:9px;font-weight:700;color:${C.NAVY};background:${C.BL};padding:3px 8px;margin-bottom:4px;border-radius:3px">OTHER COMMENTS</div>
+      <div>1. Total payment due in 45 days</div>
+      <div>2. Please include the invoice number on your check</div>
+      <div>3. PPh a/n PT. Boga Pangan Sentosa</div>
+      <div>4. NPWP : 75.260.202.9-408.000</div>
+      <div>5. NPWPD : 03.0012478.03.005</div>
+    </div>
+    <div style="min-width:290px;border:1px solid #dde3f0;border-radius:6px;overflow:hidden;flex-shrink:0">
+      <div style="display:flex;justify-content:space-between;padding:5px 12px;border-bottom:2px solid ${C.NAVY};background:#fafbff">
+        <span style="font-weight:700;font-size:10px;color:${C.NAVY_D}">Subtotal</span>
+        <span style="font-weight:700;font-size:11px;color:${C.NAVY_D}">${rp(subtotal)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
+        <span style="color:#555">Pb1</span><span style="font-weight:600">${(pb1Rate*100).toFixed(0)}%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
+        <span style="color:#555">Tax due (Pb1)</span><span style="font-weight:600">${rp(pb1Tax)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
+        <span style="color:#555">PPh 23</span><span style="font-weight:600">${(pph23Rate*100).toFixed(0)}%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 12px;border-bottom:2px solid ${C.NAVY};font-size:9px;background:#fafbff">
+        <span style="color:#555">Tax due (PPh 23)</span>
+        <span style="font-weight:600;color:${C.RED}">- ${rp(pphTax)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:7px 12px;background:${C.NAVY};color:#fff">
+        <span style="font-weight:700;font-size:12px">TOTAL</span>
+        <span style="font-weight:900;font-size:13px">${rp(grandTotal)}</span>
+      </div>
+    </div>
+  </div>
+
+  ${signArea}
+
+  <!-- Bank -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:8px 14px;border:1px solid #dde3f0;border-radius:4px;font-size:8px;color:${C.GRY};background:#fafbff">
+    <div>
+      <div style="font-weight:700;color:#333;font-size:9px;margin-bottom:2px">Make all checks payable to <span style="color:${C.NAVY_D}">PT. BOGA PANGAN SENTOSA</span></div>
+      Bank Mandiri KC Karawang 17300 • No. Rekening : <strong style="color:#333">173-00-0153197-0</strong>
+    </div>
+    <div style="border:1px dashed #bbb;width:86px;height:52px;display:flex;align-items:center;justify-content:center;font-size:8px;color:#bbb;border-radius:4px;background:#f8f8f8">MATERAI</div>
+  </div>
+  <div style="background:${C.NAVY};color:#fff;text-align:center;padding:8px;font-size:13px;font-weight:700;margin-top:12px">Thank You For Your Business! 🙏</div>
+  <div style="text-align:center;font-size:8px;color:${C.GRY};padding:4px 0 0">If you have any questions, please contact &nbsp;Mr. Somat &nbsp;•&nbsp; +62 822-1033-8880 &nbsp;•&nbsp; umad@pangansentosa.com</div>
+</div>
+
+</body></html>`;
+
+    const w = window.open('','_blank','width=900,height=780');
+    w.document.write(html);
+    w.document.close();
+  }
+
   /* ─── CONTROLS ─── */
   function switchTab(tab) {
     _tab = tab;
@@ -474,7 +935,7 @@ const InvoiceModule = (() => {
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, setFilter };
+  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, _printFromDetail };
 })();
 
 window.InvoiceModule = InvoiceModule;
