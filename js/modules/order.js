@@ -1,32 +1,30 @@
 /* ============================================
    BECCA V2.0 — Order Module v3
-   Fitur: inline edit, kelola kolom, cetak invoice,
-          anti-duplikat, search partial re-render
+   Fixes: auto invoice number, cetak button, addCol, customer ID
 ============================================ */
-
 const OrderModule = (() => {
-  let _data     = [];
-  let _cols     = [];
-  let _invRecs  = [];
-  let _search   = '';
+  let _data = [];
+  let _cols = [];
+  let _invRecs = [];
+  let _search = '';
   let _filterCustomer = '';
-  let _filterDate     = '';
+  let _filterDate = '';
 
   const _defaultCols = [
-    {key:'breakfast', label:'BF',    group:'s1', editable:true},
-    {key:'shift1',    label:'S1',    group:'s1', editable:true},
-    {key:'spare1',    label:'Sp1',   group:'s1', editable:true},
-    {key:'ot1',       label:'OT1',   group:'s1', editable:true},
-    {key:'snack1',    label:'Snk1',  group:'s1', editable:true},
-    {key:'shift2',    label:'S2',    group:'s2', editable:true},
-    {key:'spare2',    label:'Sp2',   group:'s2', editable:true},
-    {key:'ot2',       label:'OT2',   group:'s2', editable:true},
-    {key:'snack2',    label:'Snk2',  group:'s2', editable:true},
-    {key:'shift3',    label:'S3',    group:'s3', editable:true},
-    {key:'spare3',    label:'Sp3',   group:'s3', editable:true},
-    {key:'ot3',       label:'OT3',   group:'s3', editable:true},
-    {key:'snack3',    label:'Snk3',  group:'s3', editable:true},
-    {key:'snackBerat',label:'SnkBrt',group:'sb', editable:true},
+    {key:'breakfast', label:'BF',     group:'s1', editable:true},
+    {key:'shift1',    label:'S1',     group:'s1', editable:true},
+    {key:'spare1',    label:'Sp1',    group:'s1', editable:true},
+    {key:'ot1',       label:'OT1',    group:'s1', editable:true},
+    {key:'snack1',    label:'Snk1',   group:'s1', editable:true},
+    {key:'shift2',    label:'S2',     group:'s2', editable:true},
+    {key:'spare2',    label:'Sp2',    group:'s2', editable:true},
+    {key:'ot2',       label:'OT2',    group:'s2', editable:true},
+    {key:'snack2',    label:'Snk2',   group:'s2', editable:true},
+    {key:'shift3',    label:'S3',     group:'s3', editable:true},
+    {key:'spare3',    label:'Sp3',    group:'s3', editable:true},
+    {key:'ot3',       label:'OT3',    group:'s3', editable:true},
+    {key:'snack3',    label:'Snk3',   group:'s3', editable:true},
+    {key:'snackBerat',label:'SnkBrt', group:'sb', editable:true},
   ];
 
   const _groupMeta = {
@@ -65,15 +63,45 @@ const OrderModule = (() => {
     if (!o.invoiced) return '';
     return `<span style="font-size:9px;background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.3);padding:1px 5px;border-radius:10px;font-weight:700" title="${o.invoiceRef||''}">✓INV</span>`;
   }
-  function _save()    { localStorage.setItem('becca_orders', JSON.stringify(_data)); }
-  function _saveCols(){ localStorage.setItem('becca_order_columns', JSON.stringify(_cols)); }
-  function _saveInvs(){ localStorage.setItem('becca_order_invoices', JSON.stringify(_invRecs)); }
+  function _save() { localStorage.setItem('becca_orders', JSON.stringify(_data)); }
+  function _saveCols() { localStorage.setItem('becca_order_columns', JSON.stringify(_cols)); }
+  function _saveInvs() { localStorage.setItem('becca_order_invoices', JSON.stringify(_invRecs)); }
   function _getCustomers() {
-    try { return JSON.parse(localStorage.getItem('becca_customers')||'[]'); }
-    catch(e) { return []; }
+    try { return JSON.parse(localStorage.getItem('becca_customers')||'[]'); } catch(e) { return []; }
   }
   function _custNames() {
     return [...new Set(_data.map(o=>o.namaPerusahaan).filter(Boolean))].sort();
+  }
+
+  /* ─── AUTO GENERATE NOMOR INVOICE ─── 
+     Format: CustID(3) + TglAwal(2) + TglAkhir(2) + TahunAwal(2) + BulanAwal(2)
+     Contoh: NICI (id=10), 16-31 Jan 2026 => 01016312601
+     Revisi pertama: 01016312601R
+     Revisi kedua:   01016312601RR
+  */
+  function _genInvNo(custName, dari, sampai) {
+    const custs = _getCustomers();
+    const cust = custs.find(c => c.nama === custName);
+    const cidRaw = cust && cust.customerId ? String(cust.customerId) : '0';
+    // ambil angka saja dari customerId (e.g. "057A" -> 57 -> "057")
+    const cidNum = parseInt(cidRaw.replace(/[^0-9]/g,'')) || 0;
+    const cid = String(cidNum).padStart(3, '0');
+
+    if (!dari || !sampai) return cid + '000000000';
+
+    const d1 = new Date(dari);
+    const d2 = new Date(sampai);
+    const dd = String(d1.getDate()).padStart(2, '0');    // tgl awal
+    const ss = String(d2.getDate()).padStart(2, '0');    // tgl akhir
+    const yy = String(d1.getFullYear()).slice(-2);       // 2 digit tahun awal
+    const bb = String(d1.getMonth() + 1).padStart(2, '0'); // bulan awal
+
+    const base = cid + dd + ss + yy + bb;
+
+    // cek apakah sudah ada invoice dengan nomor ini (deteksi revisi)
+    const existing = _invRecs.filter(r => r.nomor && (r.nomor === base || r.nomor.startsWith(base)));
+    if (existing.length === 0) return base;
+    return base + 'R'.repeat(existing.length);
   }
 
   /* ─── INIT ─── */
@@ -88,7 +116,10 @@ const OrderModule = (() => {
       const si = localStorage.getItem('becca_order_invoices');
       _invRecs = si ? JSON.parse(si) : [];
       if (!_cols.length) _cols = JSON.parse(JSON.stringify(_defaultCols));
-    } catch(e) { _cols = JSON.parse(JSON.stringify(_defaultCols)); _invRecs = []; }
+    } catch(e) {
+      _cols = JSON.parse(JSON.stringify(_defaultCols));
+      _invRecs = [];
+    }
     _renderFull(page);
   }
 
@@ -96,9 +127,7 @@ const OrderModule = (() => {
   function _renderFull(page) {
     if (!page) page = document.getElementById('page-order');
     if (!page) return;
-
-    const cust = _getCustomers();
-    const cn   = _custNames();
+    const cn = _custNames();
     const totalReal = _data.filter(o=>(o.catatan||'').toLowerCase().includes('real')).length;
     const totalInv  = _data.filter(o=>o.invoiced).length;
 
@@ -112,15 +141,13 @@ const OrderModule = (() => {
       .hdr-wrap:hover .hdr-btn { opacity:1 }
       .hdr-btn { opacity:0;font-size:9px;background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:3px;padding:1px 4px;cursor:pointer;transition:.1s }
     </style>
-
     <div class="page-header">
       <div class="page-header-left">
         <h2>Data Orderan Catering</h2>
-        <p>Rekapitulasi order masuk — 16 s/d 22 Maret 2026 · ${_data.length} record</p>
+        <p>Rekapitulasi order masuk · ${_data.length} record</p>
       </div>
       <div class="page-header-right" style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" onclick="OrderModule.openInvoiceModal()"
-          style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.35);font-size:12px">
+        <button class="btn" onclick="OrderModule.openInvoiceModal()" style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.35);font-size:12px">
           🧾 Cetak Invoice
         </button>
         <button class="btn btn-ghost" onclick="OrderModule.openColManager()" style="font-size:12px">
@@ -133,14 +160,13 @@ const OrderModule = (() => {
       </div>
     </div>
 
-    <!-- STAT CARDS -->
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px">
       ${[
-        {l:'Total Order',    v:_data.length,                                   c:'#6366f1', s:'entri'},
-        {l:'Real Order',     v:totalReal,                                       c:'#10b981', s:'terkonfirmasi'},
-        {l:'Estimasi',       v:_data.length-totalReal,                          c:'#f59e0b', s:'perkiraan'},
-        {l:'Customer',       v:[...new Set(_data.map(o=>o.namaPerusahaan))].length, c:'#ec4899', s:'perusahaan'},
-        {l:'Sudah Invoice',  v:totalInv,                                        c:'#10b981', s:'order'},
+        {l:'Total Order',   v:_data.length,            c:'#6366f1', s:'entri'},
+        {l:'Real Order',    v:totalReal,               c:'#10b981', s:'terkonfirmasi'},
+        {l:'Estimasi',      v:_data.length-totalReal,  c:'#f59e0b', s:'perkiraan'},
+        {l:'Customer',      v:[...new Set(_data.map(o=>o.namaPerusahaan))].length, c:'#ec4899', s:'perusahaan'},
+        {l:'Sudah Invoice', v:totalInv,                c:'#10b981', s:'order'},
       ].map(s=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;position:relative;overflow:hidden">
         <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:${s.c}"></div>
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:3px">${s.l}</div>
@@ -148,9 +174,7 @@ const OrderModule = (() => {
       </div>`).join('')}
     </div>
 
-    <!-- TABLE CARD -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-      <!-- TOOLBAR — tidak di-re-render saat search -->
       <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div style="position:relative;flex:1;max-width:250px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"
@@ -170,8 +194,6 @@ const OrderModule = (() => {
           style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);cursor:pointer">
         <span id="ord-count" style="font-size:11px;color:var(--text-3);margin-left:auto"></span>
       </div>
-
-      <!-- TABLE -->
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
         <table id="ord-table" style="width:100%;border-collapse:collapse;font-size:11px">
           <thead id="ord-thead"></thead>
@@ -188,8 +210,6 @@ const OrderModule = (() => {
   function _renderThead() {
     const thead = document.getElementById('ord-thead');
     if (!thead) return;
-
-    // Count per group
     const gc = {};
     _cols.forEach(c => { const g = c.group||'cx'; gc[g] = (gc[g]||0) + 1; });
 
@@ -207,18 +227,13 @@ const OrderModule = (() => {
       <th class="ord-th" style="text-align:left;min-width:110px">Pelapor</th>
       <th class="ord-th" style="min-width:90px">Tgl Order</th>
       <th class="ord-th" style="text-align:left;min-width:140px">Customer</th>`;
-
     _cols.forEach((c, ci) => {
       const m = _groupMeta[c.group||'cx'] || _groupMeta.cx;
       col += `<th class="ord-th" style="background:${m.bg};border-left:1px solid rgba(255,255,255,.06);cursor:pointer" onclick="OrderModule.editHeader(${ci})">
-        <div class="hdr-wrap">
-          <span>${c.label}</span>
-          <span class="hdr-btn" title="Edit nama kolom">✎</span>
-        </div>
+        <div class="hdr-wrap"><span>${c.label}</span><span class="hdr-btn" title="Edit nama kolom">✎</span></div>
       </th>`;
     });
     col += `<th class="ord-th">Jenis</th><th class="ord-th">Aksi</th></tr>`;
-
     thead.innerHTML = grp + col;
   }
 
@@ -235,7 +250,7 @@ const OrderModule = (() => {
         (o.pelapor||'').toLowerCase().includes(q));
     }
     if (_filterCustomer) list = list.filter(o => o.namaPerusahaan === _filterCustomer);
-    if (_filterDate)     list = list.filter(o => o.tglOrder === _filterDate);
+    if (_filterDate) list = list.filter(o => o.tglOrder === _filterDate);
 
     const ct = document.getElementById('ord-count');
     if (ct) ct.textContent = list.length + ' order';
@@ -253,13 +268,11 @@ const OrderModule = (() => {
       const bg  = i%2===0 ? 'var(--surface)' : 'var(--surface2)';
       const hov = o.invoiced ? 'rgba(16,185,129,.05)' : 'rgba(99,102,241,.07)';
       const oid = o.id;
-
       const cells = _cols.map(col => {
-        const m   = _groupMeta[col.group||'cx'] || _groupMeta.cx;
+        const m = _groupMeta[col.group||'cx'] || _groupMeta.cx;
         const val = o._custom ? (o._custom[col.key] !== undefined ? o._custom[col.key] : o[col.key]) : o[col.key];
         return `<td class="ord-td" style="background:${m.bg}">
-          <div class="ord-cell" ondblclick="OrderModule.startEdit('${oid}','${col.key}',this)"
-            title="Double-klik untuk edit">${_c(val)}</div>
+          <div class="ord-cell" ondblclick="OrderModule.startEdit('${oid}','${col.key}',this)" title="Double-klik untuk edit">${_c(val)}</div>
         </td>`;
       }).join('');
 
@@ -277,25 +290,21 @@ const OrderModule = (() => {
         ${cells}
         <td class="ord-td" style="background:${bg}">${_jenisBadge(o.catatan)} ${_invBadge(o)}</td>
         <td class="ord-td" style="background:${bg}">
-          <button onclick="OrderModule.deleteOrder('${oid}')"
-            style="width:24px;height:24px;border-radius:4px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);cursor:pointer;color:#ef4444;font-size:11px" title="Hapus">✕</button>
+          <button onclick="OrderModule.deleteOrder('${oid}')" style="width:24px;height:24px;border-radius:4px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);cursor:pointer;color:#ef4444;font-size:11px" title="Hapus">✕</button>
         </td>
       </tr>`;
     }).join('');
   }
 
-  /* ─── INLINE EDIT (double-click) ─── */
+  /* ─── INLINE EDIT ─── */
   function startEdit(ordId, key, cell) {
     const ord = _data.find(o => o.id === ordId);
     if (!ord) return;
     if (ord.invoiced) { Notify.warning('Order sudah di-invoice, tidak bisa diedit'); return; }
-
-    const col   = _cols.find(c => c.key === key);
+    const col = _cols.find(c => c.key === key);
     const isNum = col ? col.editable : false;
-    const cur   = key === 'namaPerusahaan' ? (ord[key]||'') :
-                  (col && col.custom) ? ((ord._custom||{})[key]||0) : (ord[key]||0);
-    const orig  = cell.innerHTML;
-
+    const cur = key === 'namaPerusahaan' ? (ord[key]||'') : (col && col.custom) ? ((ord._custom||{})[key]||0) : (ord[key]||0);
+    const orig = cell.innerHTML;
     const commit = (val) => {
       let v = isNum ? (parseInt(val)||0) : String(val).trim();
       if (col && col.custom) { if(!ord._custom) ord._custom={}; ord._custom[key]=v; }
@@ -304,7 +313,6 @@ const OrderModule = (() => {
       cell.innerHTML = isNum ? _c(v) : (v||'-');
       cell.ondblclick = () => startEdit(ordId, key, cell);
     };
-
     if (key === 'namaPerusahaan') {
       const custs = _getCustomers();
       if (custs.length) {
@@ -314,23 +322,24 @@ const OrderModule = (() => {
         const sel = cell.querySelector('select');
         sel.focus();
         sel.onblur = () => { commit(sel.value); };
-        sel.onkeydown = (e) => { if(e.key==='Enter') sel.blur(); if(e.key==='Escape'){cell.innerHTML=orig;cell.ondblclick=()=>startEdit(ordId,key,cell);} };
+        sel.onkeydown = (e) => {
+          if(e.key==='Enter') sel.blur();
+          if(e.key==='Escape'){cell.innerHTML=orig;cell.ondblclick=()=>startEdit(ordId,key,cell);}
+        };
         return;
       }
     }
-
-    cell.innerHTML = `<input type="${isNum?'number':'text'}" value="${cur}" min="0"
-      style="width:100%;border:2px solid #6366f1;border-radius:3px;background:var(--surface);color:var(--text);font-size:11px;font-weight:600;text-align:${isNum?'center':'left'};padding:2px 4px;outline:none;box-sizing:border-box">`;
+    cell.innerHTML = `<input type="${isNum?'number':'text'}" value="${cur}" min="0" style="width:100%;border:2px solid #6366f1;border-radius:3px;background:var(--surface);color:var(--text);font-size:11px;font-weight:600;text-align:${isNum?'center':'left'};padding:2px 4px;outline:none;box-sizing:border-box">`;
     const inp = cell.querySelector('input');
     inp.focus(); inp.select();
-    inp.onblur   = () => commit(inp.value);
+    inp.onblur = () => commit(inp.value);
     inp.onkeydown = (e) => {
-      if (e.key === 'Enter')  inp.blur();
+      if (e.key === 'Enter') inp.blur();
       if (e.key === 'Escape') { cell.innerHTML = orig; cell.ondblclick = () => startEdit(ordId, key, cell); }
     };
   }
 
-  /* ─── EDIT HEADER (click on column header) ─── */
+  /* ─── EDIT HEADER ─── */
   function editHeader(ci) {
     const col = _cols[ci];
     if (!col) return;
@@ -353,22 +362,50 @@ const OrderModule = (() => {
       ]
     });
   }
+
   function _saveHdr(ci) {
     const lbl = (document.getElementById('hl-label')?.value||'').trim();
     const grp = document.getElementById('hl-group')?.value;
     if (!lbl) { Notify.warning('Label tidak boleh kosong'); return; }
-    _cols[ci].label = lbl; _cols[ci].group = grp;
-    _saveCols(); Modal.close(); _renderThead(); _renderTbody();
+    _cols[ci].label = lbl;
+    _cols[ci].group = grp;
+    _saveCols();
+    Modal.close();
+    _renderThead();
+    _renderTbody();
     Notify.success('Nama kolom diperbarui');
   }
 
   /* ─── KELOLA KOLOM ─── */
   function openColManager() {
+    const _buildColTable = () => _cols.map((c,i)=>`
+      <tr style="border-bottom:1px solid var(--border);background:${i%2===0?'var(--surface)':'var(--surface2)'}">
+        <td style="padding:6px 10px;font-family:var(--font-mono);font-size:10px;color:var(--text-3)">${c.key}</td>
+        <td style="padding:5px 8px">
+          <input value="${c.label}" maxlength="10"
+            style="width:80px;padding:4px 7px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);font-size:12px;color:var(--text);font-weight:600"
+            onchange="OrderModule._setColLabel(${i},this.value)">
+        </td>
+        <td style="padding:5px 8px">
+          <select onchange="OrderModule._setColGroup(${i},this.value)"
+            style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);font-size:11px;color:var(--text)">
+            ${Object.entries(_groupMeta).map(([k,v])=>`<option value="${k}" ${c.group===k?'selected':''}>${v.label}</option>`).join('')}
+          </select>
+        </td>
+        <td style="padding:5px 8px;text-align:center">
+          <input type="checkbox" ${c.editable?'checked':''} onchange="OrderModule._setColEditable(${i},this.checked)">
+        </td>
+        <td style="padding:5px 8px;text-align:center">
+          <button onclick="OrderModule._removeCol(${i})"
+            style="padding:3px 8px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);border-radius:5px;color:#ef4444;cursor:pointer;font-size:11px">Hapus</button>
+        </td>
+      </tr>`).join('');
+
     Modal.open({
       title: '⚙ Kelola Kolom',
       size: 'modal-lg',
       body: `
-        <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">Klik header kolom di tabel untuk rename cepat. Di sini bisa rename, ubah grup, atau hapus kolom.</p>
+        <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">Klik header kolom di tabel untuk rename cepat.</p>
         <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:16px">
           <table style="width:100%;border-collapse:collapse;font-size:11px">
             <thead><tr style="background:var(--primary-h)">
@@ -378,47 +415,26 @@ const OrderModule = (() => {
               <th style="padding:7px 10px;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase">Editable</th>
               <th style="padding:7px 10px;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase">Hapus</th>
             </tr></thead>
-            <tbody>
-            ${_cols.map((c,i)=>`
-              <tr style="border-bottom:1px solid var(--border);background:${i%2===0?'var(--surface)':'var(--surface2)'}">
-                <td style="padding:6px 10px;font-family:var(--font-mono);font-size:10px;color:var(--text-3)">${c.key}</td>
-                <td style="padding:5px 8px">
-                  <input value="${c.label}" maxlength="10"
-                    style="width:80px;padding:4px 7px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);font-size:12px;color:var(--text);font-weight:600"
-                    onchange="OrderModule._setColLabel(${i},this.value)">
-                </td>
-                <td style="padding:5px 8px">
-                  <select onchange="OrderModule._setColGroup(${i},this.value)"
-                    style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);font-size:11px;color:var(--text)">
-                    ${Object.entries(_groupMeta).map(([k,v])=>`<option value="${k}" ${c.group===k?'selected':''}>${v.label}</option>`).join('')}
-                  </select>
-                </td>
-                <td style="padding:5px 8px;text-align:center">
-                  <input type="checkbox" ${c.editable?'checked':''} onchange="OrderModule._setColEditable(${i},this.checked)">
-                </td>
-                <td style="padding:5px 8px;text-align:center">
-                  <button onclick="OrderModule._removeCol(${i})"
-                    style="padding:3px 8px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);border-radius:5px;color:#ef4444;cursor:pointer;font-size:11px">Hapus</button>
-                </td>
-              </tr>`).join('')}
-            </tbody>
+            <tbody id="col-mgr-tbody">${_buildColTable()}</tbody>
           </table>
         </div>
-
         <div style="padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
           <div style="font-size:11px;font-weight:700;color:var(--text-2);margin-bottom:8px">+ Tambah Kolom Baru</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
             <div>
               <div style="font-size:10px;color:var(--text-3);margin-bottom:3px">Key (huruf kecil)</div>
-              <input id="nc-key" placeholder="contoh: extra1" style="width:120px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:12px;color:var(--text)">
+              <input id="nc-key" placeholder="contoh: extra1"
+                style="width:120px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:12px;color:var(--text)">
             </div>
             <div>
               <div style="font-size:10px;color:var(--text-3);margin-bottom:3px">Label (maks 10)</div>
-              <input id="nc-label" placeholder="Xtra1" maxlength="10" style="width:90px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:12px;color:var(--text)">
+              <input id="nc-label" placeholder="Xtra1" maxlength="10"
+                style="width:90px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:12px;color:var(--text)">
             </div>
             <div>
               <div style="font-size:10px;color:var(--text-3);margin-bottom:3px">Grup</div>
-              <select id="nc-group" style="padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:12px;color:var(--text)">
+              <select id="nc-group"
+                style="padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:12px;color:var(--text)">
                 ${Object.entries(_groupMeta).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
               </select>
             </div>
@@ -427,8 +443,8 @@ const OrderModule = (() => {
           </div>
         </div>`,
       buttons: [
-        {label:'Tutup', class:'btn-ghost', onclick:'Modal.close()'},
-        {label:'Reset Default', class:'btn-secondary', onclick:'OrderModule._resetCols()'},
+        {label:'Tutup',        class:'btn-ghost',      onclick:'Modal.close()'},
+        {label:'Reset Default',class:'btn-secondary',  onclick:'OrderModule._resetCols()'},
       ]
     });
   }
@@ -436,23 +452,69 @@ const OrderModule = (() => {
   function _setColLabel(i, v)    { if(v.trim()){_cols[i].label=v.trim();_saveCols();_renderThead();} }
   function _setColGroup(i, v)    { _cols[i].group=v;_saveCols();_renderThead(); }
   function _setColEditable(i, v) { _cols[i].editable=v;_saveCols(); }
+
   function _removeCol(i) {
     if(!confirm(`Hapus kolom "${_cols[i].label}"?`)) return;
-    _cols.splice(i,1); _saveCols(); Modal.close(); _renderFull(); Notify.success('Kolom dihapus');
+    _cols.splice(i,1);
+    _saveCols();
+    Modal.close();
+    _renderFull();
+    Notify.success('Kolom dihapus');
   }
+
   function _addCol() {
-    let key   = (document.getElementById('nc-key')?.value||'').trim().replace(/\s+/g,'_').toLowerCase();
-    const lbl = (document.getElementById('nc-label')?.value||'').trim();
-    const grp = document.getElementById('nc-group')?.value || 'cx';
-    if (!key||!lbl) { Notify.warning('Key dan label wajib diisi'); return; }
+    const keyEl   = document.getElementById('nc-key');
+    const lblEl   = document.getElementById('nc-label');
+    const grpEl   = document.getElementById('nc-group');
+    let key = (keyEl?.value||'').trim().replace(/\s+/g,'_').toLowerCase();
+    const lbl = (lblEl?.value||'').trim();
+    const grp = grpEl?.value || 'cx';
+
+    if (!key || !lbl) { Notify.warning('Key dan label wajib diisi'); return; }
     if (_cols.find(c=>c.key===key)) { Notify.warning('Key sudah ada, gunakan key lain'); return; }
-    _cols.push({key,label:lbl,group:grp,editable:true,custom:true});
-    _saveCols(); Modal.close(); _renderFull(); Notify.success(`Kolom "${lbl}" ditambahkan`);
+
+    _cols.push({key, label:lbl, group:grp, editable:true, custom:true});
+    _saveCols();
+
+    // Update tbody in modal without closing
+    const tbody = document.getElementById('col-mgr-tbody');
+    if (tbody) {
+      tbody.innerHTML = _cols.map((c,i)=>`
+        <tr style="border-bottom:1px solid var(--border);background:${i%2===0?'var(--surface)':'var(--surface2)'}">
+          <td style="padding:6px 10px;font-family:var(--font-mono);font-size:10px;color:var(--text-3)">${c.key}</td>
+          <td style="padding:5px 8px">
+            <input value="${c.label}" maxlength="10"
+              style="width:80px;padding:4px 7px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);font-size:12px;color:var(--text);font-weight:600"
+              onchange="OrderModule._setColLabel(${i},this.value)">
+          </td>
+          <td style="padding:5px 8px">
+            <select onchange="OrderModule._setColGroup(${i},this.value)"
+              style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);font-size:11px;color:var(--text)">
+              ${Object.entries(_groupMeta).map(([k,v])=>`<option value="${k}" ${c.group===k?'selected':''}>${v.label}</option>`).join('')}
+            </select>
+          </td>
+          <td style="padding:5px 8px;text-align:center">
+            <input type="checkbox" ${c.editable?'checked':''} onchange="OrderModule._setColEditable(${i},this.checked)">
+          </td>
+          <td style="padding:5px 8px;text-align:center">
+            <button onclick="OrderModule._removeCol(${i})"
+              style="padding:3px 8px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);border-radius:5px;color:#ef4444;cursor:pointer;font-size:11px">Hapus</button>
+          </td>
+        </tr>`).join('');
+    }
+    if (keyEl) keyEl.value = '';
+    if (lblEl) lblEl.value = '';
+    _renderThead();
+    Notify.success(`Kolom "${lbl}" ditambahkan`);
   }
+
   function _resetCols() {
     if(!confirm('Reset semua kolom ke default?')) return;
     _cols = JSON.parse(JSON.stringify(_defaultCols));
-    _saveCols(); Modal.close(); _renderFull(); Notify.success('Kolom direset');
+    _saveCols();
+    Modal.close();
+    _renderFull();
+    Notify.success('Kolom direset');
   }
 
   /* ─── DELETE ─── */
@@ -461,13 +523,16 @@ const OrderModule = (() => {
     if (!o) return;
     if (o.invoiced) { Notify.warning('Order sudah di-invoice, tidak bisa dihapus'); return; }
     if (!confirm(`Hapus order ${o.namaPerusahaan} (${o.tglOrder})?`)) return;
-    _data = _data.filter(x=>x.id!==id); _save(); _renderTbody(); Notify.success('Order dihapus');
+    _data = _data.filter(x=>x.id!==id);
+    _save();
+    _renderTbody();
+    Notify.success('Order dihapus');
   }
 
-  /* ─── TAMBAH ORDER (modal) ─── */
+  /* ─── TAMBAH ORDER ─── */
   function openModal() {
     const custs = _getCustomers();
-    const co    = custs.map(c=>`<option value="${c.nama}">${c.nama}</option>`).join('');
+    const co = custs.map(c=>`<option value="${c.nama}">${c.nama}</option>`).join('');
     const today = new Date().toISOString().slice(0,10);
     const nf = (id, lbl, color='var(--text-2)') =>
       `<div class="form-group"><label class="form-label" style="color:${color}">${lbl}</label><input class="form-control" id="${id}" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>`;
@@ -506,30 +571,35 @@ const OrderModule = (() => {
           ${nf('of-snkb','Snack Berat','#ec4899')}
         </div>`,
       buttons: [
-        {label:'Batal', class:'btn-ghost', onclick:'Modal.close()'},
-        {label:'Simpan Order', class:'btn-primary', onclick:'OrderModule._submitOrder()'}
+        {label:'Batal',        class:'btn-ghost',   onclick:'Modal.close()'},
+        {label:'Simpan Order', class:'btn-primary',  onclick:'OrderModule._submitOrder()'}
       ]
     });
   }
+
   function _submitOrder() {
     const g = id => document.getElementById(id)?.value?.trim()||'';
     const n = id => parseInt(document.getElementById(id)?.value)||0;
     const tgl = g('of-tgl'), cust = g('of-cust');
     if (!tgl)  { Notify.warning('Tanggal order wajib diisi'); return; }
     if (!cust) { Notify.warning('Pilih nama perusahaan'); return; }
-    const now  = new Date();
-    const ts   = now.toISOString().slice(0,10)+' '+now.toTimeString().slice(0,8);
+    const now = new Date();
+    const ts  = now.toISOString().slice(0,10)+' '+now.toTimeString().slice(0,8);
     const user = (typeof Auth!=='undefined'&&Auth.user)?(Auth.user.name||Auth.user.username||''):'';
     _data.push({
-      id:'ord_'+Date.now(), timestamp:ts, pelapor:g('of-pelapor')||user,
-      tglOrder:tgl, namaPerusahaan:cust, catatan:g('of-jenis'),
+      id:'ord_'+Date.now(), timestamp:ts,
+      pelapor:g('of-pelapor')||user, tglOrder:tgl, namaPerusahaan:cust,
+      catatan:g('of-jenis'),
       breakfast:n('of-bf'),
-      shift1:n('of-s1'),spare1:n('of-sp1'),ot1:n('of-ot1'),snack1:n('of-snk1'),
-      shift2:n('of-s2'),spare2:n('of-sp2'),ot2:n('of-ot2'),snack2:n('of-snk2'),
-      shift3:n('of-s3'),spare3:n('of-sp3'),ot3:n('of-ot3'),snack3:n('of-snk3'),
+      shift1:n('of-s1'), spare1:n('of-sp1'), ot1:n('of-ot1'), snack1:n('of-snk1'),
+      shift2:n('of-s2'), spare2:n('of-sp2'), ot2:n('of-ot2'), snack2:n('of-snk2'),
+      shift3:n('of-s3'), spare3:n('of-sp3'), ot3:n('of-ot3'), snack3:n('of-snk3'),
       snackBerat:n('of-snkb'),
     });
-    _save(); Modal.close(); Notify.success('Order berhasil ditambahkan'); _renderFull();
+    _save();
+    Modal.close();
+    Notify.success('Order berhasil ditambahkan');
+    _renderFull();
   }
 
   /* ══════════════════════════════════════════
@@ -540,7 +610,6 @@ const OrderModule = (() => {
     if (!custAvail.length) { Notify.warning('Tidak ada order yang belum di-invoice'); return; }
 
     const today = new Date().toISOString().slice(0,10);
-    const invNo = _genInvNo();
 
     Modal.open({
       title: '🧾 Cetak Invoice Orderan',
@@ -565,22 +634,24 @@ const OrderModule = (() => {
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Nomor Invoice</label>
-          <input class="form-control" id="ic-nomor" value="${invNo}" placeholder="INV/2026/03/001">
+          <label class="form-label">
+            Nomor Invoice
+            <span style="font-size:10px;color:var(--text-3);font-weight:400"> — otomatis dari Customer ID + periode</span>
+          </label>
+          <input class="form-control" id="ic-nomor" value="" placeholder="Pilih customer & periode untuk generate otomatis"
+            style="font-family:var(--font-mono);font-size:14px;font-weight:700;letter-spacing:.04em">
         </div>
         <div id="ic-preview" style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:20px;min-height:80px;background:var(--surface2);color:var(--text-3);text-align:center">
           Pilih customer dan periode untuk melihat preview
+        </div>
+        <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:10px">
+          <button class="btn btn-ghost" onclick="Modal.close()">Batal</button>
+          <button class="btn btn-primary" onclick="OrderModule._printInvoice()" style="padding:8px 22px;font-size:13px">
+            🖨 Cetak Invoice
+          </button>
         </div>`,
-      buttons: [
-        {label:'Batal', class:'btn-ghost', onclick:'Modal.close()'},
-        {label:'🖨 Cetak Invoice', class:'btn-primary', onclick:'OrderModule._printInvoice()'}
-      ]
+      buttons: []
     });
-  }
-
-  function _genInvNo() {
-    const d = new Date();
-    return `INV/${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(_invRecs.length+1).padStart(3,'0')}`;
   }
 
   function _previewInv() {
@@ -589,6 +660,12 @@ const OrderModule = (() => {
     const sampai = document.getElementById('ic-sampai')?.value;
     const area   = document.getElementById('ic-preview');
     if (!area) return;
+
+    // Auto-generate nomor invoice
+    const nomorEl = document.getElementById('ic-nomor');
+    if (nomorEl && cust) {
+      nomorEl.value = _genInvNo(cust, dari || sampai, sampai || dari);
+    }
 
     if (!cust) {
       area.innerHTML = '<div style="color:var(--text-3);text-align:center;padding:20px">Pilih customer terlebih dahulu</div>';
@@ -644,6 +721,7 @@ const OrderModule = (() => {
     const dari   = document.getElementById('ic-dari')?.value;
     const sampai = document.getElementById('ic-sampai')?.value;
     const nomor  = (document.getElementById('ic-nomor')?.value||'').trim();
+
     if (!cust)  { Notify.warning('Pilih nama perusahaan'); return; }
     if (!nomor) { Notify.warning('Nomor invoice wajib diisi'); return; }
 
@@ -662,9 +740,9 @@ const OrderModule = (() => {
     });
     _save();
 
-    // Simpan record invoice
     const tots = {};
     _cols.forEach(c => { tots[c.key] = list.reduce((s,o)=>s+(Number(o[c.key])||0),0); });
+
     _invRecs.push({nomor, customer:cust, dari, sampai, invoiceDate:invDate, orderCount:list.length, orderIds:ids, totals:tots});
     _saveInvs();
 
@@ -672,86 +750,84 @@ const OrderModule = (() => {
     Notify.success(`Invoice ${nomor} berhasil — ${list.length} order ditandai`);
     _renderFull();
 
-    // Buka print window
     _openPrintWin(nomor, cust, dari, sampai, list, tots);
   }
 
   function _openPrintWin(nomor, cust, dari, sampai, list, tots) {
     const now = new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
     const html = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Invoice ${nomor}</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#1a1a2e;padding:28px;max-width:900px;margin:0 auto}
-  .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;padding-bottom:16px;border-bottom:3px solid #6366f1}
-  .co{font-size:20px;font-weight:900;color:#6366f1}.co-sub{font-size:11px;color:#666;margin-top:3px}
-  .inv-n{font-size:17px;font-weight:800}.inv-d{font-size:11px;color:#666;margin-top:3px;text-align:right}
-  .to{background:#f0f0ff;border-left:4px solid #6366f1;padding:10px 14px;margin-bottom:18px;border-radius:0 6px 6px 0}
-  .to-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#888;font-weight:700}
-  .to-name{font-size:15px;font-weight:700;margin-top:2px}.to-per{font-size:11px;color:#666;margin-top:2px}
-  table{width:100%;border-collapse:collapse;margin-bottom:18px}
-  thead tr{background:#6366f1;color:#fff}
-  th{padding:7px 6px;font-size:10px;font-weight:700;text-transform:uppercase;text-align:center}
-  th:first-child{text-align:left;padding-left:12px}
-  td{padding:6px;border-bottom:1px solid #e8e8f0;text-align:center}
-  td:first-child{text-align:left;padding-left:12px;font-weight:600}
-  tr:nth-child(even) td{background:#f9f9ff}
-  .tot-row td{background:#ededff;font-weight:700;color:#6366f1;border-top:2px solid #6366f1}
-  .badge-r{font-size:8px;background:#d1fae5;color:#065f46;padding:1px 5px;border-radius:8px;font-weight:700}
-  .badge-e{font-size:8px;background:#ede9fe;color:#5b21b6;padding:1px 5px;border-radius:8px;font-weight:700}
-  .sign{display:flex;justify-content:flex-end;margin-top:24px}
-  .sign-box{width:180px;text-align:center}
-  .sign-line{border-top:1px solid #333;margin-top:52px;padding-top:4px;font-size:10px}
-  .print-btn{position:fixed;top:16px;right:16px;padding:9px 22px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(99,102,241,.4)}
-  @media print{.print-btn{display:none!important}}
-</style></head><body>
-<button class="print-btn" onclick="window.print()">🖨 Print / Save PDF</button>
-<div class="top">
-  <div>
-    <div class="co">BOGA PANGAN SENTOSA</div>
-    <div class="co-sub">Industrial Catering Service — Karawang, Jawa Barat</div>
-  </div>
-  <div>
-    <div class="inv-n">Invoice #${nomor}</div>
-    <div class="inv-d">Dicetak: ${now}</div>
-  </div>
-</div>
-<div class="to">
-  <div class="to-lbl">Tagihan Kepada</div>
-  <div class="to-name">${cust}</div>
-  <div class="to-per">Periode: ${dari?_fmtDate(dari):'--'} s/d ${sampai?_fmtDate(sampai):'--'}</div>
-</div>
-<table>
-  <thead><tr>
-    <th>Tgl Order</th>
-    ${_cols.map(c=>`<th>${c.label}</th>`).join('')}
-    <th>Jenis</th>
-  </tr></thead>
-  <tbody>
-    ${list.map(o=>`<tr>
-      <td>${_fmtDate(o.tglOrder)}</td>
-      ${_cols.map(c=>`<td>${(o[c.key]||0)>0?`<b>${o[c.key]}</b>`:'-'}</td>`).join('')}
-      <td>${(o.catatan||'').includes('real')?'<span class="badge-r">REAL</span>':'<span class="badge-e">EST</span>'}</td>
-    </tr>`).join('')}
-    <tr class="tot-row">
-      <td>TOTAL (${list.length} order)</td>
-      ${_cols.map(c=>`<td>${tots[c.key]||0}</td>`).join('')}
-      <td></td>
-    </tr>
-  </tbody>
-</table>
-<div class="sign"><div class="sign-box"><div class="sign-line">Manager / Admin BPS</div></div></div>
-</body></html>`;
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#1a1a2e;padding:28px;max-width:900px;margin:0 auto}
+      .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;padding-bottom:16px;border-bottom:3px solid #6366f1}
+      .co{font-size:20px;font-weight:900;color:#6366f1}.co-sub{font-size:11px;color:#666;margin-top:3px}
+      .inv-n{font-size:17px;font-weight:800}.inv-d{font-size:11px;color:#666;margin-top:3px;text-align:right}
+      .to{background:#f0f0ff;border-left:4px solid #6366f1;padding:10px 14px;margin-bottom:18px;border-radius:0 6px 6px 0}
+      .to-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#888;font-weight:700}
+      .to-name{font-size:15px;font-weight:700;margin-top:2px}.to-per{font-size:11px;color:#666;margin-top:2px}
+      table{width:100%;border-collapse:collapse;margin-bottom:18px}
+      thead tr{background:#6366f1;color:#fff}
+      th{padding:7px 6px;font-size:10px;font-weight:700;text-transform:uppercase;text-align:center}
+      th:first-child{text-align:left;padding-left:12px}
+      td{padding:6px;border-bottom:1px solid #e8e8f0;text-align:center}
+      td:first-child{text-align:left;padding-left:12px;font-weight:600}
+      tr:nth-child(even) td{background:#f9f9ff}
+      .tot-row td{background:#ededff;font-weight:700;color:#6366f1;border-top:2px solid #6366f1}
+      .badge-r{font-size:8px;background:#d1fae5;color:#065f46;padding:1px 5px;border-radius:8px;font-weight:700}
+      .badge-e{font-size:8px;background:#ede9fe;color:#5b21b6;padding:1px 5px;border-radius:8px;font-weight:700}
+      .sign{display:flex;justify-content:flex-end;margin-top:24px}
+      .sign-box{width:180px;text-align:center}
+      .sign-line{border-top:1px solid #333;margin-top:52px;padding-top:4px;font-size:10px}
+      .print-btn{position:fixed;top:16px;right:16px;padding:9px 22px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(99,102,241,.4)}
+      @media print{.print-btn{display:none!important}}
+    </style></head><body>
+    <button class="print-btn" onclick="window.print()">🖨 Print / Save PDF</button>
+    <div class="top">
+      <div>
+        <div class="co">BOGA PANGAN SENTOSA</div>
+        <div class="co-sub">Industrial Catering Service — Karawang, Jawa Barat</div>
+      </div>
+      <div>
+        <div class="inv-n">Invoice #${nomor}</div>
+        <div class="inv-d">Dicetak: ${now}</div>
+      </div>
+    </div>
+    <div class="to">
+      <div class="to-lbl">Tagihan Kepada</div>
+      <div class="to-name">${cust}</div>
+      <div class="to-per">Periode: ${dari?_fmtDate(dari):'--'} s/d ${sampai?_fmtDate(sampai):'--'}</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Tgl Order</th>
+        ${_cols.map(c=>`<th>${c.label}</th>`).join('')}
+        <th>Jenis</th>
+      </tr></thead>
+      <tbody>
+        ${list.map(o=>`<tr>
+          <td>${_fmtDate(o.tglOrder)}</td>
+          ${_cols.map(c=>`<td>${(o[c.key]||0)>0?`<b>${o[c.key]}</b>`:'-'}</td>`).join('')}
+          <td>${(o.catatan||'').includes('real')?'<span class="badge-r">REAL</span>':'<span class="badge-e">EST</span>'}</td>
+        </tr>`).join('')}
+        <tr class="tot-row">
+          <td>TOTAL (${list.length} order)</td>
+          ${_cols.map(c=>`<td>${tots[c.key]||0}</td>`).join('')}
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="sign"><div class="sign-box"><div class="sign-line">Manager / Admin BPS</div></div></div>
+    </body></html>`;
+
     const w = window.open('','_blank','width=1000,height=720');
-    w.document.write(html); w.document.close();
+    w.document.write(html);
+    w.document.close();
   }
 
   /* ─── CONTROLS ─── */
-  function setSearch(val) {
-    _search = (val||'').toLowerCase().trim();
-    _renderTbody();
-  }
-  function setFilterCustomer(val) { _filterCustomer = val; _renderTbody(); }
-  function setFilterDate(val)     { _filterDate = val; _renderTbody(); }
+  function setSearch(val)          { _search = (val||'').toLowerCase().trim(); _renderTbody(); }
+  function setFilterCustomer(val)  { _filterCustomer = val; _renderTbody(); }
+  function setFilterDate(val)      { _filterDate = val; _renderTbody(); }
 
   return {
     init, openModal, _submitOrder,
