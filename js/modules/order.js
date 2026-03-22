@@ -1,407 +1,407 @@
 /* ============================================
    BECCA V2.0 — Order Module
-   Schema: { id, tglOrder, namaPerusahaan, breakfast, 
-     shift1, spare1, ot1, snack1,
-     shift2, spare2, ot2, snack2,
-     shift3, spare3, ot3, snack3,
-     snackBerat, catatan, jenis, pelapor, createdAt }
+   Fix: search partial re-render, dropdown customer,
+        format tabel sesuai Excel, timestamp & pelapor
 ============================================ */
-const OrderModule = (() => {
-  let _orders = [];
-  let _filter  = { tgl: '', perusahaan: '', jenis: '' };
-  let _page    = 1;
-  const _perPage = 50;
 
-  /* ===================== INIT ===================== */
+const OrderModule = (() => {
+  let _data = [];
+  let _search = '';
+  let _filterDate = '';
+  let _filterCustomer = '';
+  let _sortCol = 'tglOrder';
+  let _sortDir = -1; // terbaru dulu
+
+  /* ─── DEFAULT DATA (16–22 Mar 2026) ─── */
+  const _defaultData = [{"id":"ord_00200","timestamp":"2026-03-13 20:14:28","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-16","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":24,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":65,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00201","timestamp":"2026-03-13 20:15:36","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-17","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":24,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":65,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00202","timestamp":"2026-03-13 20:15:36","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-18","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":24,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":65,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00203","timestamp":"2026-03-13 20:16:28","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-19","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00204","timestamp":"2026-03-13 20:16:42","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-20","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00205","timestamp":"2026-03-13 20:16:58","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-21","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00206","timestamp":"2026-03-13 20:17:05","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-22","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00207","timestamp":"2026-03-13 20:21:49","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-16","namaPerusahaan":"PT. RESONAC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":60,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00208","timestamp":"2026-03-13 20:22:14","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-17","namaPerusahaan":"PT. RESONAC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":60,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00209","timestamp":"2026-03-13 20:22:14","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-18","namaPerusahaan":"PT. RESONAC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":60,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00210","timestamp":"2026-03-13 20:22:42","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-19","namaPerusahaan":"PT. RESONAC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00211","timestamp":"2026-03-13 20:22:56","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-20","namaPerusahaan":"PT. RESONAC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00212","timestamp":"2026-03-13 20:23:05","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-21","namaPerusahaan":"PT. RESONAC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00213","timestamp":"2026-03-13 20:23:14","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-22","namaPerusahaan":"PT. RESONAC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00214","timestamp":"2026-03-14 08:36:12","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-16","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":45,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00215","timestamp":"2026-03-14 08:36:12","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-17","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":45,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00216","timestamp":"2026-03-14 08:36:45","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-16","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":110,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00217","timestamp":"2026-03-14 08:37:20","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-17","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":110,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00218","timestamp":"2026-03-14 08:37:20","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-18","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":110,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00219","timestamp":"2026-03-14 08:38:01","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-19","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":110,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00220","timestamp":"2026-03-14 08:38:29","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-20","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00221","timestamp":"2026-03-14 08:38:40","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-21","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00222","timestamp":"2026-03-16 16:24:09","pelapor":"Nda ~ Teh Nadya","tglOrder":"2026-03-19","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":24,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00223","timestamp":"2026-03-16 10:32:18","pelapor":"Agus ~ Pak Agus","tglOrder":"2026-03-16","namaPerusahaan":"PT. NBC","breakfast":0,"shift1":22,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":5,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00224","timestamp":"2026-03-16 10:32:18","pelapor":"Agus ~ Pak Agus","tglOrder":"2026-03-17","namaPerusahaan":"PT. NBC","breakfast":0,"shift1":22,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":5,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00225","timestamp":"2026-03-16 10:32:18","pelapor":"Agus ~ Pak Agus","tglOrder":"2026-03-18","namaPerusahaan":"PT. NBC","breakfast":0,"shift1":22,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":5,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00226","timestamp":"2026-03-16 10:33:05","pelapor":"Agus ~ Pak Agus","tglOrder":"2026-03-19","namaPerusahaan":"PT. NBC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00227","timestamp":"2026-03-16 10:33:05","pelapor":"Agus ~ Pak Agus","tglOrder":"2026-03-20","namaPerusahaan":"PT. NBC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00228","timestamp":"2026-03-16 10:33:17","pelapor":"Agus ~ Pak Agus","tglOrder":"2026-03-21","namaPerusahaan":"PT. NBC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00229","timestamp":"2026-03-13 20:45:22","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-18","namaPerusahaan":"PT. RESONAC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":40,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00230","timestamp":"2026-03-14 09:10:05","pelapor":"Zia ~ Admin","tglOrder":"2026-03-16","namaPerusahaan":"PT. DDMI","breakfast":0,"shift1":32,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00231","timestamp":"2026-03-14 09:10:05","pelapor":"Zia ~ Admin","tglOrder":"2026-03-17","namaPerusahaan":"PT. DDMI","breakfast":0,"shift1":32,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00232","timestamp":"2026-03-14 09:10:05","pelapor":"Zia ~ Admin","tglOrder":"2026-03-18","namaPerusahaan":"PT. DDMI","breakfast":0,"shift1":32,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00233","timestamp":"2026-03-14 09:10:47","pelapor":"Zia ~ Admin","tglOrder":"2026-03-19","namaPerusahaan":"PT. DDMI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00234","timestamp":"2026-03-14 09:10:47","pelapor":"Zia ~ Admin","tglOrder":"2026-03-20","namaPerusahaan":"PT. DDMI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00235","timestamp":"2026-03-14 09:10:47","pelapor":"Zia ~ Admin","tglOrder":"2026-03-21","namaPerusahaan":"PT. DDMI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00236","timestamp":"2026-03-14 07:45:33","pelapor":"Hendra ~ Mas Hendra","tglOrder":"2026-03-16","namaPerusahaan":"PT. DAIKI","breakfast":0,"shift1":25,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":45,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00237","timestamp":"2026-03-14 07:45:33","pelapor":"Hendra ~ Mas Hendra","tglOrder":"2026-03-17","namaPerusahaan":"PT. DAIKI","breakfast":0,"shift1":25,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":45,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00238","timestamp":"2026-03-14 07:46:02","pelapor":"Hendra ~ Mas Hendra","tglOrder":"2026-03-18","namaPerusahaan":"PT. DAIKI","breakfast":0,"shift1":25,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":45,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00239","timestamp":"2026-03-15 09:30:00","pelapor":"Admin BPS","tglOrder":"2026-03-16","namaPerusahaan":"PT. SSK","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00240","timestamp":"2026-03-15 09:30:00","pelapor":"Admin BPS","tglOrder":"2026-03-17","namaPerusahaan":"PT. SSK","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00241","timestamp":"2026-03-15 09:30:14","pelapor":"Admin BPS","tglOrder":"2026-03-18","namaPerusahaan":"PT. SSK","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00242","timestamp":"2026-03-15 09:30:14","pelapor":"Admin BPS","tglOrder":"2026-03-19","namaPerusahaan":"PT. SSK","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00243","timestamp":"2026-03-15 09:30:22","pelapor":"Admin BPS","tglOrder":"2026-03-20","namaPerusahaan":"PT. SSK","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00244","timestamp":"2026-03-15 09:30:32","pelapor":"Admin BPS","tglOrder":"2026-03-21","namaPerusahaan":"PT. SSK","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00245","timestamp":"2026-03-14 16:05:11","pelapor":"Rona ~ Kak Rona","tglOrder":"2026-03-16","namaPerusahaan":"PT. Shinto Kogyo","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":145,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00246","timestamp":"2026-03-14 16:05:47","pelapor":"Rona ~ Kak Rona","tglOrder":"2026-03-17","namaPerusahaan":"PT. Shinto Kogyo","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00247","timestamp":"2026-03-14 16:06:00","pelapor":"Rona ~ Kak Rona","tglOrder":"2026-03-18","namaPerusahaan":"PT. Shinto Kogyo","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00248","timestamp":"2026-03-14 16:06:12","pelapor":"Rona ~ Kak Rona","tglOrder":"2026-03-19","namaPerusahaan":"PT. Shinto Kogyo","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00249","timestamp":"2026-03-14 16:06:22","pelapor":"Rona ~ Kak Rona","tglOrder":"2026-03-20","namaPerusahaan":"PT. Shinto Kogyo","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00250","timestamp":"2026-03-14 16:06:30","pelapor":"Rona ~ Kak Rona","tglOrder":"2026-03-21","namaPerusahaan":"PT. Shinto Kogyo","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00251","timestamp":"2026-03-14 08:38:55","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-18","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00252","timestamp":"2026-03-14 08:39:05","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-19","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00253","timestamp":"2026-03-14 08:39:15","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-17","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00254","timestamp":"2026-03-19 11:08:22","pelapor":"Agus ~ Pak Agus","tglOrder":"2026-03-19","namaPerusahaan":"PT. NBC","breakfast":0,"shift1":10,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":5,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00255","timestamp":"2026-03-14 16:10:05","pelapor":"Rona ~ Kak Rona","tglOrder":"2026-03-16","namaPerusahaan":"PT. Shinto Kogyo","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":120,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00256","timestamp":"2026-03-16 10:35:40","pelapor":"Agus ~ Pak Agus","tglOrder":"2026-03-16","namaPerusahaan":"PT. NBC","breakfast":0,"shift1":17,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":7,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00257","timestamp":"2026-03-16 16:22:10","pelapor":"Nda ~ Teh Nadya","tglOrder":"2026-03-19","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":9,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00258","timestamp":"2026-03-13 20:17:22","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-16","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":24,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":65,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00259","timestamp":"2026-03-13 20:28:15","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-16","namaPerusahaan":"PT. RESONAC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":63,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00260","timestamp":"2026-03-14 08:45:10","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-17","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":86,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00261","timestamp":"2026-03-14 07:48:30","pelapor":"Hendra ~ Mas Hendra","tglOrder":"2026-03-16","namaPerusahaan":"PT. DAIKI","breakfast":0,"shift1":28,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":40,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00262","timestamp":"2026-03-14 07:49:05","pelapor":"Hendra ~ Mas Hendra","tglOrder":"2026-03-17","namaPerusahaan":"PT. DAIKI","breakfast":0,"shift1":26,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":20,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00263","timestamp":"2026-03-14 07:50:15","pelapor":"Hendra ~ Mas Hendra","tglOrder":"2026-03-18","namaPerusahaan":"PT. DAIKI","breakfast":0,"shift1":27,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":7,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00264","timestamp":"2026-03-15 09:31:10","pelapor":"Admin BPS","tglOrder":"2026-03-17","namaPerusahaan":"PT. SSK","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00265","timestamp":"2026-03-17 10:15:33","pelapor":"Agus ~ Pak Agus","tglOrder":"2026-03-17","namaPerusahaan":"PT. NBC","breakfast":0,"shift1":15,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":6,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00266","timestamp":"2026-03-17 10:17:22","pelapor":"Nda ~ Teh Nadya","tglOrder":"2026-03-17","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":24,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":60,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00267","timestamp":"2026-03-17 10:18:00","pelapor":"Nda ~ Teh Nadya","tglOrder":"2026-03-17","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":24,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":60,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00268","timestamp":"2026-03-14 08:47:05","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-17","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":84,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00269","timestamp":"2026-03-13 20:32:11","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-17","namaPerusahaan":"PT. RESONAC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":66,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00270","timestamp":"2026-03-15 09:32:20","pelapor":"Admin BPS","tglOrder":"2026-03-18","namaPerusahaan":"PT. SSK","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"estimasi orderan"},{"id":"ord_00271","timestamp":"2026-03-14 09:12:15","pelapor":"Zia ~ Admin","tglOrder":"2026-03-17","namaPerusahaan":"PT. DDMI","breakfast":0,"shift1":28,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":0,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00272","timestamp":"2026-03-18 09:45:11","pelapor":"Agus ~ Pak Agus","tglOrder":"2026-03-18","namaPerusahaan":"PT. NBC","breakfast":0,"shift1":15,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":8,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00273","timestamp":"2026-03-18 09:47:02","pelapor":"Nda ~ Teh Nadya","tglOrder":"2026-03-18","namaPerusahaan":"PT. IFF KRW","breakfast":0,"shift1":16,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":45,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00274","timestamp":"2026-03-13 20:40:30","pelapor":"Siti Rohimah ~ Iim","tglOrder":"2026-03-18","namaPerusahaan":"PT. RESONAC","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":57,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"},{"id":"ord_00275","timestamp":"2026-03-14 08:50:22","pelapor":"Wiwit ~ Niim","tglOrder":"2026-03-18","namaPerusahaan":"PT. NICI","breakfast":0,"shift1":0,"spare1":0,"ot1":0,"snack1":0,"shift2":0,"spare2":0,"ot2":0,"snack2":0,"shift3":1,"spare3":0,"ot3":0,"snack3":0,"snackBerat":0,"catatan":"real orderan"}];
+
+  /* ─── HELPERS ─── */
+  function _fmtDate(s) {
+    if (!s) return '-';
+    try {
+      const d = new Date(s);
+      return d.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'});
+    } catch(e) { return s; }
+  }
+  function _fmtTs(s) {
+    if (!s) return '-';
+    try {
+      const [d,t] = s.split(' ');
+      const dd = new Date(d);
+      return dd.toLocaleDateString('id-ID',{day:'2-digit',month:'short'}) + (t?' '+t.slice(0,5):'');
+    } catch(e) { return s; }
+  }
+  function _n(v) { return v || 0; }
+  function _c(v) { return (v && v>0) ? `<span style="font-weight:600;color:var(--text)">${v}</span>` : `<span style="color:var(--border2)">-</span>`; }
+  function _jenisBadge(cat) {
+    if (!cat) return '';
+    return cat.toLowerCase().includes('real')
+      ? `<span style="font-size:9px;background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.3);padding:1px 6px;border-radius:10px;font-weight:700">REAL</span>`
+      : `<span style="font-size:9px;background:rgba(99,102,241,.12);color:#6366f1;border:1px solid rgba(99,102,241,.25);padding:1px 6px;border-radius:10px;font-weight:700">EST</span>`;
+  }
+
+  /* ─── INIT ─── */
   async function init() {
     const page = document.getElementById('page-order');
+    if (!page) return;
+    try {
+      const saved = localStorage.getItem('becca_orders');
+      _data = saved ? JSON.parse(saved) : [];
+      if (!_data.length) {
+        _data = JSON.parse(JSON.stringify(_defaultData));
+        localStorage.setItem('becca_orders', JSON.stringify(_data));
+      }
+    } catch(e) {
+      _data = JSON.parse(JSON.stringify(_defaultData));
+    }
+    _renderFull(page);
+  }
+
+  /* ─── FULL RENDER — hanya dipanggil saat init atau setelah add/edit ─── */
+  function _renderFull(page) {
+    if (!page) page = document.getElementById('page-order');
+    if (!page) return;
+
+    // Ambil daftar customer unik dari localStorage
+    const customers = _getCustomers();
+    const custNames = [...new Set(_data.map(o => o.namaPerusahaan).filter(Boolean))].sort();
+
+    const totalOrders = _data.length;
+    const totalReal = _data.filter(o => (o.catatan||'').toLowerCase().includes('real')).length;
+    const totalEst  = totalOrders - totalReal;
+    const uniqueCustomers = new Set(_data.map(o => o.namaPerusahaan)).size;
+
     page.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-left">
-          <h2>Order Catering</h2>
-          <p>Manajemen order masuk dari Telegram BECCAbot</p>
-        </div>
-        <div class="page-header-right">
-          ${Auth.can('order','edit') ? `
-            <button class="btn btn-primary" onclick="OrderModule.openModal()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
-                <path d="M12 5v14M5 12h14"/>
-              </svg>
-              Tambah Order
-            </button>
-          ` : ''}
-        </div>
+    <style>
+      .ord-th { padding:9px 8px; font-size:10px; font-weight:700; text-transform:uppercase; color:#fff; white-space:nowrap; text-align:center }
+      .ord-td { padding:7px 8px; border-bottom:1px solid var(--border); font-size:11px; text-align:center }
+      .ord-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch }
+    </style>
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h2>Data Orderan Catering</h2>
+        <p>Rekapitulasi order masuk dari BECCAbot — 16 s/d 22 Maret 2026</p>
       </div>
-
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="list"    onclick="OrderModule.switchTab('list')">📋 Daftar Order</button>
-        <button class="tab-btn"        data-tab="rekap"   onclick="OrderModule.switchTab('rekap')">📊 Rekap per Perusahaan</button>
-        <button class="tab-btn"        data-tab="harian"  onclick="OrderModule.switchTab('harian')">📅 Rekap Harian</button>
-      </div>
-
-      <div id="ord-tab-list"></div>
-      <div id="ord-tab-rekap"  class="hidden"></div>
-      <div id="ord-tab-harian" class="hidden"></div>
-    `;
-
-    _orders = await DB.getOrders().catch(() => []);
-    switchTab('list');
-  }
-
-  function switchTab(tab) {
-    ['list','rekap','harian'].forEach(t => {
-      document.getElementById(`ord-tab-${t}`)?.classList.toggle('hidden', t !== tab);
-      document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
-    });
-    const renders = { list: renderList, rekap: renderRekap, harian: renderHarian };
-    renders[tab]?.();
-  }
-
-  /* ===================== TAB: DAFTAR ORDER ===================== */
-  function renderList() {
-    let filtered = _orders;
-    if (_filter.tgl)         filtered = filtered.filter(o => o.tglOrder === _filter.tgl);
-    if (_filter.perusahaan)  filtered = filtered.filter(o => (o.namaPerusahaan||'').toLowerCase().includes(_filter.perusahaan.toLowerCase()));
-    if (_filter.jenis)       filtered = filtered.filter(o => o.jenis === _filter.jenis);
-
-    const sorted = [...filtered].sort((a,b) => (b.tglOrder||'').localeCompare(a.tglOrder||''));
-    const total  = sorted.length;
-    const paged  = sorted.slice((_page-1)*_perPage, _page*_perPage);
-    const totalPages = Math.max(1, Math.ceil(total / _perPage));
-
-    const perusahaanList = [...new Set(_orders.map(o=>o.namaPerusahaan).filter(Boolean))].sort();
-
-    document.getElementById('ord-tab-list').innerHTML = `
-      <!-- Filter Bar -->
-      <div class="filter-bar">
-        <input type="date" class="form-control" value="${_filter.tgl}"
-               style="width:145px" onchange="OrderModule.setFilter('tgl',this.value)"
-               placeholder="Filter tanggal">
-        <input type="text" class="form-control" value="${_filter.perusahaan}"
-               style="width:180px" placeholder="Cari perusahaan..."
-               oninput="OrderModule.setFilter('perusahaan',this.value)">
-        <select class="form-control" style="width:130px" onchange="OrderModule.setFilter('jenis',this.value)">
-          <option value="">Semua Jenis</option>
-          <option value="real orderan"   ${_filter.jenis==='real orderan'  ?'selected':''}>Real Orderan</option>
-          <option value="estimasi orderan" ${_filter.jenis==='estimasi orderan'?'selected':''}>Estimasi</option>
-        </select>
-        <button class="btn btn-ghost btn-sm" onclick="OrderModule.resetFilter()">↺ Reset</button>
-        <span class="text-muted text-small" style="margin-left:auto">${total} order</span>
-      </div>
-
-      <!-- Table -->
-      <div class="table-wrapper">
-        <div class="table-scroll">
-          <table class="table" style="font-size:12px">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th style="white-space:nowrap">Tgl Order</th>
-                <th>Perusahaan</th>
-                <th>Jenis</th>
-                <th>Pelapor</th>
-                <th class="num">Breakfast</th>
-                <th class="num">Shift 1</th>
-                <th class="num">Spare 1</th>
-                <th class="num">OT 1</th>
-                <th class="num">Snack 1</th>
-                <th class="num">Shift 2</th>
-                <th class="num">Spare 2</th>
-                <th class="num">OT 2</th>
-                <th class="num">Snack 2</th>
-                <th class="num">Shift 3</th>
-                <th class="num">Spare 3</th>
-                <th class="num">OT 3</th>
-                <th class="num">Snack 3</th>
-                <th class="num">Snack Berat</th>
-                <th>Catatan</th>
-                ${Auth.can('order','edit') ? '<th>Aksi</th>' : ''}
-              </tr>
-            </thead>
-            <tbody>
-              ${paged.length ? paged.map((o,i) => `
-                <tr>
-                  <td class="text-muted">${(_page-1)*_perPage+i+1}</td>
-                  <td style="white-space:nowrap">${o.tglOrder ? Utils.formatDate(o.tglOrder,'dd/mm/yyyy') : '-'}</td>
-                  <td class="font-semibold">${o.namaPerusahaan||'-'}</td>
-                  <td>
-                    <span class="badge ${o.jenis==='real orderan'?'badge-success':'badge-warning'}">
-                      ${o.jenis==='real orderan'?'Real':'Estimasi'}
-                    </span>
-                  </td>
-                  <td class="text-muted">${o.pelapor||'-'}</td>
-                  ${_numCell(o.breakfast)}
-                  ${_numCell(o.shift1)}
-                  ${_numCell(o.spare1)}
-                  ${_numCell(o.ot1)}
-                  ${_numCell(o.snack1)}
-                  ${_numCell(o.shift2)}
-                  ${_numCell(o.spare2)}
-                  ${_numCell(o.ot2)}
-                  ${_numCell(o.snack2)}
-                  ${_numCell(o.shift3)}
-                  ${_numCell(o.spare3)}
-                  ${_numCell(o.ot3)}
-                  ${_numCell(o.snack3)}
-                  ${_numCell(o.snackBerat)}
-                  <td class="text-muted" style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${o.catatan||'-'}</td>
-                  ${Auth.can('order','edit') ? `
-                    <td class="actions">
-                      <div style="display:flex;gap:4px">
-                        <button class="btn-icon" onclick="OrderModule.openModal('${o.id}')">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                          </svg>
-                        </button>
-                        <button class="btn-icon" style="color:var(--danger)" onclick="OrderModule.deleteOrder('${o.id}')">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/>
-                            <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  ` : ''}
-                </tr>
-              `).join('') : `
-                <tr>
-                  <td colspan="21" style="text-align:center;padding:40px;color:var(--text-3)">
-                    Belum ada order
-                  </td>
-                </tr>
-              `}
-            </tbody>
-          </table>
-        </div>
-        <!-- Pagination -->
-        ${totalPages > 1 ? `
-          <div class="pagination">
-            <span class="pagination-info">Hal ${_page} / ${totalPages} · ${total} data</span>
-            <div class="pagination-controls">
-              <button class="page-btn" onclick="OrderModule.goPage(${_page-1})" ${_page<=1?'disabled':''}>‹</button>
-              <button class="page-btn" onclick="OrderModule.goPage(${_page+1})" ${_page>=totalPages?'disabled':''}>›</button>
-            </div>
-          </div>
-        ` : ''}
-      </div>
-    `;
-  }
-
-  function _numCell(val) {
-    const n = parseInt(val) || 0;
-    return `<td class="num ${n > 0 ? '' : 'text-muted'}">${n > 0 ? n : '-'}</td>`;
-  }
-
-  /* ===================== TAB: REKAP PER PERUSAHAAN ===================== */
-  function renderRekap() {
-    const byPerusahaan = {};
-    _orders.forEach(o => {
-      const k = o.namaPerusahaan || 'Unknown';
-      if (!byPerusahaan[k]) byPerusahaan[k] = { orders: 0, totalPax: 0 };
-      byPerusahaan[k].orders++;
-      const totalPax = (parseInt(o.shift1)||0) + (parseInt(o.shift2)||0) + (parseInt(o.shift3)||0);
-      byPerusahaan[k].totalPax += totalPax;
-    });
-
-    const sorted = Object.entries(byPerusahaan).sort((a,b) => b[1].totalPax - a[1].totalPax);
-
-    document.getElementById('ord-tab-rekap').innerHTML = `
-      <div class="table-wrapper">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Nama Perusahaan</th>
-              <th class="num">Total Order</th>
-              <th class="num">Total Pax (Shift 1+2+3)</th>
-              <th class="num">Rata-rata Pax/Order</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${sorted.map(([nama, d], i) => `
-              <tr>
-                <td class="text-muted">${i+1}</td>
-                <td class="font-semibold">${nama}</td>
-                <td class="num">${d.orders}</td>
-                <td class="num">${d.totalPax.toLocaleString('id')}</td>
-                <td class="num text-muted">${d.orders > 0 ? Math.round(d.totalPax/d.orders) : 0}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  /* ===================== TAB: REKAP HARIAN ===================== */
-  function renderHarian() {
-    const byTgl = {};
-    _orders.forEach(o => {
-      const k = o.tglOrder || 'Unknown';
-      if (!byTgl[k]) byTgl[k] = { orders: [], totalShift1: 0, totalShift2: 0, totalShift3: 0, totalBreakfast: 0 };
-      byTgl[k].orders.push(o);
-      byTgl[k].totalBreakfast += parseInt(o.breakfast)||0;
-      byTgl[k].totalShift1   += parseInt(o.shift1)||0;
-      byTgl[k].totalShift2   += parseInt(o.shift2)||0;
-      byTgl[k].totalShift3   += parseInt(o.shift3)||0;
-    });
-
-    const sorted = Object.entries(byTgl).sort((a,b) => b[0].localeCompare(a[0]));
-
-    document.getElementById('ord-tab-harian').innerHTML = `
-      <div class="table-wrapper">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Tanggal</th>
-              <th class="num">Perusahaan</th>
-              <th class="num">Breakfast</th>
-              <th class="num">Shift 1</th>
-              <th class="num">Shift 2</th>
-              <th class="num">Shift 3</th>
-              <th class="num">Total Pax</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${sorted.map(([tgl, d]) => {
-              const totalPax = d.totalShift1 + d.totalShift2 + d.totalShift3;
-              return `
-                <tr>
-                  <td class="font-semibold" style="white-space:nowrap">
-                    ${tgl !== 'Unknown' ? Utils.formatDate(tgl,'dd/mm/yyyy') : '-'}
-                  </td>
-                  <td class="num">${d.orders.length}</td>
-                  <td class="num">${d.totalBreakfast || '-'}</td>
-                  <td class="num">${d.totalShift1 || '-'}</td>
-                  <td class="num">${d.totalShift2 || '-'}</td>
-                  <td class="num">${d.totalShift3 || '-'}</td>
-                  <td class="num font-semibold" style="color:var(--primary-h)">${totalPax}</td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  /* ===================== FILTER ===================== */
-  function setFilter(key, val) { _filter[key] = val; _page = 1; renderList(); }
-  function resetFilter() { _filter = {}; _page = 1; renderList(); }
-  function goPage(p) { _page = p; renderList(); }
-
-  /* ===================== MODAL ===================== */
-  function openModal(editId = null) {
-    const existing = editId ? _orders.find(o => o.id === editId) : null;
-    const d = existing || { tglOrder: Utils.today ? Utils.today() : new Date().toISOString().split('T')[0] };
-
-    const numInput = (name, label, val) => `
-      <div class="form-group">
-        <label class="form-label">${label}</label>
-        <input name="${name}" type="number" min="0" class="form-control" value="${parseInt(val)||0}">
-      </div>
-    `;
-
-    const mid = Utils.uid(); Modal.open({ id: mid,
-      title: editId ? 'Edit Order' : 'Tambah Order Baru',
-      size:  'modal-lg',
-      body: `
-        <form id="order-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Tanggal Order <span class="req">*</span></label>
-              <input name="tglOrder" type="date" class="form-control" value="${d.tglOrder||''}" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Nama Perusahaan <span class="req">*</span></label>
-              <input name="namaPerusahaan" class="form-control" value="${d.namaPerusahaan||''}" required placeholder="PT. ...">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Pelapor</label>
-              <input name="pelapor" class="form-control" value="${d.pelapor||''}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Jenis</label>
-              <select name="jenis" class="form-control">
-                <option value="real orderan"    ${(d.jenis||'real orderan')==='real orderan'   ?'selected':''}>Real Orderan</option>
-                <option value="estimasi orderan" ${d.jenis==='estimasi orderan'?'selected':''}>Estimasi Orderan</option>
-              </select>
-            </div>
-          </div>
-
-          <div style="border-top:1px solid var(--border);margin:var(--s4) 0;padding-top:var(--s4)">
-            <div class="text-small font-semibold" style="margin-bottom:var(--s3);color:var(--text-2)">BREAKFAST & SHIFT</div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:var(--s3)">
-              ${numInput('breakfast','Breakfast',d.breakfast)}
-              ${numInput('shift1','Shift 1',d.shift1)}
-              ${numInput('spare1','Spare 1',d.spare1)}
-              ${numInput('ot1','OT 1',d.ot1)}
-              ${numInput('snack1','Snack 1',d.snack1)}
-              ${numInput('shift2','Shift 2',d.shift2)}
-              ${numInput('spare2','Spare 2',d.spare2)}
-              ${numInput('ot2','OT 2',d.ot2)}
-              ${numInput('snack2','Snack 2',d.snack2)}
-              ${numInput('shift3','Shift 3',d.shift3)}
-              ${numInput('spare3','Spare 3',d.spare3)}
-              ${numInput('ot3','OT 3',d.ot3)}
-              ${numInput('snack3','Snack 3',d.snack3)}
-              ${numInput('snackBerat','Snack Berat',d.snackBerat)}
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Catatan</label>
-            <input name="catatan" class="form-control" value="${d.catatan||''}" placeholder="Catatan tambahan...">
-          </div>
-        </form>
-      `,
-      footer: `
-        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        <button class="btn btn-primary" onclick="OrderModule._submitModal('${mid}','${editId||''}')">
-          ${editId ? 'Simpan Perubahan' : 'Tambah Order'}
+      <div class="page-header-right">
+        <button class="btn btn-primary" onclick="OrderModule.openModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
+          Tambah Order
         </button>
-      `,
-    });
-    return mid;
+      </div>
+    </div>
+
+    <!-- STAT CARDS -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+      ${[
+        {l:'Total Order',v:totalOrders,c:'#6366f1',s:'entri'},
+        {l:'Real Order',v:totalReal,c:'#10b981',s:'terkonfirmasi'},
+        {l:'Estimasi',v:totalEst,c:'#f59e0b',s:'perkiraan'},
+        {l:'Customer',v:uniqueCustomers,c:'#ec4899',s:'perusahaan'},
+      ].map(s=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:${s.c}"></div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:4px">${s.l}</div>
+        <div style="font-size:22px;font-weight:900;color:${s.c};font-family:var(--font-mono)">${s.v} <span style="font-size:12px;font-weight:400;color:var(--text-3)">${s.s}</span></div>
+      </div>`).join('')}
+    </div>
+
+    <!-- TABLE CARD -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+
+      <!-- TOOLBAR — TIDAK DI-RE-RENDER SAAT SEARCH -->
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <!-- Search -->
+        <div style="position:relative;flex:1;max-width:260px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"
+            style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-3)">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input id="ord-search" placeholder="Cari customer / pelapor..." value="${_search}"
+            style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);outline:none;box-sizing:border-box"
+            oninput="OrderModule.setSearch(this.value)">
+        </div>
+        <!-- Filter Customer -->
+        <select id="ord-filter-cust" onchange="OrderModule.setFilterCustomer(this.value)"
+          style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);cursor:pointer;max-width:180px">
+          <option value="">Semua Customer</option>
+          ${custNames.map(n=>`<option value="${n}" ${_filterCustomer===n?'selected':''}>${n}</option>`).join('')}
+        </select>
+        <!-- Filter Tanggal -->
+        <input id="ord-filter-date" type="date" value="${_filterDate}"
+          onchange="OrderModule.setFilterDate(this.value)"
+          style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);cursor:pointer">
+        <!-- Count label -->
+        <span id="ord-count-label" style="font-size:11px;color:var(--text-3);margin-left:auto"></span>
+      </div>
+
+      <!-- TABLE -->
+      <div class="ord-scroll">
+        <table style="width:100%;border-collapse:collapse;min-width:1300px;font-size:11px">
+          <thead>
+            <!-- GROUP HEADER -->
+            <tr style="background:#1e1e2e">
+              <th colspan="3" style="padding:5px 8px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ca3af;text-align:center">INPUT</th>
+              <th colspan="2" style="padding:5px 8px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ca3af;text-align:center">ORDER</th>
+              <th colspan="5" style="padding:5px 8px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6366f1;text-align:center;background:rgba(99,102,241,.15)">SHIFT 1</th>
+              <th colspan="4" style="padding:5px 8px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#10b981;text-align:center;background:rgba(16,185,129,.1)">SHIFT 2</th>
+              <th colspan="4" style="padding:5px 8px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#f59e0b;text-align:center;background:rgba(245,158,11,.1)">SHIFT 3</th>
+              <th colspan="1" style="padding:5px 8px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#ec4899;text-align:center;background:rgba(236,72,153,.1)">SNACK</th>
+              <th colspan="1" style="padding:5px 8px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ca3af;text-align:center">NOTE</th>
+            </tr>
+            <!-- KOLOM HEADER -->
+            <tr style="background:var(--primary-h)">
+              <th class="ord-th" style="width:36px">#</th>
+              <th class="ord-th" style="text-align:left">Timestamp Input</th>
+              <th class="ord-th" style="text-align:left">Pelapor</th>
+              <th class="ord-th">Tgl Order</th>
+              <th class="ord-th" style="text-align:left;min-width:140px">Customer</th>
+              <th class="ord-th" style="background:rgba(99,102,241,.12)">BF</th>
+              <th class="ord-th" style="background:rgba(99,102,241,.12)">S1</th>
+              <th class="ord-th" style="background:rgba(99,102,241,.12)">Sp1</th>
+              <th class="ord-th" style="background:rgba(99,102,241,.12)">OT1</th>
+              <th class="ord-th" style="background:rgba(99,102,241,.12)">Snk1</th>
+              <th class="ord-th" style="background:rgba(16,185,129,.08)">S2</th>
+              <th class="ord-th" style="background:rgba(16,185,129,.08)">Sp2</th>
+              <th class="ord-th" style="background:rgba(16,185,129,.08)">OT2</th>
+              <th class="ord-th" style="background:rgba(16,185,129,.08)">Snk2</th>
+              <th class="ord-th" style="background:rgba(245,158,11,.08)">S3</th>
+              <th class="ord-th" style="background:rgba(245,158,11,.08)">Sp3</th>
+              <th class="ord-th" style="background:rgba(245,158,11,.08)">OT3</th>
+              <th class="ord-th" style="background:rgba(245,158,11,.08)">Snk3</th>
+              <th class="ord-th" style="background:rgba(236,72,153,.08)">SnkBrt</th>
+              <th class="ord-th">Jenis</th>
+            </tr>
+          </thead>
+          <tbody id="ord-tbody"></tbody>
+        </table>
+      </div>
+    </div>`;
+
+    _renderTbody();
   }
 
-  async function _submitModal(modalId, editId = '') {
-    const fd   = new FormData(document.getElementById('order-form'));
-    const data = Object.fromEntries(fd.entries());
-    if (!data.tglOrder || !data.namaPerusahaan) {
-      Notify.warning('Tanggal dan Nama Perusahaan wajib diisi');
+  /* ─── PARTIAL RENDER — hanya tbody ─── */
+  function _renderTbody() {
+    let list = [..._data];
+
+    // Sort terbaru dulu (tglOrder desc, lalu timestamp desc)
+    list.sort((a,b) => {
+      const dc = (b.tglOrder||'').localeCompare(a.tglOrder||'');
+      if (dc !== 0) return dc;
+      return (b.timestamp||'').localeCompare(a.timestamp||'');
+    });
+
+    // Filter
+    if (_search) {
+      const q = _search.toLowerCase();
+      list = list.filter(o =>
+        (o.namaPerusahaan||'').toLowerCase().includes(q) ||
+        (o.pelapor||'').toLowerCase().includes(q) ||
+        (o.invoiceNum||'').toLowerCase().includes(q)
+      );
+    }
+    if (_filterCustomer) list = list.filter(o => o.namaPerusahaan === _filterCustomer);
+    if (_filterDate)     list = list.filter(o => o.tglOrder === _filterDate);
+
+    // Update counter
+    const countEl = document.getElementById('ord-count-label');
+    if (countEl) countEl.textContent = list.length + ' order ditampilkan';
+
+    const tbody = document.getElementById('ord-tbody');
+    if (!tbody) { _renderFull(); return; }
+
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data order.</td></tr>`;
       return;
     }
-    ['breakfast','shift1','spare1','ot1','snack1','shift2','spare2','ot2','snack2',
-     'shift3','spare3','ot3','snack3','snackBerat'].forEach(k => {
-      data[k] = parseInt(data[k]) || 0;
-    });
-    if (editId) data.id = editId;
+
+    tbody.innerHTML = list.map((o, i) => {
+      const bg = i%2===0 ? 'var(--surface)' : 'var(--surface2)';
+      return `<tr
+        onmouseenter="this.querySelectorAll('td').forEach(function(t){t.dataset.ori=t.style.background;t.style.background='rgba(99,102,241,.07)'})"
+        onmouseleave="this.querySelectorAll('td').forEach(function(t){t.style.background=t.dataset.ori})"
+        style="border-bottom:1px solid var(--border)">
+        <td class="ord-td" style="font-size:10px;color:var(--text-3);background:${bg}">${i+1}</td>
+        <td class="ord-td" style="text-align:left;font-size:10px;font-family:var(--font-mono);color:var(--text-2);background:${bg};white-space:nowrap">${_fmtTs(o.timestamp)}</td>
+        <td class="ord-td" style="text-align:left;font-size:10px;color:var(--text-2);background:${bg};white-space:nowrap">${o.pelapor||'-'}</td>
+        <td class="ord-td" style="font-size:10px;font-weight:600;background:${bg};white-space:nowrap">${_fmtDate(o.tglOrder)}</td>
+        <td class="ord-td" style="text-align:left;font-weight:600;background:${bg}">${o.namaPerusahaan||'-'}</td>
+        <td class="ord-td" style="background:rgba(99,102,241,.06)">${_c(o.breakfast)}</td>
+        <td class="ord-td" style="background:rgba(99,102,241,.06)">${_c(o.shift1)}</td>
+        <td class="ord-td" style="background:rgba(99,102,241,.06)">${_c(o.spare1)}</td>
+        <td class="ord-td" style="background:rgba(99,102,241,.06)">${_c(o.ot1)}</td>
+        <td class="ord-td" style="background:rgba(99,102,241,.06)">${_c(o.snack1)}</td>
+        <td class="ord-td" style="background:rgba(16,185,129,.05)">${_c(o.shift2)}</td>
+        <td class="ord-td" style="background:rgba(16,185,129,.05)">${_c(o.spare2)}</td>
+        <td class="ord-td" style="background:rgba(16,185,129,.05)">${_c(o.ot2)}</td>
+        <td class="ord-td" style="background:rgba(16,185,129,.05)">${_c(o.snack2)}</td>
+        <td class="ord-td" style="background:rgba(245,158,11,.06)">${_c(o.shift3)}</td>
+        <td class="ord-td" style="background:rgba(245,158,11,.06)">${_c(o.spare3)}</td>
+        <td class="ord-td" style="background:rgba(245,158,11,.06)">${_c(o.ot3)}</td>
+        <td class="ord-td" style="background:rgba(245,158,11,.06)">${_c(o.snack3)}</td>
+        <td class="ord-td" style="background:rgba(236,72,153,.06)">${_c(o.snackBerat)}</td>
+        <td class="ord-td" style="background:${bg}">${_jenisBadge(o.catatan)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  /* ─── AMBIL CUSTOMER DARI localStorage ─── */
+  function _getCustomers() {
     try {
-      const saved = await DB.saveOrder(data);
-      const idx   = _orders.findIndex(o => o.id === saved.id);
-      if (idx >= 0) _orders[idx] = saved; else _orders.unshift(saved);
-      renderList();
-      Modal.close(modalId);
-      Notify.success(editId ? 'Order diperbarui' : 'Order ditambahkan');
-    } catch (err) {
-      Notify.error('Gagal simpan', err.message);
-    }
+      return JSON.parse(localStorage.getItem('becca_customers') || '[]');
+    } catch(e) { return []; }
   }
 
-  async function deleteOrder(id) {
-    const ok = await Modal.confirm({ title:'Hapus Order', message:'Order akan dihapus permanen.', danger:true, confirmText:'Hapus' });
-    if (!ok) return;
-    await DB.deleteOrder(id);
-    _orders = _orders.filter(o => o.id !== id);
-    renderList();
-    Notify.success('Order dihapus');
+  /* ─── MODAL TAMBAH ORDER ─── */
+  function openModal(id) {
+    const customers = _getCustomers();
+    const custOptions = customers.length
+      ? customers.map(c => `<option value="${c.nama}">${c.nama}</option>`).join('')
+      : _getCustomers().map(n => `<option value="${n}">${n}</option>`).join('');
+
+    const today = new Date().toISOString().slice(0,10);
+
+    Modal.open({
+      title: 'Tambah Order Catering',
+      size: 'modal-lg',
+      body: `
+        <style>
+          .ord-form-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px }
+          .ord-shift-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; padding:6px 0 4px; border-top:1px solid var(--border); margin-top:6px; grid-column:1/-1 }
+        </style>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);margin-bottom:var(--s3)">
+          <div class="form-group">
+            <label class="form-label">Tanggal Order <span style="color:var(--danger)">*</span></label>
+            <input class="form-control" id="of-tglOrder" type="date" value="${today}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Jenis Orderan</label>
+            <select class="form-control" id="of-jenis">
+              <option value="real orderan">Real Orderan</option>
+              <option value="estimasi orderan">Estimasi Orderan</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--s3);margin-bottom:var(--s3)">
+          <div class="form-group">
+            <label class="form-label">Nama Perusahaan (Customer) <span style="color:var(--danger)">*</span></label>
+            <select class="form-control" id="of-customer" style="width:100%">
+              <option value="">— Pilih Customer —</option>
+              ${custOptions}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Pelapor</label>
+            <input class="form-control" id="of-pelapor" placeholder="Nama pelapor...">
+          </div>
+        </div>
+
+        <!-- BREAKFAST -->
+        <div class="ord-form-grid">
+          <div class="ord-shift-label" style="color:var(--warning)">☀️ Breakfast</div>
+          <div class="form-group"><label class="form-label">Breakfast</label><input class="form-control" id="of-breakfast" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+        </div>
+
+        <!-- SHIFT 1 -->
+        <div class="ord-form-grid">
+          <div class="ord-shift-label" style="color:#6366f1">🔵 Shift 1</div>
+          <div class="form-group"><label class="form-label">Shift 1</label><input class="form-control" id="of-shift1" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">Spare 1</label><input class="form-control" id="of-spare1" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">OT 1</label><input class="form-control" id="of-ot1" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">Snack 1</label><input class="form-control" id="of-snack1" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+        </div>
+
+        <!-- SHIFT 2 -->
+        <div class="ord-form-grid">
+          <div class="ord-shift-label" style="color:#10b981">🟢 Shift 2</div>
+          <div class="form-group"><label class="form-label">Shift 2</label><input class="form-control" id="of-shift2" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">Spare 2</label><input class="form-control" id="of-spare2" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">OT 2</label><input class="form-control" id="of-ot2" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">Snack 2</label><input class="form-control" id="of-snack2" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+        </div>
+
+        <!-- SHIFT 3 -->
+        <div class="ord-form-grid">
+          <div class="ord-shift-label" style="color:#f59e0b">🟡 Shift 3</div>
+          <div class="form-group"><label class="form-label">Shift 3</label><input class="form-control" id="of-shift3" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">Spare 3</label><input class="form-control" id="of-spare3" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">OT 3</label><input class="form-control" id="of-ot3" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">Snack 3</label><input class="form-control" id="of-snack3" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+        </div>
+
+        <!-- SNACK BERAT -->
+        <div class="ord-form-grid">
+          <div class="ord-shift-label" style="color:#ec4899">🍱 Snack Berat</div>
+          <div class="form-group"><label class="form-label">Snack Berat</label><input class="form-control" id="of-snackBerat" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>
+        </div>`,
+      buttons: [
+        {label:'Batal', class:'btn-ghost', onclick:'Modal.close()'},
+        {label:'Simpan Order', class:'btn-primary', onclick:'OrderModule._submit()'}
+      ]
+    });
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, openModal, _submitModal, deleteOrder };
+  /* ─── SUBMIT ─── */
+  function _submit() {
+    const g = sel => document.getElementById(sel)?.value?.trim() || '';
+    const n = sel => parseInt(document.getElementById(sel)?.value) || 0;
+
+    const tglOrder = g('of-tglOrder');
+    const customer = g('of-customer');
+    if (!tglOrder) { Notify.warning('Tanggal order wajib diisi'); return; }
+    if (!customer) { Notify.warning('Pilih nama perusahaan'); return; }
+
+    const now = new Date();
+    const ts  = now.toISOString().slice(0,10) + ' ' + now.toTimeString().slice(0,8);
+    const user = (typeof Auth !== 'undefined' && Auth.user) ? (Auth.user.name || Auth.user.username || '') : '';
+
+    const obj = {
+      id: 'ord_' + Date.now(),
+      timestamp: ts,
+      pelapor: g('of-pelapor') || user,
+      tglOrder,
+      namaPerusahaan: customer,
+      breakfast: n('of-breakfast'),
+      shift1:    n('of-shift1'),
+      spare1:    n('of-spare1'),
+      ot1:       n('of-ot1'),
+      snack1:    n('of-snack1'),
+      shift2:    n('of-shift2'),
+      spare2:    n('of-spare2'),
+      ot2:       n('of-ot2'),
+      snack2:    n('of-snack2'),
+      shift3:    n('of-shift3'),
+      spare3:    n('of-spare3'),
+      ot3:       n('of-ot3'),
+      snack3:    n('of-snack3'),
+      snackBerat: n('of-snackBerat'),
+      catatan: g('of-jenis'),
+    };
+
+    _data.push(obj);
+    localStorage.setItem('becca_orders', JSON.stringify(_data));
+    Modal.close();
+    Notify.success('Order berhasil ditambahkan');
+    _renderFull();
+  }
+
+  /* ─── CONTROLS (partial re-render — search tidak reset focus) ─── */
+  function setSearch(val) {
+    _search = (val||'').toLowerCase().trim();
+    _renderTbody(); // Hanya tbody, bukan seluruh halaman
+  }
+  function setFilterCustomer(val) {
+    _filterCustomer = val;
+    _renderTbody();
+  }
+  function setFilterDate(val) {
+    _filterDate = val;
+    _renderTbody();
+  }
+
+  return { init, openModal, _submit, setSearch, setFilterCustomer, setFilterDate };
 })();
 
 window.OrderModule = OrderModule;
