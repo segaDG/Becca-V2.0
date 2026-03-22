@@ -815,7 +815,8 @@ const OrderModule = (() => {
 
     Modal.close();
     Notify.success(`Invoice ${nomor} berhasil — ${list.length} order ditandai`);
-    _renderFull();
+    // Defer heavy re-render agar modal close tidak lag
+    setTimeout(() => _renderFull(), 50);
 
     _openPrintWin(nomor, cust, dari, sampai, list, tots, includeAdd, addRows);
   }
