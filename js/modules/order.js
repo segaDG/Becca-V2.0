@@ -890,13 +890,14 @@ const OrderModule = (() => {
 
       /* ── HEADER COMPANY ── */
       .co-hdr{display:flex;justify-content:space-between;align-items:flex-start;
-        padding-bottom:8px;border-bottom:3px solid ${C.NAVY};margin-bottom:0}
-      .co-name{font-size:20px;font-weight:900;color:${C.NAVY_D};line-height:1.1}
+        padding-bottom:10px;border-bottom:3px solid ${C.NAVY};margin-bottom:0}
+      .co-name{font-size:21px;font-weight:900;color:${C.NAVY_D};line-height:1.1;letter-spacing:-.2px}
       .co-sub{font-size:10px;color:${C.NAVY};font-style:italic;margin-top:2px}
-      .co-addr{font-size:8px;color:${C.GRY};margin-top:2px;line-height:1.5}
-      .co-right{text-align:right}
-      .doc-title{font-size:26px;font-weight:900;color:${C.NAVY};line-height:1}
-      .doc-num{font-size:11px;font-weight:700;color:${C.NAVY_D};margin-top:3px}
+      .co-addr{font-size:8px;color:${C.GRY};margin-top:4px;line-height:1.7}
+      .co-right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-start}
+      .doc-title{font-size:28px;font-weight:900;color:${C.NAVY};line-height:1;letter-spacing:.04em}
+      .doc-num{font-size:11px;font-weight:700;color:${C.NAVY_D};margin-top:4px;
+        background:${C.BP};padding:3px 8px;border-radius:3px;letter-spacing:.03em}
 
       /* ── BILL TO ── */
       .bill-hdr{background:${C.NAVY};color:#fff;padding:4px 10px;font-weight:700;font-size:9px;
@@ -946,19 +947,27 @@ const OrderModule = (() => {
       .tot-val{font-weight:700;font-family:Arial,sans-serif}
 
       /* ── FOOTER ── */
-      .footer-bar{background:${C.NAVY};color:#fff;text-align:center;padding:6px;
-        font-size:12px;font-weight:700;margin-top:10px}
-      .footer-sub{text-align:center;font-size:8px;color:${C.GRY};padding:3px}
-      .sign-area{display:flex;justify-content:space-between;margin-top:14px;align-items:flex-end}
-      .sign-left{font-size:9px;color:${C.GRY}}
-      .sign-box{text-align:center;width:160px}
+      .footer-bar{background:${C.NAVY};color:#fff;text-align:center;padding:8px;
+        font-size:13px;font-weight:700;margin-top:12px;letter-spacing:.02em}
+      .footer-sub{text-align:center;font-size:8px;color:${C.GRY};padding:4px 0 0}
+      /* sign-area: full width, kiri = kota+tanggal, kanan = kotak TTD */
+      .sign-area{display:flex;justify-content:space-between;align-items:flex-end;
+        margin-top:18px;gap:16px}
+      /* Kiri: kota & tanggal di atas garis TTD kiri */
+      .sign-left-wrap{display:flex;flex-direction:column;align-items:flex-start;min-width:180px}
+      .sign-place{font-size:10px;color:#333;margin-bottom:46px}
+      .sign-line-l{border-top:1px solid #333;width:160px;padding-top:3px;font-size:9px;color:${C.GRY}}
+      /* Kanan: TTD penerima / customer */
+      .sign-box{text-align:center;min-width:160px}
       .sign-line{border-top:1px solid #333;margin-top:46px;padding-top:3px;font-size:9px}
       .sign-name{font-weight:700;font-size:10px}
       .sign-title{font-size:8px;color:${C.GRY}}
-      .bank-area{display:flex;justify-content:space-between;margin-top:8px;
-        padding:8px 12px;border:1px solid #dde3f0;border-radius:4px;font-size:8px;color:${C.GRY}}
-      .materai-box{border:1px dashed #ccc;width:80px;height:50px;display:flex;
-        align-items:center;justify-content:center;font-size:8px;color:#ccc;border-radius:4px}
+      .bank-area{display:flex;justify-content:space-between;align-items:center;margin-top:10px;
+        padding:8px 14px;border:1px solid #dde3f0;border-radius:6px;font-size:8px;color:${C.GRY};
+        background:#fafbff}
+      .materai-box{border:1px dashed #bbb;width:86px;height:52px;display:flex;flex-shrink:0;
+        align-items:center;justify-content:center;font-size:8px;color:#bbb;border-radius:4px;
+        background:#f8f8f8}
 
       /* ── PRINT BTN ── */
       .print-btn{position:fixed;top:14px;right:16px;padding:8px 20px;background:${C.NAVY};
@@ -1152,7 +1161,10 @@ const OrderModule = (() => {
     /* ─── SIGN AREA (shared) ─── */
     const signArea = () => `
       <div class="sign-area">
-        <div class="sign-left">Karawang, ${periodeStr}</div>
+        <div class="sign-left-wrap">
+          <div class="sign-place">Karawang, ${periodeStr}</div>
+          <div class="sign-line-l">Admin / Pembuat Invoice</div>
+        </div>
         <div class="sign-box">
           <div class="sign-line">
             <div class="sign-name">Manager / PIC</div>
@@ -1200,40 +1212,54 @@ const OrderModule = (() => {
           </tbody>
         </table>
 
-        <!-- Totals -->
-        <div style="display:flex;justify-content:flex-end;margin-top:4px">
-          <div style="min-width:280px">
-            <div class="tot-row" style="border-top:2px solid ${C.NAVY}">
-              <span class="tot-lbl" style="font-weight:700">Subtotal</span>
-              <span class="tot-val" style="font-size:11px;color:${C.NAVY_D}">${rp(subtotal)}</span>
+        <!-- Totals + Comments: kiri=comments, kanan=totals box -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:8px;gap:16px">
+
+          <!-- KIRI: Semua komentar -->
+          <div style="font-size:8.5px;color:${C.GRY};line-height:2;flex:1">
+            <div style="font-size:9px;font-weight:700;color:${C.NAVY};background:${C.BL};
+              padding:3px 8px;margin-bottom:4px;border-radius:3px">OTHER COMMENTS</div>
+            <div>1. Total payment due in 45 days</div>
+            <div>2. Please include the invoice number on your check</div>
+            <div>3. PPh a/n PT. Boga Pangan Sentosa</div>
+            <div>4. NPWP : 75.260.202.9-408.000</div>
+            <div>5. NPWPD : 03.0012478.03.005</div>
+          </div>
+
+          <!-- KANAN: Totals box -->
+          <div style="min-width:290px;border:1px solid #dde3f0;border-radius:6px;overflow:hidden;flex-shrink:0">
+            <div style="display:flex;justify-content:space-between;padding:5px 12px;
+              border-bottom:2px solid ${C.NAVY};background:#fafbff">
+              <span style="font-weight:700;font-size:10px;color:${C.NAVY_D}">Subtotal</span>
+              <span style="font-weight:700;font-size:11px;color:${C.NAVY_D};font-family:Arial">${rp(subtotal)}</span>
             </div>
-            <div class="tot-row">
-              <span class="tot-lbl">Pb1</span>
-              <span class="tot-val">${(pb1Rate*100).toFixed(0)}%</span>
+            <div style="display:flex;justify-content:space-between;padding:4px 12px;
+              border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
+              <span style="color:#555">Pb1</span>
+              <span style="font-weight:600">${(pb1Rate*100).toFixed(0)}%</span>
             </div>
-            <div class="tot-row">
-              <span class="tot-lbl">Tax due (Pb1)</span>
-              <span class="tot-val">${rp(pb1Tax)}</span>
+            <div style="display:flex;justify-content:space-between;padding:4px 12px;
+              border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
+              <span style="color:#555">Tax due (Pb1)</span>
+              <span style="font-weight:600">${rp(pb1Tax)}</span>
             </div>
-            <div class="tot-row oc-hdr">
-              <span>OTHER COMMENTS</span>
-              <span>PPh 23 &nbsp; ${(pph23Rate*100).toFixed(0)}%</span>
+            <div style="display:flex;justify-content:space-between;padding:4px 12px;
+              border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
+              <span style="color:#555">PPh 23</span>
+              <span style="font-weight:600">${(pph23Rate*100).toFixed(0)}%</span>
             </div>
-            <div class="tot-row" style="font-size:9px;color:${C.GRY}">
-              <span>1. Total payment due in 45 days</span>
-              <span style="color:${C.RED};font-weight:700">- ${rp(pphTax)}</span>
+            <div style="display:flex;justify-content:space-between;padding:4px 12px;
+              border-bottom:1px solid ${C.NAVY};font-size:9px;background:#fafbff">
+              <span style="color:#555">Tax due (PPh 23)</span>
+              <span style="font-weight:600;color:${C.RED}">- ${rp(pphTax)}</span>
             </div>
-            <div class="tot-row total-final">
-              <span class="tot-lbl">TOTAL</span>
-              <span class="tot-val" style="font-size:13px">${rp(grandTotal)}</span>
+            <div style="display:flex;justify-content:space-between;padding:7px 12px;
+              background:${C.NAVY};color:#fff">
+              <span style="font-weight:700;font-size:12px;letter-spacing:.04em">TOTAL</span>
+              <span style="font-weight:900;font-size:13px;font-family:Arial">${rp(grandTotal)}</span>
             </div>
           </div>
-        </div>
 
-        <!-- Comments -->
-        <div style="margin-top:6px;font-size:8px;color:${C.GRY};line-height:1.7">
-          2. Please include the invoice number on your check<br>
-          3. PPh a/n PT. Boga Pangan Sentosa &nbsp;|&nbsp; 4. NPWP : 75.260.202.9-408.000 &nbsp;|&nbsp; 5. NPWPD : 03.0012478.03.005
         </div>
 
         ${signArea()}
@@ -1241,14 +1267,16 @@ const OrderModule = (() => {
         <!-- Bank + footer -->
         <div class="bank-area">
           <div>
-            <div style="font-weight:700;color:#333;margin-bottom:3px">Make all checks payable to PT. BOGA PANGAN SENTOSA</div>
-            Bank Mandiri KC Karawang 17300 &nbsp;|&nbsp; No. Rekening : 173-00-0153197-0
+            <div style="font-weight:700;color:#333;font-size:9px;margin-bottom:2px">
+              Make all checks payable to <span style="color:${C.NAVY_D}">PT. BOGA PANGAN SENTOSA</span>
+            </div>
+            <div>Bank Mandiri KC Karawang 17300 &nbsp;•&nbsp; No. Rekening : <strong style="color:#333">173-00-0153197-0</strong></div>
           </div>
           <div class="materai-box">MATERAI</div>
         </div>
 
-        <div class="footer-bar">Thank You For Your Business!</div>
-        <div class="footer-sub">If you have any questions, please contact Mr. Somat  •  +62 822-1033-8880  •  umad@pangansentosa.com</div>
+        <div class="footer-bar">Thank You For Your Business! 🙏</div>
+        <div class="footer-sub">If you have any questions, please contact &nbsp;Mr. Somat &nbsp;•&nbsp; +62 822-1033-8880 &nbsp;•&nbsp; umad@pangansentosa.com</div>
       </div>`;
 
     /* ─── Assemble & open window ─── */
