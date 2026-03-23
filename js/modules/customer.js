@@ -126,10 +126,9 @@ const CustomerModule = (() => {
       <!-- TABLE SCROLL -->
       <style>
         /* Sticky columns — calculated from actual rendered widths */
-        .cst-s0 { position:sticky!important; left:0!important; z-index:2!important; background:inherit!important; }
-        .cst-s1 { position:sticky!important; left:38px!important; z-index:2!important; background:inherit!important; }
-        .cst-s2 { position:sticky!important; left:90px!important; z-index:2!important; background:inherit!important;
-                  box-shadow:3px 0 5px -2px rgba(0,0,0,.12); }
+        /* left offset dihitung JS setelah render */
+        .cst-s0, .cst-s1, .cst-s2 { position:sticky!important; z-index:2!important; }
+        .cst-s2 { box-shadow:3px 0 5px -2px rgba(0,0,0,.12); }
         /* Header rows sticky with solid bg */
         thead .cst-s0 { background:#1e1e2e!important; z-index:4!important; }
         thead tr:nth-child(2) .cst-s0 { background:#6366f1!important; z-index:4!important; }
@@ -280,7 +279,22 @@ const CustomerModule = (() => {
           </tbody>
         </table>
       </div>
-    </div>`;
+    </div>
+    `;
+    // Kalkulasi sticky offset setelah render
+    setTimeout(function(){
+      var tbl=document.querySelector('.cst-s0')?.closest('table');
+      if(!tbl)return;
+      var s0=tbl.querySelectorAll('.cst-s0');
+      var s1=tbl.querySelectorAll('.cst-s1');
+      var s2=tbl.querySelectorAll('.cst-s2');
+      if(!s0.length||!s1.length)return;
+      var w0=s0[0].offsetWidth;
+      var w1=s1[0].offsetWidth;
+      s0.forEach(function(el){el.style.setProperty('left','0px','important');});
+      s1.forEach(function(el){el.style.setProperty('left',w0+'px','important');});
+      s2.forEach(function(el){el.style.setProperty('left',(w0+w1)+'px','important');});
+    },0);
   }
 
   /* ── TABLE HEADER HELPERS ── */
