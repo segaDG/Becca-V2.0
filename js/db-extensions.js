@@ -50,28 +50,38 @@ const DBExtensions = (() => {
   async function _refreshOnlineBadge() {
     try {
       const online = await DB.getOnlineUsers(60000);
-      // Deduplicate: 1 user = 1 entry (ambil yang paling baru)
+
+      // Deduplicate: 1 user = 1 entry (ambil yang last_seen paling baru)
       const seen = {};
-      const unique = [];
       online.forEach(u => {
         const key = (u.username || u.id || '').toLowerCase();
-        if (!seen[key] || new Date(u.last_seen) > new Date(seen[key].last_seen)) {
-          seen[key] = u;
-        }
+        const existing = seen[key];
+        const uTime = u.last_seen ? new Date(u.last_seen).getTime() : 0;
+        const eTime = existing?.last_seen ? new Date(existing.last_seen).getTime() : 0;
+        if (!existing || uTime > eTime) seen[key] = u;
       });
-      Object.values(seen).forEach(u => unique.push(u));
+      const unique = Object.values(seen);
 
+      // Update header badge
       const badge = document.getElementById('online-users-badge');
       if (badge) {
         badge.textContent = unique.length;
         badge.title = unique.map(u => u.nama || u.username).join(', ');
         badge.style.display = unique.length > 0 ? 'flex' : 'none';
       }
+
+      // Update header indicator "X online"
       const indicator = document.getElementById('online-indicator');
       if (indicator) {
         indicator.textContent = unique.length + ' online';
+        indicator.style.display = 'inline';
       }
-    } catch {}
+
+      // Simpan ke window untuk dipakai modal
+      window._onlineUsers = unique;
+    } catch(e) {
+      console.warn('[DBExt] presence error:', e.message);
+    }
   }
 
   /* ── Realtime: auto-refresh modul saat data berubah ──────── */
