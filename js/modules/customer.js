@@ -131,7 +131,8 @@ const CustomerModule = (() => {
           <thead>
             <tr style="background:#1e1e2e">
               ${_thGroup('#',1,'center','','0px')}
-              ${_thGroup('NAMA PERUSAHAAN',1,'left','','36px')}
+              ${_thGroup('ID',1,'center')}
+              ${_thGroup('NAMA PERUSAHAAN',1,'left','','80px')}
               ${_thGroup('JENIS LAYANAN',1,'center')}
               ${_thGroup('KONTRAK & HARGA',5,'center','#2a1f4a')}
               ${_thGroup('HARGA SHIFT 1',5,'center','#1a2f1a')}
@@ -145,7 +146,8 @@ const CustomerModule = (() => {
             </tr>
             <tr style="background:var(--primary-h)">
               ${_th('#','','center','36px','0px')}
-              ${_thS('nama','Nama Perusahaan','220px','left','36px')}
+              ${_th('ID','','center','52px')}
+              ${_thS('nama','Nama Perusahaan','220px','left','80px')}
               ${_thS('jenisPelayanan','Jenis Pelayanan','110px','center')}
               ${_thS('hargaPerPax','Harga / Pax','90px','right')}
               ${_thS('biayaBox','Biaya Box','80px','right')}
@@ -179,18 +181,31 @@ const CustomerModule = (() => {
           </thead>
 
           <tbody>
-          ${!list.length ? `<tr><td colspan="30" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data customer.</td></tr>` :
+          ${!list.length ? `<tr><td colspan="31" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data customer.</td></tr>` :
             list.map((c, i) => {
               const ak = (c.status||'AKTIF')==='AKTIF';
-              const bg = i%2===1?'var(--surface2)':'transparent';
+              // Solid backgrounds for sticky columns (no transparent!)
+              const bg       = i%2===1 ? '#f4f4f8' : '#ffffff';
+              const bgHover  = '#eef0fb';
+              // Dark mode handled via CSS var fallback
+              const bgS      = `var(--surface,${bg})`;  // fallback solid
+              const bgS2     = i%2===1 ? 'var(--surface2,#f4f4f8)' : 'var(--surface,#ffffff)';
               const sc = ak
                 ? 'background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.3)'
                 : 'background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25)';
-              return `<tr style="border-bottom:1px solid var(--border);background:${bg}"
-                onmouseover="this.style.background='rgba(99,102,241,.05)'"
-                onmouseout="this.style.background='${bg}'">
-                <td style="padding:8px 10px;text-align:center;font-size:10px;color:var(--text-3);white-space:nowrap;position:sticky;left:0;z-index:1;background:inherit">${i+1}</td>
-                <td style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:36px;z-index:1;background:inherit;border-right:1px solid var(--border)">${c.nama||'-'}</td>
+              // Sticky cell bg must be solid — use actual computed color per row
+              const stkBg    = i%2===1 ? 'var(--surface2,#f4f4f8)' : 'var(--surface,#ffffff)';
+              const stkBgHov = 'var(--surface-hover,#eef0fb)';
+              return `<tr style="border-bottom:1px solid var(--border);background:${bgS2}"
+                onmouseover="this.style.background='var(--surface-hover,#eef0fb)';this.querySelectorAll('.sticky-cell').forEach(el=>el.style.background='var(--surface-hover,#eef0fb)')"
+                onmouseout="this.style.background='${bgS2}';this.querySelectorAll('.sticky-cell').forEach(el=>el.style.background='${stkBg}')">
+                <td class="sticky-cell" style="padding:8px 10px;text-align:center;font-size:10px;color:var(--text-3);white-space:nowrap;position:sticky;left:0;z-index:1;background:${stkBg}">${i+1}</td>
+                <td class="sticky-cell" style="padding:4px 6px;text-align:center;white-space:nowrap;position:sticky;left:36px;z-index:1;background:${stkBg}">
+                  ${c.customerId
+                    ? `<span style="font-size:9px;font-weight:700;font-family:var(--font-mono);background:rgba(99,102,241,.12);color:#6366f1;padding:2px 6px;border-radius:4px">${c.customerId}</span>`
+                    : `<span style="font-size:9px;color:var(--text-3)">-</span>`}
+                </td>
+                <td class="sticky-cell" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:80px;z-index:1;background:${stkBg};border-right:2px solid var(--border)">${c.nama||'-'}</td>
                 <td style="padding:8px 10px;text-align:center">${_badge(c.jenisPelayanan)}</td>
                 ${_tdRp(c.hargaPerPax)}
                 ${_tdRp(c.biayaBox)}
@@ -238,11 +253,12 @@ const CustomerModule = (() => {
 
   /* ── TABLE HEADER HELPERS ── */
   function _thGroup(label, colspan, align, bg, sticky) {
-    const stk = sticky ? `position:sticky;left:${sticky};z-index:3;` : '';
-    return `<th colspan="${colspan}" style="padding:5px 10px;text-align:${align||'left'};font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ca3af;border-right:1px solid rgba(255,255,255,.06);${bg?'background:'+bg:''};${stk}">${label}</th>`;
+    const stkBg = sticky ? 'background:#1e1e2e;' : '';
+    const stk = sticky ? `position:sticky;left:${sticky};z-index:3;${stkBg}` : '';
+    return `<th colspan="${colspan}" style="padding:5px 10px;text-align:${align||'left'};font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ca3af;border-right:1px solid rgba(255,255,255,.06);${bg?'background:'+bg:'background:#1e1e2e'};${stk}">${label}</th>`;
   }
   function _th(label, field, align, width, sticky) {
-    const stk = sticky ? `position:sticky;left:${sticky};z-index:2;background:var(--primary-h);` : '';
+    const stk = sticky ? `position:sticky;left:${sticky};z-index:2;background:#6366f1;` : '';
     return `<th style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;white-space:nowrap;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''};${stk}">
       ${label}
     </th>`;
@@ -250,7 +266,7 @@ const CustomerModule = (() => {
   function _thS(field, label, width, align, sticky) {
     const isActive = _sortCol === field;
     const arrow = isActive ? (_sortDir===1 ? ' ↑' : ' ↓') : '';
-    const stk = sticky ? `position:sticky;left:${sticky};z-index:2;background:var(--primary-h);` : '';
+    const stk = sticky ? `position:sticky;left:${sticky};z-index:2;background:#6366f1;` : '';
     return `<th onclick="CustomerModule.sortBy('${field}')"
       style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${isActive?'#fbbf24':'#fff'};white-space:nowrap;cursor:pointer;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''};${stk}">
       ${label}${arrow}
