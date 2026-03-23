@@ -49,18 +49,27 @@ const DBExtensions = (() => {
 
   async function _refreshOnlineBadge() {
     try {
-      const online = await DB.getOnlineUsers(60000); // aktif dalam 1 menit
-      const badge  = document.getElementById('online-users-badge');
-      if (badge) {
-        badge.textContent = online.length;
-        badge.title = online.map(u => u.nama || u.username).join(', ');
-        badge.style.display = online.length > 0 ? 'flex' : 'none';
-      }
+      const online = await DB.getOnlineUsers(60000);
+      // Deduplicate: 1 user = 1 entry (ambil yang paling baru)
+      const seen = {};
+      const unique = [];
+      online.forEach(u => {
+        const key = (u.username || u.id || '').toLowerCase();
+        if (!seen[key] || new Date(u.last_seen) > new Date(seen[key].last_seen)) {
+          seen[key] = u;
+        }
+      });
+      Object.values(seen).forEach(u => unique.push(u));
 
-      // Update header online indicator
+      const badge = document.getElementById('online-users-badge');
+      if (badge) {
+        badge.textContent = unique.length;
+        badge.title = unique.map(u => u.nama || u.username).join(', ');
+        badge.style.display = unique.length > 0 ? 'flex' : 'none';
+      }
       const indicator = document.getElementById('online-indicator');
       if (indicator) {
-        indicator.textContent = online.length + ' online';
+        indicator.textContent = unique.length + ' online';
       }
     } catch {}
   }
