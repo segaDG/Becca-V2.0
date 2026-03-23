@@ -350,8 +350,10 @@ const DB = (() => {
 
   // ── PRESENCE (user online) ────────────────────────────────
   const updatePresence = async (userId, userData) => {
+    // Gunakan username sebagai ID agar tidak duplikat per session
+    const stableId = (userData.username || userId || '').toLowerCase().replace(/\s+/g,'_');
     const data = {
-      id:         userId,
+      id:         stableId,
       username:   userData.username || userId,
       nama:       userData.nama || userId,
       role:       userData.role || '',
