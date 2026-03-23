@@ -104,11 +104,18 @@ const DB = (() => {
   }
 
   // ── Generic CRUD dengan fallback ke localStorage ───────────
+  // Table yang tidak punya created_at column
+  const NO_CREATED_AT = ['settings', 'presence', 'activity_logs', 'opname_logs'];
+
   async function _get(table) {
     const sb = await _initClient();
     if (!sb) return _lsGet(table);
 
-    const { data, error } = await sb.from(table).select('*').order('created_at', { ascending: false });
+    let query = sb.from(table).select('*');
+    if (!NO_CREATED_AT.includes(table)) {
+      query = query.order('created_at', { ascending: false });
+    }
+    const { data, error } = await query;
     if (error) {
       console.warn('[DB] get ' + table + ':', error.message);
       return _lsGet(table);
