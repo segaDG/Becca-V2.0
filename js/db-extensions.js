@@ -40,11 +40,11 @@ const DBExtensions = (() => {
     });
 
     updateNow();
-    _presenceInterval = setInterval(updateNow, 15000);
+    _presenceInterval = setInterval(updateNow, 60000); // setiap 1 menit
 
     // Update online users badge di header
     _refreshOnlineBadge();
-    setInterval(_refreshOnlineBadge, 20000);
+    setInterval(_refreshOnlineBadge, 60000); // setiap 1 menit
   }
 
   async function _refreshOnlineBadge() {
