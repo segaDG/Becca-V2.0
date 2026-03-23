@@ -299,13 +299,21 @@ const DB = (() => {
   const getSettings  = async () => {
     const sb = await _initClient();
     if (sb) {
-      const { data } = await sb.from('settings').select('*').eq('id','main').single();
+      // Pakai maybeSingle() agar tidak error 406 jika row belum ada
+      const { data } = await sb.from('settings').select('*').eq('id','main').maybeSingle();
       if (data?.data) {
-        try { return { ...JSON.parse(data.data), id: 'main' }; } catch {}
+        try {
+          const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+          return { ...parsed, id: 'main' };
+        } catch {}
       }
     }
-    // Fallback
-    try { return JSON.parse(localStorage.getItem('becca_settings') || '{}'); } catch { return {}; }
+    // Fallback localStorage
+    try {
+      const raw = localStorage.getItem('becca_settings') || '{}';
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed[0] || {}) : parsed;
+    } catch { return {}; }
   };
   const saveSettings = async (data) => {
     // Merge dengan settings lokal (supaya githubToken dll tidak hilang)
