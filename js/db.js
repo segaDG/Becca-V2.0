@@ -13,10 +13,22 @@ const DB = (() => {
 
   function _getConfig() {
     try {
-      const s = JSON.parse(localStorage.getItem('becca_settings') || '{}');
+      // Cek dedicated keys dulu (paling reliable)
+      const url = localStorage.getItem('becca_supabase_url') || '';
+      const key = localStorage.getItem('becca_supabase_key') || '';
+      if (url && key) return { url, key };
+
+      // Fallback: becca_becca_settings (object)
+      const s1 = JSON.parse(localStorage.getItem('becca_becca_settings') || '{}');
+      if (s1.supabaseUrl && s1.supabaseKey) return { url: s1.supabaseUrl, key: s1.supabaseKey };
+
+      // Fallback: becca_settings (array atau object)
+      const raw = localStorage.getItem('becca_settings') || '{}';
+      const s2  = JSON.parse(raw);
+      const s   = Array.isArray(s2) ? (s2[0] || {}) : s2;
       return {
-        url: s.supabaseUrl || '',
-        key: s.supabaseKey || '',
+        url: url || s1.supabaseUrl || s.supabaseUrl || '',
+        key: key || s1.supabaseKey || s.supabaseKey || '',
       };
     } catch { return { url: '', key: '' }; }
   }
