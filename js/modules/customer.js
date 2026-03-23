@@ -132,11 +132,11 @@ const CustomerModule = (() => {
         .cst-s2 { position:sticky!important; left:79px!important; z-index:2!important;
                   box-shadow:3px 0 5px -2px rgba(0,0,0,.12); }
         /* Header rows sticky with solid bg */
-        thead .cst-s0 { background:#1e1e2e!important; z-index:4!important; }
+        thead .cst-s0 { background:#6366f1!important; z-index:4!important; }
         thead tr:nth-child(2) .cst-s0 { background:#6366f1!important; z-index:4!important; }
-        thead .cst-s1 { background:#1e1e2e!important; z-index:4!important; }
+        thead .cst-s1 { background:#6366f1!important; z-index:4!important; }
         thead tr:nth-child(2) .cst-s1 { background:#6366f1!important; z-index:4!important; }
-        thead .cst-s2 { background:#1e1e2e!important; z-index:4!important; }
+        thead .cst-s2 { background:#6366f1!important; z-index:4!important; }
         thead tr:nth-child(2) .cst-s2 { background:#6366f1!important; z-index:4!important; }
         /* Body rows — inherit from tr, but set solid fallback via JS on row */
         tbody tr:nth-child(odd)  .cst-s0,
@@ -161,23 +161,7 @@ const CustomerModule = (() => {
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
         <table style="width:100%;border-collapse:collapse;min-width:2400px;font-size:11px">
 
-          <!-- GROUP HEADERS -->
-          <thead>
-            <tr style="background:#1e1e2e">
-              ${_thGroup('#',1,'center','','cst-s0')}
-              ${_thGroup('ID',1,'center','','cst-s1')}
-              ${_thGroup('NAMA PERUSAHAAN',1,'left','','cst-s2')}
-              ${_thGroup('JENIS LAYANAN',1,'center')}
-              ${_thGroup('KONTRAK & HARGA',5,'center','#2a1f4a')}
-              ${_thGroup('HARGA SHIFT 1',5,'center','#1a2f1a')}
-              ${_thGroup('HARGA SHIFT 2',5,'center','#2f1a1a')}
-              ${_thGroup('HARGA SHIFT 3',5,'center','#1a2a2f')}
-              ${_thGroup('SNACK BERAT',1,'center','#2f2a1a')}
-              ${_thGroup('PIC & KONTAK',3,'center')}
-              ${_thGroup('STATUS',1,'center')}
-              ${_thGroup('CATATAN',1)}
-              ${canEdit ? _thGroup('AKSI',1,'center') : ''}
-            </tr>
+               <thead>
             <tr style="background:var(--primary-h)">
               ${_th('#','','center','36px','cst-s0')}
               ${_th('ID','','center','52px','cst-s1')}
