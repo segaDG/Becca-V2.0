@@ -128,8 +128,8 @@ const CustomerModule = (() => {
         /* Sticky columns — calculated from actual rendered widths */
         /* left offset: confirmed dari browser measurement */
         .cst-s0 { position:sticky!important; left:0px!important; z-index:2!important; }
-        .cst-s1 { position:sticky!important; left:33px!important; z-index:2!important; }
-        .cst-s2 { position:sticky!important; left:79px!important; z-index:2!important;
+        .cst-s1 { position:sticky!important; left:32px!important; z-index:2!important; }
+        .cst-s2 { position:sticky!important; left:78px!important; z-index:2!important;
                   box-shadow:3px 0 5px -2px rgba(0,0,0,.12); }
         /* Header rows sticky with solid bg */
         thead .cst-s0 { background:#6366f1!important; z-index:4!important; }
@@ -374,7 +374,7 @@ const CustomerModule = (() => {
 
   /* ── STICKY OFFSET FIX ── */
   function _fixSticky() {
-    // Jalankan setelah browser selesai layout via double-rAF
+    // Double-rAF: pastikan browser sudah selesai layout sebelum ukur
     requestAnimationFrame(function() {
       requestAnimationFrame(function() {
         var tbl = document.querySelector('.cst-s0');
@@ -385,14 +385,12 @@ const CustomerModule = (() => {
         var s1 = Array.from(tbl.querySelectorAll('.cst-s1'));
         var s2 = Array.from(tbl.querySelectorAll('.cst-s2'));
         if (!s0.length || !s1.length || !s2.length) return;
-        // Ukur dari sel pertama yang sudah di-layout browser
+        // Gunakan FLOAT precision — integer menyebabkan sub-pixel gap
         var w0 = s0[0].getBoundingClientRect().width;
         var w1 = s1[0].getBoundingClientRect().width;
-        var left1 = Math.ceil(w0);
-        var left2 = Math.ceil(w0 + w1);
         s0.forEach(function(el) { el.style.setProperty('left','0px','important'); });
-        s1.forEach(function(el) { el.style.setProperty('left', left1+'px', 'important'); });
-        s2.forEach(function(el) { el.style.setProperty('left', left2+'px', 'important'); });
+        s1.forEach(function(el) { el.style.setProperty('left', w0+'px', 'important'); });
+        s2.forEach(function(el) { el.style.setProperty('left', (w0+w1)+'px', 'important'); });
       });
     });
   }
