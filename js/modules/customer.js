@@ -124,14 +124,14 @@ const CustomerModule = (() => {
       </div>
 
       <!-- TABLE SCROLL -->
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative">
         <table style="width:100%;border-collapse:collapse;min-width:2400px;font-size:11px">
 
           <!-- GROUP HEADERS -->
           <thead>
             <tr style="background:#1e1e2e">
-              ${_thGroup('#',1,'center')}
-              ${_thGroup('NAMA PERUSAHAAN',1)}
+              ${_thGroup('#',1,'center','','0px')}
+              ${_thGroup('NAMA PERUSAHAAN',1,'left','','36px')}
               ${_thGroup('JENIS LAYANAN',1,'center')}
               ${_thGroup('KONTRAK & HARGA',5,'center','#2a1f4a')}
               ${_thGroup('HARGA SHIFT 1',5,'center','#1a2f1a')}
@@ -144,8 +144,8 @@ const CustomerModule = (() => {
               ${canEdit ? _thGroup('AKSI',1,'center') : ''}
             </tr>
             <tr style="background:var(--primary-h)">
-              ${_th('#','','center','36px')}
-              ${_thS('nama','Nama Perusahaan','220px')}
+              ${_th('#','','center','36px','0px')}
+              ${_thS('nama','Nama Perusahaan','220px','left','36px')}
               ${_thS('jenisPelayanan','Jenis Pelayanan','110px','center')}
               ${_thS('hargaPerPax','Harga / Pax','90px','right')}
               ${_thS('biayaBox','Biaya Box','80px','right')}
@@ -189,8 +189,8 @@ const CustomerModule = (() => {
               return `<tr style="border-bottom:1px solid var(--border);background:${bg}"
                 onmouseover="this.style.background='rgba(99,102,241,.05)'"
                 onmouseout="this.style.background='${bg}'">
-                <td style="padding:8px 10px;text-align:center;font-size:10px;color:var(--text-3);white-space:nowrap">${i+1}</td>
-                <td style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap">${c.nama||'-'}</td>
+                <td style="padding:8px 10px;text-align:center;font-size:10px;color:var(--text-3);white-space:nowrap;position:sticky;left:0;z-index:1;background:inherit">${i+1}</td>
+                <td style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:36px;z-index:1;background:inherit;border-right:1px solid var(--border)">${c.nama||'-'}</td>
                 <td style="padding:8px 10px;text-align:center">${_badge(c.jenisPelayanan)}</td>
                 ${_tdRp(c.hargaPerPax)}
                 ${_tdRp(c.biayaBox)}
@@ -237,19 +237,22 @@ const CustomerModule = (() => {
   }
 
   /* ── TABLE HEADER HELPERS ── */
-  function _thGroup(label, colspan, align, bg) {
-    return `<th colspan="${colspan}" style="padding:5px 10px;text-align:${align||'left'};font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ca3af;border-right:1px solid rgba(255,255,255,.06);${bg?'background:'+bg:''}">${label}</th>`;
+  function _thGroup(label, colspan, align, bg, sticky) {
+    const stk = sticky ? `position:sticky;left:${sticky};z-index:3;` : '';
+    return `<th colspan="${colspan}" style="padding:5px 10px;text-align:${align||'left'};font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ca3af;border-right:1px solid rgba(255,255,255,.06);${bg?'background:'+bg:''};${stk}">${label}</th>`;
   }
-  function _th(label, field, align, width) {
-    return `<th style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;white-space:nowrap;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''}">
+  function _th(label, field, align, width, sticky) {
+    const stk = sticky ? `position:sticky;left:${sticky};z-index:2;background:var(--primary-h);` : '';
+    return `<th style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;white-space:nowrap;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''};${stk}">
       ${label}
     </th>`;
   }
-  function _thS(field, label, width, align) {
+  function _thS(field, label, width, align, sticky) {
     const isActive = _sortCol === field;
     const arrow = isActive ? (_sortDir===1 ? ' ↑' : ' ↓') : '';
+    const stk = sticky ? `position:sticky;left:${sticky};z-index:2;background:var(--primary-h);` : '';
     return `<th onclick="CustomerModule.sortBy('${field}')"
-      style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${isActive?'#fbbf24':'#fff'};white-space:nowrap;cursor:pointer;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''}">
+      style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${isActive?'#fbbf24':'#fff'};white-space:nowrap;cursor:pointer;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''};${stk}">
       ${label}${arrow}
     </th>`;
   }
@@ -277,7 +280,10 @@ const CustomerModule = (() => {
       </div>`).join('')}
     </div>`;
 
+    const _custModalId = Utils.uid();
+    window._beccaCustModalId = _custModalId;
     Modal.open({
+      id: _custModalId,
       title: c ? 'Edit Customer' : 'Tambah Customer',
       size: 'modal-xl',
       body: `
@@ -342,7 +348,7 @@ const CustomerModule = (() => {
           <input class="form-control" id="cf-catatan" value="${fv('catatan')}" placeholder="Catatan tambahan...">
         </div>`,
       footer: `
-        <button class="btn btn-ghost" onclick="Modal.close()">Batal</button>
+        <button class="btn btn-ghost" onclick="Modal.close(window._beccaCustModalId)">Batal</button>
         <button class="btn btn-primary" onclick="CustomerModule._submit('${c?.id||''}')">
           ${c ? 'Simpan Perubahan' : 'Tambah Customer'}
         </button>`
@@ -382,7 +388,7 @@ const CustomerModule = (() => {
       _data.push(obj);
     }
     localStorage.setItem('becca_customers', JSON.stringify(_data));
-    Modal.close();
+    Modal.close(window._beccaCustModalId);
     Notify.success(id?'Customer diperbarui':'Customer berhasil ditambahkan');
     _render();
   }
