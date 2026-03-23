@@ -23,11 +23,13 @@ const App = {
   },
 
   async boot() {
-    DB.init(this._firebaseConfig);
+    // Init Supabase DB
+    DB.init().catch(()=>{});
     if (!Auth.init()) { this._showLogin(); return; }
     this._showApp();
     this._initTheme();
     this._startPresence();
+    setTimeout(() => { if (typeof DBExtensions !== "undefined") DBExtensions.init(); }, 500);
     // Force change password on first login
     if (sessionStorage.getItem('becca_must_change_pwd') === '1') {
       setTimeout(() => this._forceChangePasswordModal(), 500);
@@ -122,6 +124,13 @@ const App = {
             font-size:8px;font-weight:700;color:white;border:1.5px solid var(--surface);
             align-items:center;justify-content:center;padding:0 2px"></span>
         </button>
+        <!-- Online users badge (Supabase Realtime) -->
+        <div id="online-users-wrap" style="display:flex;align-items:center;gap:4px;
+          font-size:10px;color:var(--text-3);padding:0 4px" title="User online">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--success);
+            display:inline-block;animation:pulse 2s infinite"></span>
+          <span id="online-indicator" style="font-size:10px;color:var(--text-3)">...</span>
+        </div>
         <!-- User Dropdown -->
         <div style="position:relative">
           <button id="btn-user" onclick="App._toggleUserMenu()" title="Akun"
