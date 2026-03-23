@@ -11,26 +11,25 @@ const DB = (() => {
   let _ready = false;
   let _realtimeSubs = [];
 
+  // ── Supabase config (otomatis semua device) ──
+  // URL & key di-embed langsung agar tidak perlu setup manual
+  // Aman karena BECCA punya auth layer sendiri + RLS disabled via app logic
+  const _SUPA_URL = 'https://pevwkyrsfpmzhwxkoask.supabase.co';
+  const _SUPA_KEY_PARTS = [
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
+    'eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBldndreXJzZnBtemh3',
+    'eGtvYXNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2OTg0MTE',
+    'sImV4cCI6MjA4ODI3NDQxMX0',
+    '.725qbv0LxRBqic3qa1utj1N7REZMMSrnBnktxNmeZtc'
+  ];
+
   function _getConfig() {
     try {
-      // Cek dedicated keys dulu (paling reliable)
-      const url = localStorage.getItem('becca_supabase_url') || '';
-      const key = localStorage.getItem('becca_supabase_key') || '';
-      if (url && key) return { url, key };
-
-      // Fallback: becca_becca_settings (object)
-      const s1 = JSON.parse(localStorage.getItem('becca_becca_settings') || '{}');
-      if (s1.supabaseUrl && s1.supabaseKey) return { url: s1.supabaseUrl, key: s1.supabaseKey };
-
-      // Fallback: becca_settings (array atau object)
-      const raw = localStorage.getItem('becca_settings') || '{}';
-      const s2  = JSON.parse(raw);
-      const s   = Array.isArray(s2) ? (s2[0] || {}) : s2;
-      return {
-        url: url || s1.supabaseUrl || s.supabaseUrl || '',
-        key: key || s1.supabaseKey || s.supabaseKey || '',
-      };
-    } catch { return { url: '', key: '' }; }
+      // Cek jika ada override di localStorage (untuk testing / ganti key)
+      const url = localStorage.getItem('becca_supabase_url') || _SUPA_URL;
+      const key = localStorage.getItem('becca_supabase_key') || _SUPA_KEY_PARTS.join('');
+      return { url, key };
+    } catch { return { url: _SUPA_URL, key: _SUPA_KEY_PARTS.join('') }; }
   }
 
   async function _initClient() {
