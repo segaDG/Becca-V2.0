@@ -375,7 +375,7 @@ const App = {
       const initials = (u.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
       const color    = getColor(u.nama);
       const isMe     = u.username === currentUser?.username;
-      const secsAgo  = Math.round((now - new Date(u.lastSeen).getTime()) / 1000);
+      const secsAgo  = Math.round((now - new Date(u.last_seen || u.lastSeen || Date.now()).getTime()) / 1000);
       const timeAgo  = secsAgo < 60 ? secsAgo+'d yang lalu' : Math.round(secsAgo/60)+'m yang lalu';
       const pageLabel = {dashboard:'Dashboard',order:'Order',inventory:'Inventory',kas:'Kas Kecil',
         employee:'Karyawan',settings:'Pengaturan',ap:'Account Payable',task:'Task'}[u.page] || u.page || '-';
