@@ -187,9 +187,13 @@ const TaskModule = (() => {
     if (!document.getElementById('task-dnd-style')) {
       const st = document.createElement('style');
       st.id = 'task-dnd-style';
-      st.textContent = '.task-col-body.drag-over{background:rgba(99,102,241,.1)!important;' +
-        'outline:2px dashed #6366f1;outline-offset:-4px;border-radius:8px}' +
-        '[draggable=true]:active{cursor:grabbing!important}';
+      st.textContent =
+        '.task-col-body.drag-over{background:rgba(99,102,241,.08)!important;outline:2px dashed rgba(99,102,241,.6);outline-offset:-4px;border-radius:8px}' +
+        '.task-col-body.drag-over-valid{background:rgba(99,102,241,.08)!important;outline:2px dashed #6366f1;outline-offset:-4px;border-radius:8px}' +
+        '.task-col-body.drag-over-invalid{background:rgba(239,68,68,.05)!important;outline:2px dashed rgba(239,68,68,.5);outline-offset:-4px;border-radius:8px}' +
+        '[draggable=true]{user-select:none}' +
+        '[draggable=true]:active{cursor:grabbing!important}' +
+        '#task-drag-ghost{pointer-events:none!important}';
       document.head.appendChild(st);
     }
 
@@ -231,9 +235,9 @@ const TaskModule = (() => {
                 <span style="margin-left:auto;background:var(--surface2);color:var(--text-3);font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">${colTasks.length}</span>
               </div>
               <div class="task-col-body" data-col="${col.key}"
-                style="padding:8px;display:flex;flex-direction:column;gap:8px;min-height:60px"
-                ondragover="event.preventDefault();event.currentTarget.classList.add('drag-over')"
-                ondragleave="event.currentTarget.classList.remove('drag-over')"
+                style="padding:8px;display:flex;flex-direction:column;gap:8px;min-height:60px;transition:background .15s"
+                ondragover="TaskModule._onColDragOver(event,'${col.key}')"
+                ondragleave="TaskModule._onColDragLeave(event,'${col.key}')"
                 ondrop="TaskModule._onDrop(event,'${col.key}')">
                 ${colTasks.length===0
                   ? `<div class="task-col-empty" style="text-align:center;padding:20px 0;color:var(--text-3);font-size:11px">Kosong</div>`
@@ -252,28 +256,111 @@ const TaskModule = (() => {
     return parts[2] + '-' + parts[1] + '-' + parts[0];
   }
 
-  /* ── Drag & Drop handlers ── */
-  let _dragId  = '';
-  let _dragCol = '';
+  /* ══════════════════════════════════════════════════════
+     DRAG & DROP — smooth animation + cross-board (1 step)
+     ══════════════════════════════════════════════════════ */
+  const FLOW_ORDER = ['todo','inprogress','review','done'];
+  let _dragId   = '';
+  let _dragCol  = '';
+  let _dragEl   = null;
+  let _ghostEl  = null;
+  let _overCard = null;   // card yang sedang di-hover
+  let _overCol  = null;   // kolom yang sedang di-hover
 
   function _onDragStart(event, taskId, colKey) {
     _dragId  = taskId;
     _dragCol = colKey;
-    event.currentTarget.style.opacity = '.4';
+    _dragEl  = event.currentTarget;
+
+    // Ghost element — card clone yang mengikuti cursor
+    _ghostEl = _dragEl.cloneNode(true);
+    _ghostEl.id = 'task-drag-ghost';
+    _ghostEl.style.cssText = [
+      'position:fixed','pointer-events:none','z-index:9999',
+      'width:' + _dragEl.offsetWidth + 'px',
+      'opacity:.85','transform:rotate(2deg) scale(1.03)',
+      'box-shadow:0 12px 32px rgba(0,0,0,.2)',
+      'transition:transform .1s','border-radius:8px',
+    ].join(';');
+    document.body.appendChild(_ghostEl);
+
+    // Custom drag image — transparent
+    const blank = document.createElement('div');
+    blank.style.cssText = 'position:fixed;top:-9999px';
+    document.body.appendChild(blank);
+    event.dataTransfer.setDragImage(blank, 0, 0);
+    setTimeout(() => blank.remove(), 0);
+
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', taskId);
+
+    // Fade original card
+    requestAnimationFrame(() => {
+      _dragEl.style.opacity = '.25';
+      _dragEl.style.transform = 'scale(.97)';
+    });
+
+    // Mouse move untuk posisi ghost
+    document.addEventListener('dragover', _trackGhost);
   }
 
-  function _onDrop(event, targetCol) {
-    event.preventDefault();
-    event.currentTarget.classList.remove('drag-over');
-    if (!_dragId) return;
+  function _trackGhost(e) {
+    if (!_ghostEl) return;
+    _ghostEl.style.left = (e.clientX - 20) + 'px';
+    _ghostEl.style.top  = (e.clientY - 30) + 'px';
+  }
 
-    // Cari posisi drop berdasarkan Y coordinate
-    const container  = event.currentTarget;
-    const cards      = [...container.querySelectorAll('[data-task-id]')];
-    const dropY      = event.clientY;
-    let   insertIdx  = cards.length; // default: akhir
+  function _onDragEnd(event) {
+    // Cleanup ghost
+    if (_ghostEl) { _ghostEl.remove(); _ghostEl = null; }
+    document.removeEventListener('dragover', _trackGhost);
+
+    // Restore original card
+    if (_dragEl) {
+      _dragEl.style.opacity  = '';
+      _dragEl.style.transform = '';
+      _dragEl = null;
+    }
+
+    // Clear all placeholder/highlights
+    document.querySelectorAll('.task-drag-placeholder').forEach(el => el.remove());
+    document.querySelectorAll('.task-col-body').forEach(el => {
+      el.classList.remove('drag-over','drag-over-valid','drag-over-invalid');
+    });
+    document.querySelectorAll('[data-task-id]').forEach(el => {
+      el.style.transform = '';
+      el.style.marginTop = '';
+      el.style.marginBottom = '';
+    });
+
+    _overCard = null;
+    _overCol  = null;
+  }
+
+  function _onColDragOver(event, targetCol) {
+    event.preventDefault();
+
+    // Cek apakah pindah kolom valid (max 1 langkah)
+    const srcIdx = FLOW_ORDER.indexOf(_dragCol);
+    const tgtIdx = FLOW_ORDER.indexOf(targetCol);
+    const isValid = _dragId && (
+      targetCol === _dragCol ||          // reorder dalam kolom
+      Math.abs(tgtIdx - srcIdx) === 1    // 1 langkah saja
+    );
+
+    event.dataTransfer.dropEffect = isValid ? 'move' : 'none';
+
+    const container = event.currentTarget;
+    container.classList.toggle('drag-over-valid',   isValid && targetCol !== _dragCol);
+    container.classList.toggle('drag-over-invalid', !isValid && targetCol !== _dragCol);
+    container.classList.toggle('drag-over',          targetCol === _dragCol);
+
+    if (!isValid) return;
+
+    // Animasi push card: geser card di sekitar posisi drop
+    const cards  = [...container.querySelectorAll('[data-task-id]')];
+    const dropY  = event.clientY;
+    let insertIdx = cards.length;
 
     for (let i = 0; i < cards.length; i++) {
       const rect = cards[i].getBoundingClientRect();
@@ -281,25 +368,109 @@ const TaskModule = (() => {
       if (dropY < mid) { insertIdx = i; break; }
     }
 
-    // Ambil current order untuk kolom target
+    // Reset semua card transform dulu
+    cards.forEach((c, i) => {
+      if (c.dataset.taskId === _dragId) return;
+      const shift = 44; // px
+      if (i >= insertIdx) {
+        c.style.transform  = 'translateY(' + shift + 'px)';
+        c.style.transition = 'transform .15s ease';
+      } else {
+        c.style.transform  = '';
+        c.style.transition = 'transform .15s ease';
+      }
+    });
+
+    _overCol = targetCol;
+  }
+
+  function _onColDragLeave(event, targetCol) {
+    const rt = event.relatedTarget;
+    const container = event.currentTarget;
+    if (container.contains(rt)) return;
+
+    container.classList.remove('drag-over','drag-over-valid','drag-over-invalid');
+
+    // Reset card transforms
+    container.querySelectorAll('[data-task-id]').forEach(el => {
+      el.style.transform  = '';
+      el.style.transition = '';
+    });
+  }
+
+  function _onDrop(event, targetCol) {
+    event.preventDefault();
+    const container = event.currentTarget;
+    container.classList.remove('drag-over','drag-over-valid','drag-over-invalid');
+
+    if (!_dragId) return;
+
+    // Validasi: max 1 langkah
+    const srcIdx = FLOW_ORDER.indexOf(_dragCol);
+    const tgtIdx = FLOW_ORDER.indexOf(targetCol);
+    if (Math.abs(tgtIdx - srcIdx) > 1) {
+      Notify.warning('Task hanya bisa dipindah 1 langkah sekaligus');
+      // Reset transforms
+      container.querySelectorAll('[data-task-id]').forEach(el => {
+        el.style.transform = ''; el.style.transition = '';
+      });
+      return;
+    }
+
+    // Cari posisi insert
+    const cards   = [...container.querySelectorAll('[data-task-id]')];
+    const dropY   = event.clientY;
+    let insertIdx = cards.length;
+    for (let i = 0; i < cards.length; i++) {
+      const rect = cards[i].getBoundingClientRect();
+      if (dropY < rect.top + rect.height / 2) { insertIdx = i; break; }
+    }
+
+    // Update status jika pindah kolom
+    if (targetCol !== _dragCol) {
+      const t = _tasks.find(x => x.id === _dragId);
+      if (t) {
+        // Cek validasi review → done harus sudah reviewed
+        if (targetCol === 'done' && !t.reviewed) {
+          Notify.warning('Task belum di-review oleh pembuat task');
+          container.querySelectorAll('[data-task-id]').forEach(el => {
+            el.style.transform = ''; el.style.transition = '';
+          });
+          return;
+        }
+        t.status = targetCol;
+        t.urgent = false;
+        if (targetCol === 'done') t.doneAt = new Date().toISOString();
+        DB.saveTask(t).catch(() => {});
+        const lbl = {todo:'To Do',inprogress:'In Progress',review:'Review',done:'Done'};
+        Notify.success('Task dipindah ke ' + lbl[targetCol] + '!');
+      }
+    }
+
+    // Update order
     const colTasksRaw = _tasks.filter(t =>
       targetCol === 'todo' ? (t.status === 'todo' || !t.status) : t.status === targetCol
     );
-    const colOrdered  = _applyOrder(colTasksRaw, targetCol);
-    let   ids         = colOrdered.map(t => t.id);
-
-    // Hapus dragId dari list jika sudah ada
-    ids = ids.filter(id => id !== _dragId);
-
-    // Insert di posisi baru
+    // Setelah status update, filter ulang
+    const updatedTasks = _tasks.filter(t =>
+      targetCol === 'todo' ? (t.status === 'todo' || !t.status) : t.status === targetCol
+    );
+    const ordered = _applyOrder(updatedTasks, targetCol);
+    let ids = ordered.map(t => t.id).filter(id => id !== _dragId);
     ids.splice(insertIdx, 0, _dragId);
-
     _saveOrder(targetCol, ids);
 
-    // Jika pindah kolom (drag ke kolom lain tidak didukung — hanya reorder dalam kolom)
+    // Jika pindah kolom, hapus dari order kolom asal
+    if (targetCol !== _dragCol) {
+      const srcOrder = (_getOrder()[_dragCol] || []).filter(id => id !== _dragId);
+      _saveOrder(_dragCol, srcOrder);
+    }
+
     _dragId  = '';
     _dragCol = '';
-    render();
+
+    // Smooth render
+    setTimeout(() => render(), 80);
   }
 
   /* ── Card HTML ── */
@@ -350,18 +521,17 @@ const TaskModule = (() => {
     <div draggable="true"
       data-task-id="${t.id}"
       data-col="${colKey}"
-      data-idx="${cardIdx}"
       ondragstart="TaskModule._onDragStart(event,'${t.id}','${colKey}')"
-      ondragend="event.currentTarget.style.opacity='1'"
+      ondragend="TaskModule._onDragEnd(event)"
       style="background:${cardBg};border:1px solid ${cardBorder};
         border-left:3px solid ${borderLeft};border-radius:8px;
         padding:10px 12px;opacity:${isArsip?'.65':'1'};cursor:grab;
-        transition:box-shadow .15s"
-      onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,.12)'"
+        transition:box-shadow .15s,transform .15s,opacity .15s"
+      onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'"
       onmouseleave="this.style.boxShadow=''"
       onclick="TaskModule.openModal('${t.id}')">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:2px;opacity:.3;font-size:11px;cursor:grab"
-        title="Drag untuk ubah urutan">⠿</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:1px;opacity:.2;font-size:12px;cursor:grab;letter-spacing:2px"
+        title="Drag untuk ubah urutan">⠿⠿</div>
 
       <!-- Title + badges -->
       <div style="display:flex;align-items:flex-start;gap:5px;margin-bottom:5px;flex-wrap:wrap">
@@ -678,7 +848,7 @@ const TaskModule = (() => {
   return {
     init, setFilter, render, openModal, _submit,
     moveNext, movePrev, markReviewed, markDone, markArsip, markTodo, deleteTask, toggleUrgent,
-    _onDragStart, _onDrop
+    _onDragStart, _onDragEnd, _onColDragOver, _onColDragLeave, _onDrop
   };
 })();
 
