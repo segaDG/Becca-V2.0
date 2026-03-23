@@ -232,9 +232,22 @@ const CustomerModule = (() => {
                 onmouseout="this.style.background=''">
                 <td class="cst-s0" style="padding:8px 10px;text-align:center;font-size:10px;color:var(--text-3);white-space:nowrap">${i+1}</td>
                 <td class="cst-s1" style="padding:4px 6px;text-align:center;white-space:nowrap">
-                  ${c.customerId
-                    ? `<span style="font-size:9px;font-weight:700;font-family:var(--font-mono);background:rgba(99,102,241,.12);color:#6366f1;padding:2px 6px;border-radius:4px">${c.customerId}</span>`
-                    : `<span style="font-size:9px;color:var(--text-3)">-</span>`}
+                  <span onclick="CustomerModule.editCustomerId('${c.id}')" title="Klik untuk edit ID"
+                    style="cursor:pointer;display:inline-flex;align-items:center;gap:3px;
+                      font-size:9px;font-weight:700;font-family:var(--font-mono);
+                      ${c.customerId
+                        ? 'background:rgba(99,102,241,.12);color:#6366f1'
+                        : 'background:rgba(100,100,100,.08);color:var(--text-3)'};
+                      padding:2px 6px;border-radius:4px;border:1px solid transparent;
+                      transition:border-color .15s"
+                    onmouseover="this.style.borderColor='#6366f1'"
+                    onmouseout="this.style.borderColor='transparent'">
+                    ${c.customerId || '–'}
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </span>
                 </td>
                 <td class="cst-s2" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap">${c.nama||'-'}</td>
                 <td style="padding:8px 10px;text-align:center">${_badge(c.jenisPelayanan)}</td>
@@ -281,20 +294,8 @@ const CustomerModule = (() => {
       </div>
     </div>
     `;
-    // Kalkulasi sticky offset setelah render
-    setTimeout(function(){
-      var tbl=document.querySelector('.cst-s0')?.closest('table');
-      if(!tbl)return;
-      var s0=tbl.querySelectorAll('.cst-s0');
-      var s1=tbl.querySelectorAll('.cst-s1');
-      var s2=tbl.querySelectorAll('.cst-s2');
-      if(!s0.length||!s1.length)return;
-      var w0=s0[0].offsetWidth;
-      var w1=s1[0].offsetWidth;
-      s0.forEach(function(el){el.style.setProperty('left','0px','important');});
-      s1.forEach(function(el){el.style.setProperty('left',w0+'px','important');});
-      s2.forEach(function(el){el.style.setProperty('left',(w0+w1)+'px','important');});
-    },0);
+    // Kalkulasi sticky offset — dipanggil dari _fixSticky()
+    CustomerModule._fixSticky();
   }
 
   /* ── TABLE HEADER HELPERS ── */
@@ -313,6 +314,101 @@ const CustomerModule = (() => {
       style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${isActive?'#fbbf24':'#fff'};white-space:nowrap;cursor:pointer;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''}">
       ${label}${arrow}
     </th>`;
+  }
+
+  /* ── EDIT CUSTOMER ID ── */
+  function editCustomerId(custId) {
+    const cust = _data.find(c => c.id === custId);
+    if (!cust) return;
+
+    const editModalId = Utils.uid();
+    window._beccaEditIdModalId = editModalId;
+    Modal.open({
+      id: editModalId,
+      title: `✏ Edit Customer ID — ${cust.nama}`,
+      size: '',
+      body: `
+        <div style="margin-bottom:14px;font-size:11px;color:var(--text-3)">
+          Customer ID digunakan untuk generate nomor invoice otomatis.
+          Pastikan ID unik dan tidak sama dengan customer lain.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Customer ID <span style="color:var(--danger)">*</span></label>
+          <input class="form-control" id="edit-cust-id-input"
+            type="text"
+            value="${cust.customerId || ''}"
+            placeholder="contoh: 10, 062A, 057A"
+            style="font-family:var(--font-mono);font-size:16px;font-weight:700;letter-spacing:.05em;text-align:center"
+            maxlength="6">
+          <div style="font-size:10px;color:var(--text-3);margin-top:4px">
+            ID saat ini: <strong>${cust.customerId || '(kosong)'}</strong>
+          </div>
+          <div id="edit-id-error" style="display:none;font-size:10px;color:#ef4444;margin-top:4px;font-weight:600"></div>
+        </div>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close(window._beccaEditIdModalId)">Batal</button>
+        <button class="btn btn-primary" onclick="CustomerModule._saveCustomerId('${custId}')">
+          Simpan ID
+        </button>`
+    });
+    // Focus input
+    setTimeout(() => document.getElementById('edit-cust-id-input')?.focus(), 100);
+  }
+
+  function _saveCustomerId(custId) {
+    const input = document.getElementById('edit-cust-id-input');
+    const errEl = document.getElementById('edit-id-error');
+    if (!input) return;
+
+    const newId = input.value.trim();
+    const errShow = (msg) => {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+    };
+
+    if (!newId) { errShow('ID tidak boleh kosong'); return; }
+
+    // Cek duplikat — tidak boleh sama dengan customer lain
+    const isDuplicate = _data.some(c => c.id !== custId && c.customerId === newId);
+    if (isDuplicate) {
+      const existing = _data.find(c => c.id !== custId && c.customerId === newId);
+      errShow(`ID "${newId}" sudah digunakan oleh ${existing?.nama || 'customer lain'}`);
+      return;
+    }
+
+    // Simpan
+    const idx = _data.findIndex(c => c.id === custId);
+    if (idx < 0) return;
+    _data[idx].customerId = newId;
+    localStorage.setItem('becca_customers', JSON.stringify(_data));
+
+    Modal.close(window._beccaEditIdModalId);
+    Notify.success(`ID customer diperbarui: ${newId}`);
+    _render();
+  }
+
+  /* ── STICKY OFFSET FIX ── */
+  function _fixSticky() {
+    // Jalankan setelah browser selesai layout via double-rAF
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        var tbl = document.querySelector('.cst-s0');
+        if (!tbl) return;
+        tbl = tbl.closest('table');
+        if (!tbl) return;
+        var s0 = Array.from(tbl.querySelectorAll('.cst-s0'));
+        var s1 = Array.from(tbl.querySelectorAll('.cst-s1'));
+        var s2 = Array.from(tbl.querySelectorAll('.cst-s2'));
+        if (!s0.length || !s1.length || !s2.length) return;
+        // Ukur dari sel pertama yang sudah di-layout browser
+        var w0 = s0[0].getBoundingClientRect().width;
+        var w1 = s1[0].getBoundingClientRect().width;
+        var left1 = Math.ceil(w0);
+        var left2 = Math.ceil(w0 + w1);
+        s0.forEach(function(el) { el.style.setProperty('left','0px','important'); });
+        s1.forEach(function(el) { el.style.setProperty('left', left1+'px', 'important'); });
+        s2.forEach(function(el) { el.style.setProperty('left', left2+'px', 'important'); });
+      });
+    });
   }
 
   /* ── CONTROLS ── */
@@ -451,7 +547,7 @@ const CustomerModule = (() => {
     _render();
   }
 
-  return { init, setSearch, sortBy, openModal, _submit };
+  return { init, setSearch, sortBy, openModal, _submit, _fixSticky, editCustomerId, _saveCustomerId };
 })();
 
 window.CustomerModule = CustomerModule;
