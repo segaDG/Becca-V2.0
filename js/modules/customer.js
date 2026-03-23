@@ -204,7 +204,7 @@ const CustomerModule = (() => {
               const ak = (c.status||'AKTIF')==='AKTIF';
               // Solid backgrounds for sticky columns (no transparent!)
               const bg       = i%2===1 ? '#f4f4f8' : '#ffffff';
-              const bgHover  = '#eef0fb';
+              const bgHover  = 'var(--primary-bg,rgba(99,102,241,.12))';
               // Dark mode handled via CSS var fallback
               const bgS      = `var(--surface,${bg})`;  // fallback solid
               const bgS2     = i%2===1 ? 'var(--surface2,#f4f4f8)' : 'var(--surface,#ffffff)';
@@ -222,8 +222,8 @@ const CustomerModule = (() => {
                     style="cursor:pointer;display:inline-flex;align-items:center;gap:3px;
                       font-size:9px;font-weight:700;font-family:var(--font-mono);
                       ${c.customerId
-                        ? 'background:rgba(99,102,241,.12);color:#6366f1'
-                        : 'background:rgba(100,100,100,.08);color:var(--text-3)'};
+                        ? 'background:var(--primary-bg,rgba(99,102,241,.15));color:var(--primary-h)'
+                        : 'background:var(--surface2);color:var(--text-2)'};
                       padding:2px 6px;border-radius:4px;border:1px solid transparent;
                       transition:border-color .15s"
                     onmouseover="this.style.borderColor='#6366f1'"
