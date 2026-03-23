@@ -59,6 +59,31 @@ const TaskModule = (() => {
     if (changed) { _renderTabs(); render(); }
   }
 
+  /* ── Manual order per kolom (drag & drop) ── */
+  const ORDER_KEY = 'becca_task_order';
+
+  function _getOrder() {
+    try { return JSON.parse(localStorage.getItem(ORDER_KEY) || '{}'); }
+    catch(e) { return {}; }
+  }
+
+  function _saveOrder(colKey, ids) {
+    const o = _getOrder();
+    o[colKey] = ids;
+    localStorage.setItem(ORDER_KEY, JSON.stringify(o));
+  }
+
+  function _applyOrder(tasks, colKey) {
+    const order = _getOrder()[colKey];
+    if (!order || !order.length) return tasks;
+    const map = {};
+    tasks.forEach(t => map[t.id] = t);
+    const sorted = order.map(id => map[id]).filter(Boolean);
+    // Tambahkan task baru yang belum ada di order
+    tasks.forEach(t => { if (!order.includes(t.id)) sorted.push(t); });
+    return sorted;
+  }
+
   /* ── Stats ── */
   function _stats() {
     const today = new Date().toISOString().split('T')[0];
@@ -158,6 +183,16 @@ const TaskModule = (() => {
       return (pv[a.priority]||1)-(pv[b.priority]||1);
     });
 
+    // Inject drag-over CSS once
+    if (!document.getElementById('task-dnd-style')) {
+      const st = document.createElement('style');
+      st.id = 'task-dnd-style';
+      st.textContent = '.task-col-body.drag-over{background:rgba(99,102,241,.1)!important;' +
+        'outline:2px dashed #6366f1;outline-offset:-4px;border-radius:8px}' +
+        '[draggable=true]:active{cursor:grabbing!important}';
+      document.head.appendChild(st);
+    }
+
     if (!data.length) {
       el.innerHTML = `<div class="empty-state" style="height:40vh">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
@@ -186,18 +221,23 @@ const TaskModule = (() => {
     el.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:start">
         ${COLS.map(col => {
-          const colTasks = data.filter(t =>
+          const colTasksRaw = data.filter(t =>
             col.key==='todo' ? (t.status==='todo'||!t.status) : t.status===col.key);
+          const colTasks = _applyOrder(colTasksRaw, col.key);
           return `
             <div style="background:${col.bg};border:1px solid ${col.bd};border-radius:12px;min-height:180px;overflow:hidden">
               <div style="padding:10px 14px;border-bottom:1px solid ${col.bd};display:flex;align-items:center;gap:8px;background:var(--surface)">
                 <span style="font-weight:700;font-size:12px;color:${col.color}">${col.label}</span>
                 <span style="margin-left:auto;background:var(--surface2);color:var(--text-3);font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">${colTasks.length}</span>
               </div>
-              <div style="padding:8px;display:flex;flex-direction:column;gap:8px">
+              <div class="task-col-body" data-col="${col.key}"
+                style="padding:8px;display:flex;flex-direction:column;gap:8px;min-height:60px"
+                ondragover="event.preventDefault();event.currentTarget.classList.add('drag-over')"
+                ondragleave="event.currentTarget.classList.remove('drag-over')"
+                ondrop="TaskModule._onDrop(event,'${col.key}')">
                 ${colTasks.length===0
-                  ? `<div style="text-align:center;padding:20px 0;color:var(--text-3);font-size:11px">Kosong</div>`
-                  : colTasks.map(t=>_cardHTML(t,today)).join('')}
+                  ? `<div class="task-col-empty" style="text-align:center;padding:20px 0;color:var(--text-3);font-size:11px">Kosong</div>`
+                  : colTasks.map((t,idx)=>_cardHTML(t,today,col.key,idx)).join('')}
               </div>
             </div>`;
         }).join('')}
@@ -212,8 +252,58 @@ const TaskModule = (() => {
     return parts[2] + '-' + parts[1] + '-' + parts[0];
   }
 
+  /* ── Drag & Drop handlers ── */
+  let _dragId  = '';
+  let _dragCol = '';
+
+  function _onDragStart(event, taskId, colKey) {
+    _dragId  = taskId;
+    _dragCol = colKey;
+    event.currentTarget.style.opacity = '.4';
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', taskId);
+  }
+
+  function _onDrop(event, targetCol) {
+    event.preventDefault();
+    event.currentTarget.classList.remove('drag-over');
+    if (!_dragId) return;
+
+    // Cari posisi drop berdasarkan Y coordinate
+    const container  = event.currentTarget;
+    const cards      = [...container.querySelectorAll('[data-task-id]')];
+    const dropY      = event.clientY;
+    let   insertIdx  = cards.length; // default: akhir
+
+    for (let i = 0; i < cards.length; i++) {
+      const rect = cards[i].getBoundingClientRect();
+      const mid  = rect.top + rect.height / 2;
+      if (dropY < mid) { insertIdx = i; break; }
+    }
+
+    // Ambil current order untuk kolom target
+    const colTasksRaw = _tasks.filter(t =>
+      targetCol === 'todo' ? (t.status === 'todo' || !t.status) : t.status === targetCol
+    );
+    const colOrdered  = _applyOrder(colTasksRaw, targetCol);
+    let   ids         = colOrdered.map(t => t.id);
+
+    // Hapus dragId dari list jika sudah ada
+    ids = ids.filter(id => id !== _dragId);
+
+    // Insert di posisi baru
+    ids.splice(insertIdx, 0, _dragId);
+
+    _saveOrder(targetCol, ids);
+
+    // Jika pindah kolom (drag ke kolom lain tidak didukung — hanya reorder dalam kolom)
+    _dragId  = '';
+    _dragCol = '';
+    render();
+  }
+
   /* ── Card HTML ── */
-  function _cardHTML(t, today) {
+  function _cardHTML(t, today, colKey='', cardIdx=0) {
     const isDone    = t.status==='done';
     const isArsip   = t.status==='arsip';
     const isReview  = t.status==='review';
@@ -257,10 +347,21 @@ const TaskModule = (() => {
     }
 
     return `
-    <div style="background:${cardBg};border:1px solid ${cardBorder};
-      border-left:3px solid ${borderLeft};border-radius:8px;
-      padding:10px 12px;opacity:${isArsip?'.65':'1'};cursor:pointer"
+    <div draggable="true"
+      data-task-id="${t.id}"
+      data-col="${colKey}"
+      data-idx="${cardIdx}"
+      ondragstart="TaskModule._onDragStart(event,'${t.id}','${colKey}')"
+      ondragend="event.currentTarget.style.opacity='1'"
+      style="background:${cardBg};border:1px solid ${cardBorder};
+        border-left:3px solid ${borderLeft};border-radius:8px;
+        padding:10px 12px;opacity:${isArsip?'.65':'1'};cursor:grab;
+        transition:box-shadow .15s"
+      onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,.12)'"
+      onmouseleave="this.style.boxShadow=''"
       onclick="TaskModule.openModal('${t.id}')">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:2px;opacity:.3;font-size:11px;cursor:grab"
+        title="Drag untuk ubah urutan">⠿</div>
 
       <!-- Title + badges -->
       <div style="display:flex;align-items:flex-start;gap:5px;margin-bottom:5px;flex-wrap:wrap">
@@ -576,7 +677,8 @@ const TaskModule = (() => {
 
   return {
     init, setFilter, render, openModal, _submit,
-    moveNext, movePrev, markReviewed, markDone, markArsip, markTodo, deleteTask, toggleUrgent
+    moveNext, movePrev, markReviewed, markDone, markArsip, markTodo, deleteTask, toggleUrgent,
+    _onDragStart, _onDrop
   };
 })();
 
