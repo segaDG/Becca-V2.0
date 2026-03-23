@@ -1,5 +1,5 @@
 /* ============================================
-   BECCA V2.0 — Base CSS (Design Tokens + Reset)
+   BECCA V2.0 â€” Base CSS (Design Tokens + Reset)
    ============================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
@@ -129,3 +129,16 @@ code, .mono {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* â”€â”€ Dark mode: table row hover & active text visibility â”€â”€ */
+[data-theme="dark"] tbody tr:hover { background: var(--surface2) !important; }
+[data-theme="dark"] tbody tr:hover td,
+[data-theme="dark"] tbody tr:hover th { color: var(--text) !important; }
+[data-theme="dark"] tbody tr:hover .cst-s0,
+[data-theme="dark"] tbody tr:hover .cst-s1,
+[data-theme="dark"] tbody tr:hover .cst-s2 {
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+}
+[data-theme="dark"] tbody tr:hover span,
+[data-theme="dark"] tbody tr:hover a { color: inherit !important; }
