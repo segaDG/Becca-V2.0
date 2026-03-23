@@ -74,6 +74,43 @@ const SettingsModule = (() => {
         </div>
 
         <div class="card">
+          <div class="card-header">
+            <div class="card-title">🔄 Sinkronisasi Akun (Multi-Device)</div>
+          </div>
+          <div style="padding:var(--s5)">
+            <p style="font-size:12px;color:var(--text-2);margin-bottom:10px">
+              Dengan GitHub Token, setiap tambah/ubah user akan <strong>otomatis</strong> update semua device.
+            </p>
+            <div class="form-group">
+              <label class="form-label">GitHub Personal Access Token</label>
+              <input class="form-control" id="gh-token-input" type="password"
+                placeholder="ghp_xxxxxxxxxxxx"
+                value="${JSON.parse(localStorage.getItem('becca_settings')||'{}').githubToken||''}"
+                style="font-family:var(--font-mono);font-size:11px">
+              <div style="font-size:10px;color:var(--text-3);margin-top:3px">
+                Scope yang diperlukan: <code>repo</code>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">GitHub Repo</label>
+              <input class="form-control" id="gh-repo-input" type="text"
+                placeholder="username/repo-name"
+                value="${JSON.parse(localStorage.getItem('becca_settings')||'{}').githubRepo||'segaDG/Becca-V2.0'}"
+                style="font-family:var(--font-mono);font-size:11px">
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" style="flex:1" onclick="SettingsModule._saveGithubToken()">
+                💾 Simpan Token
+              </button>
+              <button class="btn btn-ghost" onclick="SettingsModule._downloadAuthJs()">
+                ⬇ Manual
+              </button>
+            </div>
+            <div id="gh-sync-status" style="margin-top:8px;font-size:11px;display:none"></div>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="card-header"><div class="card-title">🏢 Pengaturan Perusahaan</div></div>
           <div style="padding:var(--s5)">
             <form id="settings-form">
@@ -229,6 +266,7 @@ const SettingsModule = (() => {
 
     dbUser.password = newPwd;
     await DB.saveUser(dbUser);
+      _syncAuthJs();
     Modal.close(modalId);
     Notify.success('Password berhasil diubah!');
     DB.logActivity({ type:'change_password', detail:'Password diubah' });
@@ -384,6 +422,7 @@ const SettingsModule = (() => {
 
     try {
       await DB.saveUser(data);
+      _syncAuthJs();
       Modal.close(modalId);
       Notify.success(isEdit?'User diperbarui':'User ditambahkan');
       DB.logActivity({ type:isEdit?'edit_user':'add_user', detail:`User: ${data.username}` });
@@ -398,6 +437,7 @@ const SettingsModule = (() => {
     if (!u) { Notify.error('User tidak ditemukan'); return; }
     u.aktif = currentlyInactive;
     await DB.saveUser(u);
+    _syncAuthJs();
     Notify.success(u.aktif?'User diaktifkan':'User dinonaktifkan');
     renderUsers();
   }
@@ -1090,13 +1130,167 @@ const SettingsModule = (() => {
   }
 
 
+
+
+
+  /* ── Download auth.js dengan _defaultUsers terkini ── */
+  async function _downloadAuthJs() {
+    try {
+      const users   = await DB.getUsers().catch(() => []);
+      const authSrc = await fetch('/js/auth.js?_t=' + Date.now()).then(r => r.text());
+
+      const entries = users.map(u => {
+        const pw = u.password || u._pw || '888888';
+        return '    { id: ' + JSON.stringify(u.id||'u_'+u.username) +
+          ', username: ' + JSON.stringify(u.username) +
+          ', password: ' + JSON.stringify(pw) +
+          ', nama: '     + JSON.stringify(u.nama||u.username) +
+          ', role: '     + JSON.stringify(u.role||'operator') +
+          ', email: '    + JSON.stringify(u.email||'') +
+          ', aktif: '    + (u.aktif!==false) + ' }';
+      }).join(',\n');
+
+      const start   = authSrc.indexOf('_defaultUsers: [');
+      const end     = authSrc.indexOf('],', start) + 2;
+      const newSrc  = authSrc.slice(0, start) +
+        '_defaultUsers: [\n' + entries + '\n  ],' +
+        authSrc.slice(end);
+
+      const blob = new Blob([newSrc], {type:'text/javascript'});
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = 'auth.js';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+
+      Notify.success('auth.js berhasil didownload — upload ke GitHub: js/auth.js');
+    } catch(e) {
+      Notify.error('Gagal generate auth.js: ' + e.message);
+    }
+  }
+
+
+  /* ── Simpan GitHub Token ke becca_settings ── */
+  function _saveGithubToken() {
+    const token = document.getElementById('gh-token-input')?.value?.trim();
+    const repo  = document.getElementById('gh-repo-input')?.value?.trim() || 'segaDG/Becca-V2.0';
+    if (!token) { Notify.warning('Token tidak boleh kosong'); return; }
+
+    const s = JSON.parse(localStorage.getItem('becca_settings') || '{}');
+    s.githubToken = token;
+    s.githubRepo  = repo;
+    localStorage.setItem('becca_settings', JSON.stringify(s));
+
+    Notify.success('GitHub Token tersimpan — sinkronisasi otomatis aktif!');
+
+    // Test koneksi
+    const statusEl = document.getElementById('gh-sync-status');
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.color   = 'var(--text-3)';
+      statusEl.textContent   = '⏳ Mengecek koneksi ke GitHub...';
+    }
+    fetch('https://api.github.com/repos/' + repo + '/contents/js/auth.js', {
+      headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.sha) {
+        if (statusEl) { statusEl.style.color='var(--success)'; statusEl.textContent='✓ Koneksi GitHub berhasil! Auto-sync aktif.'; }
+        // Langsung sync sekarang
+        _syncAuthJs();
+      } else {
+        if (statusEl) { statusEl.style.color='var(--danger)'; statusEl.textContent='✗ ' + (data.message||'Token tidak valid atau repo tidak ditemukan'); }
+      }
+    })
+    .catch(e => {
+      if (statusEl) { statusEl.style.color='var(--danger)'; statusEl.textContent='✗ Error: ' + e.message; }
+    });
+  }
+
+  /* ── Auto-sync auth.js _defaultUsers setiap user saved ── */
+  async function _syncAuthJs() {
+    try {
+      // Ambil semua users dari DB
+      const users = await DB.getUsers().catch(() => []);
+      if (!users.length) return;
+
+      // Build _defaultUsers array
+      const entries = users.map(u => {
+        const pw = u.password || u._pw || '888888';
+        const id = u.id || ('u_' + u.username);
+        return '    { id: ' + JSON.stringify(id) +
+          ', username: ' + JSON.stringify(u.username) +
+          ', password: ' + JSON.stringify(pw) +
+          ', nama: ' + JSON.stringify(u.nama || u.username) +
+          ', role: ' + JSON.stringify(u.role || 'operator') +
+          ', email: ' + JSON.stringify(u.email || '') +
+          ', aktif: ' + (u.aktif !== false ? 'true' : 'false') + ' }';
+      }).join(',\n');
+
+      // Fetch auth.js terbaru dari server
+      const authSrc = await fetch('/js/auth.js?_t=' + Date.now()).then(r => r.text());
+
+      // Replace _defaultUsers block
+      const start = authSrc.indexOf('_defaultUsers: [');
+      const end   = authSrc.indexOf('],', start) + 2;
+      if (start < 0 || end < 2) return;
+      const newBlock   = '_defaultUsers: [\n' + entries + '\n  ],';
+      const newAuthSrc = authSrc.slice(0, start) + newBlock + authSrc.slice(end);
+
+      // Get GitHub token dari settings (jika ada) atau dari becca_settings
+      const settings = JSON.parse(localStorage.getItem('becca_settings') || '{}');
+      const token    = settings.githubToken || '';
+      if (!token) {
+        // Tidak ada token — simpan ke localStorage sebagai fallback
+        // Device lain bisa ambil lewat becca_auth_users
+        localStorage.setItem('becca_auth_users', JSON.stringify(
+          users.map(u => ({
+            id: u.id, username: u.username,
+            password: u.password || u._pw || '',
+            nama: u.nama, role: u.role,
+            email: u.email || '', aktif: u.aktif !== false
+          }))
+        ));
+        return;
+      }
+
+      // Push ke GitHub via API
+      const repo    = settings.githubRepo || 'segaDG/Becca-V2.0';
+      const apiUrl  = 'https://api.github.com/repos/' + repo + '/contents/js/auth.js';
+      const fileMeta = await fetch(apiUrl, {
+        headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' }
+      }).then(r => r.json());
+
+      if (!fileMeta.sha) return;
+
+      await fetch(apiUrl, {
+        method: 'PUT',
+        headers: {
+          Authorization: 'token ' + token,
+          Accept: 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: 'Auto-sync: update _defaultUsers',
+          content: btoa(unescape(encodeURIComponent(newAuthSrc))),
+          sha: fileMeta.sha
+        })
+      });
+
+      console.log('[BECCA] auth.js synced to GitHub (' + users.length + ' users)');
+    } catch(e) {
+      console.warn('[BECCA] auth.js sync failed:', e.message);
+    }
+  }
+
   return {
     init, switchTab,
     saveGeneralSettings, _handleLogoUpload, _removeLogo, openChangePasswordModal, _changePassword,
     renderUsers, openUserModal, _submitUser, toggleUser,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
-    renderData, exportData, _doImport, clearData,
+    renderData, exportData, _doImport, clearData, _syncAuthJs, _downloadAuthJs, _saveGithubToken
   };
 })();
 window.SettingsModule = SettingsModule;
