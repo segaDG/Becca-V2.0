@@ -42,22 +42,67 @@ const CustomerModule = (() => {
     return jenis ? `<span class="badge ${map[jenis]||'badge-secondary'}" style="font-size:10px">${jenis}</span>` : '-';
   }
 
-  /* ── INIT ── */
+  /* ── INIT — Supabase ── */
   async function init() {
     const page = document.getElementById('page-customer');
     if (!page) return;
 
-    // Load dari localStorage, fallback ke default data
     try {
-      const saved = localStorage.getItem('becca_customers');
-      _data = saved ? JSON.parse(saved) : [];
-      // Kalau kosong, isi default
-      if (!_data.length) {
-        _data = JSON.parse(JSON.stringify(_defaultData));
-        localStorage.setItem('becca_customers', JSON.stringify(_data));
+      const sbData = await DB.getCustomers();
+      if (sbData && sbData.length) {
+        _data = sbData.map(c => {
+          let cp = {};
+          try {
+            const raw = c.columnPrices || c.column_prices;
+            cp = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {};
+          } catch(e) {}
+          return {
+            ...c,
+            id:             c.id,
+            nama:           c.nama || c.namaPerusahaan || '',
+            customerId:     c.customerId || c.customer_id || '',
+            pic:            c.pic || c.pic_nama || '',
+            noHp:           c.noHp || c.no_hp || c.telepon || '',
+            kota:           c.kota || '',
+            status:         c.status || 'AKTIF',
+            alamat:         c.alamat || '',
+            email:          c.email || '',
+            catatan:        c.catatan || '',
+            jenisPelayanan: c.jenisPelayanan || c.jenis_pelayanan || '',
+            hargaPerPax:    c.hargaPerPax    || c.harga_per_pax   || 0,
+            biayaBox:       c.biayaBox       || c.biaya_box       || 0,
+            biayaLainnya:   c.biayaLainnya   || c.biaya_lainnya   || 0,
+            tempo:          c.tempo || 0,
+            qtyLauk:        c.qtyLauk        || c.qty_lauk        || 0,
+            qtyPendamping:  c.qtyPendamping   || c.qty_pendamping  || 0,
+            potonganAyam:   c.potonganAyam   || 0,
+            potonganDaging: c.potonganDaging || 0,
+            hargaBreakfast: cp.breakfast  || c.hargaBreakfast  || 0,
+            hargaShift1:    cp.shift1     || c.hargaShift1     || c.harga_shift1 || 0,
+            hargaSpare1:    cp.spare1     || c.hargaSpare1     || 0,
+            hargaOT1:       cp.ot1        || c.hargaOT1        || c.harga_ot1    || 0,
+            hargaSnack1:    cp.snack1     || c.hargaSnack1     || 0,
+            hargaShift2:    cp.shift2     || c.hargaShift2     || 0,
+            hargaSpare2:    cp.spare2     || c.hargaSpare2     || 0,
+            hargaOT2:       cp.ot2        || c.hargaOT2        || 0,
+            hargaSnack2:    cp.snack2     || c.hargaSnack2     || 0,
+            hargaShift3:    cp.shift3     || c.hargaShift3     || 0,
+            hargaSpare3:    cp.spare3     || c.hargaSpare3     || 0,
+            hargaOT3:       cp.ot3        || c.hargaOT3        || 0,
+            hargaSnack3:    cp.snack3     || c.hargaSnack3     || 0,
+            hargaSnackBerat:cp.snakBerat  || c.hargaSnackBerat || 0,
+          };
+        });
+      } else {
+        // Fallback localStorage / defaultData
+        const saved = localStorage.getItem('becca_customers');
+        _data = saved ? JSON.parse(saved) : [];
+        if (!_data.length) _data = JSON.parse(JSON.stringify(_defaultData));
       }
     } catch(e) {
-      _data = JSON.parse(JSON.stringify(_defaultData));
+      console.warn('CustomerModule init error:', e);
+      const saved = localStorage.getItem('becca_customers');
+      _data = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(_defaultData));
     }
     _render(page);
   }
@@ -361,11 +406,12 @@ const CustomerModule = (() => {
       return;
     }
 
-    // Simpan
+    // Simpan ke Supabase + local
     const idx = _data.findIndex(c => c.id === custId);
     if (idx < 0) return;
     _data[idx].customerId = newId;
-    localStorage.setItem('becca_customers', JSON.stringify(_data));
+    // Save ke Supabase
+    DB.saveCustomer({..._data[idx], customer_id: newId}).catch(e => console.warn('save customerId:', e));
 
     Modal.close(window._beccaEditIdModalId);
     Notify.success(`ID customer diperbarui: ${newId}`);
@@ -532,7 +578,8 @@ const CustomerModule = (() => {
     } else {
       _data.push(obj);
     }
-    localStorage.setItem('becca_customers', JSON.stringify(_data));
+    // Save ke Supabase
+    DB.saveCustomer(obj).catch(e => console.warn('saveCustomer:', e));
     Modal.close(window._beccaCustModalId);
     Notify.success(id?'Customer diperbarui':'Customer berhasil ditambahkan');
     _render();
