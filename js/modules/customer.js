@@ -126,9 +126,11 @@ const CustomerModule = (() => {
       <!-- TABLE SCROLL -->
       <style>
         /* Sticky columns — calculated from actual rendered widths */
-        /* left offset dihitung JS setelah render */
-        .cst-s0, .cst-s1, .cst-s2 { position:sticky!important; z-index:2!important; }
-        .cst-s2 { box-shadow:3px 0 5px -2px rgba(0,0,0,.12); }
+        /* left offset: confirmed dari browser measurement */
+        .cst-s0 { position:sticky!important; left:0px!important; z-index:2!important; }
+        .cst-s1 { position:sticky!important; left:33px!important; z-index:2!important; }
+        .cst-s2 { position:sticky!important; left:79px!important; z-index:2!important;
+                  box-shadow:3px 0 5px -2px rgba(0,0,0,.12); }
         /* Header rows sticky with solid bg */
         thead .cst-s0 { background:#1e1e2e!important; z-index:4!important; }
         thead tr:nth-child(2) .cst-s0 { background:#6366f1!important; z-index:4!important; }
@@ -294,8 +296,8 @@ const CustomerModule = (() => {
       </div>
     </div>
     `;
-    // Kalkulasi sticky offset — dipanggil dari _fixSticky()
-    CustomerModule._fixSticky();
+    // Kalkulasi sticky offset setelah render
+    _fixSticky();
   }
 
   /* ── TABLE HEADER HELPERS ── */
