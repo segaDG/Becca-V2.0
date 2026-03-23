@@ -231,8 +231,8 @@ const TaskModule = (() => {
     return `<div style="background:var(--surface);
       border:1px solid ${isLate?'rgba(239,68,68,.4)':'var(--border)'};
       border-left:3px solid ${isDone?'var(--success)':isArsip?'var(--text-3)':isReview?'#6366f1':isInProg?'#f59e0b':pc};
-      border-radius:8px;padding:10px 12px;opacity:${isArsip?'.65':'1'}"
-      style="cursor:${canEdit?'pointer':'default'}"
+      border-radius:8px;padding:10px 12px;opacity:${isArsip?'.65':'1'};
+      cursor:pointer"
       onclick="TaskModule.openModal('${t.id}')">
 
       <!-- Title + badges -->
@@ -294,8 +294,11 @@ const TaskModule = (() => {
           </button>
         ` : ''}
 
-        ${/* Review: tombol Done HANYA muncul setelah reviewed, dan hanya untuk assignee */
-          (isReview && isReviewed && isAssign) ? `
+        ${/* Review: tombol Done muncul setelah reviewed
+             - untuk assignee, ATAU
+             - superadmin, ATAU
+             - jika assignee kosong (siapa saja bisa lanjutkan) */
+          (isReview && isReviewed && (isAssign || _isSuperAdmin() || !t.assignee)) ? `
           <button class="btn btn-sm" onclick="TaskModule.moveNext('${t.id}')"
             style="background:rgba(16,185,129,.1);color:var(--success);border:1px solid rgba(16,185,129,.3);
               font-size:11px;padding:3px 10px;border-radius:6px;display:flex;align-items:center;gap:4px">
