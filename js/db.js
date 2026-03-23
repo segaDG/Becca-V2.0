@@ -135,6 +135,9 @@ const DB = (() => {
   // Table yang tidak punya created_at column
   const NO_CREATED_AT = ['settings', 'presence', 'activity_logs', 'opname_logs'];
 
+  // Table yang TIDAK dicache di localStorage (selalu fetch fresh dari Supabase)
+  const NO_CACHE = ['customers','users','tasks','suppliers','ap'];
+
   async function _get(table) {
     const sb = await _initClient();
     if (!sb) return _lsGet(table);
@@ -160,8 +163,9 @@ const DB = (() => {
       }
     }
 
-    // Supabase punya data - sync ke localStorage sebagai cache
-    if (result.length > 0) {
+    // Cache ke localStorage hanya untuk table non-realtime
+    const NO_CACHE = ['customers','users','tasks','suppliers','ap'];
+    if (result.length > 0 && !NO_CACHE.includes(table)) {
       try { localStorage.setItem('becca_' + table, JSON.stringify(result)); } catch {}
     }
     return result;
