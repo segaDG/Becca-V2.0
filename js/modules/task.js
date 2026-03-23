@@ -214,11 +214,7 @@ const TaskModule = (() => {
               ${await (async()=>{
                 const users = await DB.getUsers().catch(()=>[]);
                 const emps  = await DB.getEmployees().catch(()=>[]);
-                const all   = [
-                  ...users.map(u=>u.nama||u.username),
-                  ...emps.filter(e=>['ACTIVE','Active','Tetap'].includes(e.status)).map(e=>e.nama)
-                ];
-                const unique = [...new Set(all.filter(Boolean))].sort();
+                const unique = [...new Set(users.map(u=>u.nama||u.username).filter(Boolean))].sort();
                 return unique.map(n=>`<option value="${n}" ${d.assignee===n?'selected':''}>${n}</option>`).join('');
               })()}
             </select>
