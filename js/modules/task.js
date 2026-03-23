@@ -119,7 +119,7 @@ const TaskModule = (() => {
     });
   }
   function _canSee(t) {
-    if (_isSA() || Auth.can('task','admin')) return true;
+    if (_isSA()) return true;  // hanya superadmin lihat semua
     return _canEdit(t) || _isAssignee(t);
   }
   function _assigneeDisplay(t) {
@@ -143,8 +143,8 @@ const TaskModule = (() => {
       data = data.filter(t => t.status!=='arsip');
     }
 
-    // Visibility: non-admin hanya lihat task miliknya
-    if (!_isSA() && !Auth.can('task','admin')) {
+    // Visibility: hanya superadmin lihat semua, lainnya hanya task miliknya
+    if (!_isSA()) {
       data = data.filter(t => _canSee(t));
     }
 
@@ -202,6 +202,14 @@ const TaskModule = (() => {
             </div>`;
         }).join('')}
       </div>`;
+  }
+
+  /* ── Format tanggal DD-MM-YYYY ── */
+  function _fmtDate(d) {
+    if (!d) return '';
+    const parts = d.split('-');
+    if (parts.length !== 3) return d;
+    return parts[2] + '-' + parts[1] + '-' + parts[0];
   }
 
   /* ── Card HTML ── */
@@ -278,7 +286,7 @@ const TaskModule = (() => {
       <!-- Meta -->
       <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-3);flex-wrap:wrap;margin-bottom:8px">
         ${assignDisp ? `<span style="background:var(--surface2);padding:1px 6px;border-radius:10px">👤 ${assignDisp}</span>` : ''}
-        ${t.deadline  ? `<span style="${isLate?'color:var(--danger);font-weight:700':''}">📅 ${t.deadline}</span>` : ''}
+        ${t.deadline  ? `<span style="${isLate?'color:var(--danger);font-weight:700':''}">📅 ${_fmtDate(t.deadline)}</span>` : ''}
         ${t.createdBy ? `<span>by ${t.createdBy}</span>` : ''}
         ${countdown}
       </div>
