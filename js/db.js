@@ -120,8 +120,21 @@ const DB = (() => {
       return _lsGet(table);
     }
     const result = _fromRows(data);
-    // Sync ke localStorage sebagai cache
-    try { localStorage.setItem('becca_' + table, JSON.stringify(result)); } catch {}
+
+    // PENTING: Jika Supabase kosong tapi localStorage punya data,
+    // pakai localStorage (data belum dimigrasi) dan jangan overwrite
+    if (result.length === 0) {
+      const lsData = JSON.parse(localStorage.getItem('becca_' + table) || '[]');
+      if (Array.isArray(lsData) && lsData.length > 0) {
+        console.log('[DB] ' + table + ': Supabase kosong, pakai localStorage (' + lsData.length + ' rows)');
+        return Promise.resolve(lsData);
+      }
+    }
+
+    // Supabase punya data - sync ke localStorage sebagai cache
+    if (result.length > 0) {
+      try { localStorage.setItem('becca_' + table, JSON.stringify(result)); } catch {}
+    }
     return result;
   }
 
@@ -371,7 +384,7 @@ const DB = (() => {
     return Promise.resolve(data);
   };
 
-  const getOnlineUsers = async (withinMs = 30000) => {
+  const getOnlineUsers = async (withinMs = 300000) => { // default 5 menit
     const sb = await _initClient();
     const cutoff = new Date(Date.now() - withinMs).toISOString();
 
