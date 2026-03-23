@@ -93,9 +93,38 @@ const DB = (() => {
 
   function _fromRow(row) {
     if (!row) return null;
-    // Prioritas: field root (typed columns) di-merge dengan data jsonb
-    const base = row.data || {};
-    return { ...base, ...row, data: undefined };
+    // Parse data jsonb jika ada
+    let base = {};
+    if (row.data) {
+      try { base = typeof row.data === 'string' ? JSON.parse(row.data) : row.data; } catch {}
+    }
+    const merged = { ...base, ...row, data: undefined };
+
+    // Normalize: tambah alias camelCase untuk field yang dipakai BECCA
+    if (merged.nama && !merged.namaPerusahaan) merged.namaPerusahaan = merged.nama;
+    if (merged.namaPerusahaan && !merged.nama) merged.nama = merged.namaPerusahaan;
+    if (merged.telepon && !merged.noHp) merged.noHp = merged.telepon;
+    if (merged.no_hp && !merged.noHp) merged.noHp = merged.no_hp;
+    if (merged.jenis_pelayanan && !merged.jenisPelayanan) merged.jenisPelayanan = merged.jenis_pelayanan;
+    if (merged.harga_per_pax && !merged.hargaPerPax) merged.hargaPerPax = merged.harga_per_pax;
+    if (merged.biaya_box !== undefined && merged.biayaBox === undefined) merged.biayaBox = merged.biaya_box;
+    if (merged.biaya_lainnya !== undefined && merged.biayaLainnya === undefined) merged.biayaLainnya = merged.biaya_lainnya;
+    if (merged.qty_lauk !== undefined && merged.qtyLauk === undefined) merged.qtyLauk = merged.qty_lauk;
+    if (merged.qty_pendamping !== undefined && merged.qtyPendamping === undefined) merged.qtyPendamping = merged.qty_pendamping;
+    if (merged.harga_shift1 !== undefined && merged.hargaShift1 === undefined) merged.hargaShift1 = merged.harga_shift1;
+    if (merged.harga_ot1 !== undefined && merged.hargaOT1 === undefined) merged.hargaOT1 = merged.harga_ot1;
+    if (merged.customer_id && !merged.customerId) merged.customerId = merged.customer_id;
+    if (merged.created_at && !merged.createdAt) merged.createdAt = merged.created_at;
+    if (merged.updated_at && !merged.updatedAt) merged.updatedAt = merged.updated_at;
+
+    // Parse column_prices jika string
+    if (merged.column_prices && typeof merged.column_prices === 'string') {
+      try { merged.columnPrices = JSON.parse(merged.column_prices); } catch {}
+    } else if (merged.column_prices) {
+      merged.columnPrices = merged.column_prices;
+    }
+
+    return merged;
   }
 
   function _fromRows(rows) {
@@ -207,16 +236,8 @@ const DB = (() => {
   // ── Init: load semua data ke localStorage sebagai cache ────
   async function init() {
     await _initClient();
-    if (!_ready) return;
-
-    // Pre-cache semua table utama di background
-    const tables = ['users','orders','invoices','customers','kas','kas_masuk',
-      'inventory','inv_products','employees','emp_logs','ap','suppliers',
-      'tasks','settings','activity_logs'];
-
-    for (const t of tables) {
-      _get(t).catch(() => {});
-    }
+    // Tidak pre-cache — data di-fetch lazy saat modul diakses
+    // Ini mencegah sidebar berat saat pertama load
   }
 
   // ══════════════════════════════════════════════════════════
