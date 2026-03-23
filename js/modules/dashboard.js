@@ -29,7 +29,7 @@ const DashboardModule = (() => {
     const page = document.getElementById('page-dashboard');
     page.innerHTML = `
       <div class="page-header">
-        <div class="page-header-left"><h2>Dashboard</h2><p>Ringkasan data BECCA</p></div>
+        <div class="page-header-left"><h2>Dashboard</h2><p>Ringkasan data BPS</p></div>
         <div class="page-header-right">
           <button class="btn btn-ghost btn-sm" onclick="DashboardModule.openWidgetEditor()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
