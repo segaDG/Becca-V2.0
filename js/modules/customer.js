@@ -124,15 +124,48 @@ const CustomerModule = (() => {
       </div>
 
       <!-- TABLE SCROLL -->
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative">
-        <table style="width:100%;border-collapse:separate;border-spacing:0;min-width:2400px;font-size:11px">
+      <style>
+        /* Sticky columns — calculated from actual rendered widths */
+        .cst-s0 { position:sticky!important; left:0!important; z-index:2!important; background:inherit!important; }
+        .cst-s1 { position:sticky!important; left:38px!important; z-index:2!important; background:inherit!important; }
+        .cst-s2 { position:sticky!important; left:90px!important; z-index:2!important; background:inherit!important;
+                  box-shadow:3px 0 5px -2px rgba(0,0,0,.12); }
+        /* Header rows sticky with solid bg */
+        thead .cst-s0 { background:#1e1e2e!important; z-index:4!important; }
+        thead tr:nth-child(2) .cst-s0 { background:#6366f1!important; z-index:4!important; }
+        thead .cst-s1 { background:#1e1e2e!important; z-index:4!important; }
+        thead tr:nth-child(2) .cst-s1 { background:#6366f1!important; z-index:4!important; }
+        thead .cst-s2 { background:#1e1e2e!important; z-index:4!important; }
+        thead tr:nth-child(2) .cst-s2 { background:#6366f1!important; z-index:4!important; }
+        /* Body rows — inherit from tr, but set solid fallback via JS on row */
+        tbody tr:nth-child(odd)  .cst-s0,
+        tbody tr:nth-child(odd)  .cst-s1,
+        tbody tr:nth-child(odd)  .cst-s2 { background:#ffffff!important; }
+        tbody tr:nth-child(even) .cst-s0,
+        tbody tr:nth-child(even) .cst-s1,
+        tbody tr:nth-child(even) .cst-s2 { background:#f4f4f8!important; }
+        tbody tr:hover .cst-s0,
+        tbody tr:hover .cst-s1,
+        tbody tr:hover .cst-s2 { background:#eef0fb!important; }
+        [data-theme="dark"] tbody tr:nth-child(odd)  .cst-s0,
+        [data-theme="dark"] tbody tr:nth-child(odd)  .cst-s1,
+        [data-theme="dark"] tbody tr:nth-child(odd)  .cst-s2 { background:#16182a!important; }
+        [data-theme="dark"] tbody tr:nth-child(even) .cst-s0,
+        [data-theme="dark"] tbody tr:nth-child(even) .cst-s1,
+        [data-theme="dark"] tbody tr:nth-child(even) .cst-s2 { background:#1e2030!important; }
+        [data-theme="dark"] tbody tr:hover .cst-s0,
+        [data-theme="dark"] tbody tr:hover .cst-s1,
+        [data-theme="dark"] tbody tr:hover .cst-s2 { background:#1e2040!important; }
+      </style>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+        <table style="width:100%;border-collapse:collapse;min-width:2400px;font-size:11px">
 
           <!-- GROUP HEADERS -->
           <thead>
             <tr style="background:#1e1e2e">
-              ${_thGroup('#',1,'center','','0px')}
-              ${_thGroup('ID',1,'center','','36px')}
-              ${_thGroup('NAMA PERUSAHAAN',1,'left','','88px')}
+              ${_thGroup('#',1,'center','','cst-s0')}
+              ${_thGroup('ID',1,'center','','cst-s1')}
+              ${_thGroup('NAMA PERUSAHAAN',1,'left','','cst-s2')}
               ${_thGroup('JENIS LAYANAN',1,'center')}
               ${_thGroup('KONTRAK & HARGA',5,'center','#2a1f4a')}
               ${_thGroup('HARGA SHIFT 1',5,'center','#1a2f1a')}
@@ -145,9 +178,9 @@ const CustomerModule = (() => {
               ${canEdit ? _thGroup('AKSI',1,'center') : ''}
             </tr>
             <tr style="background:var(--primary-h)">
-              ${_th('#','','center','36px','0px')}
-              ${_th('ID','','center','52px','36px')}
-              ${_thS('nama','Nama Perusahaan','220px','left','88px')}
+              ${_th('#','','center','36px','cst-s0')}
+              ${_th('ID','','center','52px','cst-s1')}
+              ${_thS('nama','Nama Perusahaan','220px','left','cst-s2')}
               ${_thS('jenisPelayanan','Jenis Pelayanan','110px','center')}
               ${_thS('hargaPerPax','Harga / Pax','90px','right')}
               ${_thS('biayaBox','Biaya Box','80px','right')}
@@ -194,24 +227,17 @@ const CustomerModule = (() => {
                 ? 'background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.3)'
                 : 'background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25)';
               // Sticky cell bg must be solid — use actual computed color per row
-              // Get actual computed bg color from page root for solid sticky cells
-              const _isDark = document.documentElement.dataset.theme === 'dark' ||
-                              document.body.classList.contains('dark') ||
-                              window.matchMedia('(prefers-color-scheme:dark)').matches;
-              const stkBg    = i%2===1
-                ? (_isDark ? '#1e2030' : '#f0f0f5')
-                : (_isDark ? '#16182a' : '#ffffff');
-              const stkBgHov = _isDark ? '#1e2040' : '#eef0fb';
-              return `<tr style="border-bottom:1px solid var(--border);background:${bgS2}"
-                onmouseover="this.style.background='${stkBgHov}';this.querySelectorAll('.sticky-cell').forEach(el=>el.style.background='${stkBgHov}')"
-                onmouseout="this.style.background='${stkBg}';this.querySelectorAll('.sticky-cell').forEach(el=>el.style.background='${stkBg}')">
-                <td class="sticky-cell" style="padding:8px 10px;text-align:center;font-size:10px;color:var(--text-3);white-space:nowrap;position:sticky;left:0;z-index:1;background:${stkBg}">${i+1}</td>
-                <td class="sticky-cell" style="padding:4px 6px;text-align:center;white-space:nowrap;position:sticky;left:36px;z-index:1;background:${stkBg}">
+              // sticky handled by CSS .cst-s0/s1/s2
+              return `<tr style="border-bottom:1px solid var(--border);"
+                onmouseover="this.style.background='var(--surface-hover,#eef0fb)'"
+                onmouseout="this.style.background=''">
+                <td class="cst-s0" style="padding:8px 10px;text-align:center;font-size:10px;color:var(--text-3);white-space:nowrap">${i+1}</td>
+                <td class="cst-s1" style="padding:4px 6px;text-align:center;white-space:nowrap">
                   ${c.customerId
                     ? `<span style="font-size:9px;font-weight:700;font-family:var(--font-mono);background:rgba(99,102,241,.12);color:#6366f1;padding:2px 6px;border-radius:4px">${c.customerId}</span>`
                     : `<span style="font-size:9px;color:var(--text-3)">-</span>`}
                 </td>
-                <td class="sticky-cell" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:88px;z-index:1;background:${stkBg};border-right:0;box-shadow:3px 0 6px -2px rgba(0,0,0,.15)">${c.nama||'-'}</td>
+                <td class="cst-s2" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap">${c.nama||'-'}</td>
                 <td style="padding:8px 10px;text-align:center">${_badge(c.jenisPelayanan)}</td>
                 ${_tdRp(c.hargaPerPax)}
                 ${_tdRp(c.biayaBox)}
@@ -258,23 +284,19 @@ const CustomerModule = (() => {
   }
 
   /* ── TABLE HEADER HELPERS ── */
-  function _thGroup(label, colspan, align, bg, sticky) {
-    const stkBg = sticky ? 'background:#1e1e2e;' : '';
-    const stk = sticky ? `position:sticky;left:${sticky};z-index:3;${stkBg}` : '';
-    return `<th colspan="${colspan}" style="padding:5px 10px;text-align:${align||'left'};font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ca3af;border-right:1px solid rgba(255,255,255,.06);${bg?'background:'+bg:'background:#1e1e2e'};${stk}">${label}</th>`;
+  function _thGroup(label, colspan, align, bg, cls) {
+    return `<th class="${cls||''}" colspan="${colspan}" style="padding:5px 10px;text-align:${align||'left'};font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ca3af;border-right:1px solid rgba(255,255,255,.06);${bg?'background:'+bg:'background:#1e1e2e'}">${label}</th>`;
   }
-  function _th(label, field, align, width, sticky) {
-    const stk = sticky ? `position:sticky;left:${sticky};z-index:2;background:#6366f1;` : '';
-    return `<th style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;white-space:nowrap;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''};${stk}">
+  function _th(label, field, align, width, cls) {
+    return `<th class="${cls||''}" style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;white-space:nowrap;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''}">
       ${label}
     </th>`;
   }
-  function _thS(field, label, width, align, sticky) {
+  function _thS(field, label, width, align, cls) {
     const isActive = _sortCol === field;
     const arrow = isActive ? (_sortDir===1 ? ' ↑' : ' ↓') : '';
-    const stk = sticky ? `position:sticky;left:${sticky};z-index:2;background:#6366f1;` : '';
-    return `<th onclick="CustomerModule.sortBy('${field}')"
-      style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${isActive?'#fbbf24':'#fff'};white-space:nowrap;cursor:pointer;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''};${stk}">
+    return `<th class="${cls||''}" onclick="CustomerModule.sortBy('${field}')"
+      style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${isActive?'#fbbf24':'#fff'};white-space:nowrap;cursor:pointer;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''}">
       ${label}${arrow}
     </th>`;
   }
