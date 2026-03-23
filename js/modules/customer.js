@@ -128,8 +128,8 @@ const CustomerModule = (() => {
         /* Sticky columns — calculated from actual rendered widths */
         /* left offset: confirmed dari browser measurement */
         .cst-s0 { position:sticky!important; left:0px!important; z-index:2!important; }
-        .cst-s1 { position:sticky!important; left:32px!important; z-index:2!important; }
-        .cst-s2 { position:sticky!important; left:78px!important; z-index:2!important;
+        .cst-s1 { position:sticky!important; left:0px!important; z-index:2!important; }
+        .cst-s2 { position:sticky!important; left:0px!important; z-index:2!important;
                   box-shadow:3px 0 5px -2px rgba(0,0,0,.12); }
         /* Header rows sticky with solid bg */
         thead .cst-s0 { background:#6366f1!important; z-index:4!important; }
@@ -374,23 +374,30 @@ const CustomerModule = (() => {
 
   /* ── STICKY OFFSET FIX ── */
   function _fixSticky() {
-    // Double-rAF: pastikan browser sudah selesai layout sebelum ukur
     requestAnimationFrame(function() {
       requestAnimationFrame(function() {
         var tbl = document.querySelector('.cst-s0');
         if (!tbl) return;
         tbl = tbl.closest('table');
         if (!tbl) return;
-        var s0 = Array.from(tbl.querySelectorAll('.cst-s0'));
-        var s1 = Array.from(tbl.querySelectorAll('.cst-s1'));
-        var s2 = Array.from(tbl.querySelectorAll('.cst-s2'));
-        if (!s0.length || !s1.length || !s2.length) return;
-        // Gunakan FLOAT precision — integer menyebabkan sub-pixel gap
-        var w0 = s0[0].getBoundingClientRect().width;
-        var w1 = s1[0].getBoundingClientRect().width;
-        s0.forEach(function(el) { el.style.setProperty('left','0px','important'); });
-        s1.forEach(function(el) { el.style.setProperty('left', w0+'px', 'important'); });
-        s2.forEach(function(el) { el.style.setProperty('left', (w0+w1)+'px', 'important'); });
+        // Proses tiap ROW secara terpisah — TH dan TD bisa punya lebar berbeda
+        var rows = Array.from(tbl.querySelectorAll('tr'));
+        rows.forEach(function(row) {
+          var c0 = row.querySelector('.cst-s0');
+          var c1 = row.querySelector('.cst-s1');
+          var c2 = row.querySelector('.cst-s2');
+          if (!c0 || !c1 || !c2) return;
+          // Set left:0 dulu agar width measurement akurat
+          c0.style.setProperty('left','0px','important');
+          c1.style.setProperty('left','0px','important');
+          c2.style.setProperty('left','0px','important');
+          // Ukur lebar exact setelah reset
+          var w0 = c0.getBoundingClientRect().width;
+          var w1 = c1.getBoundingClientRect().width;
+          // Set dengan float precision
+          c1.style.setProperty('left', w0+'px', 'important');
+          c2.style.setProperty('left', (w0+w1)+'px', 'important');
+        });
       });
     });
   }
