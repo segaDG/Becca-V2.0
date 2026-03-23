@@ -75,8 +75,8 @@ const ReportModule = (() => {
   async function renderOrder() {
     const orders = await DB.getOrders().catch(() => []);
     const total  = orders.length;
-    const real   = orders.filter(o => o.jenis === 'real orderan').length;
-    const est    = orders.filter(o => o.jenis !== 'real orderan').length;
+    const real   = orders.filter(o => (o.jenis === 'real orderan' || (o.catatan||'').toLowerCase().includes('real'))).length;
+    const est    = orders.filter(o => !(o.jenis === 'real orderan' || (o.catatan||'').toLowerCase().includes('real'))).length;
     const totalPax = orders.reduce((s,o) => s+(parseInt(o.shift1)||0)+(parseInt(o.shift2)||0)+(parseInt(o.shift3)||0), 0);
 
     document.getElementById('rpt-order').innerHTML = `
