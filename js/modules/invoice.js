@@ -638,10 +638,15 @@ const InvoiceModule = (() => {
         ${rekapEditable}
 
         <!-- Action buttons -->
-        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;align-items:center">
           <button class="btn btn-ghost" onclick="Modal.close(window._beccaDetailModalId)">Tutup</button>
-          <button class="btn btn-primary" onclick="InvoiceModule._printFromDetail('${inv.id||inv.invoiceNum}')">
-            🖨 Cetak Ulang
+          <button class="btn" onclick="InvoiceModule._sendEmail('${inv.id||inv.invoiceNum}')"
+            style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.35)">
+            ✉ Kirim Email
+          </button>
+          <button class="btn" onclick="InvoiceModule._printFromDetail('${inv.id||inv.invoiceNum}')"
+            style="background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.35)">
+            🖨 Cetak / PDF
           </button>
           ${isFromOrder ? `
           <button class="btn" id="btn-simpan-revisi"
@@ -764,6 +769,151 @@ const InvoiceModule = (() => {
 
     Modal.close(window._beccaDetailModalId);
     _openInvPrintWin(inv, orderRec, orderList);
+  }
+
+  // Kirim email invoice
+  function _sendEmail(key) {
+    const inv = _findInv(key);
+    if (!inv) return;
+    const orderRec = _getOrderRec(inv.invoiceNum);
+
+    // Lookup email customer dari becca_customers
+    let custEmail = '';
+    let custPic   = '';
+    try {
+      const custs = JSON.parse(localStorage.getItem('becca_customers')||'[]');
+      const c = custs.find(x => x.nama === inv.customer);
+      custEmail = c?.email || '';
+      custPic   = c?.pic   || '';
+    } catch(e){}
+
+    const rp = n => n ? `Rp ${Number(n).toLocaleString('id')}` : '-';
+    const pb1  = Math.round((inv.total||0) * 0.10);
+    const pph  = Math.round((inv.total||0) * 0.02);
+    const grand = (inv.total||0) + pb1 - pph;
+
+    const periodeStr = orderRec
+      ? (_fmtDate(orderRec.dari) + ' s/d ' + _fmtDate(orderRec.sampai))
+      : (_fmtDate(inv.tglInvoice)||'');
+
+    // Email body — plain text ringkas
+    const emailBody = encodeURIComponent(
+`Yth. ${custPic||'Tim Finance'} - ${inv.customer},
+
+Bersama email ini kami sampaikan Invoice #${inv.invoiceNum} untuk layanan catering periode ${periodeStr}.
+
+RINGKASAN TAGIHAN
+─────────────────────────────
+Customer    : ${inv.customer}
+No. Invoice : ${inv.invoiceNum}
+Periode     : ${periodeStr}
+─────────────────────────────
+Subtotal    : ${rp(inv.total)}
+Pb1 (10%)   : ${rp(pb1)}
+PPh 23 (2%) : -${rp(pph)}
+─────────────────────────────
+TOTAL       : ${rp(grand)}
+─────────────────────────────
+
+Pembayaran mohon dilakukan dalam 45 hari ke rekening:
+Bank Mandiri KC Karawang 17300
+No. Rekening : 173-00-0153197-0
+a/n PT. Boga Pangan Sentosa
+
+Mohon cantumkan nomor invoice pada keterangan transfer.
+
+Terima kasih atas kepercayaan Anda kepada kami.
+
+Hormat kami,
+PT. Boga Pangan Sentosa
+Telp: 0267-8407252 | admin@pangansentosa.com
+www.pangan.co.id`
+    );
+
+    const emailSubject = encodeURIComponent(
+      `Invoice #${inv.invoiceNum} — ${inv.customer} — Periode ${periodeStr}`
+    );
+
+    // Buka modal konfirmasi email
+    const emailModalId = Utils.uid();
+    Modal.open({
+      id: emailModalId,
+      title: '✉ Kirim Invoice via Email',
+      size: 'modal-lg',
+      body: `
+        <div style="margin-bottom:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px">Detail Pengiriman</div>
+          <div style="display:grid;grid-template-columns:120px 1fr;gap:8px 12px;align-items:center">
+            <span style="font-size:11px;color:var(--text-3)">No. Invoice</span>
+            <span style="font-weight:700;font-family:var(--font-mono);color:#6366f1">${inv.invoiceNum}</span>
+            <span style="font-size:11px;color:var(--text-3)">Customer</span>
+            <span style="font-weight:600">${inv.customer}</span>
+            <span style="font-size:11px;color:var(--text-3)">Total Tagihan</span>
+            <span style="font-weight:700;color:#10b981">${rp(grand)}</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Penerima</label>
+          <input class="form-control" id="email-to" type="email"
+            value="${custEmail}"
+            placeholder="finance@perusahaan.com"
+            style="font-family:var(--font-mono)">
+          ${!custEmail ? '<div style="font-size:10px;color:#f59e0b;margin-top:4px">⚠ Email customer belum diisi di data Customer</div>' : ''}
+        </div>
+        <div class="form-group">
+          <label class="form-label">CC (opsional)</label>
+          <input class="form-control" id="email-cc" type="email"
+            placeholder="cc@pangansentosa.com"
+            style="font-family:var(--font-mono)">
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:4px">
+          <div style="font-size:10px;font-weight:700;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em">Preview Subject</div>
+          <div style="font-size:11px;font-family:var(--font-mono);color:var(--text)">Invoice #${inv.invoiceNum} — ${inv.customer} — Periode ${periodeStr}</div>
+        </div>
+        <div style="margin-top:12px;padding:10px 14px;background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.2);border-radius:8px;font-size:10px;color:var(--text-3)">
+          💡 Email akan dibuka di aplikasi email default kamu (Gmail, Outlook, dll). Kamu bisa review dan kirim dari sana. Lampirkan PDF invoice secara manual jika diperlukan.
+        </div>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${emailModalId}')">Batal</button>
+        <button class="btn btn-primary" onclick="InvoiceModule._doSendEmail('${emailModalId}','${encodeURIComponent(inv.invoiceNum)}','${encodeURIComponent(inv.customer)}','${encodeURIComponent(periodeStr)}','${encodeURIComponent(rp(grand))}')">
+          ✉ Buka di Email
+        </button>`
+    });
+  }
+
+  function _doSendEmail(modalId, invNumEnc, custEnc, periodeEnc, totalEnc) {
+    const to      = document.getElementById('email-to')?.value?.trim() || '';
+    const cc      = document.getElementById('email-cc')?.value?.trim() || '';
+    const invNum  = decodeURIComponent(invNumEnc);
+    const cust    = decodeURIComponent(custEnc);
+    const periode = decodeURIComponent(periodeEnc);
+    const total   = decodeURIComponent(totalEnc);
+
+    const subject = encodeURIComponent(`Invoice #${invNum} — ${cust} — Periode ${periode}`);
+    const body    = encodeURIComponent(
+`Yth. Tim Finance - ${cust},
+
+Bersama email ini kami sampaikan Invoice #${invNum} untuk layanan catering periode ${periode}.
+
+Total Tagihan : ${total}
+No. Invoice   : ${invNum}
+
+Mohon lakukan pembayaran dalam 45 hari ke:
+Bank Mandiri No. Rek 173-00-0153197-0 a/n PT. Boga Pangan Sentosa
+Cantumkan nomor invoice pada keterangan transfer.
+
+Terima kasih.
+
+PT. Boga Pangan Sentosa
+Telp: 0267-8407252 | admin@pangansentosa.com`
+    );
+
+    let mailto = `mailto:${to}?subject=${subject}&body=${body}`;
+    if (cc) mailto += `&cc=${encodeURIComponent(cc)}`;
+
+    Modal.close(modalId);
+    window.open(mailto, '_blank');
+    Notify.success('Email dibuka di aplikasi email kamu');
   }
 
   // Print window untuk invoice yang sudah ada
@@ -1089,7 +1239,7 @@ const InvoiceModule = (() => {
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, _printFromDetail, _markChanged };
+  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, _printFromDetail, _markChanged, _sendEmail, _doSendEmail };
 })();
 
 window.InvoiceModule = InvoiceModule;
