@@ -1,5 +1,5 @@
 /* ============================================
-   BECCA V2.0 — Auth Module
+   BECCA V2.0 â€” Auth Module
    Login, logout, session, privilege check,
    user management, activity log
 ============================================ */
@@ -34,6 +34,13 @@ const Auth = {
   async login(username, password, remember = false) {
     let users = [];
     try { users = await DB.getUsers(); } catch(e) {}
+    // Fallback: baca dari becca_auth_users yang di-sync oleh settings
+    if (!users.length) {
+      try {
+        const synced = JSON.parse(localStorage.getItem('becca_auth_users') || '[]');
+        if (synced.length) users = synced;
+      } catch(e2) {}
+    }
     if (!users.length) users = this._defaultUsers;
 
     const user = users.find(u =>
