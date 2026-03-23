@@ -868,7 +868,24 @@ const OrderModule = (() => {
     const addQty  = Object.values(addTots).reduce((a,b)=>a+b,0);
 
     // Harga default 17500 — bisa override dari custObj
-    const harga = 17500;
+    // Lookup harga dari becca_customers
+    const _custMap = (() => {
+      try {
+        const cs = JSON.parse(localStorage.getItem('becca_customers')||'[]');
+        const c  = cs.find(x => x.nama === cust);
+        if (!c) return null;
+        return {
+          breakfast:c.hargaBreakfast||17500, s1:c.hargaShift1||17500,
+          spare1:c.hargaSpare1||17500,       ot1:c.hargaOT1||17500,
+          snack1:c.hargaSnack1||17500,       s2:c.hargaShift2||17500,
+          spare2:c.hargaSpare2||17500,       ot2:c.hargaOT2||17500,
+          snack2:c.hargaSnack2||17500,       s3:c.hargaShift3||17500,
+          spare3:c.hargaSpare3||17500,       ot3:c.hargaOT3||17500,
+          snack3:c.hargaSnack3||17500,       snackBerat:c.hargaSnackBerat||17500,
+        };
+      } catch(e){ return null; }
+    })();
+    const _gh = key => _custMap?.[key] ?? 17500;
     const rp = n => n ? `Rp ${Number(n).toLocaleString('id')}` : '-';
 
     /* ─── CSS ─── */
@@ -1002,7 +1019,7 @@ const OrderModule = (() => {
       const dataRows = list.map((o,i) => {
         const stripe = i%2===0 ? '' : 'background:'+C.BP;
         const qty = activeCols.reduce((s,c)=>s+(Number(o[c.key])||0),0);
-        const tot = qty * harga;
+        const tot = activeCols.reduce((s,c)=>s+(Number(o[c.key])||0)*_gh(c.key),0);
         return `<tr>
           <td style="${stripe};text-align:center;color:${C.GRY}">${i+1}</td>
           <td style="${stripe};text-align:center;font-weight:700">${o.tglOrder?o.tglOrder.slice(8):''}</td>
@@ -1017,7 +1034,7 @@ const OrderModule = (() => {
         <td colspan="3" class="left">SUB TOTAL</td>
         ${activeCols.map(c=>`<td style="text-align:center">${mainTots[c.key]||'–'}</td>`).join('')}
         <td style="text-align:center">${mainQty||'–'}</td>
-        <td class="right">${rp(mainQty*harga)}</td>
+        <td class="right">${rp(activeCols.reduce((s,c)=>s+mainTots[c.key]*_gh(c.key),0))}</td>
       </tr>`;
       // Additional rows
       let addSection = '';
@@ -1032,7 +1049,7 @@ const OrderModule = (() => {
           const dd = d ? d.getDate() : '';
           const mm = d ? Object.values(MONTHS_ID)[d.getMonth()] : '';
           const qty = activeCols.reduce((s,c)=>s+(Number(o[c.key])||0),0);
-          const tot = qty*harga;
+          const tot = activeCols.reduce((s,c)=>s+(Number(o[c.key])||0)*_gh(c.key),0);
           const stripe = i%2===0?'':'background:'+C.ADD;
           return `<tr class="add-row">
             <td style="${stripe};text-align:center;color:${C.GRY}">${i+1}</td>
@@ -1047,7 +1064,7 @@ const OrderModule = (() => {
           <td colspan="3" class="left">SUB TOTAL ADDITIONAL</td>
           ${activeCols.map(c=>`<td style="text-align:center">${addTots[c.key]||'–'}</td>`).join('')}
           <td style="text-align:center">${addQty||'–'}</td>
-          <td class="right">${rp(addQty*harga)}</td>
+          <td class="right">${rp(activeCols.reduce((s,c)=>s+addTots[c.key]*_gh(c.key),0))}</td>
         </tr>`;
         addSection = `<tr><td colspan="${3+activeCols.length+2}" style="padding:0;background:${C.ADD_H}"></td></tr>
           ${addGrpH}${addDataRows}${addSubRow}`;
@@ -1073,11 +1090,11 @@ const OrderModule = (() => {
             c.key==='bf'?'Food Catering Service — Breakfast':
             'Food Catering Service — '+c.label
           }</td>
-          <td class="right">${rp(harga)}</td>
+          <td class="right">${rp(_gh(c.key))}</td>
           <td style="text-align:center;font-weight:700">${qty}</td>
           <td style="text-align:center"></td>
           <td></td>
-          <td class="right num">${rp(qty*harga)}</td>
+          <td class="right num">${rp(qty*_gh(c.key))}</td>
         </tr>`;
       }).join('');
 
@@ -1095,11 +1112,11 @@ const OrderModule = (() => {
           return `<tr class="${cls}">
             <td></td>
             <td class="left" colspan="2" style="color:${C.ADD_H}">Additional Order — ${c.label}</td>
-            <td class="right" style="color:${C.ADD_H}">${rp(harga)}</td>
+            <td class="right" style="color:${C.ADD_H}">${rp(_gh(c.key))}</td>
             <td style="text-align:center;font-weight:700;color:${C.ADD_H}">${qty}</td>
             <td style="text-align:center"></td>
             <td></td>
-            <td class="right num" style="color:${C.ADD_H};font-weight:700">${rp(qty*harga)}</td>
+            <td class="right num" style="color:${C.ADD_H};font-weight:700">${rp(qty*_gh(c.key))}</td>
           </tr>`;
         }).join('');
         addLines = sepRow + addItemLines;
@@ -1119,7 +1136,7 @@ const OrderModule = (() => {
     };
 
     const totalQty  = mainQty + (includeAdd ? addQty : 0);
-    const subtotal  = totalQty * harga;
+    const subtotal  = activeCols.reduce((s,c)=>s+(mainTots[c.key]+(includeAdd?addTots[c.key]:0))*_gh(c.key),0);
     const pb1Rate   = 0.10;
     const pph23Rate = 0.02;
     const pb1Tax    = subtotal * pb1Rate;
