@@ -125,14 +125,14 @@ const CustomerModule = (() => {
 
       <!-- TABLE SCROLL -->
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative">
-        <table style="width:100%;border-collapse:collapse;min-width:2400px;font-size:11px">
+        <table style="width:100%;border-collapse:separate;border-spacing:0;min-width:2400px;font-size:11px">
 
           <!-- GROUP HEADERS -->
           <thead>
             <tr style="background:#1e1e2e">
               ${_thGroup('#',1,'center','','0px')}
-              ${_thGroup('ID',1,'center')}
-              ${_thGroup('NAMA PERUSAHAAN',1,'left','','80px')}
+              ${_thGroup('ID',1,'center','','36px')}
+              ${_thGroup('NAMA PERUSAHAAN',1,'left','','88px')}
               ${_thGroup('JENIS LAYANAN',1,'center')}
               ${_thGroup('KONTRAK & HARGA',5,'center','#2a1f4a')}
               ${_thGroup('HARGA SHIFT 1',5,'center','#1a2f1a')}
@@ -146,8 +146,8 @@ const CustomerModule = (() => {
             </tr>
             <tr style="background:var(--primary-h)">
               ${_th('#','','center','36px','0px')}
-              ${_th('ID','','center','52px')}
-              ${_thS('nama','Nama Perusahaan','220px','left','80px')}
+              ${_th('ID','','center','52px','36px')}
+              ${_thS('nama','Nama Perusahaan','220px','left','88px')}
               ${_thS('jenisPelayanan','Jenis Pelayanan','110px','center')}
               ${_thS('hargaPerPax','Harga / Pax','90px','right')}
               ${_thS('biayaBox','Biaya Box','80px','right')}
@@ -194,18 +194,24 @@ const CustomerModule = (() => {
                 ? 'background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.3)'
                 : 'background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25)';
               // Sticky cell bg must be solid — use actual computed color per row
-              const stkBg    = i%2===1 ? 'var(--surface2,#f4f4f8)' : 'var(--surface,#ffffff)';
-              const stkBgHov = 'var(--surface-hover,#eef0fb)';
+              // Get actual computed bg color from page root for solid sticky cells
+              const _isDark = document.documentElement.dataset.theme === 'dark' ||
+                              document.body.classList.contains('dark') ||
+                              window.matchMedia('(prefers-color-scheme:dark)').matches;
+              const stkBg    = i%2===1
+                ? (_isDark ? '#1e2030' : '#f0f0f5')
+                : (_isDark ? '#16182a' : '#ffffff');
+              const stkBgHov = _isDark ? '#1e2040' : '#eef0fb';
               return `<tr style="border-bottom:1px solid var(--border);background:${bgS2}"
-                onmouseover="this.style.background='var(--surface-hover,#eef0fb)';this.querySelectorAll('.sticky-cell').forEach(el=>el.style.background='var(--surface-hover,#eef0fb)')"
-                onmouseout="this.style.background='${bgS2}';this.querySelectorAll('.sticky-cell').forEach(el=>el.style.background='${stkBg}')">
+                onmouseover="this.style.background='${stkBgHov}';this.querySelectorAll('.sticky-cell').forEach(el=>el.style.background='${stkBgHov}')"
+                onmouseout="this.style.background='${stkBg}';this.querySelectorAll('.sticky-cell').forEach(el=>el.style.background='${stkBg}')">
                 <td class="sticky-cell" style="padding:8px 10px;text-align:center;font-size:10px;color:var(--text-3);white-space:nowrap;position:sticky;left:0;z-index:1;background:${stkBg}">${i+1}</td>
                 <td class="sticky-cell" style="padding:4px 6px;text-align:center;white-space:nowrap;position:sticky;left:36px;z-index:1;background:${stkBg}">
                   ${c.customerId
                     ? `<span style="font-size:9px;font-weight:700;font-family:var(--font-mono);background:rgba(99,102,241,.12);color:#6366f1;padding:2px 6px;border-radius:4px">${c.customerId}</span>`
                     : `<span style="font-size:9px;color:var(--text-3)">-</span>`}
                 </td>
-                <td class="sticky-cell" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:80px;z-index:1;background:${stkBg};border-right:2px solid var(--border)">${c.nama||'-'}</td>
+                <td class="sticky-cell" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:88px;z-index:1;background:${stkBg};border-right:0;box-shadow:3px 0 6px -2px rgba(0,0,0,.15)">${c.nama||'-'}</td>
                 <td style="padding:8px 10px;text-align:center">${_badge(c.jenisPelayanan)}</td>
                 ${_tdRp(c.hargaPerPax)}
                 ${_tdRp(c.biayaBox)}
