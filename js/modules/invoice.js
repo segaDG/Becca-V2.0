@@ -584,7 +584,10 @@ const InvoiceModule = (() => {
       </div>
     ` : '';
 
+    const _detailModalId = Utils.uid();
+    window._beccaDetailModalId = _detailModalId;
     Modal.open({
+      id: _detailModalId,
       title: '🧾 Detail Invoice',
       size: 'modal-xl',
       body: `
@@ -636,7 +639,7 @@ const InvoiceModule = (() => {
 
         <!-- Action buttons -->
         <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
-          <button class="btn btn-ghost" onclick="Modal.close()">Tutup</button>
+          <button class="btn btn-ghost" onclick="Modal.close(window._beccaDetailModalId)">Tutup</button>
           <button class="btn btn-primary" onclick="InvoiceModule._printFromDetail('${inv.id||inv.invoiceNum}')">
             🖨 Cetak Ulang
           </button>
@@ -650,7 +653,6 @@ const InvoiceModule = (() => {
       buttons: []
     });
 
-    // Simpan key di window untuk akses dari _markChanged
     window._currentInvKey = inv.id || inv.invoiceNum;
   }
 
@@ -700,7 +702,7 @@ const InvoiceModule = (() => {
 
     if (!hasChange) {
       Notify.info('Tidak ada perubahan data — nomor invoice tetap');
-      Modal.close();
+      Modal.close(window._beccaDetailModalId);
       return;
     }
 
@@ -739,7 +741,7 @@ const InvoiceModule = (() => {
     // Update di _invoices (in-memory)
     inv.invoiceNum = newNomor;
 
-    Modal.close();
+    Modal.close(window._beccaDetailModalId);
     Notify.success(`Revisi tersimpan: ${oldNomor} → ${newNomor}`);
     setTimeout(() => _renderFull(), 50);
   }
@@ -760,7 +762,7 @@ const InvoiceModule = (() => {
       } catch(e) {}
     }
 
-    Modal.close();
+    Modal.close(window._beccaDetailModalId);
     _openInvPrintWin(inv, orderRec, orderList);
   }
 
@@ -806,7 +808,24 @@ const InvoiceModule = (() => {
         .map(k => ({ key: k, label: ALL_COLS_LABEL[k] || k }));
     }
 
-    const harga = 17500;
+    // Lookup harga per kolom dari becca_customers
+    const _custHargaMap = (() => {
+      try {
+        const custs = JSON.parse(localStorage.getItem('becca_customers')||'[]');
+        const c = custs.find(x => x.nama === inv.customer);
+        if (!c) return null;
+        return {
+          breakfast:c.hargaBreakfast||17500, shift1:c.hargaShift1||17500,
+          spare1:c.hargaSpare1||17500,       ot1:c.hargaOT1||17500,
+          snack1:c.hargaSnack1||17500,       shift2:c.hargaShift2||17500,
+          spare2:c.hargaSpare2||17500,       ot2:c.hargaOT2||17500,
+          snack2:c.hargaSnack2||17500,       shift3:c.hargaShift3||17500,
+          spare3:c.hargaSpare3||17500,       ot3:c.hargaOT3||17500,
+          snack3:c.hargaSnack3||17500,       snackBerat:c.hargaSnackBerat||17500,
+        };
+      } catch(e){ return null; }
+    })();
+    const _getHarga = key => _custHargaMap?.[key] ?? 17500;
     const pb1Rate = 0.10, pph23Rate = 0.02;
     const subtotal = inv.total || 0;
     const pb1Tax   = Math.round(subtotal * pb1Rate);
@@ -879,7 +898,7 @@ const InvoiceModule = (() => {
           <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center">${mm}</td>
           ${activeCols.map(c=>`<td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center">${Number(o[c.key])||0||'–'}</td>`).join('')}
           <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${qty||'–'}</td>
-          <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:right">${qty?rp(qty*harga):'–'}</td>
+          <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:right">${qty?rp(qty*_getHarga(c.key)):'–'}</td>
         </tr>`;
       }).join('');
       const subTots = activeCols.map(c => orderList.reduce((s,o)=>s+(Number(o[c.key])||0),0));
@@ -888,7 +907,7 @@ const InvoiceModule = (() => {
         <td colspan="3" style="padding:5px;border:1px solid #dde3f0;font-weight:700;font-size:9px;color:${C.NAVY_D}">SUB TOTAL</td>
         ${subTots.map(v=>`<td style="padding:5px;border:1px solid #dde3f0;font-weight:700;font-size:9px;text-align:center">${v||'–'}</td>`).join('')}
         <td style="padding:5px;border:1px solid #dde3f0;font-weight:700;font-size:9px;text-align:center">${subQty}</td>
-        <td style="padding:5px;border:1px solid #dde3f0;font-weight:700;font-size:9px;text-align:right">${rp(subQty*harga)}</td>
+        <td style="padding:5px;border:1px solid #dde3f0;font-weight:700;font-size:9px;text-align:right">${rp(activeCols.reduce((s,c,i)=>s+subTots[i]*_getHarga(c.key),0))}</td>
       </tr>`;
       rekapTableHtml = `<table style="width:100%;border-collapse:collapse">${grpH}${dataRows}${subRow}</table>`;
     } else {
@@ -923,11 +942,11 @@ const InvoiceModule = (() => {
         return `<tr style="background:${stripe}">
           <td style="padding:5px 8px;border:1px solid #dde3f0;width:24px"></td>
           <td colspan="2" style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:left">${descMap[c.key]||c.label}</td>
-          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right">${rp(harga)}</td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right">${rp(_getHarga(c.key))}</td>
           <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${qty}</td>
           <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:center"></td>
           <td style="padding:5px 8px;border:1px solid #dde3f0;width:18px"></td>
-          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right;font-weight:700">${rp(qty*harga)}</td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right;font-weight:700">${rp(qty*_getHarga(c.key))}</td>
         </tr>`;
       }).join('');
     } else {
