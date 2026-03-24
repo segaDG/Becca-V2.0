@@ -309,18 +309,18 @@ const DB = (() => {
   const deleteKasMasuk = (id) => _delete('kas_masuk', id);
 
   // ── INVENTORY ─────────────────────────────────────────────
-  const getInventory      = ()     => _get('inventory');
+  const getInventory      = ()     => _get('inv_activities');
   const saveInventory     = (data) => {
     if (!data.id) data.id = Utils.uid();
     if (!data.createdAt) data.createdAt = new Date().toISOString();
-    return _save('inventory', data);
+    return _save('inv_activities', data);
   };
   const saveInventoryLog  = (data) => {
     if (!data.id) data.id = Utils.uid();
     if (!data.createdAt) data.createdAt = new Date().toISOString();
-    return _save('inventory', data);
+    return _save('inv_activities', data);
   };
-  const deleteInventoryLog = (id) => _delete('inventory', id);
+  const deleteInventoryLog = (id) => _delete('inv_activities', id);
 
   const getOpnameLogs    = ()     => _get('opname_logs');
   const saveOpnameLog    = (data) => { if (!data.id) data.id = Utils.uid(); return _save('opname_logs', data); };
@@ -499,7 +499,7 @@ const DB = (() => {
       customers:   'becca_customers',
       kas:         'becca_kas',
       kas_masuk:   'becca_kas_masuk',
-      inventory:   'becca_inventory',
+      inv_activities: 'becca_inv_activities',
       inv_products:'becca_inv_products',
       employees:   'becca_employees',
       emp_logs:    'becca_emp_logs',
