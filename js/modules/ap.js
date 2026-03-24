@@ -579,7 +579,7 @@ const APModule = (() => {
                 <td class="text-muted">${s.kontak||s.data?.hp||s.noHp||'-'}</td>
                 <td class="text-muted text-small">${s.data?.kota||s.kota||'-'}</td>
                 <td class="text-muted">${s.data?.bank||s.bank||'-'}</td>
-        <td class="text-muted">${s.data?.no_rekening||s.noRekening||'-'}</td>
+        <td class="text-muted">${s.data?.no_rekening||s.noRekening||s.noRek||'-'}</td>
                 <td class="text-muted">${s.data?.nama_rekening||s.atasNama||'-'}</td>
                 <td class="num" style="font-family:var(--font-mono)">${totalAP>0?Utils.formatRupiah(totalAP,true):'-'}</td>
                 <td class="num" style="font-family:var(--font-mono);color:${sisa>0?'var(--danger)':'var(--text-3)'}">

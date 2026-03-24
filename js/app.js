@@ -23,7 +23,14 @@ const App = {
 
   async boot() {
     // Init Supabase DB
-    DB.init().catch(()=>{});
+    DB.init().then(() => {
+      if (DB.isReady() && !localStorage.getItem('becca_migrated_v2')) {
+        localStorage.setItem('becca_migrated_v2', '1');
+        DB.migrateFromLocalStorage()
+          .then(n => { if (n > 0) Notify.success('Sinkronisasi data selesai: ' + n + ' item tersync ke cloud ✓'); })
+          .catch(() => {});
+      }
+    }).catch(()=>{});
     if (!Auth.init()) { this._showLogin(); return; }
     this._showApp();
     this._initTheme();
@@ -48,6 +55,7 @@ const App = {
       const ov = document.createElement('div');
       ov.id = 'sidebar-overlay';
       ov.onclick = () => this._closeMobileSidebar();
+      ov.ontouchend = (e) => { e.preventDefault(); this._closeMobileSidebar(); };
       document.body.appendChild(ov);
     }
     Sidebar.render();

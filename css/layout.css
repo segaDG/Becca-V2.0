@@ -390,6 +390,9 @@
     inset: 0;
     background: var(--overlay);
     z-index: 199;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   #sidebar.mobile-open ~ #sidebar-overlay,
