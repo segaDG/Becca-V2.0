@@ -172,7 +172,7 @@ const DB = (() => {
       console.warn('[DB] get ' + table + ':', error.message);
       return _lsGet(table);
     }
-    const result = _fromRows(data);
+    let result = _fromRows(data);
 
     // PENTING: Jika Supabase kosong tapi localStorage punya data,
     // pakai localStorage (data belum dimigrasi) dan jangan overwrite
@@ -191,6 +191,19 @@ const DB = (() => {
     if (result.length > 0 && !NO_CACHE.includes(table)) {
       try { localStorage.setItem('becca_' + table, JSON.stringify(result)); } catch {}
     }
+
+    // Untuk NO_CACHE tables: merge item localStorage yang belum tersync ke Supabase.
+    // Mencegah data hilang ketika Supabase save gagal (RLS/jaringan) tapi sudah
+    // tersimpan di localStorage sebagai fallback — terutama untuk tasks, ap, dst.
+    if (NO_CACHE.includes(table)) {
+      try {
+        const lsData = JSON.parse(localStorage.getItem('becca_' + table) || '[]');
+        const supaIds = new Set(result.map(r => r.id));
+        const pending = lsData.filter(r => r.id && !supaIds.has(r.id));
+        if (pending.length) result = [...pending, ...result];
+      } catch {}
+    }
+
     return result;
   }
 

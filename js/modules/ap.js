@@ -233,10 +233,10 @@ const APModule = (() => {
     +'</div></td>'
   : '<td></td>';
 
-      return '<tr style="border-bottom:.5px solid var(--border)">'
+      return '<tr id="ap-row-'+r.id+'" style="border-bottom:.5px solid var(--border)">'
         +'<td style="'+tdR+';width:36px">'+( i+1)+'</td>'
         +'<td style="'+tdL+';white-space:nowrap">'+fmtDate(r.tgl_transaksi||r.tgl)+'</td>'
-        +'<td style="'+tdL+'">'+(r.vendor||r.supplier_nama||'-')+'</td>'
+        +'<td style="'+tdL+'">'+(r.vendor||r.supplier||r.supplier_nama||'-')+'</td>'
         +'<td style="'+tdL+'">'+(r.item||r.keterangan||'-')+'</td>'
         +'<td style="'+tdR+'">'+(r.qty ? Number(r.qty).toLocaleString('id-ID') : '-')+'</td>'
         +'<td style="'+tdL+'">'+(r.satuan||'-')+'</td>'
@@ -480,7 +480,7 @@ const APModule = (() => {
   }
 
   async function _deleteAP(id) {
-    const ok = await Utils.confirm({title:'Hapus AP?', msg:'Yakin hapus transaksi ini?', danger:true});
+    const ok = await Modal.confirm({title:'Hapus AP?', message:'Yakin hapus transaksi ini?', danger:true});
     if (!ok) return;
     try {
       await DB.delete('ap', id);
@@ -1141,7 +1141,7 @@ const APModule = (() => {
     if (!row) { _apEditId=null; return; }
     const g = f => tr.querySelector('[data-f="'+f+'"]')?.value ?? row[f];
     const qty = parseFloat(g('qty'))||0;
-        const hs    = r.harga_satuan ? Utils.formatRupiah(r.harga_satuan) : '-';
+    const hs  = parseFloat(g('hargaSatuan'))||0;
     Object.assign(row, {
       tgl:g('tgl')||row.tgl, supplier:g('supplier')||row.supplier,
       keterangan:g('keterangan')||row.keterangan, qty, satuan:g('satuan')||row.satuan,
