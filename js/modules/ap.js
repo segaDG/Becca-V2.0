@@ -157,7 +157,6 @@ const APModule = (() => {
               <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
                 <th style="padding:10px 12px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:36px">#</th>
                 <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);white-space:nowrap;width:88px">Tanggal</th>
-              <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:110px">AP Code</th>
                 <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);min-width:130px">Supplier</th>
                 <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);min-width:200px">Item Description</th>
                 <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:70px">Qty</th>
@@ -222,7 +221,7 @@ const APModule = (() => {
     }
 
     tbody.innerHTML = data.map((r,i) => {
-      const sisa   = (r.total||0)-(r.terbayar||0);
+      const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.terbayar||r.jumlah_bayar||0);
       const late   = r.jatuhTempo && r.status!=='LUNAS' && r.jatuhTempo<today;
       const cl     = supColor[r.supplier] || COLORS[0];
       const sc     = r.status==='LUNAS'?'#10b981':'#ef4444';
@@ -250,7 +249,7 @@ const APModule = (() => {
         +'<td style="'+p+'min-width:130px"><div style="font-weight:700;font-size:12px;color:var(--heading)">'+( r.supplier||'-')+'</div>'
           +'<div style="font-size:10px;font-weight:600;color:'+cl.bar+';background:'+cl.bg+';display:inline-block;padding:1px 6px;border-radius:3px;margin-top:2px">'
           +(supList.indexOf(r.supplier)+1 > 0 ? 'V'+(supList.indexOf(r.supplier)+1).toString().padStart(2,'0') : '')+'</div></td>'
-        +'<td style="'+p+'font-size:12px;min-width:160px;max-width:200px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.keterangan||r.ket||'')+'">'+(r.keterangan||r.ket||'-')+'</div></td>'
+        +'<td style="'+p+'font-size:12px;min-width:160px;max-width:200px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.keterangan||r.ket||'')+'">'+((r.data&&r.data.vendor)||r.supplier_nama||r.keterangan||r.ket||'-')+'</div></td>'
         +'<td style="'+p+'text-align:right;font-size:12px;font-family:var(--font-mono);width:70px">'+(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0}):'-')+'</td>'
         +'<td style="'+p+'font-size:11px;color:var(--text-3);width:50px">'+(r.satuan||'-')+'</td>'
         +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--text-3);width:90px">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan):'-')+'</td>'
@@ -983,7 +982,7 @@ const APModule = (() => {
       items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach(r=>{
         const sisa   = (r.total||0)-(r.terbayar||0);
         const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
-        const hs     = r.hargaSatuan ? Utils.formatRupiah(r.hargaSatuan) : '-';
+        const hs    = (r.data&&r.data.harga_satuan) ? Utils.formatRupiah(r.data.harga_satuan) : (r.hargaSatuan ? Utils.formatRupiah(r.hargaSatuan) : '-');
         rowsHtml +=
           '<tr style="background:'+P.lt+';border-bottom:1px solid '+P.border+'40">'
           +'<td style="padding:8px 16px 8px 68px;font-size:12px;color:var(--text-2);font-style:italic">'
@@ -991,7 +990,7 @@ const APModule = (() => {
           +'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3)">'+tglFmt+'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);font-family:var(--font-mono)">'
-            +(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0})+' '+(r.satuan||''):'-')
+            +((r.qty||(r.data&&r.data.qty))?Number(r.qty||r.data.qty).toLocaleString('id',{minimumFractionDigits:(r.qty||r.data.qty)%1?2:0})+' '+((r.satuan||(r.data&&r.data.satuan))||''):'-')
           +'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);text-align:right;font-family:var(--font-mono)">'+hs+'</td>'
           +'<td style="padding:8px 16px;text-align:right;font-family:var(--font-mono);font-size:12px;'
