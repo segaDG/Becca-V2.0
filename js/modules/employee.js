@@ -91,7 +91,7 @@ const EmployeeModule = (() => {
   /* ===================== RENDER DATA ===================== */
   function renderData() {
     // Data karyawan = hanya yang aktif; Arsip = RESIGN/Fired/dll
-    const ACTIVE_STATS = ['ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const ACTIVE_STATS = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
     const active   = _employees.filter(e => ACTIVE_STATS.includes(e.status));
     const depts    = [...new Set(active.map(e=>e.divisi||e.departemen).filter(Boolean))].sort();
     const canEdit  = Auth.can('employee','edit');
@@ -191,7 +191,7 @@ const EmployeeModule = (() => {
                   : _WARN_STATUSES.includes(emp.status)?'badge-warning'
                   : _DANGER_STATUSES.includes(emp.status)?'badge-danger'
                   : 'badge-neutral';
-                const logCount = _logs.filter(l=>l.employeeId===emp.id).length;
+                const logCount = _logs.filter(l=>(l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))).length;
                 return `<tr style="cursor:pointer" onclick="EmployeeModule.viewCard('${emp.id}')"
                           onmouseover="this.style.background='var(--surface2)'"
                           onmouseout="this.style.background=''">
@@ -301,7 +301,7 @@ const EmployeeModule = (() => {
       : ['Kontrak','CONTRACT','Percobaan'].includes(emp.status)?'var(--warning)'
       : ['RESIGN','Resign'].includes(emp.status)?'var(--danger)'
       : 'var(--text-3)';
-    const empLogs = _logs.filter(l=>l.employeeId===emp.id).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,3);
+    const empLogs = _logs.filter(l=>(l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,3);
     const canEdit = Auth.can('employee','edit');
 
     return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
@@ -358,7 +358,7 @@ const EmployeeModule = (() => {
   }
 
   function _renderSingleCard(el, emp) {
-    const empLogs = _logs.filter(l=>l.employeeId===emp.id).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    const empLogs = _logs.filter(l=>(l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
     const canEdit = Auth.can('employee','edit');
     const statusColor = ['Tetap','ACTIVE','Active'].includes(emp.status)?'var(--success)'
       : ['Kontrak','CONTRACT','Percobaan'].includes(emp.status)?'var(--warning)'
@@ -576,7 +576,7 @@ const EmployeeModule = (() => {
 
   /* ===================== RENDER ARSIP ===================== */
   function renderArsip() {
-    const ACTIVE_STATUSES = ['ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const ACTIVE_STATUSES = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
     const arsip = _employees.filter(e=>!ACTIVE_STATUSES.includes(e.status));
     document.getElementById('emp-tab-arsip').innerHTML = `
       <div class="table-wrapper"><div class="table-scroll">
