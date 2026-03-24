@@ -249,7 +249,7 @@ const APModule = (() => {
         +'<td style="'+p+'min-width:130px"><div style="font-weight:700;font-size:12px;color:var(--heading)">'+( r.supplier||'-')+'</div>'
           +'<div style="font-size:10px;font-weight:600;color:'+cl.bar+';background:'+cl.bg+';display:inline-block;padding:1px 6px;border-radius:3px;margin-top:2px">'
           +(supList.indexOf(r.supplier)+1 > 0 ? 'V'+(supList.indexOf(r.supplier)+1).toString().padStart(2,'0') : '')+'</div></td>'
-        +'<td style="'+p+'font-size:12px;min-width:160px;max-width:200px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.keterangan||r.ket||'')+'">'+((r.data&&r.data.vendor)||r.supplier_nama||r.keterangan||r.ket||'-')+'</div></td>'
+        +(r.vendor||r.supplier_nama||'-')
         +'<td style="'+p+'text-align:right;font-size:12px;font-family:var(--font-mono);width:70px">'+(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0}):'-')+'</td>'
         +'<td style="'+p+'font-size:11px;color:var(--text-3);width:50px">'+(r.satuan||'-')+'</td>'
         +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--text-3);width:90px">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan):'-')+'</td>'
@@ -587,7 +587,7 @@ const APModule = (() => {
               const apItems    = _ap.filter(a => a.supplier === s.nama);
               const totalAP    = apItems.reduce((sum,a)=>sum+(a.total||0),0);
               const totalBayar = apItems.reduce((sum,a)=>sum+(a.terbayar||0),0);
-              const sisa       = Math.max(0, totalAP - totalBayar);
+        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
               return `<tr style="cursor:pointer" onclick="APModule.showSupplierDetail('${s.id}')"
                 onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
                 <td class="text-muted">${i+1}</td>
@@ -629,7 +629,7 @@ const APModule = (() => {
     const apItems    = _ap.filter(a => a.supplier === s.nama);
     const totalAP    = apItems.reduce((sum,a)=>sum+(a.total||0),0);
     const totalBayar = apItems.reduce((sum,a)=>sum+(a.terbayar||0),0);
-    const sisa       = Math.max(0, totalAP - totalBayar);
+        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
     const mid        = Utils.uid();
 
     Modal.open({ id: mid,
@@ -982,21 +982,21 @@ const APModule = (() => {
       items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach(r=>{
         const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
         const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
-        const hs    = (r.data&&r.data.harga_satuan) ? Utils.formatRupiah(r.data.harga_satuan) : (r.hargaSatuan ? Utils.formatRupiah(r.hargaSatuan) : '-');
+        const hs    = r.harga_satuan ? Utils.formatRupiah(r.harga_satuan) : '-';
         rowsHtml +=
           '<tr style="background:'+P.lt+';border-bottom:1px solid '+P.border+'40">'
           +'<td style="padding:8px 16px 8px 68px;font-size:12px;color:var(--text-2);font-style:italic">'
-        +((r.data&&r.data.vendor)||r.keterangan||r.ket||'-')
+        +(r.vendor||r.supplier_nama||'-')
 +'</td>'
-        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2)">'+(r.data&&r.data.item ? r.data.item : (r.keterangan||'-'))
+        +(r.item||r.keterangan||'-')
         +'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3)">'+tglFmt+'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);font-family:var(--font-mono)">'
-            +((r.qty||(r.data&&r.data.qty))?Number(r.qty||r.data.qty).toLocaleString('id',{minimumFractionDigits:(r.qty||r.data.qty)%1?2:0})+' '+((r.satuan||(r.data&&r.data.satuan))||''):'-')
+            +((r.qty)?Number(r.qty).toLocaleString('id',{minimumFractionDigits:(r.qty)%1?2:0})+' '+((r.satuan||'')||''):'-')
           +'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);text-align:right;font-family:var(--font-mono)">'+hs+'</td>'
           +'<td style="padding:8px 16px;text-align:right;font-family:var(--font-mono);font-size:12px;'
-        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2)">'+ ((r.data&&r.data.tgl_bayar)||r.tgl_bayar||'-') +'</td>'
+        +(r.tgl_bayar||'-')
         +'font-weight:700;color:'+P.acc+';white-space:nowrap">'+Utils.formatRupiah(sisa)+'</td>'
           +'</tr>';
       });
@@ -1161,7 +1161,7 @@ const APModule = (() => {
     if (!row) { _apEditId=null; return; }
     const g = f => tr.querySelector('[data-f="'+f+'"]')?.value ?? row[f];
     const qty = parseFloat(g('qty'))||0;
-        const hs    = (r.data&&r.data.harga_satuan) ? Utils.formatRupiah(r.data.harga_satuan) : (r.hargaSatuan ? Utils.formatRupiah(r.hargaSatuan) : '-');
+        const hs    = r.harga_satuan ? Utils.formatRupiah(r.harga_satuan) : '-';
     Object.assign(row, {
       tgl:g('tgl')||row.tgl, supplier:g('supplier')||row.supplier,
       keterangan:g('keterangan')||row.keterangan, qty, satuan:g('satuan')||row.satuan,
