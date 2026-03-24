@@ -191,7 +191,7 @@ const EmployeeModule = (() => {
                   : _WARN_STATUSES.includes(emp.status)?'badge-warning'
                   : _DANGER_STATUSES.includes(emp.status)?'badge-danger'
                   : 'badge-neutral';
-                const logCount = _logs.filter(l=>(l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))).length;
+                const logCount = _logs.filter(l=>((l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))||_nameMatch(l.nama,emp.nama))).length;
                 return `<tr style="cursor:pointer" onclick="EmployeeModule.viewCard('${emp.id}')"
                           onmouseover="this.style.background='var(--surface2)'"
                           onmouseout="this.style.background=''">
@@ -301,7 +301,7 @@ const EmployeeModule = (() => {
       : ['Kontrak','CONTRACT','Percobaan'].includes(emp.status)?'var(--warning)'
       : ['RESIGN','Resign'].includes(emp.status)?'var(--danger)'
       : 'var(--text-3)';
-    const empLogs = _logs.filter(l=>(l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,3);
+    const empLogs = _logs.filter(l=>((l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))||_nameMatch(l.nama,emp.nama))).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,3);
     const canEdit = Auth.can('employee','edit');
 
     return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
@@ -358,7 +358,7 @@ const EmployeeModule = (() => {
   }
 
   function _renderSingleCard(el, emp) {
-    const empLogs = _logs.filter(l=>(l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    const empLogs = _logs.filter(l=>((l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))||_nameMatch(l.nama,emp.nama))).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
     const canEdit = Auth.can('employee','edit');
     const statusColor = ['Tetap','ACTIVE','Active'].includes(emp.status)?'var(--success)'
       : ['Kontrak','CONTRACT','Percobaan'].includes(emp.status)?'var(--warning)'
@@ -1350,6 +1350,12 @@ const EmployeeModule = (() => {
     });
   }
 
+
+  // Helper: match nama karyawan (logbook fallback)
+  function _nameMatch(a, b) {
+    if (!a || !b) return false;
+    return a.trim().toLowerCase() === b.trim().toLowerCase();
+  }
 
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
