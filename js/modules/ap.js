@@ -228,8 +228,8 @@ const APModule = (() => {
       const badge  = '<span style="background:'+badgeC+'15;color:'+badgeC+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">'+r.status+'</span>';
       const acts = canEdit
   ? '<td style="padding:8px 16px;text-align:center"><div style="display:flex;gap:4px;justify-content:center">'
-    +'<button onclick="APModule.apStartEdit(\'' + r.id + '\')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">✏️</button>'
-    +'<button onclick="APModule._deleteAP(\'' + r.id + '\')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">🗑️</button>'
+          +'<button onclick="APModule.apStartEdit(this.dataset.id)" data-id="'+r.id+'" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px" title="Edit">✏️</button>'
+          +'<button onclick="APModule._deleteAP(this.dataset.id)" data-id="'+r.id+'" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px" title="Hapus">🗑️</button>'
     +'</div></td>'
   : '<td></td>';
 
@@ -575,12 +575,12 @@ const APModule = (() => {
                   <div style="font-weight:700">${s.nama||'-'}</div>
                   ${s.alamat ? `<div style="font-size:11px;color:var(--text-3)">📍 ${s.alamat}</div>` : ''}
                 </td>
-                <td><span class="badge badge-neutral">${s.kategori||'-'}</span></td>
-                <td class="text-muted">${s.noHp||'-'}</td>
-                <td class="text-muted text-small">${s.kota||'-'}</td>
-                <td class="text-muted">${s.bank||'-'}</td>
+                <td><span class="badge badge-neutral">${s.data?.bidang||s.kategori||'-'}</span></td>
+                <td class="text-muted">${s.kontak||s.data?.hp||s.noHp||'-'}</td>
+                <td class="text-muted text-small">${s.data?.kota||s.kota||'-'}</td>
+                <td class="text-muted">${s.data?.bank||s.bank||'-'}</td>
         <td class="text-muted">${s.data?.no_rekening||s.noRekening||'-'}</td>
-                <td class="text-muted">${s.atasNama||'-'}</td>
+                <td class="text-muted">${s.data?.nama_rekening||s.atasNama||'-'}</td>
                 <td class="num" style="font-family:var(--font-mono)">${totalAP>0?Utils.formatRupiah(totalAP,true):'-'}</td>
                 <td class="num" style="font-family:var(--font-mono);color:${sisa>0?'var(--danger)':'var(--text-3)'}">
                   ${sisa>0?Utils.formatRupiah(sisa,true):'-'}
