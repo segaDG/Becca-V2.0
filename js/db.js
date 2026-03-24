@@ -116,6 +116,17 @@ const DB = (() => {
     if (merged.customer_id && !merged.customerId) merged.customerId = merged.customer_id;
     if (merged.created_at && !merged.createdAt) merged.createdAt = merged.created_at;
     if (merged.updated_at && !merged.updatedAt) merged.updatedAt = merged.updated_at;
+    // Employee fields
+    if (merged.tgl_join && !merged.tglJoin) merged.tglJoin = merged.tgl_join;
+    if (merged.tgl_lahir && !merged.tglLahir) merged.tglLahir = merged.tgl_lahir;
+    if (merged.nama_panggil && !merged.namaPanggil) merged.namaPanggil = merged.nama_panggil;
+    if (merged.sisa_hutang !== undefined && merged.sisaHutang === undefined) merged.sisaHutang = merged.sisa_hutang;
+    if (merged.gaji_awal !== undefined && merged.gajiAwal === undefined) merged.gajiAwal = merged.gaji_awal;
+    if (merged.no_ktp && !merged.noKtp) merged.noKtp = merged.no_ktp;
+    if (merged.tempat_lahir && !merged.tempatLahir) merged.tempatLahir = merged.tempat_lahir;
+    if (merged.employee_id && !merged.employeeId) merged.employeeId = merged.employee_id;
+    // NIK - strip .0 dari float
+    if (merged.nik !== undefined && merged.nik !== null) merged.nik = String(merged.nik).replace(/\.0$/, '');
 
     // Parse column_prices jika string
     if (merged.column_prices && typeof merged.column_prices === 'string') {
