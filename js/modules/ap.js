@@ -567,7 +567,7 @@ const APModule = (() => {
               const apItems    = _ap.filter(a => a.supplier === s.nama);
               const totalAP    = apItems.reduce((sum,a)=>sum+(a.total||0),0);
               const totalBayar = apItems.reduce((sum,a)=>sum+(a.terbayar||0),0);
-        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
+        const sisa   = (s.status==='LUNAS'||s.status==='lunas') ? 0 : (s.total||0)-(s.jumlah_bayar||s.terbayar||0);
               return `<tr style="cursor:pointer" onclick="APModule.showSupplierDetail('${s.id}')"
                 onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
                 <td class="text-muted">${i+1}</td>
