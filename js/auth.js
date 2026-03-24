@@ -5,7 +5,7 @@
 ============================================ */
 const Auth = {
   _user: null,
-  _SESSION_KEY: 'becca_session',
+  _SESSION_KEY: 'session',
 
   _defaultUsers: [
     { id: 'u1', username: 'superadmin', password: 'admin123', nama: 'Super Admin',   role: 'superadmin', email: '', aktif: true },
@@ -58,6 +58,10 @@ const Auth = {
       Utils.ls.set(this._SESSION_KEY, this._user);
     } else {
       sessionStorage.setItem(this._SESSION_KEY, JSON.stringify(this._user));
+    }
+
+    if (mustChange) {
+      sessionStorage.setItem('becca_must_change_pwd', '1');
     }
 
     try { await DB.logActivity({ type: 'login', detail: 'Login berhasil' }); } catch {}

@@ -1,66 +1,21 @@
 /* ============================================
-   BECCA V2.0 — Utils
-   Helper functions used across all modules
+   BECCA V2.0 — Utils Extensions
+   Load setelah utils.js — tambahkan metode extra
    ============================================ */
 
-const Utils = {
-
-  /* === FORMAT === */
-  formatRupiah(n, compact = false) {
-    const num = Number(n) || 0;
-    if (compact && num >= 1_000_000) return 'Rp ' + (num/1_000_000).toFixed(1) + 'jt';
-    if (compact && num >= 1_000)     return 'Rp ' + (num/1_000).toFixed(0) + 'rb';
-    return 'Rp ' + num.toLocaleString('id-ID');
-  },
-
-  formatDate(d, format = 'dd/mm/yyyy') {
-    if (!d) return '-';
-    const dt = d instanceof Date ? d : new Date(d);
-    if (isNaN(dt)) return '-';
-    const dd   = String(dt.getDate()).padStart(2,'0');
-    const mm   = String(dt.getMonth()+1).padStart(2,'0');
-    const yyyy = dt.getFullYear();
-    const mon  = this.MONTHS[dt.getMonth()];
-    if (format === 'dd mmm yyyy') return `${dd} ${mon} ${yyyy}`;
-    if (format === 'yyyy-mm-dd')  return `${yyyy}-${mm}-${dd}`;
-    return `${dd}/${mm}/${yyyy}`;
-  },
-
-  formatDateInput(d) {
-    // untuk value input[type=date] → yyyy-mm-dd
-    return this.formatDate(d, 'yyyy-mm-dd');
-  },
-
-  today() {
-    return this.formatDate(new Date(), 'yyyy-mm-dd');
-  },
-
-  /* === ID & STRINGS === */
-  uid() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-  },
-
-  initials(name = '') {
-    return name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
-  },
-
-  slugify(str) {
-    return str.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
-  },
-
-  /* === CONSTANTS === */
-  MONTHS: ['Januari','Februari','Maret','April','Mei','Juni',
-           'Juli','Agustus','September','Oktober','November','Desember'],
+Object.assign(Utils, {
 
   MONTHS_SHORT: ['Jan','Feb','Mar','Apr','Mei','Jun',
                  'Jul','Agu','Sep','Okt','Nov','Des'],
 
-  /* === DOM HELPERS === */
-  $: (sel, ctx = document) => ctx.querySelector(sel),
-  $$: (sel, ctx = document) => [...ctx.querySelectorAll(sel)],
+  formatDateInput(d) {
+    return Utils.formatDate(d, 'yyyy-mm-dd');
+  },
 
-  show(el) { if (el) el.classList.remove('hidden'); },
-  hide(el) { if (el) el.classList.add('hidden'); },
+  slugify(str) {
+    return String(str).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  },
+
   toggle(el, show) {
     if (el) el.classList.toggle('hidden', show === undefined ? undefined : !show);
   },
@@ -70,7 +25,6 @@ const Utils = {
     if (el) el.innerHTML = html;
   },
 
-  /* === FORM HELPERS === */
   getFormData(formEl) {
     const data = {};
     const fd = new FormData(formEl);
@@ -88,39 +42,21 @@ const Utils = {
   },
 
   validate(data, rules) {
-    // rules: { fieldName: { required: true, label: 'Nama' } }
     const errors = {};
     Object.entries(rules).forEach(([field, rule]) => {
       if (rule.required && !data[field]) {
         errors[field] = `${rule.label || field} wajib diisi`;
       }
     });
-    return errors; // {} = valid
+    return errors;
   },
 
-  /* === MISC === */
-  debounce(fn, ms = 300) {
-    let t;
-    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
   },
 
-  clone(obj) { return JSON.parse(JSON.stringify(obj)); },
-
-  sleep(ms) { return new Promise(r => setTimeout(r, ms)); },
-
-  // Group array by key
-  groupBy(arr, key) {
-    return arr.reduce((acc, item) => {
-      const k = typeof key === 'function' ? key(item) : item[key];
-      if (!acc[k]) acc[k] = [];
-      acc[k].push(item);
-      return acc;
-    }, {});
-  },
-
-  // Sort array
   sortBy(arr, key, dir = 'asc') {
-    return [...arr].sort((a,b) => {
+    return [...arr].sort((a, b) => {
       const va = a[key]; const vb = b[key];
       if (va < vb) return dir === 'asc' ? -1 : 1;
       if (va > vb) return dir === 'asc' ?  1 : -1;
@@ -128,98 +64,11 @@ const Utils = {
     });
   },
 
-  // Number formatting
   parseRupiah(str) {
-    return parseInt(String(str).replace(/\D/g,'')) || 0;
+    return parseInt(String(str).replace(/\D/g, '')) || 0;
   },
 
-  sumBy(arr, key) {
-    return arr.reduce((s, i) => s + (Number(i[key]) || 0), 0);
-  },
-
-  // localStorage helpers
-  ls: {
-    get(k, def = null) { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
-    del(k)    { localStorage.removeItem(k); },
-  },
-};
-
-window.Utils = Utils;
-/* ============================================
-   BECCA V2.0 — Utils Extensions
-   Tambahkan ke utils.js atau load setelah utils.js
-   ============================================ */
-
-Object.assign(Utils, {
-
-  MONTHS: ['Januari','Februari','Maret','April','Mei','Juni',
-           'Juli','Agustus','September','Oktober','November','Desember'],
-
-  // Group array of objects by key
-  groupBy(arr, key) {
-    return arr.reduce((acc, item) => {
-      const k = item[key] ?? '__other';
-      (acc[k] = acc[k] || []).push(item);
-      return acc;
-    }, {});
-  },
-
-  // Sum a numeric key from array
-  sumBy(arr, key) {
-    return arr.reduce((s, item) => s + (parseFloat(item[key]) || 0), 0);
-  },
-
-  // Initials from name
-  initials(nama = '') {
-    return nama.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('');
-  },
-
-  // Today as yyyy-mm-dd
-  today() {
-    return new Date().toISOString().split('T')[0];
-  },
-
-  // Format date (string yyyy-mm-dd or Date object)
-  formatDate(d, fmt = 'dd/mm/yyyy') {
-    if (!d) return '-';
-    const dt = typeof d === 'string' ? new Date(d + 'T00:00:00') : d;
-    if (isNaN(dt)) return d;
-    const dd  = String(dt.getDate()).padStart(2,'0');
-    const mm  = String(dt.getMonth()+1).padStart(2,'0');
-    const yyyy= dt.getFullYear();
-    const mmm = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][dt.getMonth()];
-    if (fmt==='dd mmm yyyy') return `${dd} ${mmm} ${yyyy}`;
-    if (fmt==='dd/mm/yyyy')  return `${dd}/${mm}/${yyyy}`;
-    if (fmt==='yyyy-mm-dd')  return `${yyyy}-${mm}-${dd}`;
-    return `${dd}/${mm}/${yyyy}`;
-  },
-
-  // Format Rupiah
-  formatRupiah(n, compact = false) {
-    n = parseFloat(n) || 0;
-    if (compact) {
-      if (Math.abs(n) >= 1e9) return 'Rp ' + (n/1e9).toFixed(1).replace('.0','') + 'M';
-      if (Math.abs(n) >= 1e6) return 'Rp ' + (n/1e6).toFixed(1).replace('.0','') + 'jt';
-      if (Math.abs(n) >= 1e3) return 'Rp ' + (n/1e3).toFixed(0) + 'rb';
-      return 'Rp ' + n.toLocaleString('id-ID');
-    }
-    return 'Rp ' + n.toLocaleString('id-ID');
-  },
-
-  // Generate UID
-  uid() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-  },
-
-  // DOM helpers
-  $(sel, ctx = document) { return ctx.querySelector(sel); },
-  $$(sel, ctx = document) { return [...ctx.querySelectorAll(sel)]; },
-
-  // localStorage helpers
-  ls: {
-    get(key) { try { return JSON.parse(localStorage.getItem('becca_'+key)); } catch { return null; } },
-    set(key, val) { localStorage.setItem('becca_'+key, JSON.stringify(val)); },
-    del(key) { localStorage.removeItem('becca_'+key); },
+  formatNumber(n) {
+    return (parseFloat(n) || 0).toLocaleString('id-ID');
   },
 });

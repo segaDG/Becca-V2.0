@@ -4,7 +4,6 @@
 ============================================ */
 const App = {
   _currentPage: 'dashboard',
-  _firebaseConfig: {},
 
   get _modules() {
     return {
@@ -53,7 +52,7 @@ const App = {
     }
     Sidebar.render();
     this._renderHeader();
-    this.navigate(Utils.ls.get('becca_lastPage') || 'dashboard');
+    this.navigate(Utils.ls.get('lastPage') || 'dashboard');
     this._handleResize();
     window.addEventListener('resize', () => this._handleResize());
     setTimeout(() => { if (typeof NotifCenter !== 'undefined') NotifCenter.refresh(); }, 800);
@@ -173,12 +172,15 @@ const App = {
         </div>
       </div>
     `;
-    /* Close dropdown saat klik di luar */
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('#btn-user') && !e.target.closest('#user-menu')) {
-        App._hideUserMenu();
-      }
-    });
+    /* Close dropdown saat klik di luar — gunakan satu listener saja */
+    if (!App._userMenuClickHandler) {
+      App._userMenuClickHandler = (e) => {
+        if (!e.target.closest('#btn-user') && !e.target.closest('#user-menu')) {
+          App._hideUserMenu();
+        }
+      };
+      document.addEventListener('click', App._userMenuClickHandler);
+    }
   },
 
   _toggleSidebar() {
@@ -243,7 +245,7 @@ const App = {
     const titleEl = document.getElementById('header-page-title');
     if (titleEl) titleEl.textContent = titles[pageId] || pageId;
 
-    Utils.ls.set('becca_lastPage', pageId);
+    Utils.ls.set('lastPage', pageId);
 
     /* Init module */
     const mod = this._modules[pageId];
@@ -299,13 +301,9 @@ const App = {
     };
     update();
     this._presenceInterval = setInterval(update, 15000); // update every 15s
-    // Render online users every 20s
+    // Render online users every 20s (store ref untuk cleanup)
     this._renderOnlineUsers();
-    setInterval(() => this._renderOnlineUsers(), 20000);
-    // Clear presence on page unload
-    window.addEventListener('beforeunload', () => {
-      DB.clearPresence(user.id || user.username);
-    });
+    this._onlineUsersInterval = setInterval(() => this._renderOnlineUsers(), 20000);
   },
 
   async _renderOnlineUsers() {

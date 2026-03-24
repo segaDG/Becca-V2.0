@@ -27,24 +27,11 @@ const DBExtensions = (() => {
     console.log('[DBExt] Realtime & Presence initialized ✓');
   }
 
-  /* ── Presence: update "user online" setiap 15 detik ─────── */
+  /* ── Presence: hanya refresh badge online — update presence sudah di App._startPresence ─── */
   function _setupPresence() {
-    const u = typeof Auth !== 'undefined' ? Auth.currentUser() : null;
-    if (!u) return;
-
-    const updateNow = () => DB.updatePresence(u.username || u.id, {
-      username:  u.username,
-      nama:      u.nama,
-      role:      u.role,
-      sessionId: u.sessionId || sessionStorage.getItem('becca_session_id') || Utils.uid(),
-    });
-
-    updateNow();
-    _presenceInterval = setInterval(updateNow, 60000); // setiap 1 menit
-
-    // Update online users badge di header
+    // App._startPresence() sudah handle presence update (15s) dan online users render (20s)
+    // DBExtensions hanya setup realtime badge refresh via Supabase subscription
     _refreshOnlineBadge();
-    setInterval(_refreshOnlineBadge, 60000); // setiap 1 menit
   }
 
   async function _refreshOnlineBadge() {
@@ -89,24 +76,24 @@ const DBExtensions = (() => {
     DB.setupRealtime({
       orders: ({ eventType }) => {
         _notify('order', eventType);
-        if (window.App?.currentPage === 'order') {
+        if (window.App?._currentPage === 'order') {
           setTimeout(() => OrderModule?.init?.(), 300);
         }
         // Update dashboard stats
-        if (window.App?.currentPage === 'dashboard') {
+        if (window.App?._currentPage === 'dashboard') {
           setTimeout(() => DashboardModule?.init?.(), 300);
         }
       },
 
       invoices: ({ eventType }) => {
         _notify('invoice', eventType);
-        if (window.App?.currentPage === 'invoice') {
+        if (window.App?._currentPage === 'invoice') {
           setTimeout(() => InvoiceModule?.init?.(), 300);
         }
       },
 
       tasks: ({ eventType, new: newRow }) => {
-        if (window.App?.currentPage === 'task') {
+        if (window.App?._currentPage === 'task') {
           setTimeout(() => TaskModule?.render?.(), 200);
         }
         // Notif jika task di-assign ke user ini
@@ -114,7 +101,7 @@ const DBExtensions = (() => {
       },
 
       customers: ({ eventType }) => {
-        if (window.App?.currentPage === 'customer') {
+        if (window.App?._currentPage === 'customer') {
           setTimeout(() => CustomerModule?.init?.(), 300);
         }
       },
@@ -134,7 +121,7 @@ const DBExtensions = (() => {
       },
 
       activity_logs: () => {
-        if (window.App?.currentPage === 'settings') {
+        if (window.App?._currentPage === 'settings') {
           const tab = document.querySelector('[onclick*="activity"]');
           if (tab?.classList?.contains('active')) {
             setTimeout(() => SettingsModule?.switchTab?.('activity'), 200);

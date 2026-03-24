@@ -11,7 +11,7 @@ const Notify = {
   },
 
   _show(title, msg, type = 'info', ms = 4000) {
-    const root = document.getElementById('toast-root');
+    const root = document.getElementById('toast-container');
     if (!root) return;
 
     const el = document.createElement('div');

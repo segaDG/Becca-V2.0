@@ -184,8 +184,10 @@ const DB = (() => {
       }
     }
 
+    // Simpan ke memory cache
+    _memCache[table] = { ts: Date.now(), data: result };
+
     // Cache ke localStorage hanya untuk table non-realtime
-    const NO_CACHE = ['customers','users','tasks','suppliers','ap'];
     if (result.length > 0 && !NO_CACHE.includes(table)) {
       try { localStorage.setItem('becca_' + table, JSON.stringify(result)); } catch {}
     }
@@ -217,6 +219,7 @@ const DB = (() => {
     }
 
     const result = _fromRow(data);
+    _invalidateCache(table);
     // Sync localStorage cache
     _lsSave(table, result);
     return result;
@@ -230,6 +233,7 @@ const DB = (() => {
     if (error) {
       console.warn('[DB] delete ' + table + ':', error.message);
     }
+    _invalidateCache(table);
     _lsDelete(table, id);
     return true;
   }

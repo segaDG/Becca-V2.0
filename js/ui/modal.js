@@ -4,6 +4,7 @@
 
 const Modal = {
   _stack: [],
+  _handlers: {}, // per-modal escape handlers: { id: fn }
 
   /* Open a modal
    * opts = {
@@ -41,13 +42,16 @@ const Modal = {
     document.getElementById('modal-root').appendChild(backdrop);
     this._stack.push(id);
 
+    // Per-modal escape handler — tidak overwrite handler lain
+    if (closable) {
+      const handler = (e) => { if (e.key === 'Escape') Modal.close(id); };
+      this._handlers[id] = handler;
+      document.addEventListener('keydown', handler);
+    }
+
     if (opts.onOpen) {
       opts.onOpen(document.getElementById(`modal-${id}`));
     }
-
-    // trap escape key
-    this._escHandler = (e) => { if (e.key === 'Escape' && closable) this.close(id); };
-    document.addEventListener('keydown', this._escHandler);
 
     return id;
   },
@@ -58,11 +62,16 @@ const Modal = {
     backdrop.style.animation = 'backdropIn 0.2s ease reverse';
     setTimeout(() => { backdrop.remove(); }, 180);
     this._stack = this._stack.filter(i => i !== id);
-    document.removeEventListener('keydown', this._escHandler);
+
+    // Hapus HANYA handler milik modal ini
+    if (this._handlers[id]) {
+      document.removeEventListener('keydown', this._handlers[id]);
+      delete this._handlers[id];
+    }
   },
 
   closeAll() {
-    this._stack.forEach(id => this.close(id));
+    [...this._stack].forEach(id => this.close(id));
     this._stack = [];
   },
 
@@ -85,7 +94,7 @@ const Modal = {
           </div>
         `,
         footer: `
-          <button class="btn btn-ghost" onclick="Modal.close('${id}')">Batal</button>
+          <button class="btn btn-ghost" id="confirm-cancel-${id}">Batal</button>
           <button class="btn ${opts.danger ? 'btn-danger' : 'btn-primary'}" id="confirm-ok-${id}">
             ${opts.confirmText || 'Ya, Lanjutkan'}
           </button>
@@ -97,11 +106,19 @@ const Modal = {
         resolve(true);
       };
 
-      // Batal → resolve false
-      const orig = Modal._escHandler;
-      Modal._escHandler = (e) => {
+      // Override escape handler untuk confirm dialog agar resolve(false)
+      if (Modal._handlers[id]) {
+        document.removeEventListener('keydown', Modal._handlers[id]);
+      }
+      const escHandler = (e) => {
         if (e.key === 'Escape') { Modal.close(id); resolve(false); }
       };
+      Modal._handlers[id] = escHandler;
+      document.addEventListener('keydown', escHandler);
+
+      // Tombol batal juga resolve(false)
+      const cancelBtn = document.getElementById(`confirm-cancel-${id}`);
+      if (cancelBtn) cancelBtn.onclick = () => { Modal.close(id); resolve(false); };
     });
   },
 };
