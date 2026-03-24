@@ -708,7 +708,7 @@ const APModule = (() => {
                 </tr></thead>
                 <tbody>
                   ${apItems.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).map(a=>{
-                    const sisaA = Math.max(0,(a.total||0)-(a.terbayar||0));
+        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
                     const sc    = a.status==='LUNAS'?'badge-success':a.status==='CICILAN'?'badge-warning':'badge-danger';
                     return `<tr>
                       <td style="padding:5px 8px;border-bottom:1px solid var(--border);white-space:nowrap">${a.tgl?a.tgl.split('-').reverse().join('/'):'-'}</td>
@@ -980,21 +980,24 @@ const APModule = (() => {
 
       // Detail rows
       items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach(r=>{
-        const sisa   = (r.total||0)-(r.terbayar||0);
+        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
         const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
         const hs    = (r.data&&r.data.harga_satuan) ? Utils.formatRupiah(r.data.harga_satuan) : (r.hargaSatuan ? Utils.formatRupiah(r.hargaSatuan) : '-');
         rowsHtml +=
           '<tr style="background:'+P.lt+';border-bottom:1px solid '+P.border+'40">'
           +'<td style="padding:8px 16px 8px 68px;font-size:12px;color:var(--text-2);font-style:italic">'
-            +(r.keterangan||r.ket||'-')
-          +'</td>'
+        +((r.data&&r.data.vendor)||r.keterangan||r.ket||'-')
++'</td>'
+        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2)">'+(r.data&&r.data.item ? r.data.item : (r.keterangan||'-'))
+        +'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3)">'+tglFmt+'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);font-family:var(--font-mono)">'
             +((r.qty||(r.data&&r.data.qty))?Number(r.qty||r.data.qty).toLocaleString('id',{minimumFractionDigits:(r.qty||r.data.qty)%1?2:0})+' '+((r.satuan||(r.data&&r.data.satuan))||''):'-')
           +'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);text-align:right;font-family:var(--font-mono)">'+hs+'</td>'
           +'<td style="padding:8px 16px;text-align:right;font-family:var(--font-mono);font-size:12px;'
-            +'font-weight:700;color:'+P.acc+';white-space:nowrap">'+Utils.formatRupiah(sisa)+'</td>'
+        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2)">'+ ((r.data&&r.data.tgl_bayar)||r.tgl_bayar||'-') +'</td>'
+        +'font-weight:700;color:'+P.acc+';white-space:nowrap">'+Utils.formatRupiah(sisa)+'</td>'
           +'</tr>';
       });
     });
@@ -1158,7 +1161,7 @@ const APModule = (() => {
     if (!row) { _apEditId=null; return; }
     const g = f => tr.querySelector('[data-f="'+f+'"]')?.value ?? row[f];
     const qty = parseFloat(g('qty'))||0;
-    const hs  = parseFloat(g('hargaSatuan'))||0;
+        const hs    = (r.data&&r.data.harga_satuan) ? Utils.formatRupiah(r.data.harga_satuan) : (r.hargaSatuan ? Utils.formatRupiah(r.hargaSatuan) : '-');
     Object.assign(row, {
       tgl:g('tgl')||row.tgl, supplier:g('supplier')||row.supplier,
       keterangan:g('keterangan')||row.keterangan, qty, satuan:g('satuan')||row.satuan,
@@ -1254,7 +1257,7 @@ const APModule = (() => {
         byMonth: {},
       };
       const s    = supMap[r.supplier];
-      const sisa = (r.total||0)-(r.terbayar||0);
+        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
       s.totalAll    += r.total||0;
       s.terbayarAll += r.terbayar||0;
       s.total++;
@@ -1292,7 +1295,7 @@ const APModule = (() => {
     const PALETTE = ['#6366f1','#10b981','#f59e0b','#ef4444','#ec4899','#3b82f6','#8b5cf6','#06b6d4','#84cc16','#f97316'];
     const rowsHtml = supList.map((s, idx) => {
       const sup  = _suppliers.find(x=>x.nama===s.nama);
-      const sisa = s.totalAll - s.terbayarAll;
+        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
       const pct  = s.totalAll ? Math.round(s.terbayarAll/s.totalAll*100) : 0;
       const clr  = PALETTE[idx % PALETTE.length];
       // Monthly cells
