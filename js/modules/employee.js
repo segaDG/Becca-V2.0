@@ -209,9 +209,9 @@ const EmployeeModule = (() => {
                   <td>${emp.jabatan||'-'}</td>
                   <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
                   <td onclick="event.stopPropagation()">${_statusDropdown(emp)}</td>
-                  <td class="text-small text-muted">${emp.tglJoin||emp.tglMasuk||'-'}</td>
-                  <td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,true):'-'}</td>
-                  <td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,true):'-'}</td>
+                  <td class="text-small text-muted">${_fmtTgl(emp.tglJoin||emp.tgl_join||emp.tglMasuk)}</td>
+                  <td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,false):'-'}</td>
+                  <td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,false):'-'}</td>
                   ${canEdit ? `<td onclick="event.stopPropagation()">
                     <div style="display:flex;gap:4px">
                       <button class="btn-icon" title="Edit" onclick="EmployeeModule.openEmpModal('${emp.id}')">
@@ -329,7 +329,7 @@ const EmployeeModule = (() => {
           ${[
             {l:'NIK',        v:emp.nik||emp.nip||'-'},
             {l:'No. HP',     v:emp.noHp||'-'},
-            {l:'Tgl Join',   v:emp.tglJoin||emp.tglMasuk||'-'},
+            {l:'Tgl Join',   v:_fmtTgl(emp.tglJoin||emp.tgl_join||emp.tglMasuk)},
             {l:'Gaji',       v:emp.gaji?Utils.formatRupiah(emp.gaji):(emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-')},
             {l:'Sisa Hutang',v:emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang):'-'},
           ].map(f=>`<div>
@@ -462,9 +462,9 @@ const EmployeeModule = (() => {
       <!-- Summary Cards -->
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
         ${[
-          {l:'Total Hutang',  v:Utils.formatRupiah(totalHutang,true),  c:'var(--danger)'},
-          {l:'Total Bayar',   v:Utils.formatRupiah(totalBayar,true),   c:'var(--success)'},
-          {l:'Sisa Hutang',   v:Utils.formatRupiah(saldo,true),        c:saldo>0?'var(--warning)':'var(--success)'},
+          {l:'Total Hutang',  v:Utils.formatRupiah(totalHutang,false),  c:'var(--danger)'},
+          {l:'Total Bayar',   v:Utils.formatRupiah(totalBayar,false),   c:'var(--success)'},
+          {l:'Sisa Hutang',   v:Utils.formatRupiah(saldo,false),        c:saldo>0?'var(--warning)':'var(--success)'},
           {l:'Total Records', v:_logs.length+' entri',                 c:'var(--text-2)'},
         ].map(s=>`
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 16px;min-width:130px">
@@ -1134,9 +1134,9 @@ const EmployeeModule = (() => {
         <td>${emp.jabatan||'-'}</td>
         <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
         <td onclick="event.stopPropagation()">${_statusDropdown(emp)}</td>
-        <td class="text-small text-muted">${emp.tglJoin||emp.tglMasuk||'-'}</td>
-        <td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,true):'-'}</td>
-        <td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,true):'-'}</td>
+        <td class="text-small text-muted">${_fmtTgl(emp.tglJoin||emp.tgl_join||emp.tglMasuk)}</td>
+        <td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,false):'-'}</td>
+        <td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,false):'-'}</td>
         ${canEdit ? `<td onclick="event.stopPropagation()">
           <div style="display:flex;gap:4px">
             <button class="btn-icon" title="Edit" onclick="EmployeeModule.openEmpModal('${emp.id}')">
@@ -1200,9 +1200,9 @@ const EmployeeModule = (() => {
     const saldo  = totalH - totalB;
     const cards  = document.querySelectorAll('#emp-tab-logbook .lb-summary-card');
     if (cards.length >= 3) {
-      cards[0].textContent = Utils.formatRupiah(totalH, true);
-      cards[1].textContent = Utils.formatRupiah(totalB, true);
-      cards[2].textContent = Utils.formatRupiah(saldo,  true);
+      cards[0].textContent = Utils.formatRupiah(totalH,false);
+      cards[1].textContent = Utils.formatRupiah(totalB,false);
+      cards[2].textContent = Utils.formatRupiah(saldo,false);
     }
   }
 
@@ -1241,7 +1241,7 @@ const EmployeeModule = (() => {
           <div style="text-align:right">
             <div style="font-size:10px;color:var(--text-3)">Sisa Hutang</div>
             <div style="font-size:20px;font-weight:800;color:${sisaH>0?'var(--warning)':'var(--success)'};font-family:var(--font-mono)">
-              ${Utils.formatRupiah(sisaH,true)}
+              ${Utils.formatRupiah(sisaH,false)}
             </div>
             <div style="font-size:10px;color:var(--text-3)">${empLogs.length} entri log</div>
           </div>
@@ -1354,6 +1354,12 @@ const EmployeeModule = (() => {
   function _nameMatch(a, b) {
     if (!a || !b) return false;
     return a.trim().toLowerCase() === b.trim().toLowerCase();
+  }
+
+  function _fmtTgl(d) {
+    if (!d) return '-';
+    const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? m[3]+'-'+m[2]+'-'+m[1] : String(d);
   }
 
   return {
