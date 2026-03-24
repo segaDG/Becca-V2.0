@@ -139,7 +139,7 @@ const EmployeeModule = (() => {
         ${depts.map(dept => {
           const count = active.filter(e=>(e.divisi||e.departemen)===dept).length;
           const deptEsc = dept.replace(/'/g,"\'");
-          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer"
+          return `<div onclick="EmployeeModule.viewCard('${emp.id}')" style="cursor:pointer" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer"
             onclick="EmployeeModule.setFilter('dept','${deptEsc}')" title="Filter: ${dept}">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">${dept}</div>
             <div style="font-size:18px;font-weight:700;color:var(--primary-h);font-family:var(--font-mono)">${count}</div>
@@ -151,7 +151,20 @@ const EmployeeModule = (() => {
         </div>
       </div>
 
-      <!-- Filter & Sort -->
+      
+      <!-- Total Gaji Card -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:var(--s3)">
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Total Gaji Keseluruhan</div>
+          <div style="font-size:18px;font-weight:800;color:var(--primary-h);font-family:var(--font-mono);margin-top:2px">
+            ${Utils.formatRupiah(active.reduce((s,e)=>s+(e.gaji||0),0),false)}
+          </div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:2px">${active.length} karyawan aktif</div>
+        </div>
+        <div style="font-size:28px;opacity:.3">💰</div>
+      </div>
+
+<!-- Filter & Sort -->
       <div class="filter-bar" style="margin-bottom:var(--s3)">
         <input type="text" class="form-control" id="emp-search-bar" style="width:200px"
           placeholder="🔍 Cari nama, jabatan, NIK..."
@@ -261,7 +274,8 @@ const EmployeeModule = (() => {
   /* ===================== RENDER CARD ===================== */
   function renderCard(empId) {
     const el = document.getElementById('emp-tab-card');
-    const active = _employees.filter(e=>e.status!=='Arsip');
+    const CARD_ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const active = _employees.filter(e=>CARD_ACTIVE.includes(e.status));
 
     if (empId) {
       const emp = _employees.find(e=>e.id===empId);
@@ -462,9 +476,7 @@ const EmployeeModule = (() => {
       <!-- Summary Cards -->
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
         ${[
-          {l:'Total Hutang',  v:Utils.formatRupiah(totalHutang,false),  c:'var(--danger)'},
-          {l:'Total Bayar',   v:Utils.formatRupiah(totalBayar,false),   c:'var(--success)'},
-          {l:'Sisa Hutang',   v:Utils.formatRupiah(saldo,false),        c:saldo>0?'var(--warning)':'var(--success)'},
+   {l:'Sisa Hutang',   v:Utils.formatRupiah(saldo,false),        c:saldo>0?'var(--danger)':'var(--success)'},
           {l:'Total Records', v:_logs.length+' entri',                 c:'var(--text-2)'},
         ].map(s=>`
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 16px;min-width:130px">
@@ -1067,9 +1079,10 @@ const EmployeeModule = (() => {
 
   function _renderDataTable() {
     // Re-filter dan update hanya tbody table + stats cards
-    const ACTIVE_STATS  = ['ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
-    const active        = _employees.filter(e => ACTIVE_STATS.includes(e.status));
+    const ACTIVE_STATS  = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    let active          = _employees.filter(e => ACTIVE_STATS.includes(e.status));
     const depts         = [...new Set(active.map(e=>e.divisi||e.departemen).filter(Boolean))].sort();
+    if (_searchQ) { const q=_searchQ.toLowerCase(); active=active.filter(e=>(e.nama||'').toLowerCase().includes(q)||(e.jabatan||'').toLowerCase().includes(q)||(e.nik||'').toLowerCase().includes(q)||(e.divisi||'').toLowerCase().includes(q)); }
 
     let filtered = active;
     if (_filterStatus) filtered = filtered.filter(e=>e.status===_filterStatus);
