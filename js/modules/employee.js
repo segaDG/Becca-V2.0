@@ -27,7 +27,9 @@ const EmployeeModule = (() => {
     const sz = size || 32;
     const initials = (emp.nama||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
     const color = _empColor(emp.nama);
-    const photoUrl = emp.fotoUrl || emp.thumb || emp.foto || emp.photo || '';
+    // Google Drive foto tidak bisa diakses langsung (CORS block) - gunakan inisial
+    const _rawFoto = emp.fotoUrl || emp.thumb || emp.foto || emp.photo || '';
+    const photoUrl = (_rawFoto && _rawFoto.startsWith('data:')) ? _rawFoto : '';
     if (photoUrl) {
       const eid = (emp.id||'').replace(/'/g,'');
       return '<img src="'+photoUrl+'" style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;object-fit:cover;cursor:zoom-in"'
