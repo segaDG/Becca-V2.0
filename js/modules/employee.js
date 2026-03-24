@@ -454,8 +454,8 @@ const EmployeeModule = (() => {
     const allBulans = [...new Set(_logs.map(l=>l.bulan).filter(b=>b))].sort((a,b)=>a-b);
     const BULAN_LABEL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
 
-    const totalHutang = _logs.reduce((s,l)=>s+(l.hutang||0), 0);
-    const totalBayar  = _logs.reduce((s,l)=>s+(l.bayar||0),  0);
+    const totalHutang = _logs.reduce((s,l)=>s+(l.hutang||(l.jenis==='BERHUTANG'?l.jumlah:0)||0), 0);
+    const totalBayar  = _logs.reduce((s,l)=>s+(l.bayar||(l.jenis==='BAYAR HUTANG'?l.jumlah:0)||0), 0);
     const saldo       = totalHutang - totalBayar;
 
     document.getElementById('emp-tab-logbook').innerHTML = `
@@ -506,9 +506,8 @@ const EmployeeModule = (() => {
       <div class="table-wrapper"><div class="table-scroll">
         <table class="table" style="font-size:12px">
           <thead><tr>
-            <th style="width:90px">Tanggal</th>
+            <th style="width:100px">Tanggal</th>
             <th>Nama Karyawan</th>
-            <th style="width:60px;text-align:center">Bulan</th>
             <th>Keterangan</th>
             <th>Penanggung Jawab</th>
             <th class="num" style="color:var(--danger)">Hutang</th>
@@ -546,26 +545,26 @@ const EmployeeModule = (() => {
     const from        = document.getElementById('lb-filter-from')?.value  || '';
     const to          = document.getElementById('lb-filter-to')?.value    || '';
     const canEdit     = Auth.can('employee','edit');
-    const cols        = canEdit ? 9 : 8;
+    const cols        = canEdit ? 8 : 7;
 
-    let logs = [..._logs].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    let logs = [..._logs].sort((a,b)=>((b.tanggal||b.tgl||'')).localeCompare((a.tanggal||a.tgl||'')));
     if (filterNama)            logs = logs.filter(l=>l.nama===filterNama);
     if (filterBulan)           logs = logs.filter(l=>String(l.bulan)===filterBulan);
     if (filterKonf !== '_all_') logs = logs.filter(l=>l.konfirmasi===filterKonf);
-    if (from) logs = logs.filter(l=>(l.tgl||'')>=from);
-    if (to)   logs = logs.filter(l=>(l.tgl||'')<=to);
+    if (from) logs = logs.filter(l=>((l.tanggal||l.tgl)||'')>=from);
+    if (to)   logs = logs.filter(l=>((l.tanggal||l.tgl)||'')<=to);
 
     if (!logs.length) return `<tr><td colspan="${cols}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</td></tr>`;
 
     // Subtotal rows
-    const subHutang = logs.reduce((s,l)=>s+(l.hutang||0),0);
-    const subBayar  = logs.reduce((s,l)=>s+(l.bayar||0),0);
+    const subHutang = logs.reduce((s,l)=>s+(l.hutang||(l.jenis==='BERHUTANG'?l.jumlah:0)||0),0);
+    const subBayar  = logs.reduce((s,l)=>s+(l.bayar||(l.jenis==='BAYAR HUTANG'?l.jumlah:0)||0),0);
 
     const rows = logs.map((l,i) => _lbRowView(l, i+1)).join('');
 
     // Footer subtotal
     const footer = `<tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--border2)">
-      <td colspan="5" style="font-size:12px;color:var(--text-2)">Subtotal (${logs.length} entri)</td>
+      <td colspan="4" style="font-size:12px;color:var(--text-2)">Subtotal (${logs.length} entri)</td>
       <td class="num" style="font-family:var(--font-mono);color:var(--danger)">${Utils.formatRupiah(subHutang)}</td>
       <td class="num" style="font-family:var(--font-mono);color:var(--success)">${Utils.formatRupiah(subBayar)}</td>
       <td colspan="${canEdit?2:1}"></td>
@@ -954,9 +953,10 @@ const EmployeeModule = (() => {
   function _lbRowView(l, rowNum) {
     const BULAN_LABEL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
     const isLocked  = _lbLocked.has(l.id);
-    const hutang    = l.hutang || 0;
-    const bayar     = l.bayar  || 0;
-    const tglFmt    = l.tgl ? l.tgl.split('-').reverse().join('/') : '-';
+        const hutang   = l.hutang || (l.jenis==='BERHUTANG'?l.jumlah:0) || 0;
+        const bayar    = l.bayar  || (l.jenis==='BAYAR HUTANG'?l.jumlah:0) || 0;
+    const _tglRaw   = l.tanggal || l.tgl;
+    const tglFmt    = _tglRaw ? _tglRaw.slice(8,10)+'-'+_tglRaw.slice(5,7)+'-'+_tglRaw.slice(0,4) : '-';
     const konfBadge = l.konfirmasi==='CONFIRMED'
       ? '<span class="badge badge-success" style="font-size:10px">✓</span>'
       : '<span class="badge badge-neutral" style="font-size:10px">—</span>';
@@ -969,8 +969,7 @@ const EmployeeModule = (() => {
       onclick="${isLocked?`EmployeeModule._showLogDetail('${l.id}')`:`EmployeeModule._lbStartEdit('${l.id}')`}">
       <td style="white-space:nowrap;color:var(--text-2)">${tglFmt}</td>
       <td style="font-weight:600">${l.nama||'-'}</td>
-      <td style="text-align:center;color:var(--text-3)">${BULAN_LABEL[l.bulan]||l.bulan||'-'}</td>
-      <td style="color:var(--text-2)">${l.ket||'-'}</td>
+      <td style="color:var(--text-2)">${l.keterangan||l.ket||'-'}</td>
       <td style="color:var(--text-3);font-size:11px">${l.pj||'-'}</td>
       <td class="num" style="font-family:var(--font-mono);color:${hutang>0?'var(--danger)':'var(--text-3)'};font-weight:${hutang>0?600:400}">${hutang>0?Utils.formatRupiah(hutang):'-'}</td>
       <td class="num" style="font-family:var(--font-mono);color:${bayar>0?'var(--success)':'var(--text-3)'};font-weight:${bayar>0?600:400}">${bayar>0?Utils.formatRupiah(bayar):'-'}</td>
@@ -1160,8 +1159,8 @@ const EmployeeModule = (() => {
   function _recalcHutang(namaKaryawan) {
     // Hitung dari EXACT match nama saja
     const logsForEmp  = _logs.filter(l => l.nama === namaKaryawan);
-    const totalHutang = logsForEmp.reduce((s,l)=>s+(l.hutang||0), 0);
-    const totalBayar  = logsForEmp.reduce((s,l)=>s+(l.bayar||0),  0);
+    const totalHutang = logsForEmp.reduce((s,l)=>s+(l.hutang||(l.jenis==='BERHUTANG'?l.jumlah:0)||0), 0);
+    const totalBayar  = logsForEmp.reduce((s,l)=>s+(l.bayar||(l.jenis==='BAYAR HUTANG'?l.jumlah:0)||0),  0);
     const sisa        = Math.max(0, totalHutang - totalBayar);
     const emp = _employees.find(e=>e.nama===namaKaryawan);
     if (!emp) return;
