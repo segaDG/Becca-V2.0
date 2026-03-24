@@ -64,6 +64,10 @@ const EmployeeModule = (() => {
       <div id="emp-tab-arsip"   class="hidden"></div>
     `;
 
+    // Skeleton
+    const _skelEl = document.getElementById('emp-tab-data');
+    if (_skelEl && !_employees.length) _skelEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="animation:spin 1s linear infinite;opacity:.4"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div style="margin-top:12px;font-size:13px">Memuat data karyawan...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+
     [_employees, _logs] = await Promise.all([
       DB.getEmployees().catch(()=>[]),
       DB.getEmployeeLogs().catch(()=>[]),
@@ -136,7 +140,7 @@ const EmployeeModule = (() => {
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">
           <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Aktif</div>
-          <div style="font-size:18px;font-weight:700;color:var(--success);font-family:var(--font-mono)">${active.filter(e=>['Tetap','ACTIVE','Active'].includes(e.status)).length}</div>
+          <div style="font-size:18px;font-weight:700;color:var(--success);font-family:var(--font-mono)">${active.filter(e=>['AKTIF','ACTIVE','Active','Tetap'].includes(e.status)).length}</div>
         </div>
         ${depts.map(dept => {
           const count = active.filter(e=>(e.divisi||e.departemen)===dept).length;
@@ -199,7 +203,7 @@ const EmployeeModule = (() => {
             <tbody>
               ${filtered.length ? filtered.map((emp, i) => {
                 // avatar handled by _empAvatar helper
-                const _ACTIVE_STATUSES = ['Tetap','ACTIVE','Active'];
+                const _ACTIVE_STATUSES = ['AKTIF','ACTIVE','Active','Tetap'];
                 const _WARN_STATUSES   = ['Kontrak','CONTRACT','Percobaan'];
                 const _DANGER_STATUSES = ['RESIGN','Resign','Nonaktif'];
                 const statusColor = _ACTIVE_STATUSES.includes(emp.status)?'badge-success'
@@ -276,7 +280,7 @@ const EmployeeModule = (() => {
   /* ===================== RENDER CARD ===================== */
   function renderCard(empId) {
     const el = document.getElementById('emp-tab-card');
-    const CARD_ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const CARD_ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian','aktif'];
     const active = _employees.filter(e=>CARD_ACTIVE.includes(e.status));
 
     if (empId) {
@@ -313,7 +317,7 @@ const EmployeeModule = (() => {
   }
 
   function _cardHTML(emp) {
-    const statusColor = ['Tetap','ACTIVE','Active'].includes(emp.status)?'var(--success)'
+    const statusColor = ['AKTIF','ACTIVE','Active','Tetap'].includes(emp.status)?'var(--success)'
       : ['Kontrak','CONTRACT','Percobaan'].includes(emp.status)?'var(--warning)'
       : ['RESIGN','Resign'].includes(emp.status)?'var(--danger)'
       : 'var(--text-3)';
@@ -376,7 +380,7 @@ const EmployeeModule = (() => {
   function _renderSingleCard(el, emp) {
     const empLogs = _logs.filter(l=>((l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))||_nameMatch(l.nama,emp.nama))).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
     const canEdit = Auth.can('employee','edit');
-    const statusColor = ['Tetap','ACTIVE','Active'].includes(emp.status)?'var(--success)'
+    const statusColor = ['AKTIF','ACTIVE','Active','Tetap'].includes(emp.status)?'var(--success)'
       : ['Kontrak','CONTRACT','Percobaan'].includes(emp.status)?'var(--warning)'
       : ['RESIGN','Resign'].includes(emp.status)?'var(--danger)'
       : 'var(--text-3)';
@@ -1125,7 +1129,7 @@ const EmployeeModule = (() => {
     }
 
     tbody.innerHTML = filtered.map((emp, i) => {
-      const _ACTIVE_STATUSES = ['Tetap','ACTIVE','Active'];
+      const _ACTIVE_STATUSES = ['AKTIF','ACTIVE','Active','Tetap'];
       const _WARN_STATUSES   = ['Kontrak','CONTRACT','Percobaan'];
       const _DANGER_STATUSES = ['RESIGN','Resign','Nonaktif'];
       const statusColor = _ACTIVE_STATUSES.includes(emp.status)?'badge-success'
