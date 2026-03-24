@@ -246,15 +246,15 @@ const APModule = (() => {
       return '<tr id="ap-row-'+r.id+'" onclick="APModule.apStartEdit(\''+r.id+'\');" data-bg="'+rowBg+'" style="cursor:pointer;background:'+rowBg+';border-bottom:1px solid var(--border);border-left:3px solid '+cl.bar+'" onmouseover="this.style.background=\'rgba(99,102,241,.08)\'" onmouseout="this.style.background=this.dataset.bg">'
         +'<td style="'+p+'text-align:center;font-size:11px;color:var(--text-3);width:36px">'+(i+1)+'</td>'
         +'<td style="'+p+'font-size:12px;color:var(--text-2);white-space:nowrap;width:88px">'+tglFmt+'</td>'
-        +'<td style="'+p+'min-width:130px"><div style="font-weight:700;font-size:12px;color:var(--heading)">'+( r.supplier||'-')+'</div>'
-          +'<div style="font-size:10px;font-weight:600;color:'+cl.bar+';background:'+cl.bg+';display:inline-block;padding:1px 6px;border-radius:3px;margin-top:2px">'
-          +(supList.indexOf(r.supplier)+1 > 0 ? 'V'+(supList.indexOf(r.supplier)+1).toString().padStart(2,'0') : '')+'</div></td>'
-        +(r.vendor||r.supplier_nama||'-')
+        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2)>'+(r.vendor||r.supplier_nama||'-')+'</td>'
+        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2)">'+(r.item||r.keterangan||'-')+'</td>'
+
+
         +'<td style="'+p+'text-align:right;font-size:12px;font-family:var(--font-mono);width:70px">'+(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0}):'-')+'</td>'
         +'<td style="'+p+'font-size:11px;color:var(--text-3);width:50px">'+(r.satuan||'-')+'</td>'
-        +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--text-3);width:90px">'+(r.hargaSatuan?Utils.formatRupiah(r.hargaSatuan):'-')+'</td>'
+        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);text-align:right;font-family:var(--font-mono)">'+(r.harga_satuan?Utils.formatRupiah(r.harga_satuan):'-')+'</td>'
         +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-weight:700;font-size:12px;width:100px">'+Utils.formatRupiah(r.total||0)+'</td>'
-        +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:12px;color:#10b981;width:100px">'+Utils.formatRupiah(r.terbayar||0)+'</td>'
+        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2)">'+(r.tgl_bayar||'-')+'</td>'
         +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:12px;color:'+(sisa>0?'#ef4444':'var(--text-3)')+';font-weight:'+(sisa>0?700:400)+';width:90px">'+Utils.formatRupiah(sisa)+'</td>'
         +'<td style="'+p+'font-size:11px;color:'+(late?'#ef4444':'var(--text-3)')+';white-space:nowrap;width:82px">'+(late?'⚠️ ':'')+jtFmt+'</td>'
         +'<td style="'+p+'text-align:center;width:72px"><span style="font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;background:'+scBg+';color:'+sc+';border:1px solid '+sc+'44">'+scTxt+'</span></td>'
