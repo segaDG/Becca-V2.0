@@ -228,8 +228,8 @@ const APModule = (() => {
       const badge  = '<span style="background:'+badgeC+'15;color:'+badgeC+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">'+r.status+'</span>';
       const acts   = canEdit
         ? '<td style="'+tdC+'"><div style="display:flex;gap:4px;justify-content:center">'
-          +'<button onclick="APModule.apStartEdit(''+r.id+'')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">✏️</button>'
-          +'<button onclick="APModule._deleteAP(''+r.id+'')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">🗑️</button>'
+          +'<button onclick="APModule.apStartEdit('\''+r.id+'\'')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">✏️</button>'
+          +'<button onclick="APModule._deleteAP('\''+r.id+'\'')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">🗑️</button>'
           +'</div></td>'
         : '<td></td>';
 
