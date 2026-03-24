@@ -186,6 +186,10 @@ const InventoryModule = (() => {
   function renderStok() {
     let filtered = _items;
     if (_filterKat) filtered = filtered.filter(i => i.kategori === _filterKat);
+    if (_search) {
+      const q = _search.toLowerCase();
+      filtered = filtered.filter(i => (i.nama||'').toLowerCase().includes(q) || (i.kategori||'').toLowerCase().includes(q) || (i.satuan||'').toLowerCase().includes(q));
+    }
 
     const totalNilai = filtered.reduce((a, i) => a + (i._stok || 0) * (i.hargaSatuan || 0), 0);
 
@@ -213,6 +217,17 @@ const InventoryModule = (() => {
           <button class="btn btn-sm ${_filterKat===k?'btn-primary':'btn-ghost'}"
                   onclick="InventoryModule.setKatFilter('${k}')">${k}</button>
         `).join('')}
+      </div>
+
+      <!-- Search Bar -->
+      <div style="padding:8px 0 6px;display:flex;align-items:center;gap:10px">
+        <div style="position:relative;flex:1;max-width:300px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-3)"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input id="inv-stok-search" placeholder="Cari nama / kategori..." value="${_search}"
+            style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);outline:none;box-sizing:border-box"
+            oninput="InventoryModule.setSearch(this.value)">
+        </div>
+        <span style="font-size:11px;color:var(--text-3)" id="inv-stok-count">${filtered.length} barang</span>
       </div>
 
       <!-- Table -->
@@ -311,6 +326,7 @@ const InventoryModule = (() => {
 
   function setKatFilter(kat) {
     _filterKat = kat;
+  let _search = '';
     renderStok();
   }
 
@@ -1599,10 +1615,23 @@ const InventoryModule = (() => {
     }
   }
 
+  
+  function setSearch(val) {
+    const inp = document.getElementById('inv-stok-search');
+    const pos = inp ? inp.selectionStart : val.length;
+    _search = (val||'').toLowerCase().trim();
+    renderStok();
+    requestAnimationFrame(()=>{
+      const el = document.getElementById('inv-stok-search');
+      if(el){ el.focus(); try{el.setSelectionRange(pos,pos);}catch(e){} }
+    });
+  }
+
   return {
     init,
     switchTab,
     setKatFilter,
+    setSearch,
     openItemModal,
     _submitItem,
     openTransaksiModal,
