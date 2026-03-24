@@ -223,39 +223,39 @@ const DB = (() => {
     if (!obj.id) obj.id = Utils.uid();
     obj.updated_at = new Date().toISOString();
 
-    const row = { ...obj, data: JSON.stringify(obj) };
-
-    let { data, error } = await sb
-      .from(table)
-      .upsert(row, { onConflict: 'id' })
-      .select()
-      .single();
-
-    // Fallback: jika error karena kolom tidak ada (42703), coba minimal upsert
-    if (error && (error.code === '42703' || error.message?.includes('column') || error.message?.includes('does not exist'))) {
-      console.warn('[DB] save ' + table + ' full-row failed (' + error.code + '), retrying with minimal upsert...');
-      const minimal = { id: obj.id, data: JSON.stringify(obj), updated_at: obj.updated_at };
-      if (!NO_CREATED_AT.includes(table)) {
-        minimal.created_at = obj.created_at || obj.createdAt || new Date().toISOString();
-      }
-      const { data: d2, error: e2 } = await sb
-        .from(table)
-        .upsert(minimal, { onConflict: 'id' })
-        .select()
-        .single();
-      data = d2; error = e2;
+    // Selalu pakai minimal upsert: hanya id + data JSON + timestamps
+    // Menghindari error kolom (42703/PGRST116) karena field BECCA tidak selalu
+    // match nama kolom Supabase. Kolom 'data' adalah source of truth.
+    const minimal = { id: obj.id, data: JSON.stringify(obj), updated_at: obj.updated_at };
+    if (!NO_CREATED_AT.includes(table)) {
+      minimal.created_at = obj.created_at || obj.createdAt || new Date().toISOString();
     }
+
+    // Pakai .select() array, bukan .single() — hindari PGRST116 saat upsert
+    // mengembalikan HTTP 204 (no content / row tidak berubah)
+    const { data: rows, error } = await sb
+      .from(table)
+      .upsert(minimal, { onConflict: 'id' })
+      .select();
 
     if (error) {
       console.warn('[DB] save ' + table + ':', error.message);
       return _lsSave(table, obj);
     }
 
-    const result = _fromRow(data);
+    // Jika upsert sukses tapi tidak return row (204), fetch manual
+    let saved = rows && rows.length > 0 ? rows[0] : null;
+    if (!saved) {
+      const { data: fetched } = await sb.from(table).select('*').eq('id', obj.id).maybeSingle();
+      saved = fetched;
+    }
+
+    const result = _fromRow(saved || minimal);
+    // Pastikan field asli obj tetap ada (minimal tidak punya semua field)
+    const merged = { ...obj, ...result };
     _invalidateCache(table);
-    // Sync localStorage cache
-    _lsSave(table, result);
-    return result;
+    _lsSave(table, merged);
+    return merged;
   }
 
   async function _delete(table, id) {
