@@ -184,93 +184,73 @@ const APModule = (() => {
 
 
   function applyFilter() {
-    const from   = document.getElementById('ap-fil-from')?.value   || '';
-    const to     = document.getElementById('ap-fil-to')?.value     || '';
-    const bulan  = document.getElementById('ap-fil-bulan')?.value  || '';
-    const sup    = document.getElementById('ap-fil-sup')?.value    || '';
-    const status = document.getElementById('ap-fil-status')?.value || '';
-    const today  = new Date().toISOString().split('T')[0];
-    const canEdit = Auth.can('ap','edit');
+    const from   = document.getElementById('ap-fil-from')?.value  || '';
+    const to     = document.getElementById('ap-fil-to')?.value    || '';
+    const bulan  = document.getElementById('ap-fil-bulan')?.value || '';
+    const sup    = document.getElementById('ap-fil-sup')?.value   || '';
+    const status = document.getElementById('ap-fil-status')?.value|| '';
 
-    const COLORS = [
-      {bg:'rgba(99,102,241,.07)',bar:'#6366f1'},{bg:'rgba(16,185,129,.07)',bar:'#10b981'},
-      {bg:'rgba(245,158,11,.07)',bar:'#f59e0b'},{bg:'rgba(236,72,153,.07)',bar:'#ec4899'},
-      {bg:'rgba(59,130,246,.07)',bar:'#3b82f6'},{bg:'rgba(239,68,68,.07)', bar:'#ef4444'},
-    ];
-    const supList = [...new Set(_ap.map(r=>r.supplier).filter(Boolean))].sort();
-    const supColor = {};
-    supList.forEach((s,i)=>{ supColor[s]=COLORS[i%COLORS.length]; });
+    let data = [..._ap];
 
-    let data = [..._ap].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
-    if (from)   data = data.filter(r=>(r.tgl||'')>=from);
-    if (to)     data = data.filter(r=>(r.tgl||'')<=to);
-    if (bulan)  data = data.filter(r=>r.tgl?.startsWith(bulan));
-    if (sup)    data = data.filter(r=>r.supplier===sup);
-    if (status) data = data.filter(r=>r.status===status);
+    if (from)   data = data.filter(r => (r.tgl_transaksi||r.tgl||'') >= from);
+    if (to)     data = data.filter(r => (r.tgl_transaksi||r.tgl||'') <= to);
+    if (bulan)  data = data.filter(r => (r.tgl_transaksi||r.tgl||'').substring(0,7) === bulan);
+    if (sup)    data = data.filter(r => r.supplier_id === sup || (r.vendor||'').toLowerCase().includes(sup.toLowerCase()));
+    if (status) data = data.filter(r => r.status === status);
+
+    const countEl = document.getElementById('ap-count');
+    if (countEl) countEl.textContent = data.length + ' transaksi';
 
     const tbody = document.getElementById('ap-tbody');
-    const footEl = document.getElementById('ap-footer-total');
-    const countEl = document.getElementById('ap-count-label');
-    if (countEl) countEl.textContent = data.length+' transaksi';
     if (!tbody) return;
 
     if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data yang cocok</td></tr>';
-      if (footEl) footEl.innerHTML = '';
+      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--text-3)">Tidak ada data AP</td></tr>';
+      _updateSummaryCards(data);
       return;
     }
 
-    tbody.innerHTML = data.map((r,i) => {
-      const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.terbayar||r.jumlah_bayar||0);
-      const late   = r.jatuhTempo && r.status!=='LUNAS' && r.jatuhTempo<today;
-      const cl     = supColor[r.supplier] || COLORS[0];
-      const sc     = r.status==='LUNAS'?'#10b981':'#ef4444';
-      const scBg   = r.status==='LUNAS'?'rgba(16,185,129,.1)':'rgba(239,68,68,.1)';
-      const scTxt  = r.status==='LUNAS'?'LUNAS':'BELUM';
-      const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
-      const jtFmt  = r.jatuhTempo?r.jatuhTempo.split('-').reverse().join('/'):'-';
-      const rowBg  = late ? 'rgba(239,68,68,0.04)' : (i%2===1?'var(--surface2)':'transparent');
-      const hoverBg = 'rgba(99,102,241,.06)';
-      const p = 'padding:9px 10px;';
-      const acts = canEdit
-        ? '<td style="'+p+'width:56px"><div style="display:flex;gap:2px;justify-content:center">'
-          +'<button onclick="event.stopPropagation();APModule.openModal(\''+r.id+'\');" title="Edit" style="width:24px;height:24px;border-radius:5px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);display:flex;align-items:center;justify-content:center;font-size:10px">'
-          +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>'
-          +'</button>'
-          +'<button onclick="event.stopPropagation();APModule._deleteAP(\''+r.id+'\');" title="Hapus" style="width:24px;height:24px;border-radius:5px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);display:flex;align-items:center;justify-content:center">'
-          +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>'
-          +'</button>'
+    const canEdit = Auth.can('ap','edit');
+    const tdL = 'padding:8px 16px;font-size:11px;color:var(--text-2)';
+    const tdR = 'padding:8px 16px;font-size:11px;color:var(--text-3);text-align:right;font-family:var(--font-mono)';
+    const tdC = 'padding:8px 16px;font-size:11px;text-align:center';
+
+    const fmtDate = (d) => {
+      if (!d) return '-';
+      const p = String(d).substring(0,10).split('-');
+      return p.length === 3 ? p[2]+'/'+p[1]+'/'+p[0] : d;
+    };
+
+    tbody.innerHTML = data.map((r, i) => {
+      const sisa = (r.status==='LUNAS'||r.status==='lunas') ? 0
+                 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
+      const badgeC = r.status==='LUNAS' ? '#10b981' : '#ef4444';
+      const badge  = '<span style="background:'+badgeC+'15;color:'+badgeC+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">'+r.status+'</span>';
+      const acts   = canEdit
+        ? '<td style="'+tdC+'"><div style="display:flex;gap:4px;justify-content:center">'
+          +'<button onclick="APModule.apStartEdit(''+r.id+'')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">✏️</button>'
+          +'<button onclick="APModule._deleteAP(''+r.id+'')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">🗑️</button>'
           +'</div></td>'
-        : '';
+        : '<td></td>';
 
-      return '<tr id="ap-row-'+r.id+'" onclick="APModule.apStartEdit(\''+r.id+'\');" data-bg="'+rowBg+'" style="cursor:pointer;background:'+rowBg+';border-bottom:1px solid var(--border);border-left:3px solid '+cl.bar+'" onmouseover="this.style.background=\'rgba(99,102,241,.08)\'" onmouseout="this.style.background=this.dataset.bg">'
-        +'<td style="'+p+'text-align:center;font-size:11px;color:var(--text-3);width:36px">'+(i+1)+'</td>'
-        +'<td style="'+p+'font-size:12px;color:var(--text-2);white-space:nowrap;width:88px">'+tglFmt+'</td>'
-        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2)>'+(r.vendor||r.supplier_nama||'-')+'</td>'
-        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2)">'+(r.item||r.keterangan||'-')+'</td>'
-
-
-        +'<td style="'+p+'text-align:right;font-size:12px;font-family:var(--font-mono);width:70px">'+(r.qty?Number(r.qty).toLocaleString('id',{minimumFractionDigits:r.qty%1?2:0}):'-')+'</td>'
-        +'<td style="'+p+'font-size:11px;color:var(--text-3);width:50px">'+(r.satuan||'-')+'</td>'
-        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);text-align:right;font-family:var(--font-mono)">'+(r.harga_satuan?Utils.formatRupiah(r.harga_satuan):'-')+'</td>'
-        +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-weight:700;font-size:12px;width:100px">'+Utils.formatRupiah(r.total||0)+'</td>'
-        +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2)">'+(r.tgl_bayar||'-')+'</td>'
-        +'<td style="'+p+'text-align:right;font-family:var(--font-mono);font-size:12px;color:'+(sisa>0?'#ef4444':'var(--text-3)')+';font-weight:'+(sisa>0?700:400)+';width:90px">'+Utils.formatRupiah(sisa)+'</td>'
-        +'<td style="'+p+'font-size:11px;color:'+(late?'#ef4444':'var(--text-3)')+';white-space:nowrap;width:82px">'+(late?'⚠️ ':'')+jtFmt+'</td>'
-        +'<td style="'+p+'text-align:center;width:72px"><span style="font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;background:'+scBg+';color:'+sc+';border:1px solid '+sc+'44">'+scTxt+'</span></td>'
+      return '<tr style="border-bottom:.5px solid var(--border)">'
+        +'<td style="'+tdR+';width:36px">'+( i+1)+'</td>'
+        +'<td style="'+tdL+';white-space:nowrap">'+fmtDate(r.tgl_transaksi||r.tgl)+'</td>'
+        +'<td style="'+tdL+'">'+(r.vendor||r.supplier_nama||'-')+'</td>'
+        +'<td style="'+tdL+'">'+(r.item||r.keterangan||'-')+'</td>'
+        +'<td style="'+tdR+'">'+(r.qty ? Number(r.qty).toLocaleString('id-ID')+' '+(r.satuan||'') : '-')+'</td>'
+        +'<td style="'+tdL+'">'+(r.satuan||'-')+'</td>'
+        +'<td style="'+tdR+'">'+(r.harga_satuan ? Utils.formatRupiah(r.harga_satuan) : '-')+'</td>'
+        +'<td style="'+tdR+';font-weight:600">'+Utils.formatRupiah(r.total)+'</td>'
+        +'<td style="'+tdL+';white-space:nowrap">'+(r.tgl_bayar||'-')+'</td>'
+        +'<td style="'+tdC+'">-</td>'
+        +'<td style="'+tdC+'">-</td>'
+        +'<td style="'+tdC+'">'+badge+'</td>'
         +acts
         +'</tr>';
     }).join('');
 
-    // Footer total
-    const gt  = data.reduce((s,r)=>s+(r.total||0),0);
-    const gb  = data.reduce((s,r)=>s+(r.terbayar||0),0);
-    const gs  = gt-gb;
-    if (footEl) footEl.innerHTML =
-      '<span style="color:var(--text-3);font-size:11px">'+data.length+' transaksi</span>'
-      +'<span style="margin-left:auto;color:var(--text-2)">Total: <strong>'+Utils.formatRupiah(gt)+'</strong></span>'
-      +'<span style="color:#10b981">Dibayar: <strong>'+Utils.formatRupiah(gb)+'</strong></span>'
-      +'<span style="color:#ef4444">Sisa: <strong>'+Utils.formatRupiah(gs)+'</strong></span>';
+    _updateSummaryCards(data);
   }
 
 
