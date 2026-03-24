@@ -98,7 +98,12 @@ const DB = (() => {
     if (row.data) {
       try { base = typeof row.data === 'string' ? JSON.parse(row.data) : row.data; } catch {}
     }
-    const merged = { ...base, ...row, data: undefined };
+    const merged = { ...base };
+    Object.entries(row).forEach(([k, v]) => {
+      if (k === 'data') return;
+      if (v !== null && v !== undefined) merged[k] = v;
+    });
+    merged.data = undefined;
 
     // Normalize: tambah alias camelCase untuk field yang dipakai BECCA
     if (merged.nama && !merged.namaPerusahaan) merged.namaPerusahaan = merged.nama;
@@ -220,11 +225,26 @@ const DB = (() => {
 
     const row = { ...obj, data: JSON.stringify(obj) };
 
-    const { data, error } = await sb
+    let { data, error } = await sb
       .from(table)
       .upsert(row, { onConflict: 'id' })
       .select()
       .single();
+
+    // Fallback: jika error karena kolom tidak ada (42703), coba minimal upsert
+    if (error && (error.code === '42703' || error.message?.includes('column') || error.message?.includes('does not exist'))) {
+      console.warn('[DB] save ' + table + ' full-row failed (' + error.code + '), retrying with minimal upsert...');
+      const minimal = { id: obj.id, data: JSON.stringify(obj), updated_at: obj.updated_at };
+      if (!NO_CREATED_AT.includes(table)) {
+        minimal.created_at = obj.created_at || obj.createdAt || new Date().toISOString();
+      }
+      const { data: d2, error: e2 } = await sb
+        .from(table)
+        .upsert(minimal, { onConflict: 'id' })
+        .select()
+        .single();
+      data = d2; error = e2;
+    }
 
     if (error) {
       console.warn('[DB] save ' + table + ':', error.message);
@@ -560,14 +580,19 @@ const DB = (() => {
         const rows = JSON.parse(localStorage.getItem(lsKey) || '[]');
         if (!rows.length) continue;
 
-        // Upsert semua rows
-        const toInsert = rows.map(r => ({
-          ...r,
-          id:   r.id || Utils.uid(),
-          data: JSON.stringify(r),
-          updated_at: r.updatedAt || r.updated_at || new Date().toISOString(),
-          created_at: r.createdAt || r.created_at || new Date().toISOString(),
-        }));
+        // Upsert minimal: hanya id + data JSON blob + timestamps
+        // Hindari spread ...r karena bisa include kolom yang tidak ada di Supabase (error 42703)
+        const toInsert = rows.map(r => {
+          const minimal = {
+            id:         r.id || Utils.uid(),
+            data:       JSON.stringify(r),
+            updated_at: r.updatedAt || r.updated_at || new Date().toISOString(),
+          };
+          if (!NO_CREATED_AT.includes(table)) {
+            minimal.created_at = r.createdAt || r.created_at || new Date().toISOString();
+          }
+          return minimal;
+        });
 
         const { error } = await sb.from(table).upsert(toInsert, { onConflict: 'id' });
         if (error) {
