@@ -238,7 +238,7 @@ const APModule = (() => {
         +'<td style="'+tdL+';white-space:nowrap">'+fmtDate(r.tgl_transaksi||r.tgl)+'</td>'
         +'<td style="'+tdL+'">'+(r.vendor||r.supplier_nama||'-')+'</td>'
         +'<td style="'+tdL+'">'+(r.item||r.keterangan||'-')+'</td>'
-        +'<td style="'+tdR+'">'+(r.qty ? Number(r.qty).toLocaleString('id-ID')+' '+(r.satuan||'') : '-')+'</td>'
+        +'<td style="'+tdR+'">'+(r.qty ? Number(r.qty).toLocaleString('id-ID') : '-')+'</td>'
         +'<td style="'+tdL+'">'+(r.satuan||'-')+'</td>'
         +'<td style="'+tdR+'">'+(r.harga_satuan ? Utils.formatRupiah(r.harga_satuan) : '-')+'</td>'
         +'<td style="'+tdR+';font-weight:600">'+Utils.formatRupiah(r.total)+'</td>'
@@ -1216,7 +1216,7 @@ const APModule = (() => {
 
   /* ============= AP SUMMARY PER SUPPLIER ============= */
   async function renderSummaryAP() {
-    const page = document.getElementById('ap-summary-content');
+    const page = document.getElementById('ap-tab-summary');
     if (!page) return;
     page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3)">Memuat data summary...</div>';
 
