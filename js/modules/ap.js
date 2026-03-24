@@ -226,12 +226,12 @@ const APModule = (() => {
                  : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
       const badgeC = r.status==='LUNAS' ? '#10b981' : '#ef4444';
       const badge  = '<span style="background:'+badgeC+'15;color:'+badgeC+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">'+r.status+'</span>';
-      const acts   = canEdit
-        ? '<td style="'+tdC+'"><div style="display:flex;gap:4px;justify-content:center">'
-          +'<button onclick="APModule.apStartEdit('\''+r.id+'\'')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">✏️</button>'
-          +'<button onclick="APModule._deleteAP('\''+r.id+'\'')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">🗑️</button>'
-          +'</div></td>'
-        : '<td></td>';
+      const acts = canEdit
+  ? '<td style="padding:8px 16px;text-align:center"><div style="display:flex;gap:4px;justify-content:center">'
+    +'<button onclick="APModule.apStartEdit(\'' + r.id + '\')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">✏️</button>'
+    +'<button onclick="APModule._deleteAP(\'' + r.id + '\')" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px">🗑️</button>'
+    +'</div></td>'
+  : '<td></td>';
 
       return '<tr style="border-bottom:.5px solid var(--border)">'
         +'<td style="'+tdR+';width:36px">'+( i+1)+'</td>'
