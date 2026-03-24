@@ -27,7 +27,14 @@ const App = {
       if (DB.isReady() && !localStorage.getItem('becca_migrated_v3')) {
         localStorage.setItem('becca_migrated_v3', '1');
         DB.migrateFromLocalStorage()
-          .then(n => { if (n > 0) Notify.success('Sinkronisasi data selesai: ' + n + ' item tersync ke cloud ✓'); })
+          .then(n => {
+            if (n > 0) Notify.success('Sinkronisasi data selesai: ' + n + ' item tersync ke cloud ✓');
+            // Bersihkan localStorage untuk NO_CACHE tables — data sudah ada di Supabase
+            // Mencegah data lama terus di-merge dengan hasil Supabase
+            ['tasks','ap','suppliers','customers','users'].forEach(t => {
+              localStorage.removeItem('becca_' + t);
+            });
+          })
           .catch(() => {});
       }
     }).catch(()=>{});

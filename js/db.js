@@ -189,9 +189,6 @@ const DB = (() => {
       }
     }
 
-    // Simpan ke memory cache
-    _memCache[table] = { ts: Date.now(), data: result };
-
     // Cache ke localStorage hanya untuk table non-realtime
     if (result.length > 0 && !NO_CACHE.includes(table)) {
       try { localStorage.setItem('becca_' + table, JSON.stringify(result)); } catch {}
@@ -208,6 +205,9 @@ const DB = (() => {
         if (pending.length) result = [...pending, ...result];
       } catch {}
     }
+
+    // Simpan ke memory cache SETELAH merge LS agar hasil konsisten
+    _memCache[table] = { ts: Date.now(), data: result };
 
     return result;
   }
