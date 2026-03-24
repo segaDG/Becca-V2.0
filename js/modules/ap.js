@@ -1151,7 +1151,7 @@ const APModule = (() => {
     });
     const orig = row._orig; delete row._orig;
     _apEditId = null;
-    DB.saveAP(row).then(()=>{ _apLocked.add(id); _apSaveLocks(); applyFilter(); Notify.success('AP disimpan!'); }).catch(e=>Notify.error('Gagal',e.message));
+    DB.saveAP(row).then(()=>{ _apLocked.add(id); _apSaveLocks(); if (!_apEditId) applyFilter(); Notify.success('AP disimpan!'); }).catch(e=>Notify.error('Gagal',e.message));
   }
 
   function _apCancel(id) {

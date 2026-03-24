@@ -101,7 +101,9 @@ const Auth = {
   },
 
   _getPrivileges(role) {
-    const custom = Utils.ls.get('becca_privileges');
+    // Baca langsung dari localStorage (bukan via Utils.ls agar tidak double-prefix 'becca_becca_')
+    let custom = null;
+    try { custom = JSON.parse(localStorage.getItem('becca_privileges') || 'null'); } catch {}
     if (custom && custom[role]) return custom[role];
     return this._defaultPrivileges[role] || {};
   },

@@ -530,7 +530,10 @@ const SettingsModule = (() => {
         else if (viewEl?.checked) custom[role][feat] = 'view';
       });
     });
-    Utils.ls.set('becca_privileges', custom);
+    // Simpan ke localStorage dengan key langsung (bukan via Utils.ls agar tidak double-prefix)
+    localStorage.setItem('becca_privileges', JSON.stringify(custom));
+    // Sync ke Supabase agar berlaku di semua device
+    DB.saveSettings({ _privileges: custom });
     Notify.success('Hak akses disimpan! Refresh untuk menerapkan.');
     DB.logActivity({type:'update_privileges', detail:'Hak akses diperbarui'});
     // Visual feedback langsung di tombol

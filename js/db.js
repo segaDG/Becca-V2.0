@@ -384,7 +384,31 @@ const DB = (() => {
       if (data?.data) {
         try {
           const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-          return { ...parsed, id: 'main' };
+          // Deteksi korupsi: semua key adalah angka (terjadi jika string di-spread sebagai object)
+          const keys = Object.keys(parsed);
+          const isCorrupted = keys.length > 0 && keys.every(k => !isNaN(k));
+          if (!isCorrupted) {
+            // Sync privileges ke localStorage agar Auth bisa baca antar device
+            if (parsed._privileges) {
+              try { localStorage.setItem('becca_privileges', JSON.stringify(parsed._privileges)); } catch {}
+            }
+            return { ...parsed, id: 'main' };
+          }
+          console.warn('[DB] Settings Supabase korup (char-indexed) — pakai localStorage');
+          // Auto-repair: jika localStorage punya data valid, push ke Supabase sekali
+          try {
+            const localRaw = localStorage.getItem('becca_settings');
+            if (localRaw) {
+              const localParsed = JSON.parse(localRaw);
+              if (typeof localParsed === 'object' && !Array.isArray(localParsed) &&
+                  Object.keys(localParsed).length > 0) {
+                sb.from('settings').upsert(
+                  { id: 'main', data: JSON.stringify({ ...localParsed, id: 'main' }), updated_at: new Date().toISOString() },
+                  { onConflict: 'id' }
+                ).then(() => console.log('[DB] Settings auto-repaired ✓')).catch(() => {});
+              }
+            }
+          } catch {}
         } catch {}
       }
     }
@@ -396,6 +420,10 @@ const DB = (() => {
     } catch { return {}; }
   };
   const saveSettings = async (data) => {
+    // Guard: jika data berupa string, parse dulu (mencegah char-spread korupsi)
+    if (typeof data === 'string') {
+      try { data = JSON.parse(data); } catch { data = {}; }
+    }
     // Merge dengan settings lokal (supaya githubToken dll tidak hilang)
     const local = JSON.parse(localStorage.getItem('becca_settings') || '{}');
     const merged = { ...local, ...data, id: 'main' };
