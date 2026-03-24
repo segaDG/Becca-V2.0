@@ -139,7 +139,7 @@ const EmployeeModule = (() => {
         ${depts.map(dept => {
           const count = active.filter(e=>(e.divisi||e.departemen)===dept).length;
           const deptEsc = dept.replace(/'/g,"\'");
-          return `<div onclick="EmployeeModule.viewCard('${emp.id}')" style="cursor:pointer" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer"
+          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer"
             onclick="EmployeeModule.setFilter('dept','${deptEsc}')" title="Filter: ${dept}">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">${dept}</div>
             <div style="font-size:18px;font-weight:700;color:var(--primary-h);font-family:var(--font-mono)">${count}</div>
@@ -318,7 +318,7 @@ const EmployeeModule = (() => {
     const empLogs = _logs.filter(l=>((l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))||_nameMatch(l.nama,emp.nama))).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,3);
     const canEdit = Auth.can('employee','edit');
 
-    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+    return `<div onclick="EmployeeModule.viewCard('${emp.id}')" style="cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
                          overflow:hidden;transition:all .2s;"
                   onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)';this.style.boxShadow='var(--shadow-md)'"
                   onmouseout="this.style.borderColor='var(--border)';this.style.transform='';this.style.boxShadow=''">
@@ -596,7 +596,7 @@ const EmployeeModule = (() => {
             ${Auth.can('employee','edit')?'<th>Aksi</th>':''}
           </tr></thead>
           <tbody>
-            ${arsip.length ? arsip.map((emp,i)=>`<tr>
+            ${arsip.length ? arsip.map((emp,i)=>`<tr style="cursor:pointer" onclick="EmployeeModule.viewCard('${emp.id}')">
               <td class="text-muted">${i+1}</td>
               <td>
                 <div style="display:flex;align-items:center;gap:8px">
