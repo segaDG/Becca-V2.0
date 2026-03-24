@@ -1215,186 +1215,189 @@ const APModule = (() => {
   }
 
   /* ============= AP SUMMARY PER SUPPLIER ============= */
-  function renderSummaryAP() {
-    const el = document.getElementById('ap-tab-summary');
-    if (!el) return;
+  async function renderSummaryAP() {
+    const page = document.getElementById('ap-summary-content');
+    if (!page) return;
+    page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3)">Memuat data summary...</div>';
 
-    const MONTHS_ORDER = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-    const BL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
-    const NORM = {'Jan':'Januari','Febuari':'Februari','Feb':'Februari','Mar':'Maret','Apr':'April','Ags':'Agustus','Sep':'September','Okt':'Oktober','Des':'Desember'};
+    const raw = await DB.getAP();
+    if (!Array.isArray(raw)) { page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--danger)">Gagal memuat data</div>'; return; }
 
-    // All AP months
-    const allMonths = [...new Set(_ap.map(r=>r.tgl?.substring(0,7)).filter(Boolean))].sort();
-    const monthLabels = allMonths.map(m=>{ const[y,mo]=m.split('-'); return BL[parseInt(mo)]+'\''+(y.slice(2)); });
+    // Flatten data field
+    const data = raw.map(r => { const f={...r}; if(r.data&&typeof r.data==='object') Object.assign(f,r.data); return f; });
 
-    // Per-supplier stats
-    const supMap = {};
-    _ap.forEach(r => {
-      if (!r.supplier) return;
-      if (!supMap[r.supplier]) supMap[r.supplier] = {
-        nama: r.supplier, totalAll:0, terbayarAll:0,
-        lunas:0, belum:0, cicilan:0, total:0,
-        byMonth: {},
-      };
-      const s    = supMap[r.supplier];
-        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
-      s.totalAll    += r.total||0;
-      s.terbayarAll += r.terbayar||0;
-      s.total++;
-      if (r.status==='LUNAS')   s.lunas++;
-      else if (r.status==='CICILAN') s.cicilan++;
-      else s.belum++;
-      // Monthly breakdown
-      const mo = r.tgl?.substring(0,7)||'';
-      if (!s.byMonth[mo]) s.byMonth[mo] = {total:0, terbayar:0};
-      s.byMonth[mo].total    += r.total||0;
-      s.byMonth[mo].terbayar += r.terbayar||0;
+    // --- Aggregate per vendor ---
+    const vendorMap = {};
+    data.forEach(r => {
+      const v = r.vendor || r.supplier_nama || r.keterangan?.split(' | ')[0] || 'Unknown';
+      if (!vendorMap[v]) vendorMap[v] = { vendor:v, count:0, total:0, paid:0, unpaid:0, bulanData:{} };
+      vendorMap[v].count++;
+      vendorMap[v].total += (r.total||0);
+      if (r.status==='LUNAS') vendorMap[v].paid += (r.total||0);
+      else vendorMap[v].unpaid += (r.total||0);
+      // Per bulan
+      const bln = (r.tgl_transaksi||r.tgl||'').substring(0,7);
+      if (bln) {
+        vendorMap[v].bulanData[bln] = (vendorMap[v].bulanData[bln]||0) + (r.total||0);
+      }
     });
+    const vendors = Object.values(vendorMap).sort((a,b) => b.total - a.total);
 
-    const supList = Object.values(supMap).sort((a,b)=>b.totalAll-a.totalAll);
-    const grandTotal    = supList.reduce((s,x)=>s+x.totalAll,0);
-    const grandTerbayar = supList.reduce((s,x)=>s+x.terbayarAll,0);
-    const grandSisa     = grandTotal - grandTerbayar;
+    // --- Aggregate per bulan ---
+    const bulanMap = {};
+    data.forEach(r => {
+      const bln = (r.tgl_transaksi||r.tgl||'').substring(0,7);
+      if (!bln) return;
+      if (!bulanMap[bln]) bulanMap[bln] = { bulan:bln, count:0, total:0, paid:0, vendors:new Set() };
+      bulanMap[bln].count++;
+      bulanMap[bln].total += (r.total||0);
+      if (r.status==='LUNAS') bulanMap[bln].paid += (r.total||0);
+      bulanMap[bln].vendors.add(r.vendor||'?');
+    });
+    const bulans = Object.values(bulanMap).sort((a,b) => a.bulan.localeCompare(b.bulan));
 
-    // Stats cards
-    const statsHtml = [
-      {l:'Total AP',      v:Utils.formatRupiah(grandTotal,true),    c:'#6366f1', sub:_ap.length+' transaksi'},
-      {l:'Sudah Dibayar', v:Utils.formatRupiah(grandTerbayar,true), c:'#10b981', sub:_ap.filter(r=>r.status==='LUNAS').length+' lunas'},
-      {l:'Sisa Hutang',   v:Utils.formatRupiah(grandSisa,true),     c:'#ef4444', sub:_ap.filter(r=>r.status!=='LUNAS').length+' belum lunas'},
-      {l:'Supplier',      v:supList.length+' supplier',              c:'#f59e0b', sub:allMonths.length+' bulan data'},
-    ].map(s=>
-      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;position:relative;overflow:hidden">'
-      +'<div style="position:absolute;top:0;left:0;width:4px;height:100%;background:'+s.c+'"></div>'
-      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:4px">'+s.l+'</div>'
-      +'<div style="font-size:20px;font-weight:800;color:'+s.c+';font-family:var(--font-mono)">'+s.v+'</div>'
-      +'<div style="font-size:10px;color:var(--text-3);margin-top:3px">'+s.sub+'</div>'
-      +'</div>'
-    ).join('');
+    // --- Grand totals ---
+    const grandTotal  = data.reduce((s,r)=>s+(r.total||0),0);
+    const grandPaid   = data.filter(r=>r.status==='LUNAS').reduce((s,r)=>s+(r.total||0),0);
+    const grandUnpaid = grandTotal - grandPaid;
+    const grandCount  = data.length;
+    const lunasCnt    = data.filter(r=>r.status==='LUNAS').length;
 
-    // Table rows per supplier
-    const PALETTE = ['#6366f1','#10b981','#f59e0b','#ef4444','#ec4899','#3b82f6','#8b5cf6','#06b6d4','#84cc16','#f97316'];
-    const rowsHtml = supList.map((s, idx) => {
-      const sup  = _suppliers.find(x=>x.nama===s.nama);
-        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
-      const pct  = s.totalAll ? Math.round(s.terbayarAll/s.totalAll*100) : 0;
-      const clr  = PALETTE[idx % PALETTE.length];
-      // Monthly cells
-      const moCells = allMonths.map(m=>{
-        const d = s.byMonth[m];
-        if (!d || !d.total) return '<td style="padding:10px 12px;text-align:right;color:var(--text-3);font-size:11px">—</td>';
-        const s2 = d.total - d.terbayar;
-        return '<td style="padding:10px 12px;text-align:right">'
-          +'<div style="font-family:var(--font-mono);font-size:12px;font-weight:600">'+Utils.formatRupiah(d.total,true)+'</div>'
-          +(s2>0?'<div style="font-size:10px;color:#ef4444">-'+Utils.formatRupiah(s2,true)+'</div>':'<div style="font-size:10px;color:#10b981">✓ Lunas</div>')
-          +'</td>';
-      }).join('');
+    // Bulan names
+    const MONTHS = ['','JAN','FEB','MAR','APR','MEI','JUN','JUL','AGS','SEP','OKT','NOV','DES'];
+    const fmtBln = (b) => { const p=b.split('-'); return MONTHS[parseInt(p[1])]||b; };
+    const fmtRp  = (v) => v>=1e9 ? (v/1e9).toFixed(1)+'M' : v>=1e6 ? (v/1e6).toFixed(1)+'jt' : v>=1e3 ? (v/1e3).toFixed(0)+'rb' : String(v);
+    const fmtFull = (v) => 'Rp '+Number(v).toLocaleString('id-ID');
+    const pct = (a,b) => b>0 ? Math.round(a/b*100) : 0;
 
-      return '<tr style="border-bottom:1px solid var(--border);transition:background .1s">'
-        // Supplier name
-        +'<td style="padding:10px 14px;min-width:180px;position:sticky;left:0;background:var(--surface);z-index:1">'
-          +'<div style="display:flex;align-items:center;gap:8px">'
-            +'<div style="width:28px;height:28px;border-radius:7px;background:'+clr+';color:white;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+s.nama.substring(0,1)+'</div>'
-            +'<div>'
-              +'<div style="font-weight:700;font-size:12px;color:var(--heading)">'+s.nama+'</div>'
-              +(sup?.kategori?'<div style="font-size:10px;color:'+clr+';font-weight:600">'+sup.kategori+'</div>':'')
-            +'</div>'
-          +'</div>'
-        +'</td>'
-        // Total
-        +'<td style="padding:10px 12px;text-align:right;white-space:nowrap">'
-          +'<div style="font-family:var(--font-mono);font-weight:700;font-size:13px">'+Utils.formatRupiah(s.totalAll,true)+'</div>'
-          +'<div style="font-size:10px;color:var(--text-3)">'+s.total+' trx</div>'
-        +'</td>'
-        // Dibayar
-        +'<td style="padding:10px 12px;text-align:right;white-space:nowrap">'
-          +'<div style="font-family:var(--font-mono);font-size:12px;color:#10b981">'+Utils.formatRupiah(s.terbayarAll,true)+'</div>'
-        +'</td>'
-        // Sisa
-        +'<td style="padding:10px 12px;text-align:right;white-space:nowrap">'
-          +'<div style="font-size:12px;font-weight:700;color:'+(sisa>0?'#ef4444':'var(--text-3)')+'">'+_fmtJt(sisa)+'</div>'
-        +'</td>'
-        // Progress bar
-        +'<td style="padding:10px 14px;min-width:100px">'
-          +'<div style="display:flex;align-items:center;gap:6px">'
-            +'<div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden">'
-              +'<div style="width:'+pct+'%;height:100%;background:'+clr+';border-radius:3px"></div>'
-            +'</div>'
-            +'<span style="font-size:10px;font-weight:700;color:'+clr+';width:28px;flex-shrink:0">'+pct+'%</span>'
-          +'</div>'
-        +'</td>'
-        // Status pills
-        +'<td style="padding:10px 12px;white-space:nowrap">'
-          +(s.lunas?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.3)">✓ '+s.lunas+'</span> ':'')
-          +(s.belum?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3)">⏳ '+s.belum+'</span> ':'')
-          +(s.cicilan?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(245,158,11,.1);color:#d97706;border:1px solid rgba(245,158,11,.3)">🔸 '+s.cicilan+'</span>':'')
-        +'</td>'
-        // Monthly breakdown
-        +moCells
-        +'</tr>';
-    }).join('');
+    // Bar chart for vendor
+    const maxV = Math.max(...vendors.map(v=>v.total), 1);
+    const VENDOR_COLORS = ['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#ef4444','#8b5cf6'];
 
-    // Grand total row
-    const grandMonthCells = allMonths.map(m=>{
-      const mTotal = _ap.filter(r=>r.tgl?.startsWith(m)).reduce((s,r)=>s+(r.total||0),0);
-      const mBayar = _ap.filter(r=>r.tgl?.startsWith(m)).reduce((s,r)=>s+(r.terbayar||0),0);
-      return '<td style="padding:10px 12px;text-align:right;background:var(--surface2)">'
-        +(mTotal?'<div style="font-family:var(--font-mono);font-size:12px;font-weight:800">'+Utils.formatRupiah(mTotal,true)+'</div>':'<div style="color:var(--text-3)">—</div>')
-        +'</td>';
-    }).join('');
-
-    const moHeaders = allMonths.map(m=>{
-      const[y,mo]=m.split('-');
-      return '<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);white-space:nowrap">'+BL[parseInt(mo)]+'\''+(y.slice(2))+'</th>';
-    }).join('');
-
-    el.innerHTML = `
-      <!-- Stats -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s3);margin-bottom:var(--s4);min-width:0">
-        ${statsHtml}
+    page.innerHTML = `
+      <!-- Summary Header Cards -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
+        <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:16px;padding:20px;color:#fff">
+          <div style="font-size:11px;opacity:.8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Total AP</div>
+          <div style="font-size:22px;font-weight:800;margin:6px 0">${fmtRp(grandTotal)}</div>
+          <div style="font-size:12px;opacity:.8">${grandCount} transaksi</div>
+        </div>
+        <div style="background:linear-gradient(135deg,#10b981,#059669);border-radius:16px;padding:20px;color:#fff">
+          <div style="font-size:11px;opacity:.8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Sudah Dibayar</div>
+          <div style="font-size:22px;font-weight:800;margin:6px 0">${fmtRp(grandPaid)}</div>
+          <div style="font-size:12px;opacity:.8">${lunasCnt} transaksi lunas</div>
+        </div>
+        <div style="background:linear-gradient(135deg,#ef4444,#dc2626);border-radius:16px;padding:20px;color:#fff">
+          <div style="font-size:11px;opacity:.8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Sisa Hutang</div>
+          <div style="font-size:22px;font-weight:800;margin:6px 0">${fmtRp(grandUnpaid)}</div>
+          <div style="font-size:12px;opacity:.8">${grandCount-lunasCnt} belum lunas</div>
+        </div>
+        <div style="background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:16px;padding:20px;color:#fff">
+          <div style="font-size:11px;opacity:.8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Persentase Lunas</div>
+          <div style="font-size:22px;font-weight:800;margin:6px 0">${pct(grandPaid,grandTotal)}%</div>
+          <div style="font-size:12px;opacity:.8;background:rgba(255,255,255,.2);border-radius:20px;height:6px;margin-top:8px"><div style="background:#fff;height:6px;border-radius:20px;width:${pct(grandPaid,grandTotal)}%"></div></div>
+        </div>
       </div>
 
-      <!-- Summary Table -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-        <!-- Title bar -->
-        <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <div style="font-size:14px;font-weight:800;color:var(--heading)">Summary Transaksi per Supplier</div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:2px">${supList.length} supplier · ${_ap.length} total transaksi · ${allMonths.length} bulan</div>
-          </div>
-          <div style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:4px">
-            <span style="opacity:.5">← scroll horizontal →</span>
-          </div>
+      <!-- Main content 2 columns -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        <!-- Per Vendor Chart -->
+        <div style="background:var(--surface2);border-radius:14px;padding:20px;border:.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px">📊 AP per Vendor</div>
+          ${vendors.map((v,i) => `
+            <div style="margin-bottom:14px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                <div style="font-size:12px;font-weight:600;color:var(--text)">${v.vendor}</div>
+                <div style="font-size:11px;color:var(--text-3)">${v.count}x · ${fmtRp(v.total)}</div>
+              </div>
+              <div style="background:var(--surface3);border-radius:6px;height:8px;overflow:hidden">
+                <div style="background:${VENDOR_COLORS[i%VENDOR_COLORS.length]};height:8px;border-radius:6px;width:${pct(v.total,maxV)}%;transition:width .5s"></div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <span style="font-size:10px;color:#10b981">✓ ${fmtRp(v.paid)}</span>
+                ${v.unpaid>0?'<span style="font-size:10px;color:#ef4444">⚠ '+fmtRp(v.unpaid)+'</span>':''}
+              </div>
+            </div>
+          `).join('')}
         </div>
-        <div style="overflow-x:auto;width:100%">
-          <table style="width:100%;border-collapse:collapse;table-layout:auto">
+
+        <!-- Per Bulan Table -->
+        <div style="background:var(--surface2);border-radius:14px;padding:20px;border:.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px">📅 AP per Bulan</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
             <thead>
-              <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
-                <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);min-width:180px;position:sticky;left:0;background:var(--surface2);z-index:2">Supplier</th>
-                <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Total AP</th>
-                <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Dibayar</th>
-                <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Sisa</th>
-                <th style="padding:10px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);min-width:120px">Lunas %</th>
-                <th style="padding:10px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Status</th>
-                ${moHeaders}
+              <tr style="border-bottom:1px solid var(--border)">
+                <th style="text-align:left;padding:6px 8px;color:var(--text-3);font-weight:600;font-size:10px;text-transform:uppercase">Bulan</th>
+                <th style="text-align:right;padding:6px 8px;color:var(--text-3);font-weight:600;font-size:10px;text-transform:uppercase">Transaksi</th>
+                <th style="text-align:right;padding:6px 8px;color:var(--text-3);font-weight:600;font-size:10px;text-transform:uppercase">Total AP</th>
+                <th style="text-align:right;padding:6px 8px;color:var(--text-3);font-weight:600;font-size:10px;text-transform:uppercase">Lunas</th>
               </tr>
             </thead>
             <tbody>
-              ${rowsHtml}
-              <!-- Grand total -->
-              <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:800">
-                <td style="padding:12px 14px;font-size:12px;font-weight:800;color:var(--text-2);position:sticky;left:0;background:var(--surface2);z-index:1">GRAND TOTAL</td>
-                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:800">${Utils.formatRupiah(grandTotal)}</td>
-                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;color:#10b981">${Utils.formatRupiah(grandTerbayar)}</td>
-                <td style="padding:12px 12px;text-align:right;font-family:var(--font-mono);font-size:13px;color:#ef4444;font-weight:800">${Utils.formatRupiah(grandSisa)}</td>
-                <td style="padding:12px 14px"></td>
-                <td style="padding:12px 12px"></td>
-                ${grandMonthCells}
+              ${bulans.map(b => `
+                <tr style="border-bottom:.5px solid var(--border-light)">
+                  <td style="padding:8px;font-weight:600">${fmtBln(b.bulan)} ${b.bulan.split('-')[0]}</td>
+                  <td style="padding:8px;text-align:right;color:var(--text-3)">${b.count}</td>
+                  <td style="padding:8px;text-align:right;font-weight:600">${fmtRp(b.total)}</td>
+                  <td style="padding:8px;text-align:right">
+                    <div style="background:var(--surface3);border-radius:10px;height:4px;width:60px;margin-left:auto">
+                      <div style="background:#10b981;height:4px;border-radius:10px;width:${pct(b.paid,b.total)}%"></div>
+                    </div>
+                    <div style="font-size:10px;color:var(--text-3);margin-top:2px">${pct(b.paid,b.total)}%</div>
+                  </td>
+                </tr>
+              `).join('')}
+              <tr style="border-top:2px solid var(--border);font-weight:700;background:var(--surface3)">
+                <td style="padding:8px">TOTAL</td>
+                <td style="padding:8px;text-align:right">${grandCount}</td>
+                <td style="padding:8px;text-align:right;color:var(--primary)">${fmtRp(grandTotal)}</td>
+                <td style="padding:8px;text-align:right;color:#10b981">${pct(grandPaid,grandTotal)}%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Detail tabel per vendor -->
+      <div style="background:var(--surface2);border-radius:14px;padding:20px;border:.5px solid var(--border)">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px">📋 Detail AP per Vendor & Bulan</div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:600px">
+            <thead>
+              <tr style="background:var(--surface3);border-radius:8px">
+                <th style="text-align:left;padding:10px 12px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-3)">Vendor / Supplier</th>
+                <th style="text-align:right;padding:10px 12px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-3)">Transaksi</th>
+                ${bulans.map(b=>'<th style="text-align:right;padding:10px 12px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-3)">'+fmtBln(b.bulan)+'</th>').join('')}
+                <th style="text-align:right;padding:10px 12px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-3)">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${vendors.map((v,vi) => `
+                <tr style="border-bottom:.5px solid var(--border-light);cursor:pointer" 
+                    onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background=''">
+                  <td style="padding:10px 12px;font-weight:600">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <div style="width:8px;height:8px;border-radius:50%;background:${VENDOR_COLORS[vi%VENDOR_COLORS.length]};flex-shrink:0"></div>
+                      ${v.vendor}
+                    </div>
+                  </td>
+                  <td style="padding:10px 12px;text-align:right;color:var(--text-3)">${v.count}</td>
+                  ${bulans.map(b=>'<td style="padding:10px 12px;text-align:right;color:var(--text-3);font-family:var(--font-mono)">'+(v.bulanData[b.bulan]?fmtRp(v.bulanData[b.bulan]):'-')+'</td>').join('')}
+                  <td style="padding:10px 12px;text-align:right;font-weight:700;color:var(--primary)">${fmtRp(v.total)}</td>
+                </tr>
+              `).join('')}
+              <tr style="border-top:2px solid var(--border);font-weight:700;background:var(--surface3)">
+                <td style="padding:10px 12px">TOTAL</td>
+                <td style="padding:10px 12px;text-align:right">${grandCount}</td>
+                ${bulans.map(b=>'<td style="padding:10px 12px;text-align:right;font-weight:700;color:var(--primary)">'+fmtRp(b.total)+'</td>').join('')}
+                <td style="padding:10px 12px;text-align:right;font-weight:700;color:var(--primary)">${fmtRp(grandTotal)}</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
     `;
+  }
   }
 
 
