@@ -186,7 +186,11 @@
   font-size: 13.5px;
   transition: all var(--t-base);
   outline: none;
-}
+
+  height: auto;
+  min-height: 36px;
+  line-height: 1.4;
+  box-sizing: border-box;}
 .form-control::placeholder { color: var(--text-3); }
 .form-control:focus {
   border-color: var(--primary);
@@ -428,8 +432,12 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .filter-bar .form-control {
   width: auto;
   min-width: 140px;
-  padding: 6px var(--s3);
+  padding: 7px var(--s3);
   font-size: 13px;
+  height: auto;
+  min-height: 34px;
+  line-height: 1.4;
+  box-sizing: border-box;
 }
 
 /* ===========================
