@@ -92,16 +92,16 @@ const DashboardModule = (() => {
     const totalKeluar   = kas.reduce((s,r)=>s+(r.jumlah||0), 0);
     const totalMasuk    = kasMasuk.reduce((s,r)=>s+(r.kredit||0), 0);
     const saldo         = totalMasuk - totalKeluar;
-    const activeEmp     = employees.filter(e=>e.status==='ACTIVE').length;
+    const activeEmp     = employees.filter(e=>['AKTIF','ACTIVE','aktif','active'].includes(e.status)).length;
     const totalHutang   = employees.reduce((s,e)=>s+(e.sisaHutang||0), 0);
-    const activeItems   = invItems.filter(p=>p.status==='Activated').length;
+    const activeItems   = invItems.filter(p=>['AKTIF','ACTIVE','aktif','active','Activated'].includes(p.status)).length;
     const totalInvValue = invItems.reduce((s,p)=>s+((p.balance||0)*(p.harga||0)), 0);
     const invBelum      = invoices.filter(i=>i.status!=='LUNAS').reduce((s,i)=>s+(i.total||0), 0);
     const apBelum       = apList.filter(a=>a.status!=='LUNAS').reduce((s,a)=>s+(a.total||0), 0);
     const taskOpen      = tasks.filter(t=>t.status!=='done'&&t.status!=='arsip').length;
     const lowStock      = invItems.filter(p=>(p._stok||p.balance||0)<=(p.stokMin||0));
     const recentKas     = [...kas].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,10);
-    const topHutang     = employees.filter(e=>e.status==='ACTIVE'&&(e.sisaHutang||0)>0)
+    const topHutang     = employees.filter(e=>['AKTIF','ACTIVE','aktif','active'].includes(e.status)&&(e.sisaHutang||0)>0)
                            .sort((a,b)=>(b.sisaHutang||0)-(a.sisaHutang||0)).slice(0,5);
 
     const vals = {
