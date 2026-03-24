@@ -17,6 +17,7 @@ const InventoryModule = (() => {
   let _opnameLogs = [];   // stok opname (terpisah)
   let _activeTab = 'stok';
   let _filterKat = '';
+  let _search      = '';
 
   const KATEGORIS = ['Bahan Baku','Bumbu','Minuman','Kemasan','Peralatan','Lain-lain'];
   const SATUANS   = ['kg','gr','liter','ml','pcs','pack','karton','lusin','botol','sachet'];
@@ -326,7 +327,6 @@ const InventoryModule = (() => {
 
   function setKatFilter(kat) {
     _filterKat = kat;
-  let _search = '';
     renderStok();
   }
 
