@@ -254,6 +254,19 @@ const APModule = (() => {
   }
 
 
+  function _updateSummaryCards(data) {
+    const el = document.getElementById('ap-footer-total');
+    if (!el) return;
+    const totalAP    = data.reduce((s, r) => s + (r.total || 0), 0);
+    const totalLunas = data.filter(r => r.status === 'LUNAS' || r.status === 'lunas')
+                           .reduce((s, r) => s + (r.total || 0), 0);
+    const totalBelum = totalAP - totalLunas;
+    el.innerHTML =
+      '<span style="color:var(--text-3)">Total: <b style="color:var(--heading)">' + Utils.formatRupiah(totalAP) + '</b></span>' +
+      '<span style="color:#10b981">Lunas: <b>' + Utils.formatRupiah(totalLunas) + '</b></span>' +
+      '<span style="color:#ef4444">Belum Lunas: <b>' + Utils.formatRupiah(totalBelum) + '</b></span>';
+  }
+
   function resetFilter() {
     ['ap-fil-from','ap-fil-to','ap-fil-bulan','ap-fil-sup','ap-fil-status'].forEach(id=>{
       const el = document.getElementById(id); if(el) el.value='';

@@ -16,7 +16,7 @@ const DB = (() => {
   // Aman karena BECCA punya auth layer sendiri + RLS disabled via app logic
   const _SUPA_URL = 'https://pevwkyrsfpmzhwxkoask.supabase.co';
   const _SUPA_KEY_PARTS = [
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.',
     'eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBldndreXJzZnBtemh3',
     'eGtvYXNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2OTg0MTE',
     'sImV4cCI6MjA4ODI3NDQxMX0',
