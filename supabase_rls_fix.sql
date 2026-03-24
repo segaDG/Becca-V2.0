@@ -56,6 +56,35 @@ GRANT ALL ON public.suppliers        TO anon;
 GRANT ALL ON public.presence         TO anon;
 GRANT ALL ON public.activity_logs    TO anon;
 
+-- ── Drop NOT NULL constraints yang diisi via data JSON column ─
+-- BECCA menyimpan semua field di kolom 'data' (JSONB), bukan di
+-- kolom-kolom individual. Kolom native hanya metadata/index.
+-- NOT NULL pada kolom ini menyebabkan upsert ditolak.
+
+ALTER TABLE IF EXISTS public.tasks
+  ALTER COLUMN title       DROP NOT NULL,
+  ALTER COLUMN description DROP NOT NULL,
+  ALTER COLUMN assignee    DROP NOT NULL,
+  ALTER COLUMN creator     DROP NOT NULL;
+
+ALTER TABLE IF EXISTS public.orders
+  ALTER COLUMN customer_id DROP NOT NULL;
+
+ALTER TABLE IF EXISTS public.invoices
+  ALTER COLUMN order_id    DROP NOT NULL;
+
+ALTER TABLE IF EXISTS public.customers
+  ALTER COLUMN nama        DROP NOT NULL;
+
+ALTER TABLE IF EXISTS public.suppliers
+  ALTER COLUMN nama        DROP NOT NULL;
+
+ALTER TABLE IF EXISTS public.ap
+  ALTER COLUMN supplier_id DROP NOT NULL;
+
+ALTER TABLE IF EXISTS public.employees
+  ALTER COLUMN nama        DROP NOT NULL;
+
 -- ── Verifikasi (opsional: jalankan ini untuk cek hasil) ──────
 -- SELECT tablename, rowsecurity FROM pg_tables
 -- WHERE schemaname = 'public'

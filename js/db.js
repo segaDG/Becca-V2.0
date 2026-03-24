@@ -154,6 +154,14 @@ const DB = (() => {
   // Table yang TIDAK dicache di localStorage (selalu fetch fresh dari Supabase)
   const NO_CACHE = ['customers','users','tasks','suppliers','ap'];
 
+  // Kolom NOT NULL di Supabase yang wajib disertakan dalam minimal upsert
+  // Key = nama kolom Supabase, value = fungsi yang mengambil nilai dari obj BECCA
+  const REQUIRED_COLS = {
+    tasks: (obj) => ({
+      title:  obj.judul || obj.title || '',
+    }),
+  };
+
   // In-memory cache — cleared on save/delete
   const _memCache = {};
   const _CACHE_TTL = 60000; // 60 detik
@@ -230,6 +238,8 @@ const DB = (() => {
     if (!NO_CREATED_AT.includes(table)) {
       minimal.created_at = obj.created_at || obj.createdAt || new Date().toISOString();
     }
+    // Tambahkan kolom NOT NULL yang wajib ada agar tidak ditolak Postgres
+    if (REQUIRED_COLS[table]) Object.assign(minimal, REQUIRED_COLS[table](obj));
 
     // Pakai .select() array, bukan .single() — hindari PGRST116 saat upsert
     // mengembalikan HTTP 204 (no content / row tidak berubah)
