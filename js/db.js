@@ -138,9 +138,19 @@ const DB = (() => {
   // Table yang TIDAK dicache di localStorage (selalu fetch fresh dari Supabase)
   const NO_CACHE = ['customers','users','tasks','suppliers','ap'];
 
+  // In-memory cache — cleared on save/delete
+  const _memCache = {};
+  const _CACHE_TTL = 60000; // 60 detik
+
   async function _get(table) {
     const sb = await _initClient();
     if (!sb) return _lsGet(table);
+
+    // Cek memory cache dulu
+    const cached = _memCache[table];
+    if (cached && (Date.now() - cached.ts) < _CACHE_TTL) {
+      return cached.data;
+    }
 
     let query = sb.from(table).select('*');
     if (!NO_CREATED_AT.includes(table)) {
@@ -169,6 +179,10 @@ const DB = (() => {
       try { localStorage.setItem('becca_' + table, JSON.stringify(result)); } catch {}
     }
     return result;
+  }
+
+  function _invalidateCache(table) {
+    delete _memCache[table];
   }
 
   async function _save(table, obj) {
