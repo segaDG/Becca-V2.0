@@ -99,8 +99,13 @@ const DB = (() => {
       try { base = typeof row.data === 'string' ? JSON.parse(row.data) : row.data; } catch {}
     }
     const merged = { ...base };
+    // Hanya override dengan native column untuk metadata — jangan override
+    // business data dari kolom native (harga, jumlah, dll) karena defaultnya 0
+    // bisa menimpa nilai benar yang ada di data JSON.
+    const META_COLS = new Set(['id', 'created_at', 'updated_at']);
     Object.entries(row).forEach(([k, v]) => {
       if (k === 'data') return;
+      if (!META_COLS.has(k)) return;
       if (v !== null && v !== undefined) merged[k] = v;
     });
     merged.data = undefined;
