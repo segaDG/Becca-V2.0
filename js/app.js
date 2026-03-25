@@ -215,6 +215,10 @@ const App = {
   },
 
   async navigate(pageId) {
+    // Flush any in-progress edits before leaving the page (saves to localStorage without validation)
+    try { if (typeof InventoryModule !== 'undefined') InventoryModule.flushPendingEdit?.(); } catch(e) {}
+    try { if (typeof KasModule !== 'undefined') KasModule.flushPendingEdit?.(); } catch(e) {}
+
     App._closeMobileSidebar();
     App._hideUserMenu();
 

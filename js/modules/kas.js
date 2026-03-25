@@ -3,6 +3,7 @@
    Spreadsheet: click row to edit inline
    AI type suggestion from nama field
 ============================================ */
+console.log('[BECCA] KasModule v20260325d loaded ✓');
 const KasModule = (() => {
   let _kas        = [];
   let _masuk      = [];
@@ -63,10 +64,8 @@ const KasModule = (() => {
     page.innerHTML = _renderShell();
     [_kas, _masuk] = await Promise.all([DB.getKas(), DB.getKasMasuk()]);
     _saldoAwal = _loadSaldoAwal();
-    // Load locks + auto-lock semua rows existing saat init
+    // Load only manually-locked rows from localStorage (no auto-lock all rows)
     try { _kasLocked = new Set(JSON.parse(localStorage.getItem(_KAS_LOCK_KEY)||'[]')); } catch { _kasLocked = new Set(); }
-    _kas.forEach(r => _kasLocked.add(r.id));
-    localStorage.setItem(_KAS_LOCK_KEY, JSON.stringify([..._kasLocked]));
     _editingId = null;
     _pendingChanges = {};
     switchTab('transaksi');
@@ -338,7 +337,11 @@ const KasModule = (() => {
     if (!_editingId) return;
     const editingRow = document.getElementById('ks-row-'+_editingId);
     if (editingRow && !editingRow.contains(e.target)) {
-      commitEdit(_editingId);
+      const id = _editingId;
+      document.removeEventListener('click', _handleOutsideClick);
+      const ok = _doCommit(id);
+      if (ok) _editingId = null;
+      // if !ok: _editingId stays set, listener re-attached inside _doCommit
     }
   }
 
@@ -352,11 +355,12 @@ const KasModule = (() => {
     // FIX: Remove old listener FIRST before committing
     document.removeEventListener('click', _handleOutsideClick);
 
-    // Commit previous if any
+    // Commit previous (with validation — block switching if incomplete)
     if (_editingId) {
       const prevId = _editingId;
       _editingId = null;
-      _doCommit(prevId);
+      const ok = _doCommit(prevId);
+      if (!ok) return; // validation failed, stay on previous row
     }
 
     _editingId = id;
@@ -396,11 +400,22 @@ const KasModule = (() => {
     };
   }
 
-  function _doCommit(id) {
+  function _doCommit(id, skipValidation = false) {
     const row = _kas.find(r=>r.id===id);
-    if (!row) return;
+    if (!row) return true;
     const origStr = row._original || '{}';
     const vals = _readRowFromDOM(id);
+
+    if (!skipValidation) {
+      console.log('[KAS-VALIDATE] nama:', vals.nama);
+      if (!vals.nama || vals.nama.trim() === '') {
+        Notify.warning('Nama / Keterangan wajib diisi sebelum menyimpan');
+        _editingId = id;
+        setTimeout(() => document.addEventListener('click', _handleOutsideClick), 50);
+        return false;
+      }
+    }
+
     Object.assign(row, vals);
     // Change detection - skip save if nothing changed
     const newStr = JSON.stringify({tgl:row.tgl,nama:row.nama,type:row.type,vendor:row.vendor,
@@ -416,7 +431,7 @@ const KasModule = (() => {
       const rowNum  = allRows.indexOf(trEl) + 1 + (_page-1)*_perPage;
       trEl.outerHTML = _rowView(row, rowNum, true);
     }
-    if (!hasChanged) return;  // Nothing changed - skip save+log
+    if (!hasChanged) return true;  // Nothing changed - skip save+log
 
     // Save to DB async
     DB.saveKas(row).then(() => {
@@ -424,13 +439,15 @@ const KasModule = (() => {
       const newTr = document.getElementById('ks-row-'+id);
       if (newTr) { newTr.classList.add('ks-saved'); setTimeout(()=>newTr.classList.remove('ks-saved'),500); }
     }).catch(e => Notify.error('Gagal simpan', e.message));
+    return true;
   }
 
   async function commitEdit(id) {
     if (_editingId !== id) return;
     document.removeEventListener('click', _handleOutsideClick);
-    _editingId = null;
-    _doCommit(id);
+    const ok = _doCommit(id);
+    if (ok) _editingId = null;
+    // if !ok: _editingId stays, listener re-attached in _doCommit
   }
 
   /* ===================== ADD / DELETE ===================== */
@@ -441,7 +458,13 @@ const KasModule = (() => {
   }
 
   async function addRow() {
-    if (_editingId) await commitEdit(_editingId);
+    if (_editingId) {
+      document.removeEventListener('click', _handleOutsideClick);
+      const prevId = _editingId;
+      _editingId = null;
+      const ok = _doCommit(prevId);
+      if (!ok) return; // validation failed, block adding new row
+    }
     const today = new Date().toISOString().split('T')[0];
     const mo    = parseInt(today.split('-')[1]) - 1;
     const newRow = {
@@ -979,6 +1002,15 @@ const KasModule = (() => {
     const year = yearFromData || new Date().getFullYear();
     return full + ' ' + year;
   }
-  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal };
+  // Force-save current edit without validation (called by navigate() before page switch)
+  function flushPendingEdit() {
+    if (!_editingId) return;
+    const id = _editingId;
+    document.removeEventListener('click', _handleOutsideClick);
+    _editingId = null;
+    _doCommit(id, true); // skipValidation = true
+  }
+
+  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
 })();
 window.KasModule = KasModule;

@@ -10,6 +10,7 @@
        jumlah, stokAkhir, harga, supplier, catatan, createdBy }
 ============================================ */
 
+console.log('[BECCA] InventoryModule v20260325d loaded ✓');
 const InventoryModule = (() => {
 
   let _items      = [];   // master barang
@@ -73,18 +74,24 @@ const InventoryModule = (() => {
     });
     // Reset edit state on every page load
     _invEditId = null;
-    // Load + auto-lock all existing rows
+    _invLogPage = 1;
+    // Load only manually-locked rows from localStorage (no auto-lock all rows)
     try { _invLocked = new Set(JSON.parse(localStorage.getItem(_INV_LOCK_KEY)||'[]')); } catch { _invLocked = new Set(); }
-    _logs.forEach(l => _invLocked.add(l.id));
-    localStorage.setItem(_INV_LOCK_KEY, JSON.stringify([..._invLocked]));
     switchTab('stok');
   }
 
   /* ===================== HITUNG STOK ===================== */
   function _recalcStok() {
+    // Group logs by itemId first — O(logs) instead of O(items×logs)
+    const logsByItem = Object.create(null);
+    for (const l of _logs) {
+      if (!l.itemId) continue;
+      if (!logsByItem[l.itemId]) logsByItem[l.itemId] = [];
+      logsByItem[l.itemId].push(l);
+    }
     // Stok hanya dari MASUK dan KELUAR - OPNAME terpisah
     _items.forEach(item => {
-      const logsItem = _logs.filter(l => l.itemId === item.id);
+      const logsItem = logsByItem[item.id] || [];
 
       // ---- Hitung stok ----
       item._stok = logsItem.reduce((acc, l) => {
@@ -333,6 +340,8 @@ const InventoryModule = (() => {
   /* ===================== TAB: TRANSAKSI ===================== */
   /* ===================== ACTIVITY LINE — click to edit ===================== */
   let _invEditId   = null;
+  let _invLogPage  = 1;
+  const _INV_LOG_PER_PAGE = 50;
   let _invLocked   = new Set();
   const _INV_LOCK_KEY = 'becca_inv_locked_ids';
 
@@ -341,8 +350,23 @@ const InventoryModule = (() => {
     if (!_invEditId) return;
     const el = document.getElementById('iv-row-'+_invEditId);
     if (el && !el.contains(e.target)) {
-      _invCommit(_invEditId);
+      const id = _invEditId;
+      document.removeEventListener('click', _ivOutsideClick);
+      const ok = _invCommit(id);
+      if (ok) _invEditId = null;
+      // if !ok: _invEditId stays set, listener re-attached inside _invCommit
     }
+  }
+
+  function goInvLogPage(p) {
+    if (_invEditId) {
+      document.removeEventListener('click', _ivOutsideClick);
+      const prevId = _invEditId;
+      _invEditId = null;
+      _invCommit(prevId, true); // force-save before page switch
+    }
+    _invLogPage = p;
+    renderTransaksi();
   }
 
   function renderTransaksi() {
@@ -352,6 +376,11 @@ const InventoryModule = (() => {
       .filter(l => l.jenis !== 'OPNAME')
       .filter(l => l.itemNama || l.tgl)   // buang baris tanpa nama & tanggal
       .sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+
+    const totalPages = Math.max(1, Math.ceil(sorted.length / _INV_LOG_PER_PAGE));
+    if (_invLogPage > totalPages) _invLogPage = totalPages;
+    const offset   = (_invLogPage - 1) * _INV_LOG_PER_PAGE;
+    const pageData = sorted.slice(offset, offset + _INV_LOG_PER_PAGE);
 
     if (!document.getElementById('inv-ss-style')) {
       const st=document.createElement('style'); st.id='inv-ss-style';
@@ -406,11 +435,21 @@ const InventoryModule = (() => {
             ${canEdit ? '<th style="width:32px"></th>' : ''}
           </tr></thead>
           <tbody id="inv-tbody">
-            ${sorted.length ? sorted.map((r,i)=>_ivRowView(r,i+1,canEdit)).join('') :
+            ${pageData.length ? pageData.map((r,i)=>_ivRowView(r,i+1+offset,canEdit)).join('') :
               `<tr><td colspan="${canEdit?12:11}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data. Klik Baris Baru untuk mulai.</td></tr>`}
           </tbody>
         </table>
       </div>
+      ${totalPages > 1 ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--text-3)">
+        <span>${sorted.length} baris · Halaman ${_invLogPage} dari ${totalPages}</span>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(1)" ${_invLogPage===1?'disabled':''}>«</button>
+          <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(${_invLogPage-1})" ${_invLogPage===1?'disabled':''}>‹</button>
+          <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(${_invLogPage+1})" ${_invLogPage===totalPages?'disabled':''}>›</button>
+          <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(${totalPages})" ${_invLogPage===totalPages?'disabled':''}>»</button>
+        </div>
+      </div>` : ''}
     `;
   }
 
@@ -738,11 +777,12 @@ const InventoryModule = (() => {
     if (_invLocked.has(id)) return;  // Row terkunci
     // FIX: remove listener first
     document.removeEventListener('click', _ivOutsideClick);
-    // Commit previous
+    // Commit previous (with validation — block switching if incomplete)
     if (_invEditId) {
       const prevId = _invEditId;
       _invEditId = null;
-      _invCommit(prevId);
+      const ok = _invCommit(prevId);
+      if (!ok) return; // validation failed, stay on previous row
     }
     _invEditId = id;
     const row  = _logs.find(r=>r.id===id);
@@ -762,10 +802,26 @@ const InventoryModule = (() => {
     }, 50);
   }
 
-  function _invCommit(id) {
+  function _invCommit(id, skipValidation = false) {
     const row = _logs.find(r=>r.id===id);
-    if (!row) return;
+    if (!row) return true;
     const vals = _ivReadDOM(id);
+
+    if (!skipValidation) {
+      console.log('[INV-VALIDATE] itemId:', vals.itemId, 'jumlah:', vals.jumlah);
+      if (!vals.itemId) {
+        Notify.warning('Nama Barang wajib dipilih sebelum menyimpan');
+        _invEditId = id;
+        setTimeout(() => document.addEventListener('click', _ivOutsideClick), 50);
+        return false;
+      }
+      if (!vals.jumlah || vals.jumlah <= 0) {
+        Notify.warning('Jumlah wajib diisi dan harus lebih dari 0');
+        _invEditId = id;
+        setTimeout(() => document.addEventListener('click', _ivOutsideClick), 50);
+        return false;
+      }
+    }
     const origStr = row._original || '{}';
     Object.assign(row, vals);
     const newStr = JSON.stringify({tgl:row.tgl,itemId:row.itemId,jenis:row.jenis,jumlah:row.jumlah,harga:row.harga,kodeAktivitas:row.kodeAktivitas,hpp:row.hpp,pengambil:row.pengambil,penanggungJawab:row.penanggungJawab,catatan:row.catatan});
@@ -780,7 +836,7 @@ const InventoryModule = (() => {
     if (row._hasChanged === false) {
       // Tidak ada perubahan - skip save dan log
       delete row._original; delete row._hasChanged;
-      return;
+      return true;
     }
     delete row._original; delete row._hasChanged;
     DB.saveInventoryLog(row).then(() => {
@@ -793,20 +849,19 @@ const InventoryModule = (() => {
           DB.saveInventoryItem(item).catch(()=>{});
         }
       }
-      // Only log if there was actual change vs original
-      if (row._hasChanged !== false) {
-        DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), snapshot:{after: {...row}}});
-      }
+      DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), snapshot:{after: {...row}}});
       const newTr = document.getElementById('iv-row-'+id);
       if (newTr) { newTr.classList.add('iv-saved'); setTimeout(()=>newTr.classList.remove('iv-saved'),500); }
     }).catch(e => Notify.error('Gagal simpan', e.message));
+    return true;
   }
 
   async function commitLogEdit(id) {
     if (_invEditId !== id) return;
     document.removeEventListener('click', _ivOutsideClick);
-    _invEditId = null;
-    _invCommit(id);
+    const ok = _invCommit(id);
+    if (ok) _invEditId = null;
+    // if !ok: _invEditId stays, listener re-attached in _invCommit
   }
 
   function unlockInvRow(id) {
@@ -818,7 +873,10 @@ const InventoryModule = (() => {
   async function addLogRow() {
     if (_invEditId) {
       document.removeEventListener('click', _ivOutsideClick);
+      const prevId = _invEditId;
       _invEditId = null;
+      const ok = _invCommit(prevId);
+      if (!ok) return; // validation failed, block adding new row
     }
     const today = new Date().toISOString().split('T')[0];
     const newRow = {tgl:today,itemId:'',itemNama:'',jenis:'MASUK',jumlah:0,stokAkhir:0,harga:0,kodeAktivitas:'',hpp:0,pengambil:'',penanggungJawab:'',catatan:''};
@@ -1572,6 +1630,16 @@ const InventoryModule = (() => {
     });
   }
 
+  // Force-save current edit to DB (pre-save to localStorage) without validation.
+  // Called by app.js navigate() before page switch so in-progress data is not lost.
+  function flushPendingEdit() {
+    if (!_invEditId) return;
+    const id = _invEditId;
+    document.removeEventListener('click', _ivOutsideClick);
+    _invEditId = null;
+    _invCommit(id, true); // skipValidation = true
+  }
+
   return {
     init,
     switchTab,
@@ -1587,6 +1655,8 @@ const InventoryModule = (() => {
     unlockInvRow,
     addLogRow,
     deleteLogRow,
+    goInvLogPage,
+    flushPendingEdit,
     renderOpnameTab,
     _onOpnameItemChange,
     _onOpnameJumlahChange,

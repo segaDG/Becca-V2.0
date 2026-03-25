@@ -15,10 +15,16 @@
     'becca_inv_locked', 'becca_online_sessions', 'becca_activity_logs',
   ];
 
-  // Keys besar yang isinya di-cache dari Supabase — dikosongkan agar tidak
-  // menumpuk (DB._get() akan fetch ulang dari Supabase saat dibutuhkan)
+  // Keys besar yang isinya di-cache dari Supabase — dikosongkan jika terlalu besar
+  // (DB._get() akan fetch ulang dari Supabase saat dibutuhkan)
   var BIG_CACHE_KEYS = [
-    'becca_emp_logs',      // ~170KB — 382 records, selalu ada di Supabase
+    'becca_emp_logs',        // selalu flush — bisa 170KB+
+  ];
+  // Keys yang di-flush hanya jika melebihi threshold
+  var BIG_CACHE_THRESHOLD = [
+    { key: 'becca_inv_activities', limit: 50000 },  // inventory logs — flush jika >50KB
+    { key: 'becca_kas',            limit: 50000 },  // kas kecil — flush jika >50KB
+    { key: 'becca_ap',             limit: 50000 },  // account payable — flush jika >50KB
   ];
 
   function cleanupLocalStorage() {
@@ -34,10 +40,17 @@
       }
     });
 
-    // 3. Kosongkan big-cache keys (isi dari Supabase, tidak perlu simpan lokal)
+    // 3a. Selalu kosongkan big-cache keys
     BIG_CACHE_KEYS.forEach(function(k) {
-      if (localStorage.getItem(k) && localStorage.getItem(k).length > 10000) {
-        localStorage.setItem(k, '[]');
+      if (localStorage.getItem(k)) localStorage.setItem(k, '[]');
+    });
+
+    // 3b. Kosongkan threshold-based keys hanya jika terlalu besar
+    BIG_CACHE_THRESHOLD.forEach(function(entry) {
+      var val = localStorage.getItem(entry.key);
+      if (val && val.length > entry.limit) {
+        console.log('[DB-Patch] Cleared oversized cache: ' + entry.key + ' (' + (val.length/1024).toFixed(0) + 'KB)');
+        localStorage.setItem(entry.key, '[]');
       }
     });
 
