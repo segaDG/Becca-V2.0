@@ -64,6 +64,10 @@ const EmployeeModule = (() => {
       <div id="emp-tab-arsip"   class="hidden"></div>
     `;
 
+    // Snapshot LS SEBELUM _get() menimpa — foto hanya ada di LS sebelum overwrite
+    let _lsEmpSnap = [];
+    try { _lsEmpSnap = JSON.parse(localStorage.getItem('becca_employees') || '[]'); } catch {}
+
     // Skeleton
     const _skelEl = document.getElementById('emp-tab-data');
     if (_skelEl && !_employees.length) _skelEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="animation:spin 1s linear infinite;opacity:.4"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div style="margin-top:12px;font-size:13px">Memuat data karyawan...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
@@ -78,7 +82,7 @@ const EmployeeModule = (() => {
     _lbSaveLocks();
     switchTab('data');
     // One-time: migrate photos from localStorage to Supabase (runs in background)
-    migratePhotosFromLS().catch(() => {});
+    migratePhotosFromLS(_lsEmpSnap).catch(() => {});
   }
 
   /* ===================== TAB SWITCH ===================== */
@@ -891,11 +895,14 @@ const EmployeeModule = (() => {
   }
 
   /* === Migrate Photos from localStorage → Supabase === */
-  async function migratePhotosFromLS() {
-    const FLAG = 'becca_photos_migrated_v1';
+  async function migratePhotosFromLS(snapshot) {
+    const FLAG = 'becca_photos_migrated_v2'; // v2: fix — snapshot diambil sebelum _get() overwrite LS
     if (localStorage.getItem(FLAG)) return 0;
-    let lsEmps;
-    try { lsEmps = JSON.parse(localStorage.getItem('becca_employees') || '[]'); } catch { lsEmps = []; }
+    // Gunakan snapshot yang di-capture sebelum _get() — fallback ke LS langsung jika tidak ada
+    let lsEmps = Array.isArray(snapshot) && snapshot.length ? snapshot : [];
+    if (!lsEmps.length) {
+      try { lsEmps = JSON.parse(localStorage.getItem('becca_employees') || '[]'); } catch {}
+    }
     if (!Array.isArray(lsEmps) || !lsEmps.length) { localStorage.setItem(FLAG,'1'); return 0; }
 
     let migrated = 0;
