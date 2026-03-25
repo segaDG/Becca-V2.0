@@ -482,16 +482,21 @@ const KasModule = (() => {
 
   async function deleteRow(id) {
     if (_editingId===id) { document.removeEventListener('click',_handleOutsideClick); _editingId=null; }
-    const ok = await Modal.confirm({title:'Hapus Baris',message:'Baris ini akan dihapus permanen.',danger:true,confirmText:'Hapus'});
-    if (!ok) return;
-    const mid = Utils.uid();
-    try {
-      await DB.deleteKas(id);
-      _kas = _kas.filter(r=>r.id!==id);
+    const deleted = _kas.find(r=>r.id===id);
+    if (!deleted) return;
+    _kas = _kas.filter(r=>r.id!==id);
+    renderTransaksi();
+    const t = setTimeout(() => {
+      DB.deleteKas(id).catch(()=>{});
       DB.logActivity({type:'delete_kas', detail:'Baris dihapus'});
+    }, 5000);
+    Notify.undo('Baris dihapus', () => {
+      clearTimeout(t);
+      _kas.push(deleted);
+      _kas.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||''));
       renderTransaksi();
-      Notify.success('Baris dihapus');
-    } catch(e) { Notify.error('Gagal', e.message); }
+      Notify.success('Undo berhasil');
+    });
   }
 
   /* ===================== FILTER & PAGE ===================== */

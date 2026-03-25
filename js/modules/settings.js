@@ -9,7 +9,10 @@ const SettingsModule = (() => {
   const _DEFAULT_ROLES = ['superadmin','admin','operator','viewer'];
   function _getRoles() {
     let extra = [];
-    try { extra = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]'); } catch {}
+    try {
+      const parsed = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]');
+      if (Array.isArray(parsed)) extra = parsed;
+    } catch {}
     return [..._DEFAULT_ROLES, ...extra.filter(r=>!_DEFAULT_ROLES.includes(r))];
   }
   const FEATURES = ['dashboard','order','invoice','customer','employee','inventory','kas','ap','task','report','settings'];

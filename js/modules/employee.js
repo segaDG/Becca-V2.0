@@ -641,11 +641,13 @@ const EmployeeModule = (() => {
               <td>${emp.jabatan||'-'}</td>
               <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
               <td onclick="event.stopPropagation()">${_statusDropdown(emp)}</td>
-              ${Auth.can('employee','edit')?`<td>
+              ${Auth.can('employee','edit')?`<td onclick="event.stopPropagation()">
                 <div style="display:flex;gap:4px;align-items:center">
                   <button class="btn btn-ghost btn-sm" onclick="EmployeeModule.openEmpModal('${emp.id}')">Edit</button>
                   <button class="btn btn-primary btn-sm" onclick="EmployeeModule.changeStatus('${emp.id}','ACTIVE')"
                     title="Kembalikan ke aktif">↩ Aktifkan</button>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--danger)"
+                    onclick="EmployeeModule._deleteEmpFromArsip('${emp.id}')" title="Hapus permanen">🗑</button>
                 </div>
               </td>`:''}
             </tr>`).join('')
@@ -654,6 +656,25 @@ const EmployeeModule = (() => {
         </table>
       </div></div>
     `;
+  }
+
+  async function _deleteEmpFromArsip(id) {
+    const emp = _employees.find(e=>e.id===id);
+    if (!emp) return;
+    const ok = await Modal.confirm({
+      title: 'Hapus Karyawan?',
+      message: `Data <strong>${emp.nama}</strong> akan dihapus permanen dari sistem dan tidak bisa dikembalikan.`,
+      danger: true,
+      confirmText: 'Hapus Permanen'
+    });
+    if (!ok) return;
+    try {
+      await DB.deleteEmployee(id);
+      _employees = _employees.filter(e=>e.id!==id);
+      renderArsip();
+      Notify.success('Karyawan dihapus');
+      DB.logActivity({type:'delete_employee', detail:'Karyawan dihapus: '+emp.nama});
+    } catch(e) { Notify.error('Gagal hapus', e.message); }
   }
 
   /* ===================== MODAL: KARYAWAN ===================== */
@@ -1464,7 +1485,7 @@ const EmployeeModule = (() => {
   }
 
   return {
-    init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
+    init, switchTab, renderData, renderCard, renderLogbook, renderArsip, _deleteEmpFromArsip,
     _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter, migratePhotosFromLS,
     _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, recalcAllHutang, _showLogDetail,
     setFilter, sortBy, viewCard, filterCards,

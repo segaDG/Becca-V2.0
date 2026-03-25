@@ -397,8 +397,9 @@ const DB = (() => {
   const deleteInventoryItem = (id)   => _delete('inv_products', id);
 
   // ── EMPLOYEES ─────────────────────────────────────────────
-  const getEmployees   = ()     => _get('employees');
-  const saveEmployee   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('employees', data); };
+  const getEmployees    = ()     => _get('employees');
+  const saveEmployee    = (data) => { if (!data.id) data.id = Utils.uid(); return _save('employees', data); };
+  const deleteEmployee  = (id)   => _delete('employees', id);
   const getEmployeeLogs = async () => {
     const sb = await _initClient();
     if (sb) return _get('emp_logs');
@@ -679,7 +680,7 @@ const DB = (() => {
     getOpnameLogs, saveOpnameLog, deleteOpnameLog,
     getInventoryItems, saveInventoryItem, deleteInventoryItem,
     // Employees
-    getEmployees, saveEmployee,
+    getEmployees, saveEmployee, deleteEmployee,
     getEmployeeLogs, saveEmployeeLog, deleteEmployeeLog,
     // AP
     getAP, saveAP, deleteAP, getSuppliers, saveSupplier, deleteSupplier,

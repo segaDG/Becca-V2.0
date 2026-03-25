@@ -500,14 +500,20 @@ const APModule = (() => {
   }
 
   async function _deleteAP(id) {
-    const ok = await Modal.confirm({title:'Hapus AP?', message:'Yakin hapus transaksi ini?', danger:true});
-    if (!ok) return;
-    try {
-      await DB.deleteAP(id);
-      _ap = _ap.filter(r => r.id !== id);
+    const deleted = _ap.find(r => r.id === id);
+    if (!deleted) return;
+    _ap = _ap.filter(r => r.id !== id);
+    render();
+    const t = setTimeout(() => {
+      DB.deleteAP(id).catch(()=>{});
+      DB.logActivity({type:'delete_ap', detail:'AP dihapus: '+deleted.supplier});
+    }, 5000);
+    Notify.undo('AP dihapus', () => {
+      clearTimeout(t);
+      _ap.unshift(deleted);
       render();
-      Notify.success('AP dihapus');
-    } catch(e) { Notify.error('Gagal', e.message); }
+      Notify.success('Undo berhasil');
+    });
   }
 
   async function _deleteSupplier(id) {
