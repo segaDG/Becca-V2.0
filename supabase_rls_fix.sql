@@ -85,6 +85,26 @@ ALTER TABLE IF EXISTS public.ap
 ALTER TABLE IF EXISTS public.employees
   ALTER COLUMN nama        DROP NOT NULL;
 
+-- ── Tambah kolom 'data' JSONB pada tabel yang belum punya ────
+-- BECCA _save() selalu menulis ke kolom 'data'. Jika tabel tidak
+-- punya kolom ini, upsert gagal 400. Gunakan IF NOT EXISTS agar
+-- aman dijalankan berulang.
+
+ALTER TABLE IF EXISTS public.inv_activities
+  ADD COLUMN IF NOT EXISTS data JSONB;
+
+ALTER TABLE IF EXISTS public.opname_logs
+  ADD COLUMN IF NOT EXISTS data JSONB;
+
+ALTER TABLE IF EXISTS public.kas
+  ADD COLUMN IF NOT EXISTS data JSONB;
+
+ALTER TABLE IF EXISTS public.kas_masuk
+  ADD COLUMN IF NOT EXISTS data JSONB;
+
+ALTER TABLE IF EXISTS public.emp_logs
+  ADD COLUMN IF NOT EXISTS data JSONB;
+
 -- ── Verifikasi (opsional: jalankan ini untuk cek hasil) ──────
 -- SELECT tablename, rowsecurity FROM pg_tables
 -- WHERE schemaname = 'public'

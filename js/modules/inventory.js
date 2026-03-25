@@ -795,9 +795,7 @@ const InventoryModule = (() => {
       }
       // Only log if there was actual change vs original
       if (row._hasChanged !== false) {
-        _invLocked.add(id);
-      localStorage.setItem(_INV_LOCK_KEY, JSON.stringify([..._invLocked]));
-      DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), snapshot:{after: {...row}}});
+        DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), snapshot:{after: {...row}}});
       }
       const newTr = document.getElementById('iv-row-'+id);
       if (newTr) { newTr.classList.add('iv-saved'); setTimeout(()=>newTr.classList.remove('iv-saved'),500); }
