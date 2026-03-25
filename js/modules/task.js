@@ -924,10 +924,30 @@ const TaskModule = (() => {
     return lines.join('\n');
   }
 
-  function shareWA(id) {
+  async function shareWA(id) {
     const t = _tasks.find(x => x.id === id);
     if (!t) return;
-    window.open('https://wa.me/?text=' + encodeURIComponent(_waText(t)), '_blank');
+    const msg = encodeURIComponent(_waText(t));
+
+    // Try to find single assignee's noWA for direct link
+    const assignees = Array.isArray(t.assignees) ? t.assignees : (t.assignee ? [t.assignee] : []);
+    let phone = null;
+    if (assignees.length === 1) {
+      try {
+        const users = await DB.getUsers();
+        const name = assignees[0];
+        const u = users.find(x =>
+          x.nama === name || x.username === name ||
+          (x.nama||'').toLowerCase() === (name||'').toLowerCase()
+        );
+        if (u?.noWA) phone = u.noWA.replace(/\D/g, '');
+      } catch {}
+    }
+
+    const url = phone
+      ? `https://wa.me/${phone}?text=${msg}`
+      : `https://wa.me/?text=${msg}`;
+    window.open(url, '_blank');
   }
 
   return {

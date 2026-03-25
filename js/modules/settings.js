@@ -394,6 +394,13 @@ const SettingsModule = (() => {
               </select>
             </div>
           </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">No. WhatsApp</label>
+              <input name="noWA" type="tel" class="form-control" value="${d.noWA||''}" placeholder="628xxxxxxxxx" style="font-family:var(--font-mono)">
+              <div style="font-size:10px;color:var(--text-3);margin-top:3px">Format: 628xxx (tanpa + atau spasi). Digunakan untuk share task via WA.</div>
+            </div>
+          </div>
         </form>
       `,
       footer: `

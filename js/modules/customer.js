@@ -215,9 +215,7 @@ const CustomerModule = (() => {
               ${_thS('hargaPerPax','Harga / Pax','90px','right')}
               ${_thS('biayaBox','Biaya Box','80px','right')}
               ${_thS('biayaLainnya','Biaya Lainnya','85px','right')}
-              ${_thS('tempo','Tempo (hr)','75px','right')}
-              ${_thS('potonganAyam','Ayam (kg)','70px','right')}
-              ${_thS('potonganDaging','Daging (kg)','75px','right')}
+              <th onclick="CustomerModule.sortBy('tempo')" style="padding:8px 10px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${_sortCol==='tempo'?'#fbbf24':'#f97316'};white-space:nowrap;cursor:pointer;border-right:1px solid rgba(255,255,255,.08);width:75px">Tempo (hr)${_sortCol==='tempo'?(_sortDir===1?' ↑':' ↓'):''}</th>
               ${_thS('qtyLauk','Lauk','55px','center')}
               ${_thS('qtyPendamping','Pendamping','80px','center')}
               ${_thS('hargaBreakfast','Breakfast','85px','right')}
@@ -244,7 +242,7 @@ const CustomerModule = (() => {
           </thead>
 
           <tbody>
-          ${!list.length ? `<tr><td colspan="31" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data customer.</td></tr>` :
+          ${!list.length ? `<tr><td colspan="29" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data customer.</td></tr>` :
             list.map((c, i) => {
               const ak = (c.status||'AKTIF')==='AKTIF';
               // Solid backgrounds for sticky columns (no transparent!)
@@ -285,9 +283,7 @@ const CustomerModule = (() => {
                 ${_tdRp(c.hargaPerPax)}
                 ${_tdRp(c.biayaBox)}
                 ${_tdRp(c.biayaLainnya)}
-                <td class="num">${c.tempo||0}</td>
-                <td class="num ${(c.potonganAyam||0)>0?'':'text-muted'}">${c.potonganAyam||'-'}</td>
-                <td class="num ${(c.potonganDaging||0)>0?'':'text-muted'}">${c.potonganDaging||'-'}</td>
+                <td class="num" style="color:#f97316;font-weight:600">${c.tempo||0}</td>
                 <td class="num">${c.qtyLauk||'-'}</td>
                 <td class="num">${c.qtyPendamping||'-'}</td>
                 ${_tdRp(c.hargaBreakfast)}
@@ -512,9 +508,23 @@ const CustomerModule = (() => {
         <div class="form-group"><label class="form-label">Alamat</label><input class="form-control" id="cf-alamat" value="${fv('alamat')}"></div>
 
         <div class="cf-section">Kontrak & Tarif Dasar</div>
-        ${numRow([['hargaPerPax','Harga / Pax (Rp)'],['biayaBox','Biaya Box (Rp)'],['biayaLainnya','Biaya Lainnya (Rp)'],['tempo','Tempo (hari)'],['potonganAyam','Potongan Ayam (kg)'],['potonganDaging','Potongan Daging (kg)'],['qtyLauk','Qty Lauk'],['qtyPendamping','Qty Pendamping']])}
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:var(--s3)">
+          <div class="form-group">
+            <label class="form-label" style="color:#f97316;font-weight:700">⏱ Tempo (hari)</label>
+            <input id="cf-tempo" type="number" min="0" class="form-control" value="${nv('tempo')}" style="text-align:right;font-family:var(--font-mono);border-left:3px solid #f97316">
+          </div>
+          <div class="form-group"><label class="form-label">Harga / Pax (Rp)</label><input id="cf-hargaPerPax" type="number" min="0" class="form-control" value="${nv('hargaPerPax')}" style="text-align:right;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">Biaya Box (Rp)</label><input id="cf-biayaBox" type="number" min="0" class="form-control" value="${nv('biayaBox')}" style="text-align:right;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">Biaya Lainnya (Rp)</label><input id="cf-biayaLainnya" type="number" min="0" class="form-control" value="${nv('biayaLainnya')}" style="text-align:right;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">Qty Lauk</label><input id="cf-qtyLauk" type="number" min="0" class="form-control" value="${nv('qtyLauk')}" style="text-align:right;font-family:var(--font-mono)"></div>
+          <div class="form-group"><label class="form-label">Qty Pendamping</label><input id="cf-qtyPendamping" type="number" min="0" class="form-control" value="${nv('qtyPendamping')}" style="text-align:right;font-family:var(--font-mono)"></div>
+        </div>
 
-        <div class="cf-section">Harga Per Shift (Rp)</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0 6px;border-top:1px solid var(--border);margin-top:4px">
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Harga Per Shift (Rp)</span>
+          <input id="cf-harga-base" type="number" min="0" placeholder="Harga dasar..." class="form-control" style="width:140px;text-align:right;font-family:var(--font-mono);font-size:12px;padding:3px 8px;height:28px">
+          <button onclick="CustomerModule._fillAllShifts()" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;height:28px">Isi semua →</button>
+        </div>
         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s3)">
           <div class="form-group"><label class="form-label" style="color:var(--warning)">Breakfast</label><input class="form-control" id="cf-hargaBreakfast" type="number" min="0" value="${nv('hargaBreakfast')}" style="text-align:right;font-family:var(--font-mono)"></div>
           <div class="form-group"><label class="form-label" style="color:#6366f1">Shift 1</label><input class="form-control" id="cf-hargaShift1" type="number" min="0" value="${nv('hargaShift1')}" style="text-align:right;font-family:var(--font-mono)"></div>
@@ -560,7 +570,6 @@ const CustomerModule = (() => {
       jenisPelayanan: g('cf-jenis'), catatan: g('cf-catatan'),
       hargaPerPax: n('cf-hargaPerPax'), biayaBox: n('cf-biayaBox'),
       biayaLainnya: n('cf-biayaLainnya'), tempo: n('cf-tempo'),
-      potonganAyam: n('cf-potonganAyam'), potonganDaging: n('cf-potonganDaging'),
       qtyLauk: n('cf-qtyLauk'), qtyPendamping: n('cf-qtyPendamping'),
       hargaBreakfast: n('cf-hargaBreakfast'),
       hargaShift1: n('cf-hargaShift1'), hargaSpare1: n('cf-hargaSpare1'),
@@ -585,7 +594,16 @@ const CustomerModule = (() => {
     _render();
   }
 
-  return { init, setSearch, sortBy, openModal, _submit, _fixSticky, editCustomerId, _saveCustomerId };
+  function _fillAllShifts() {
+    const base = parseFloat(document.getElementById('cf-harga-base')?.value) || 0;
+    if (!base) { Notify.warning('Masukkan harga dasar terlebih dahulu'); return; }
+    const ids = ['cf-hargaBreakfast','cf-hargaShift1','cf-hargaSpare1','cf-hargaOT1','cf-hargaSnack1',
+                 'cf-hargaShift2','cf-hargaSpare2','cf-hargaOT2','cf-hargaSnack2',
+                 'cf-hargaShift3','cf-hargaSpare3','cf-hargaOT3','cf-hargaSnack3','cf-hargaSnackBerat'];
+    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = base; });
+  }
+
+  return { init, setSearch, sortBy, openModal, _submit, _fillAllShifts, _fixSticky, editCustomerId, _saveCustomerId };
 })();
 
 window.CustomerModule = CustomerModule;
