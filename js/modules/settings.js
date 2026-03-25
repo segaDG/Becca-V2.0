@@ -5,6 +5,9 @@
 ============================================ */
 const SettingsModule = (() => {
 
+  // Cache merged user list for openUserModal (avoids re-fetching from DB)
+  let _usersCache = [];
+
   // ROLES - default + custom yang ditambah user
   const _DEFAULT_ROLES = ['superadmin','admin','operator','viewer'];
   function _getRoles() {
@@ -284,6 +287,7 @@ const SettingsModule = (() => {
       if (!merged.find(u=>u.id===du.id||u.username===du.username))
         merged.push({...du,_isDefault:true});
     });
+    _usersCache = merged; // Cache for openUserModal lookup
     // For superadmin: load passwords from DB for display
     if (Auth.isSuperAdmin()) {
       const allWithPwd = await DB.getUsers().catch(()=>[]);
@@ -348,9 +352,13 @@ const SettingsModule = (() => {
   async function openUserModal(idOrUsername=null, isDefault=false) {
     let d = null;
     if (idOrUsername) {
-      const users = await DB.getUsers().catch(()=>[]);
-      d = users.find(u=>u.id===idOrUsername||u.username===idOrUsername);
-      if (!d && isDefault) d = Auth._defaultUsers.find(u=>u.id===idOrUsername||u.username===idOrUsername);
+      // Try cache first (populated by renderUsers) to avoid re-fetch issues
+      d = _usersCache.find(u=>u.id===idOrUsername||u.username===idOrUsername);
+      if (!d) {
+        const users = await DB.getUsers().catch(()=>[]);
+        d = users.find(u=>u.id===idOrUsername||u.username===idOrUsername);
+      }
+      if (!d) d = Auth._defaultUsers.find(u=>u.id===idOrUsername||u.username===idOrUsername);
     }
     d = d || { aktif:true, role:'operator' };
     const isEdit = !!idOrUsername;

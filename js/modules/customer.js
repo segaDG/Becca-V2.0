@@ -58,7 +58,7 @@ const CustomerModule = (() => {
           } catch(e) {}
           return {
             ...c,
-            id:             c.id,
+            id:             c.id || Utils.uid(),
             nama:           c.nama || c.namaPerusahaan || '',
             customerId:     c.customerId || c.customer_id || '',
             pic:            c.pic || c.pic_nama || '',
@@ -345,7 +345,7 @@ const CustomerModule = (() => {
 
   /* ── EDIT CUSTOMER ID ── */
   function editCustomerId(custId) {
-    const cust = _data.find(c => c.id === custId);
+    const cust = _data.find(c => c.id === custId) || _data.find(c => String(c.id) === String(custId));
     if (!cust) return;
 
     const editModalId = Utils.uid();
@@ -456,7 +456,7 @@ const CustomerModule = (() => {
 
   /* ── MODAL ── */
   function openModal(id) {
-    const c = id ? _data.find(x=>x.id===id) : null;
+    const c = id ? (_data.find(x=>x.id===id) || _data.find(x=>String(x.id)===String(id))) : null;
     const fv = (f) => c?.[f] ?? '';
     const nv = (f) => c?.[f] || 0;
 
@@ -582,7 +582,7 @@ const CustomerModule = (() => {
     };
 
     if (id) {
-      const i = _data.findIndex(c=>c.id===id);
+      const i = _data.findIndex(c=>c.id===id || String(c.id)===String(id));
       if (i>=0) _data[i]=obj; else _data.push(obj);
     } else {
       _data.push(obj);
