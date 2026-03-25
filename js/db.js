@@ -152,7 +152,7 @@ const DB = (() => {
   const NO_CREATED_AT = ['settings', 'presence', 'activity_logs', 'opname_logs'];
 
   // Table yang tidak punya updated_at column
-  const NO_UPDATED_AT = ['activity_logs', 'opname_logs', 'emp_logs'];
+  const NO_UPDATED_AT = ['activity_logs', 'opname_logs', 'emp_logs', 'kas', 'kas_masuk'];
 
   // Table yang TIDAK dicache di localStorage (selalu fetch fresh dari Supabase)
   const NO_CACHE = ['customers','users','tasks','suppliers','ap'];

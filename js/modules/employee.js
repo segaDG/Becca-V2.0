@@ -1023,11 +1023,6 @@ const EmployeeModule = (() => {
           ${namaOpts}
         </select>
       </td>
-      <td style="text-align:center">
-        <select data-f="bulan" style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px">
-          ${bulanOpts}
-        </select>
-      </td>
       <td>${inp('ket', l.ket||l.catatan||'')}</td>
       <td>${inp('pj', l.pj||'')}</td>
       <td>${inp('hutang', l.hutang||0, 'number', 'min="0"')}</td>

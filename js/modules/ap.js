@@ -1182,8 +1182,8 @@ const APModule = (() => {
     const p = 'padding:6px 8px;';
     return '<tr id="ap-row-'+eid+'" style="background:rgba(99,102,241,.06);outline:2px solid var(--primary);outline-offset:-1px">'
       +'<td style="'+p+'text-align:center"><div style="display:flex;gap:2px;justify-content:center">'
-        +'<button onclick="event.stopPropagation();APModule._apCommit(\"'+eid+'\")" style="width:20px;height:20px;border-radius:4px;border:1px solid #10b981;background:rgba(16,185,129,.1);cursor:pointer;color:#10b981;font-size:11px;display:flex;align-items:center;justify-content:center" title="Simpan">✓</button>'
-        +'<button onclick="event.stopPropagation();APModule._apCancel(\"'+eid+'\")" style="width:20px;height:20px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);font-size:11px;display:flex;align-items:center;justify-content:center" title="Batal">✕</button>'
+        +'<button onclick="event.stopPropagation();APModule._apCommit(\''+eid+'\')" style="width:20px;height:20px;border-radius:4px;border:1px solid #10b981;background:rgba(16,185,129,.1);cursor:pointer;color:#10b981;font-size:11px;display:flex;align-items:center;justify-content:center" title="Simpan">✓</button>'
+        +'<button onclick="event.stopPropagation();APModule._apCancel(\''+eid+'\')" style="width:20px;height:20px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);font-size:11px;display:flex;align-items:center;justify-content:center" title="Batal">✕</button>'
       +'</div></td>'
       +'<td style="'+p+'">'+inp('tgl',r.tgl,'date')+'</td>'
       +'<td style="'+p+'"><select data-f="supplier" style="width:100%;border:none;outline:none;background:transparent;font-size:12px;padding:0 4px">'+supOpts+'</select></td>'
