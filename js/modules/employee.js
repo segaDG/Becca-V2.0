@@ -364,7 +364,7 @@ const EmployeeModule = (() => {
             <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Log Terbaru</div>
             ${empLogs.map(l=>`
               <div style="font-size:11px;color:var(--text-2);padding:3px 0;border-bottom:1px solid rgba(var(--border),0.5)">
-                <span style="color:var(--text-3)">${l.tgl||''}</span> · ${l.catatan||l.type||'-'}
+                <span style="color:var(--text-3)">${l.tgl||''}</span> · ${l.keterangan||l.ket||l.catatan||'-'}
               </div>`).join('')}
           </div>` : ''}
       </div>
@@ -439,25 +439,39 @@ const EmployeeModule = (() => {
 
         <!-- Log History -->
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
-          <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
             <div style="font-size:14px;font-weight:700;color:var(--heading)">Riwayat Log (${empLogs.length})</div>
+            ${(()=>{
+              const tH = empLogs.reduce((s,l)=>s+(l.hutang||(l.jenis==='BERHUTANG'?l.jumlah:0)||0),0);
+              const tB = empLogs.reduce((s,l)=>s+(l.bayar||(l.jenis==='BAYAR HUTANG'?l.jumlah:0)||0),0);
+              const sisa = Math.max(0,tH-tB);
+              return `<div style="display:flex;gap:16px;font-size:12px;flex-wrap:wrap">
+                <span>Total Hutang: <strong style="color:var(--danger);font-family:var(--font-mono)">${Utils.formatRupiah(tH)}</strong></span>
+                <span>Total Bayar: <strong style="color:var(--success);font-family:var(--font-mono)">${Utils.formatRupiah(tB)}</strong></span>
+                <span>Sisa: <strong style="color:${sisa>0?'var(--danger)':'var(--success)'};font-family:var(--font-mono)">${Utils.formatRupiah(sisa)}</strong></span>
+              </div>`;
+            })()}
           </div>
           ${empLogs.length ? `
             <div class="table-scroll">
               <table class="table" style="font-size:13px">
                 <thead><tr>
-                  <th>Tanggal</th><th>Tipe</th><th>Catatan</th>
-                  ${canEdit?'<th style="width:32px"></th>':''}
+                  <th>Tanggal</th><th>Keterangan</th><th class="num" style="color:var(--danger)">Hutang</th><th class="num" style="color:var(--success)">Bayar</th><th style="text-align:center">Status</th>
                 </tr></thead>
                 <tbody>
-                  ${empLogs.map(l=>`<tr>
-                    <td style="white-space:nowrap">${l.tgl||'-'}</td>
-                    <td><span class="badge badge-neutral" style="font-size:10px">${l.type||'-'}</span></td>
-                    <td>${l.catatan||'-'}</td>
-                    ${canEdit?`<td><button class="btn-icon" onclick="EmployeeModule.openLogModal('${l.id}')">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
-                    </button></td>` : ''}
-                  </tr>`).join('')}
+                  ${empLogs.map(l=>{
+                    const hutang = l.hutang||(l.jenis==='BERHUTANG'?l.jumlah:0)||0;
+                    const bayar  = l.bayar ||(l.jenis==='BAYAR HUTANG'?l.jumlah:0)||0;
+                    const tglFmt = (l.tgl||l.tanggal||'').slice(8,10)+'-'+(l.tgl||l.tanggal||'').slice(5,7)+'-'+(l.tgl||l.tanggal||'').slice(0,4);
+                    const konf   = l.konfirmasi==='CONFIRMED'?'<span class="badge badge-success" style="font-size:10px">✓</span>':'<span class="badge badge-neutral" style="font-size:10px">—</span>';
+                    return `<tr>
+                      <td style="white-space:nowrap;color:var(--text-2)">${tglFmt||'-'}</td>
+                      <td>${l.keterangan||l.ket||l.catatan||'-'}</td>
+                      <td class="num" style="font-family:var(--font-mono);color:${hutang>0?'var(--danger)':'var(--text-3)'};font-weight:${hutang>0?600:400}">${hutang>0?Utils.formatRupiah(hutang):'-'}</td>
+                      <td class="num" style="font-family:var(--font-mono);color:${bayar>0?'var(--success)':'var(--text-3)'};font-weight:${bayar>0?600:400}">${bayar>0?Utils.formatRupiah(bayar):'-'}</td>
+                      <td style="text-align:center">${konf}</td>
+                    </tr>`;
+                  }).join('')}
                 </tbody>
               </table>
             </div>` : `<div style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</div>`}
