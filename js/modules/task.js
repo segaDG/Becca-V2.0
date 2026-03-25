@@ -730,8 +730,9 @@ const TaskModule = (() => {
       // Assignee: tampilkan read-only view
       const assignDisp = _assigneeDisplay(d);
       const pc = {high:'var(--danger)',medium:'var(--warning)',low:'var(--success)'}[d.priority]||'var(--text-3)';
+      const viewId = Utils.uid();
       Modal.open({
-        id: Utils.uid(),
+        id: viewId,
         title: 'Detail Task',
         body: `
           <div style="display:flex;flex-direction:column;gap:12px">
@@ -766,7 +767,7 @@ const TaskModule = (() => {
               <div style="font-size:13px">${d.createdBy}</div>
             </div>` : ''}
           </div>`,
-        footer: `<button class="btn btn-ghost" onclick="Modal.close('${Utils.uid()}')">Tutup</button>`,
+        footer: `<button class="btn btn-ghost" onclick="Modal.close('${viewId}')">Tutup</button>`,
       });
       return;
     }

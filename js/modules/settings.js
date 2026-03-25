@@ -631,7 +631,7 @@ const SettingsModule = (() => {
 
   /* ===================== TAB: ACTIVITY LOG ===================== */
   async function renderActivity() {
-    const logs   = await DB.getActivityLog().catch(()=>[]);
+    const logs   = await DB.getActivityLogs().catch(()=>[]);
     const sorted = [...logs].sort((a,b)=>(b.timestamp||'').localeCompare(a.timestamp||''));
     const icons  = {
       login:'🔑', logout:'🚪', add_user:'➕', edit_user:'✏️',

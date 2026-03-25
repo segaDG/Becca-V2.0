@@ -160,9 +160,11 @@ const DB = (() => {
   // Kolom NOT NULL di Supabase yang wajib disertakan dalam minimal upsert
   // Key = nama kolom Supabase, value = fungsi yang mengambil nilai dari obj BECCA
   const REQUIRED_COLS = {
-    tasks: (obj) => ({
-      title:  obj.judul || obj.title || '',
-    }),
+    tasks:     (obj) => ({ title:       obj.judul       || obj.title       || '' }),
+    ap:        (obj) => ({ supplier_id: obj.supplier_id || obj.supplier    || obj.vendor || '' }),
+    customers: (obj) => ({ nama:        obj.nama        || obj.namaPerusahaan || '' }),
+    suppliers: (obj) => ({ nama:        obj.nama        || obj.namaPerusahaan || '' }),
+    employees: (obj) => ({ nama:        obj.nama        || '' }),
   };
 
   // In-memory cache — cleared on save/delete
