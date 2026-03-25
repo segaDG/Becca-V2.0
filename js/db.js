@@ -416,8 +416,10 @@ const DB = (() => {
   // ── ACCOUNT PAYABLE ───────────────────────────────────────
   const getAP         = ()     => _get('ap');
   const saveAP        = (data) => { if (!data.id) data.id = Utils.uid(); return _save('ap', data); };
+  const deleteAP      = (id)   => _delete('ap', id);
   const getSuppliers  = ()     => _get('suppliers');
   const saveSupplier  = (data) => { if (!data.id) data.id = Utils.uid(); return _save('suppliers', data); };
+  const deleteSupplier = (id)  => _delete('suppliers', id);
 
   // ── TASKS ─────────────────────────────────────────────────
   const getTasks   = ()     => _get('tasks');
@@ -667,7 +669,7 @@ const DB = (() => {
     getEmployees, saveEmployee,
     getEmployeeLogs, saveEmployeeLog, deleteEmployeeLog,
     // AP
-    getAP, saveAP, getSuppliers, saveSupplier,
+    getAP, saveAP, deleteAP, getSuppliers, saveSupplier, deleteSupplier,
     // Tasks
     getTasks, saveTask, deleteTask,
     // Settings

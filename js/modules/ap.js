@@ -496,7 +496,7 @@ const APModule = (() => {
     const ok = await Modal.confirm({title:'Hapus AP?', message:'Yakin hapus transaksi ini?', danger:true});
     if (!ok) return;
     try {
-      await DB.delete('ap', id);
+      await DB.deleteAP(id);
       _ap = _ap.filter(r => r.id !== id);
       render();
       Notify.success('AP dihapus');
@@ -504,9 +504,12 @@ const APModule = (() => {
   }
 
   async function _deleteSupplier(id) {
-    await DB.delete('suppliers', id);
-    _suppliers = _suppliers.filter(s => s.id !== id);
-    render();
+    try {
+      await DB.deleteSupplier(id);
+      _suppliers = _suppliers.filter(s => s.id !== id);
+      render();
+      Notify.success('Supplier dihapus');
+    } catch(e) { Notify.error('Gagal', e.message); }
   }
 
   async function _submit(modalId, editId='') {

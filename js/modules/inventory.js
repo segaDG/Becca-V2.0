@@ -843,7 +843,7 @@ const InventoryModule = (() => {
     if (!ok) return;
     const mid = Utils.uid();
     try {
-      await DB.delete('inventory',id);
+      await DB.deleteInventoryLog(id);
       _logs=_logs.filter(r=>r.id!==id);
       _recalcStok();
       DB.logActivity({type:'delete_inventory', detail:'Baris dihapus'});
@@ -1309,59 +1309,6 @@ const InventoryModule = (() => {
       document.getElementById('op-current-info').style.display = 'none';
     } catch(err) { Notify.error('Gagal', err.message); }
   }
-
-  /* ===================== TAB: STOK MENIPIS ===================== */
-  function renderAlert() {
-    const low = _items.filter(i => (i._stok||0) <= (i.stokMin||0))
-                      .sort((a,b) => (a._stok||0) - (b._stok||0));
-    document.getElementById('inv-tab-alert').innerHTML = low.length === 0 ? `
-      <div class="empty-state" style="height:40vh">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
-          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        <h4>Semua Stok Aman</h4>
-        <p>Tidak ada barang yang perlu restock</p>
-      </div>` : `
-      <div class="table-wrapper">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>#</th><th>Nama Barang</th><th>Kategori</th>
-              <th class="num">Stok Saat Ini</th><th class="num">Stok Min</th>
-              <th>Status</th>
-              ${Auth.can('inventory','edit') ? '<th>Aksi</th>' : ''}
-            </tr>
-          </thead>
-          <tbody>
-            ${low.map((item,i) => {
-              const stok = item._stok || 0;
-              return `
-              <tr style="${stok<=0?'background:rgba(239,68,68,.05)':''}">
-                <td class="text-muted">${i+1}</td>
-                <td class="font-semibold">${item.nama}</td>
-                <td><span class="badge badge-neutral">${item.kategori||'-'}</span></td>
-                <td class="num" style="color:${stok<=0?'var(--danger)':'var(--warning)'};font-weight:700">
-                  ${stok} ${item.satuan||''}
-                </td>
-                <td class="num text-muted">${item.stokMin||0} ${item.satuan||''}</td>
-                <td>
-                  <span class="badge ${stok<=0?'badge-danger':'badge-warning'}">
-                    ${stok<=0?'❌ HABIS':'⚠️ MENIPIS'}
-                  </span>
-                </td>
-                ${Auth.can('inventory','edit') ? `
-                  <td>
-                    <button class="btn btn-sm btn-primary" onclick="InventoryModule.openTransaksiModal('${item.id}','MASUK')">
-                      Restock
-                    </button>
-                  </td>` : ''}
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>`;
-  }
-
 
   /* ===================== STOK OPNAME ===================== */
   function openOpnameModal() {
