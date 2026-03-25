@@ -407,7 +407,6 @@ const KasModule = (() => {
     const vals = _readRowFromDOM(id);
 
     if (!skipValidation) {
-      console.log('[KAS-VALIDATE] nama:', vals.nama);
       if (!vals.nama || vals.nama.trim() === '') {
         Notify.warning('Nama / Keterangan wajib diisi sebelum menyimpan');
         _editingId = id;

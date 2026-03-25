@@ -808,15 +808,8 @@ const InventoryModule = (() => {
     const vals = _ivReadDOM(id);
 
     if (!skipValidation) {
-      console.log('[INV-VALIDATE] itemId:', vals.itemId, 'jumlah:', vals.jumlah);
       if (!vals.itemId) {
         Notify.warning('Nama Barang wajib dipilih sebelum menyimpan');
-        _invEditId = id;
-        setTimeout(() => document.addEventListener('click', _ivOutsideClick), 50);
-        return false;
-      }
-      if (!vals.jumlah || vals.jumlah <= 0) {
-        Notify.warning('Jumlah wajib diisi dan harus lebih dari 0');
         _invEditId = id;
         setTimeout(() => document.addEventListener('click', _ivOutsideClick), 50);
         return false;
