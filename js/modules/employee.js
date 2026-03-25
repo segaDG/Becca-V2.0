@@ -118,6 +118,7 @@ const EmployeeModule = (() => {
     }
 
     // Apply sort
+    const _NUM_FIELDS = ['sisaHutang','gaji','gajiPokok','gajiAwal'];
     filtered = [...filtered].sort((a,b) => {
       // Handle field aliases
       const getVal = (e) => {
@@ -125,11 +126,17 @@ const EmployeeModule = (() => {
         if (_sortField==='nip') return e.nik||e.nip||'';
         if (_sortField==='tglMasuk') return e.tglJoin||e.tglMasuk||'';
         if (_sortField==='gajiPokok') return e.gaji||e.gajiPokok||0;
-        return e[_sortField]||'';
+        return e[_sortField]??'';
       };
-      const va = getVal(a).toString().toLowerCase();
-      const vb = getVal(b).toString().toLowerCase();
-      return _sortDir==='asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      const va = getVal(a);
+      const vb = getVal(b);
+      if (_NUM_FIELDS.includes(_sortField)) {
+        const na = parseFloat(va)||0, nb = parseFloat(vb)||0;
+        return _sortDir==='asc' ? na-nb : nb-na;
+      }
+      const sa = va.toString().toLowerCase();
+      const sb = vb.toString().toLowerCase();
+      return _sortDir==='asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
     });
 
     const sortIcon = (field) => _sortField===field
@@ -1112,17 +1119,24 @@ const EmployeeModule = (() => {
         (e.panggilan||'').toLowerCase().includes(q)
       );
     }
+    const _NUM_FIELDS2 = ['sisaHutang','gaji','gajiPokok','gajiAwal'];
     filtered = [...filtered].sort((a,b) => {
       const getVal = (e) => {
         if (_sortField==='departemen') return e.divisi||e.departemen||'';
         if (_sortField==='nip') return e.nik||e.nip||'';
         if (_sortField==='tglMasuk') return e.tglJoin||e.tglMasuk||'';
         if (_sortField==='gajiPokok') return e.gaji||e.gajiPokok||0;
-        return e[_sortField]||'';
+        return e[_sortField]??'';
       };
-      const va = getVal(a).toString().toLowerCase();
-      const vb = getVal(b).toString().toLowerCase();
-      return _sortDir==='asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      const va = getVal(a);
+      const vb = getVal(b);
+      if (_NUM_FIELDS2.includes(_sortField)) {
+        const na = parseFloat(va)||0, nb = parseFloat(vb)||0;
+        return _sortDir==='asc' ? na-nb : nb-na;
+      }
+      const sa = va.toString().toLowerCase();
+      const sb = vb.toString().toLowerCase();
+      return _sortDir==='asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
     });
 
     const canEdit  = Auth.can('employee','edit');
