@@ -15,7 +15,7 @@ const SettingsModule = (() => {
     } catch {}
     return [..._DEFAULT_ROLES, ...extra.filter(r=>!_DEFAULT_ROLES.includes(r))];
   }
-  const FEATURES = ['dashboard','order','invoice','customer','employee','inventory','kas','ap','task','report','settings'];
+  const FEATURES = ['dashboard','order','invoice','customer','employee','emp_finance','inventory','kas','ap','task','report','settings'];
 
   /* ===================== INIT ===================== */
   async function init() {
@@ -519,8 +519,8 @@ const SettingsModule = (() => {
 
   function _featLabel(f) {
     const m = {dashboard:'📊 Dashboard',order:'📋 Order',invoice:'🧾 Invoice',customer:'👥 Customer',
-               employee:'👷 Karyawan',inventory:'📦 Inventory',kas:'💰 Kas Kecil',
-               ap:'💳 Account Payable',task:'✅ Task',report:'📈 Laporan',settings:'⚙️ Pengaturan'};
+               employee:'👷 Karyawan',emp_finance:'💰 Gaji & Hutang Karyawan',inventory:'📦 Inventory',
+               kas:'💰 Kas Kecil',ap:'💳 Account Payable',task:'✅ Task',report:'📈 Laporan',settings:'⚙️ Pengaturan'};
     return m[f]||f;
   }
 
@@ -613,7 +613,10 @@ const SettingsModule = (() => {
     }
     // Save to custom roles list
     let customRoles = [];
-    try { customRoles = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]'); } catch {}
+    try {
+      const _p = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]');
+      if (Array.isArray(_p)) customRoles = _p;
+    } catch {}
     customRoles.push(name);
     localStorage.setItem('becca_custom_roles', JSON.stringify(customRoles));
     Modal.close(mid);
@@ -627,7 +630,10 @@ const SettingsModule = (() => {
     Modal.confirm({title:'Hapus Role',message:'Role "'+roleName+'" akan dihapus permanen.',danger:true,confirmText:'Hapus'}).then(ok=>{
       if (!ok) return;
       let custom = [];
-      try { custom = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]'); } catch {}
+      try {
+        const _p = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]');
+        if (Array.isArray(_p)) custom = _p;
+      } catch {}
       localStorage.setItem('becca_custom_roles', JSON.stringify(custom.filter(r=>r!==roleName)));
       let privs = {};
       try { privs = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}

@@ -106,7 +106,8 @@ const EmployeeModule = (() => {
     const ACTIVE_STATS = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
     const active   = _employees.filter(e => ACTIVE_STATS.includes(e.status));
     const depts    = [...new Set(active.map(e=>e.divisi||e.departemen).filter(Boolean))].sort();
-    const canEdit  = Auth.can('employee','edit');
+    const canEdit    = Auth.can('employee','edit');
+    const canFinance = Auth.can('emp_finance','view');
 
     // Apply filter
     let filtered = active;
@@ -170,8 +171,8 @@ const EmployeeModule = (() => {
         </div>
       </div>
 
-      
-      <!-- Total Gaji Card -->
+
+      ${canFinance ? `<!-- Total Gaji Card -->
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:var(--s3)">
         <div>
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Total Gaji Keseluruhan</div>
@@ -181,7 +182,7 @@ const EmployeeModule = (() => {
           <div style="font-size:10px;color:var(--text-3);margin-top:2px">${active.length} karyawan aktif</div>
         </div>
         <div style="font-size:28px;opacity:.3">💰</div>
-      </div>
+      </div>` : ''}
 
 <!-- Filter & Sort -->
       <div class="filter-bar" style="margin-bottom:var(--s3)">
@@ -209,8 +210,8 @@ const EmployeeModule = (() => {
               <th onclick="EmployeeModule.sortBy('divisi')" style="cursor:pointer">Divisi${sortIcon('divisi')}</th>
               <th onclick="EmployeeModule.sortBy('status')" style="cursor:pointer">Status${sortIcon('status')}</th>
               <th onclick="EmployeeModule.sortBy('tglJoin')" style="cursor:pointer">Tgl Join${sortIcon('tglJoin')}</th>
-              <th onclick="EmployeeModule.sortBy('gaji')" style="cursor:pointer">Gaji${sortIcon('gaji')}</th>
-              <th onclick="EmployeeModule.sortBy('sisaHutang')" style="cursor:pointer">Hutang${sortIcon('sisaHutang')}</th>
+              ${canFinance ? `<th onclick="EmployeeModule.sortBy('gaji')" style="cursor:pointer">Gaji${sortIcon('gaji')}</th>` : ''}
+              ${canFinance ? `<th onclick="EmployeeModule.sortBy('sisaHutang')" style="cursor:pointer">Hutang${sortIcon('sisaHutang')}</th>` : ''}
               ${canEdit ? '<th style="width:80px">Aksi</th>' : ''}
             </tr></thead>
             <tbody>
@@ -242,8 +243,8 @@ const EmployeeModule = (() => {
                   <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
                   <td onclick="event.stopPropagation()">${_statusDropdown(emp)}</td>
                   <td class="text-small text-muted">${_fmtTgl(emp.tglJoin||emp.tgl_join||emp.tglMasuk)}</td>
-                  <td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,false):'-'}</td>
-                  <td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,false):'-'}</td>
+                  ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,false):'-'}</td>` : ''}
+                  ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,false):'-'}</td>` : ''}
                   ${canEdit ? `<td onclick="event.stopPropagation()">
                     <div style="display:flex;gap:4px">
                       <button class="btn-icon" title="Edit" onclick="EmployeeModule.openEmpModal('${emp.id}')">
@@ -256,7 +257,7 @@ const EmployeeModule = (() => {
                     </div>
                   </td>` : ''}
                 </tr>`;
-              }).join('') : `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-3)">
+              }).join('') : `<tr><td colspan="${7+(canFinance?2:0)+(canEdit?1:0)}" style="text-align:center;padding:40px;color:var(--text-3)">
                 Belum ada data karyawan
               </td></tr>`}
             </tbody>
@@ -334,8 +335,9 @@ const EmployeeModule = (() => {
       : ['Kontrak','CONTRACT','Percobaan'].includes(emp.status)?'var(--warning)'
       : ['RESIGN','Resign'].includes(emp.status)?'var(--danger)'
       : 'var(--text-3)';
-    const empLogs = _logs.filter(l=>((l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))||_nameMatch(l.nama,emp.nama))).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,3);
-    const canEdit = Auth.can('employee','edit');
+    const empLogs    = _logs.filter(l=>((l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))||_nameMatch(l.nama,emp.nama))).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,3);
+    const canEdit    = Auth.can('employee','edit');
+    const canFinance = Auth.can('emp_finance','view');
 
     return `<div onclick="EmployeeModule.viewCard('${emp.id}')" style="cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
                          overflow:hidden;transition:all .2s;"
@@ -363,8 +365,10 @@ const EmployeeModule = (() => {
             {l:'NIK',        v:emp.nik||emp.nip||'-'},
             {l:'No. HP',     v:emp.noHp||'-'},
             {l:'Tgl Join',   v:_fmtTgl(emp.tglJoin||emp.tgl_join||emp.tglMasuk)},
-            {l:'Gaji',       v:emp.gaji?Utils.formatRupiah(emp.gaji):(emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-')},
-            {l:'Sisa Hutang',v:emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang):'-'},
+            ...(canFinance ? [
+              {l:'Gaji',       v:emp.gaji?Utils.formatRupiah(emp.gaji):(emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-')},
+              {l:'Sisa Hutang',v:emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang):'-'},
+            ] : []),
           ].map(f=>`<div>
             <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em">${f.l}</div>
             <div style="font-size:12px;font-weight:500;color:var(--text)">${f.v}</div>
@@ -392,7 +396,8 @@ const EmployeeModule = (() => {
 
   function _renderSingleCard(el, emp) {
     const empLogs = _logs.filter(l=>((l.employeeId===emp.id||_nameMatch(l.nama,emp.nama))||_nameMatch(l.nama,emp.nama))).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
-    const canEdit = Auth.can('employee','edit');
+    const canEdit    = Auth.can('employee','edit');
+    const canFinance = Auth.can('emp_finance','view');
     const statusColor = ['AKTIF','ACTIVE','Active','Tetap'].includes(emp.status)?'var(--success)'
       : ['Kontrak','CONTRACT','Percobaan'].includes(emp.status)?'var(--warning)'
       : ['RESIGN','Resign'].includes(emp.status)?'var(--danger)'
@@ -433,9 +438,11 @@ const EmployeeModule = (() => {
               {l:'Agama',       v:emp.agama||'-'},
               {l:'Pendidikan',  v:emp.pendidikan||'-'},
               {l:'Tgl Join',    v:emp.tglJoin||emp.tglMasuk||'-'},
-              {l:'Gaji',        v:emp.gaji?Utils.formatRupiah(emp.gaji):(emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-')},
-              {l:'Gaji Awal',   v:emp.gajiAwal?Utils.formatRupiah(emp.gajiAwal):'-'},
-              {l:'Sisa Hutang', v:emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang):'-'},
+              ...(canFinance ? [
+                {l:'Gaji',        v:emp.gaji?Utils.formatRupiah(emp.gaji):(emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-')},
+                {l:'Gaji Awal',   v:emp.gajiAwal?Utils.formatRupiah(emp.gajiAwal):'-'},
+                {l:'Sisa Hutang', v:emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang):'-'},
+              ] : []),
               {l:'No. Rekening',v:emp.noRek||'-'},
               {l:'KTP',         v:emp.ktp||'-'},
             ].map(f=>`
@@ -454,7 +461,7 @@ const EmployeeModule = (() => {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
             <div style="font-size:14px;font-weight:700;color:var(--heading)">Riwayat Log (${empLogs.length})</div>
-            ${(()=>{
+            ${canFinance ? (()=>{
               const tH = empLogs.reduce((s,l)=>s+(l.hutang||(l.jenis==='BERHUTANG'?l.jumlah:0)||0),0);
               const tB = empLogs.reduce((s,l)=>s+(l.bayar||(l.jenis==='BAYAR HUTANG'?l.jumlah:0)||0),0);
               const sisa = Math.max(0,tH-tB);
@@ -463,7 +470,7 @@ const EmployeeModule = (() => {
                 <span>Total Bayar: <strong style="color:var(--success);font-family:var(--font-mono)">${Utils.formatRupiah(tB)}</strong></span>
                 <span>Sisa: <strong style="color:${sisa>0?'var(--danger)':'var(--success)'};font-family:var(--font-mono)">${Utils.formatRupiah(sisa)}</strong></span>
               </div>`;
-            })()}
+            })() : ''}
           </div>
           ${empLogs.length ? `
             <div class="table-scroll">
@@ -1219,15 +1226,16 @@ const EmployeeModule = (() => {
       return _sortDir==='asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
     });
 
-    const canEdit  = Auth.can('employee','edit');
-    const tbody    = document.querySelector('#emp-tab-data tbody');
+    const canEdit    = Auth.can('employee','edit');
+    const canFinance = Auth.can('emp_finance','view');
+    const tbody      = document.querySelector('#emp-tab-data tbody');
     const countLbl = document.querySelector('#emp-tab-data .text-muted.text-small[style*="margin-left:auto"]');
     if (countLbl) countLbl.textContent = filtered.length + ' karyawan';
 
     if (!tbody) { renderData(); return; }
 
     if (!filtered.length) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada data yang cocok</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="${7+(canFinance?2:0)+(canEdit?1:0)}" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada data yang cocok</td></tr>`;
       return;
     }
 
@@ -1257,8 +1265,8 @@ const EmployeeModule = (() => {
         <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
         <td onclick="event.stopPropagation()">${_statusDropdown(emp)}</td>
         <td class="text-small text-muted">${_fmtTgl(emp.tglJoin||emp.tgl_join||emp.tglMasuk)}</td>
-        <td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,false):'-'}</td>
-        <td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,false):'-'}</td>
+        ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,false):'-'}</td>` : ''}
+        ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,false):'-'}</td>` : ''}
         ${canEdit ? `<td onclick="event.stopPropagation()">
           <div style="display:flex;gap:4px">
             <button class="btn-icon" title="Edit" onclick="EmployeeModule.openEmpModal('${emp.id}')">
