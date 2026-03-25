@@ -407,12 +407,16 @@ const KasModule = (() => {
     const vals = _readRowFromDOM(id);
 
     if (!skipValidation) {
-      if (!vals.nama || vals.nama.trim() === '') {
-        Notify.warning('Nama / Keterangan wajib diisi sebelum menyimpan');
+      const _failV = (msg) => {
+        Notify.warning(msg);
         _editingId = id;
         setTimeout(() => document.addEventListener('click', _handleOutsideClick), 50);
-        return false;
-      }
+      };
+      if (!vals.nama || !vals.nama.trim())            { _failV('Nama / Keterangan wajib diisi'); return false; }
+      if (!vals.qty || vals.qty <= 0)                 { _failV('Qty wajib diisi dan harus lebih dari 0'); return false; }
+      if (!vals.satuan || !vals.satuan.trim())        { _failV('Satuan wajib diisi'); return false; }
+      if (!vals.hargaSatuan || vals.hargaSatuan <= 0) { _failV('Harga Satuan wajib diisi'); return false; }
+      if (!vals.penerima || !vals.penerima.trim())    { _failV('Penerima wajib diisi'); return false; }
     }
 
     Object.assign(row, vals);
@@ -518,9 +522,9 @@ const KasModule = (() => {
   function _summaryStrip(data) {
     const done=data.filter(r=>r.status==='DONE'), tbc=data.filter(r=>r.status==='TBC');
     return [
-      {l:'Total Keluar',v:Utils.formatRupiah(data.reduce((s,r)=>s+(r.jumlah||0),0),true),c:'var(--danger)'},
-      {l:'Confirmed',   v:Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0),true),c:'var(--success)'},
-      {l:'TBC',         v:Utils.formatRupiah(tbc.reduce((s,r) =>s+(r.jumlah||0),0),true),c:'var(--warning)'},
+      {l:'Total Keluar',v:Utils.formatRupiah(data.reduce((s,r)=>s+(r.jumlah||0),0)),c:'var(--danger)'},
+      {l:'Confirmed',   v:Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),c:'var(--success)'},
+      {l:'TBC',         v:Utils.formatRupiah(tbc.reduce((s,r) =>s+(r.jumlah||0),0)),c:'var(--warning)'},
       {l:'Total Baris', v:data.length+' baris', c:'var(--primary-h)'},
     ].map(c=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">
       <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${c.l}</div>
@@ -647,7 +651,7 @@ const KasModule = (() => {
           </div>
           <div style="text-align:right">
             <div style="font-size:11px;color:var(--text-3)">Total Pengeluaran</div>
-            <div style="font-size:24px;font-weight:800;color:var(--danger);font-family:var(--font-mono)">${Utils.formatRupiah(grand,true)}</div>
+            <div style="font-size:24px;font-weight:800;color:var(--danger);font-family:var(--font-mono)">${Utils.formatRupiah(grand)}</div>
           </div>
         </div>
 
@@ -655,9 +659,9 @@ const KasModule = (() => {
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;
                     border:1px solid var(--border);border-top:none;border-radius:0;overflow:hidden">
           ${[
-            {l:'Saldo Awal',  v:Utils.formatRupiah(saldoAwal,true),  c:'var(--primary-h)'},
-            {l:'Confirmed',   v:Utils.formatRupiah(grandDone,true),  c:'var(--success)'},
-            {l:'TBC / Pending',v:Utils.formatRupiah(grandTBC,true),  c:'var(--warning)'},
+            {l:'Saldo Awal',  v:Utils.formatRupiah(saldoAwal),  c:'var(--primary-h)'},
+            {l:'Confirmed',   v:Utils.formatRupiah(grandDone),  c:'var(--success)'},
+            {l:'TBC / Pending',v:Utils.formatRupiah(grandTBC),  c:'var(--warning)'},
             {l:'Kategori',    v:Object.keys(byType).length+' jenis', c:'var(--text-2)'},
           ].map((s,i) => `
             <div style="padding:12px 16px;background:var(--surface);
@@ -763,7 +767,7 @@ const KasModule = (() => {
     const tM=rows.reduce((s,r)=>s+r.m,0),tK=rows.reduce((s,r)=>s+r.k,0),net=tM-tK;
     document.getElementById('kas-tab-cashflow').innerHTML=`
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s4);margin-bottom:var(--s5)">
-        ${[{l:'Kas Masuk',v:Utils.formatRupiah(tM,true),c:'var(--success)'},{l:'Kas Keluar',v:Utils.formatRupiah(tK,true),c:'var(--danger)'},{l:net>=0?'Surplus':'Defisit',v:Utils.formatRupiah(Math.abs(net),true),c:net>=0?'var(--success)':'var(--danger)'}]
+        ${[{l:'Kas Masuk',v:Utils.formatRupiah(tM),c:'var(--success)'},{l:'Kas Keluar',v:Utils.formatRupiah(tK),c:'var(--danger)'},{l:net>=0?'Surplus':'Defisit',v:Utils.formatRupiah(Math.abs(net)),c:net>=0?'var(--success)':'var(--danger)'}]
           .map(s=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5)">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
             <div style="font-size:20px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>

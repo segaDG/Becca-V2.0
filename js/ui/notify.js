@@ -51,9 +51,11 @@ const Notify = {
     el.className = 'toast toast-warning';
     el.innerHTML = `
       <div class="toast-icon-wrap">!</div>
-      <div class="toast-content"><div class="toast-title">${title}</div></div>
-      <button class="_undo-btn" style="background:var(--primary);border:none;color:white;cursor:pointer;font-size:11px;font-weight:700;padding:4px 12px;border-radius:4px;margin-left:8px;white-space:nowrap">↩ Undo</button>
-      <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:16px;padding:0 0 0 8px;line-height:1">×</button>
+      <div class="toast-content" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div class="toast-title" style="flex:1;min-width:0">${title}</div>
+        <button class="_undo-btn" style="background:var(--primary);border:none;color:white;cursor:pointer;font-size:11px;font-weight:700;padding:4px 12px;border-radius:4px;white-space:nowrap;flex-shrink:0">↩ Undo</button>
+      </div>
+      <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:16px;padding:0 0 0 4px;line-height:1;flex-shrink:0">×</button>
     `;
     el.querySelector('._undo-btn').onclick = () => { el.remove(); onUndo(); };
     root.appendChild(el);

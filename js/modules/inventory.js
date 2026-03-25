@@ -499,7 +499,7 @@ const InventoryModule = (() => {
     const jenisOpts = ['MASUK','KELUAR'].map(j=>`<option value="${j}" ${r.jenis===j?'selected':''}>${j}</option>`).join('');
     return `<tr class="iv-editing" id="iv-row-${r.id}" data-id="${r.id}" onclick="event.stopPropagation()">
       <td><div class="ivc" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
-      <td><input class="iv-inp" type="date" value="${r.tgl||''}" id="ivf-tgl-${r.id}"></td>
+      <td><input class="iv-inp" type="date" value="${r.tgl||''}" id="ivf-tgl-${r.id}" onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
       <td><select class="iv-sel" id="ivf-item-${r.id}" onchange="InventoryModule._ivOnItemSelect('${r.id}',this.value,this.options[this.selectedIndex].text)"><option value="">Pilih barang...</option>${itemOpts}</select></td>
       <td><select class="iv-sel" id="ivf-jenis-${r.id}" 
             onchange="InventoryModule._onJenisChange('${r.id}')"
@@ -507,7 +507,7 @@ const InventoryModule = (() => {
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.jumlah||0}" id="ivf-jumlah-${r.id}" style="text-align:right"
         oninput="InventoryModule._onQtyChange('${r.id}',this.value)"
         onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
-      <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.harga||0}" id="ivf-harga-${r.id}" style="text-align:right"></td>
+      <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.harga||0}" id="ivf-harga-${r.id}" style="text-align:right" onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
       <td><select class="iv-sel" id="ivf-kode-${r.id}"
             onchange="InventoryModule._onKodeChange('${r.id}')">
           ${['','SHIFT 1','SHIFT 2','SHIFT 3','RETUR / RUSAK','PENJUALAN','EVENT','STOCK IN','OPNAME'].map(k=>'<option value="'+k+'" '+(r.kodeAktivitas===k?'selected':'')+'>'+( k||'— Pilih —')+'</option>').join('')}
@@ -520,8 +520,8 @@ const InventoryModule = (() => {
           <option value="tidak" ${r.hpp===false||r.hpp==='tidak'?'selected':''}>Tidak</option>
         </select>
       </td>
-      <td><input class="iv-inp" type="text" value="${(r.pengambil||'').replace(/"/g,'&quot;')}" id="ivf-sup-${r.id}" placeholder="Pengambil"></td>
-      <td><input class="iv-inp" type="text" value="${(r.penanggungJawab||'').replace(/"/g,'&quot;')}" id="ivf-pj-${r.id}" placeholder="Penanggung Jawab"></td>
+      <td><input class="iv-inp" type="text" value="${(r.pengambil||'').replace(/"/g,'&quot;')}" id="ivf-sup-${r.id}" placeholder="Pengambil" onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
+      <td><input class="iv-inp" type="text" value="${(r.penanggungJawab||'').replace(/"/g,'&quot;')}" id="ivf-pj-${r.id}" placeholder="Penanggung Jawab" onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
       <td><input class="iv-inp" type="text" value="${(r.catatan||'').replace(/"/g,'&quot;')}" id="ivf-cat-${r.id}" placeholder="Catatan"
         onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
       ${canEdit?`<td><button class="iv-del" style="color:var(--success)" onclick="event.stopPropagation();InventoryModule.commitLogEdit('${r.id}')" title="Simpan">
