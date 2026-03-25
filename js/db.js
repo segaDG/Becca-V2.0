@@ -602,10 +602,12 @@ const DB = (() => {
         // Hindari spread ...r karena bisa include kolom yang tidak ada di Supabase (error 42703)
         const toInsert = rows.map(r => {
           const minimal = {
-            id:         r.id || Utils.uid(),
-            data:       JSON.stringify(r),
-            updated_at: r.updatedAt || r.updated_at || new Date().toISOString(),
+            id:   r.id || Utils.uid(),
+            data: JSON.stringify(r),
           };
+          if (!NO_UPDATED_AT.includes(table)) {
+            minimal.updated_at = r.updatedAt || r.updated_at || new Date().toISOString();
+          }
           if (!NO_CREATED_AT.includes(table)) {
             minimal.created_at = r.createdAt || r.created_at || new Date().toISOString();
           }
