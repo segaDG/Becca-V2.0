@@ -8,7 +8,8 @@ const SettingsModule = (() => {
   // ROLES - default + custom yang ditambah user
   const _DEFAULT_ROLES = ['superadmin','admin','operator','viewer'];
   function _getRoles() {
-    const extra = Utils.ls.get('becca_custom_roles') || [];
+    let extra = [];
+    try { extra = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]'); } catch {}
     return [..._DEFAULT_ROLES, ...extra.filter(r=>!_DEFAULT_ROLES.includes(r))];
   }
   const FEATURES = ['dashboard','order','invoice','customer','employee','inventory','kas','ap','task','report','settings'];
@@ -444,7 +445,8 @@ const SettingsModule = (() => {
 
   /* ===================== TAB: PRIVILEGE ===================== */
   async function renderPrivilege() {
-    const custom = Utils.ls.get('becca_privileges') || {};
+    let custom = {};
+    try { custom = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
     const privs  = {};
     _getRoles().forEach(r => { privs[r] = custom[r] || {...(Auth._defaultPrivileges[r]||{})}; });
 
@@ -553,7 +555,7 @@ const SettingsModule = (() => {
   }
 
   function resetPrivileges() {
-    Utils.ls.del('becca_privileges');
+    localStorage.removeItem('becca_privileges');
     Notify.success('Hak akses direset ke default');
     renderPrivilege();
   }
@@ -600,15 +602,17 @@ const SettingsModule = (() => {
     if (!/^[a-z][a-z0-9_]*$/.test(name)) { Notify.warning('Hanya huruf kecil, angka, underscore'); return; }
     // Copy privileges from existing role if selected
     const copyFrom = document.getElementById('copy-from-role')?.value;
-    const existing = Utils.ls.get('becca_privileges') || {};
+    let existing = {};
+    try { existing = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
     if (copyFrom && existing[copyFrom]) {
       existing[name] = {...existing[copyFrom]};
-      Utils.ls.set('becca_privileges', existing);
+      localStorage.setItem('becca_privileges', JSON.stringify(existing));
     }
     // Save to custom roles list
-    const customRoles = Utils.ls.get('becca_custom_roles') || [];
+    let customRoles = [];
+    try { customRoles = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]'); } catch {}
     customRoles.push(name);
-    Utils.ls.set('becca_custom_roles', customRoles);
+    localStorage.setItem('becca_custom_roles', JSON.stringify(customRoles));
     Modal.close(mid);
     Notify.success('Role "'+name+'" ditambahkan!');
     renderPrivilege();
@@ -619,11 +623,13 @@ const SettingsModule = (() => {
     if (_DEFAULT_ROLES.includes(roleName)) { Notify.warning('Role default tidak bisa dihapus'); return; }
     Modal.confirm({title:'Hapus Role',message:'Role "'+roleName+'" akan dihapus permanen.',danger:true,confirmText:'Hapus'}).then(ok=>{
       if (!ok) return;
-      const custom = Utils.ls.get('becca_custom_roles') || [];
-      Utils.ls.set('becca_custom_roles', custom.filter(r=>r!==roleName));
-      const privs = Utils.ls.get('becca_privileges') || {};
+      let custom = [];
+      try { custom = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]'); } catch {}
+      localStorage.setItem('becca_custom_roles', JSON.stringify(custom.filter(r=>r!==roleName)));
+      let privs = {};
+      try { privs = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
       delete privs[roleName];
-      Utils.ls.set('becca_privileges', privs);
+      localStorage.setItem('becca_privileges', JSON.stringify(privs));
       Notify.success('Role "'+roleName+'" dihapus');
       renderPrivilege();
     });

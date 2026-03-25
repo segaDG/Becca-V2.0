@@ -114,12 +114,12 @@ const APModule = (() => {
       <!-- STATS CARDS -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s3);margin-bottom:var(--s5)">
         ${[
-          {l:'Sisa Hutang',    v:Utils.formatRupiah(totalHutang,true),  c:'#ef4444', ic:'⚠️', sub:_ap.filter(r=>r.status!=='LUNAS').length+' tagihan belum lunas'},
+          {l:'Sisa Hutang',    v:Utils.formatRupiah(totalHutang,true),  c:'#ef4444', ic:'⚠️', sub:_ap.filter(r=>r.status!=='LUNAS').length+' tagihan belum lunas', click:true},
           {l:'Sudah Dibayar',  v:Utils.formatRupiah(totalLunas,true),   c:'#10b981', ic:'✅', sub:_ap.filter(r=>r.status==='LUNAS').length+' transaksi lunas'},
           {l:'Total AP',       v:Utils.formatRupiah(totalTagihan,true),  c:'#6366f1', ic:'📋', sub:sorted.length+' total transaksi'},
           {l:'Supplier Aktif', v:_suppliers.length+' supplier',          c:'#f59e0b', ic:'🏭', sub:supList.length+' supplier punya tagihan'},
         ].map(s=>`
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;position:relative;overflow:hidden">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;position:relative;overflow:hidden${s.click?';cursor:pointer':''}"${s.click?' onclick="APModule.filterBelum()"':''}>
             <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:${s.c};border-radius:4px 0 0 4px"></div>
             <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:6px">${s.l}</div>
             <div style="font-size:20px;font-weight:800;color:${s.c};font-family:var(--font-mono);letter-spacing:-.02em">${s.v}</div>
@@ -182,6 +182,13 @@ const APModule = (() => {
     setTimeout(() => APModule.applyFilter(), 10);
   }
 
+
+  function filterBelum() {
+    const el = document.getElementById('ap-fil-status');
+    if (el) { el.value = 'BELUM'; applyFilter(); }
+    const tb = document.getElementById('ap-main-table');
+    if (tb) tb.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   function applyFilter() {
     const from   = document.getElementById('ap-fil-from')?.value  || '';
@@ -1444,6 +1451,6 @@ const APModule = (() => {
   }
 
 
-  return { init, render, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, apStartEdit, _apCommit, _apCancel, apAddRow, _apKey };
+  return { init, render, filterBelum, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, apStartEdit, _apCommit, _apCancel, apAddRow, _apKey };
 })();
 window.APModule = APModule;

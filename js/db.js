@@ -475,12 +475,25 @@ const DB = (() => {
     if (typeof data === 'string') {
       try { data = JSON.parse(data); } catch { data = {}; }
     }
-    // Merge dengan settings lokal (supaya githubToken dll tidak hilang)
+    const sb = await _initClient();
+    // Fetch current Supabase state as base — mencegah field penting (logoUrl, dll) hilang
+    // karena db-patch menghapus logoUrl dari localStorage setiap load
+    let supaBase = {};
+    if (sb) {
+      try {
+        const { data: row } = await sb.from('settings').select('data').eq('id','main').maybeSingle();
+        if (row?.data) {
+          const parsed = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+          if (typeof parsed === 'object' && !Array.isArray(parsed)) supaBase = parsed;
+        }
+      } catch {}
+    }
+    // local: untuk githubToken dan setting lokal lain yang tidak ada di Supabase
     const local = JSON.parse(localStorage.getItem('becca_settings') || '{}');
-    const merged = { ...local, ...data, id: 'main' };
+    // supaBase (cloud) → local (override lokal) → data (nilai baru)
+    const merged = { ...supaBase, ...local, ...data, id: 'main' };
     localStorage.setItem('becca_settings', JSON.stringify(merged));
 
-    const sb = await _initClient();
     if (sb) {
       await sb.from('settings').upsert(
         { id: 'main', data: JSON.stringify(merged), updated_at: new Date().toISOString() },
