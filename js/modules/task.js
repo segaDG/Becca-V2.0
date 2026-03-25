@@ -928,7 +928,7 @@ const TaskModule = (() => {
     const PRIO_LBL   = { high:'🔴 High', medium:'🟡 Medium', low:'🟢 Low' };
     const assignDisp = _assigneeDisplay(t);
     const lines = [
-      '📋 *Task dari BECCA*',
+      '📋 *Task BPS World*',
       '',
       '*' + (t.judul || 'Tanpa judul') + '*',
       '🔗 ' + _shareUrl(t),
