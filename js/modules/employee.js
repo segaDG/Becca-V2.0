@@ -77,6 +77,8 @@ const EmployeeModule = (() => {
     _logs.forEach(l => _lbLocked.add(l.id));
     _lbSaveLocks();
     switchTab('data');
+    // One-time: migrate photos from localStorage to Supabase (runs in background)
+    migratePhotosFromLS().catch(() => {});
   }
 
   /* ===================== TAB SWITCH ===================== */
@@ -848,15 +850,36 @@ const EmployeeModule = (() => {
   /* === Foto Handler === */
   let _tempFotoUrl = null;
 
+  // Compress foto to JPEG 256px max, ~70% quality (≈15-30KB result)
+  function _compressFoto(dataUrl, maxPx, quality) {
+    maxPx   = maxPx   || 256;
+    quality = quality || 0.72;
+    return new Promise(function(resolve) {
+      const img = new Image();
+      img.onload = function() {
+        const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
+        const w = Math.round(img.width  * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = function() { resolve(dataUrl); }; // fallback: original
+      img.src = dataUrl;
+    });
+  }
+
   function _handleFotoUpload(input) {
     const file = input.files[0];
     if (!file) return;
-    if (file.size > 1024*1024) { Notify.warning('Foto terlalu besar. Maks 1MB.'); return; }
+    if (file.size > 5*1024*1024) { Notify.warning('Foto terlalu besar. Maks 5MB.'); return; }
     const reader = new FileReader();
-    reader.onload = (e) => {
-      _tempFotoUrl = e.target.result;
+    reader.onload = async function(e) {
+      const compressed = await _compressFoto(e.target.result);
+      _tempFotoUrl = compressed;
       const prev = document.getElementById('emp-foto-preview');
-      if (prev) prev.innerHTML = '<img src="'+_tempFotoUrl+'" style="width:100%;height:100%;object-fit:cover">';
+      if (prev) prev.innerHTML = '<img src="'+compressed+'" style="width:100%;height:100%;object-fit:cover">';
     };
     reader.readAsDataURL(file);
   }
@@ -865,6 +888,35 @@ const EmployeeModule = (() => {
     _tempFotoUrl = '__remove__';
     const prev = document.getElementById('emp-foto-preview');
     if (prev) prev.innerHTML = '<span style="font-size:20px">👤</span>';
+  }
+
+  /* === Migrate Photos from localStorage → Supabase === */
+  async function migratePhotosFromLS() {
+    const FLAG = 'becca_photos_migrated_v1';
+    if (localStorage.getItem(FLAG)) return 0;
+    let lsEmps;
+    try { lsEmps = JSON.parse(localStorage.getItem('becca_employees') || '[]'); } catch { lsEmps = []; }
+    if (!Array.isArray(lsEmps) || !lsEmps.length) { localStorage.setItem(FLAG,'1'); return 0; }
+
+    let migrated = 0;
+    for (const lsEmp of lsEmps) {
+      if (!lsEmp.fotoUrl || !lsEmp.fotoUrl.startsWith('data:')) continue;
+      const dbEmp = _employees.find(e => e.id === lsEmp.id);
+      if (!dbEmp) continue;
+      if (dbEmp.fotoUrl && dbEmp.fotoUrl.startsWith('data:')) continue; // already synced
+      try {
+        const compressed = await _compressFoto(lsEmp.fotoUrl);
+        dbEmp.fotoUrl = compressed;
+        await DB.saveEmployee({...dbEmp});
+        migrated++;
+      } catch(e) { console.warn('[EMP] migrate foto failed:', lsEmp.id, e.message); }
+    }
+    localStorage.setItem(FLAG, '1');
+    if (migrated > 0) {
+      Notify.success(migrated + ' foto karyawan berhasil disinkronisasi ke cloud ✓');
+      if (_activeTab === 'data' || _activeTab === 'card') renderData();
+    }
+    return migrated;
   }
 
   /* === Quick Status Change === */
@@ -1406,7 +1458,7 @@ const EmployeeModule = (() => {
 
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip,
-    _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter,
+    _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter, migratePhotosFromLS,
     _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, recalcAllHutang, _showLogDetail,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
