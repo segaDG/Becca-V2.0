@@ -28,8 +28,28 @@ const InvoiceModule = (() => {
     {no:12,bulan:'DESEMBER',omzetInvoice:7350000,totalInvoice:1,totalClient:1,overdue:0,unpaid:7350000,pb1:0},
   ];
 
-  const _overdue = _invoices.filter(i => i.status === 'Overdue');
-  const _soon    = _invoices.filter(i => i.status === 'Unpaid' && i.sisaHari !== null && i.sisaHari >= 0 && i.sisaHari <= 15);
+  // Dynamic days-left — always relative to today (tidak pakai sisaHari hardcoded)
+  function _daysLeft(tglBayar) {
+    if (!tglBayar) return null;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const due   = new Date(tglBayar); due.setHours(0,0,0,0);
+    return Math.round((due - today) / 86400000);
+  }
+  function _getOverdue() {
+    return _invoices.filter(i => {
+      if (i.status === 'Paid') return false;
+      if (i.status === 'Overdue') return true; // explicit overdue flag
+      const d = _daysLeft(i.tglBayar);
+      return d !== null && d < 0;             // jatuh tempo sudah lewat
+    });
+  }
+  function _getSoon() {
+    return _invoices.filter(i => {
+      if (i.status === 'Paid') return false;
+      const d = _daysLeft(i.tglBayar);
+      return d !== null && d >= 0 && d <= 15;
+    });
+  }
   const _clients = [
     {nama:'SODEXO INDONESIA',omzet:597583500,customerId:'51'},
     {nama:'PT. Shinto Kogyo Indonesia',omzet:331215000,customerId:'30'},
@@ -57,10 +77,11 @@ const InvoiceModule = (() => {
     return n ? 'Rp' + n.toLocaleString('id') : '-';
   }
   function _statusBadge(inv) {
-    const s = inv.status, d = inv.sisaHari;
-    if (s === 'Paid')    return `<span class="inv-b paid">✓ Lunas</span>`;
-    if (s === 'Overdue') return `<span class="inv-b overdue">⚠ ${Math.abs(d)} hr terlambat</span>`;
+    const s = inv.status;
+    if (s === 'Paid') return `<span class="inv-b paid">✓ Lunas</span>`;
+    const d = _daysLeft(inv.tglBayar);
     if (d === null || d === undefined) return `<span class="inv-b info">⏱ Pending</span>`;
+    if (d < 0)  return `<span class="inv-b overdue">⚠ ${Math.abs(d)} hr terlambat</span>`;
     if (d === 0) return `<span class="inv-b urgent">⏱ Jatuh tempo hari ini!</span>`;
     const cls = d <= 3 ? 'urgent' : d <= 7 ? 'warn' : 'info';
     return `<span class="inv-b ${cls}">⏱ ${d} hari lagi</span>`;
@@ -143,7 +164,9 @@ const InvoiceModule = (() => {
     if (!page) return;
 
     const paid    = _invoices.filter(i=>i.status==='Paid').length;
-    const unpaid  = _invoices.filter(i=>i.status==='Unpaid').length;
+    const unpaid  = _invoices.filter(i=>i.status!=='Paid').length;
+    const _overdue = _getOverdue();
+    const _soon    = _getSoon();
     const overdue = _overdue.length;
     const soonCnt = _soon.length;
     const totalOutstanding = _invoices.filter(i=>i.status!=='Paid').reduce((s,i)=>s+i.sisa,0);
@@ -385,29 +408,64 @@ const InvoiceModule = (() => {
 
   /* ══ TAB OVERDUE ══ */
   function _renderOverdue() {
-    if (!_overdue.length) {
+    const overdueList = _getOverdue();
+    if (!overdueList.length) {
       return `<div style="padding:48px;text-align:center">
         <div style="font-size:48px;margin-bottom:12px">✅</div>
         <div style="font-size:16px;font-weight:700;color:var(--text)">Tidak Ada Invoice Overdue</div>
-        <div style="font-size:12px;color:var(--text-3);margin-top:6px">Semua invoice dalam kondisi baik per 22 Maret 2026</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:6px">Semua invoice dalam kondisi baik</div>
       </div>`;
     }
-    const total = _overdue.reduce((s,i)=>s+i.sisa,0);
+    const total = overdueList.reduce((s,i)=>s+i.sisa,0);
     return `
     <div class="inv-toolbar">
       <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:8px 14px;font-size:11px;color:#ef4444;font-weight:600">
-        ⚠️ ${_overdue.length} invoice melewati jatuh tempo — Total: <strong>${_rp(total)}</strong>
+        ⚠️ ${overdueList.length} invoice melewati jatuh tempo — Total: <strong>${_rp(total)}</strong>
       </div>
+    </div>
+    <div class="inv-scroll">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead>
+          <tr style="background:rgba(239,68,68,.12)">
+            <th class="inv-th" style="text-align:center;width:36px">#</th>
+            <th class="inv-th" style="text-align:left">Customer</th>
+            <th class="inv-th" style="text-align:left">Invoice #</th>
+            <th class="inv-th" style="text-align:center">Jatuh Tempo</th>
+            <th class="inv-th" style="text-align:center;color:#ef4444">Terlambat</th>
+            <th class="inv-th" style="text-align:right;color:#ef4444">Sisa Tagihan</th>
+          </tr>
+        </thead>
+        <tbody>
+        ${overdueList.map((inv,i) => {
+          const d   = Math.abs(_daysLeft(inv.tglBayar));
+          const bg  = i%2===0?'var(--surface)':'var(--surface2)';
+          return `<tr style="border-bottom:1px solid var(--border)"
+            onmouseenter="this.querySelectorAll('td').forEach(function(t){t.dataset.ori=t.style.background;t.style.background='rgba(239,68,68,.07)'})"
+            onmouseleave="this.querySelectorAll('td').forEach(function(t){t.style.background=t.dataset.ori})">
+            <td class="inv-td" style="text-align:center;font-size:10px;color:var(--text-3);background:${bg}">${i+1}</td>
+            <td class="inv-td" style="font-weight:600;background:${bg}">${inv.customer}</td>
+            <td class="inv-td" style="font-family:var(--font-mono);font-size:10px;color:var(--text-2);background:${bg}">${inv.invoiceNum||'-'}</td>
+            <td class="inv-td" style="text-align:center;font-size:10px;font-weight:600;background:${bg}">${_fmtDate(inv.tglBayar)}</td>
+            <td class="inv-td" style="text-align:center;background:${bg}">
+              <span style="font-weight:700;font-size:14px;color:#ef4444">${d}</span>
+              <span style="font-size:9px;color:var(--text-3)"> hari</span>
+            </td>
+            <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:700;color:#ef4444;background:${bg}">${_rpFull(inv.sisa)}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
     </div>`;
   }
 
   /* ══ TAB SOON DUE ══ */
   function _renderSoon() {
-    const total = _soon.reduce((s,i)=>s+i.sisa,0);
+    const soonList = _getSoon();
+    const total = soonList.reduce((s,i)=>s+i.sisa,0);
     return `
     <div class="inv-toolbar">
       <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:8px 14px;font-size:11px;color:#f59e0b;font-weight:600">
-        🔔 ${_soon.length} invoice jatuh tempo dalam 15 hari — Total: <strong>${_rp(total)}</strong>
+        🔔 ${soonList.length} invoice jatuh tempo dalam 15 hari — Total: <strong>${_rp(total)}</strong>
       </div>
     </div>
     <div class="inv-scroll">
@@ -426,10 +484,11 @@ const InvoiceModule = (() => {
           </tr>
         </thead>
         <tbody>
-        ${_soon.map((inv,i) => {
+        ${soonList.map((inv,i) => {
+          const daysLeft = _daysLeft(inv.tglBayar) ?? 0;
           const bg  = i%2===0?'var(--surface)':'var(--surface2)';
-          const col = inv.sisaHari===0?'#ef4444':inv.sisaHari<=3?'#ef4444':inv.sisaHari<=7?'#f59e0b':'#6366f1';
-          const pct = Math.round((1-inv.sisaHari/15)*100);
+          const col = daysLeft===0?'#ef4444':daysLeft<=3?'#ef4444':daysLeft<=7?'#f59e0b':'#6366f1';
+          const pct = Math.round((1-daysLeft/15)*100);
           return `<tr onmouseenter="this.querySelectorAll('td').forEach(function(t){t.dataset.ori=t.style.background;t.style.background='rgba(245,158,11,.07)'})" onmouseleave="this.querySelectorAll('td').forEach(function(t){t.style.background=t.dataset.ori})" style="border-bottom:1px solid var(--border)">
             <td class="inv-td" style="text-align:center;font-size:10px;color:var(--text-3);background:${bg}">${i+1}</td>
             <td class="inv-td" style="text-align:center;background:${bg}">
@@ -440,8 +499,8 @@ const InvoiceModule = (() => {
             <td class="inv-td" style="text-align:center;font-size:10px;color:var(--text-2);background:${bg}">${_fmtDate(inv.tglInvoice)}</td>
             <td class="inv-td" style="text-align:center;font-size:10px;font-weight:600;background:${bg}">${_fmtDate(inv.tglBayar)}</td>
             <td class="inv-td" style="text-align:center;background:${bg}">
-              <span style="font-weight:700;font-size:14px;color:${col}">${inv.sisaHari===0?'HARI INI':inv.sisaHari}</span>
-              ${inv.sisaHari>0?'<span style="font-size:9px;color:var(--text-3)"> hari</span>':''}
+              <span style="font-weight:700;font-size:14px;color:${col}">${daysLeft===0?'HARI INI':daysLeft}</span>
+              ${daysLeft>0?'<span style="font-size:9px;color:var(--text-3)"> hari</span>':''}
               <div style="width:50px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:2px auto 0">
                 <div style="width:${pct}%;height:100%;background:${col};border-radius:2px"></div>
               </div>
