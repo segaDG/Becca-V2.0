@@ -308,10 +308,16 @@ const CustomerModule = (() => {
                 </td>
                 <td style="padding:8px 10px;font-size:11px;color:var(--text-3);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.catatan||'-'}</td>
                 ${canEdit ? `<td style="padding:6px 8px;text-align:center">
-                  <button onclick="CustomerModule.openModal('${c.id}')"
-                    style="width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);display:inline-flex;align-items:center;justify-content:center">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
-                  </button>
+                  <div style="display:flex;gap:4px;justify-content:center">
+                    <button onclick="CustomerModule.openModal('${c.id}')" title="Edit"
+                      style="width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);display:inline-flex;align-items:center;justify-content:center">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+                    </button>
+                    <button onclick="CustomerModule.deleteCustomer('${c.id}')" title="Hapus"
+                      style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(239,68,68,.3);background:transparent;cursor:pointer;color:#ef4444;display:inline-flex;align-items:center;justify-content:center">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                    </button>
+                  </div>
                 </td>` : ''}
               </tr>`;
             }).join('')
@@ -594,6 +600,31 @@ const CustomerModule = (() => {
     _render();
   }
 
+  async function deleteCustomer(id) {
+    const cust = _data.find(c=>c.id===id) || _data.find(c=>String(c.id)===String(id));
+    if (!cust) return;
+    const nama = cust.nama || 'Customer ini';
+    Modal.open({
+      id: '_del-cust-modal',
+      title: 'Hapus Customer',
+      body: `<p style="font-size:14px;color:var(--text)">Apakah kamu yakin ingin menghapus <strong>${nama}</strong>?</p>
+             <p style="font-size:12px;color:var(--danger);margin-top:8px">⚠ Tindakan ini tidak dapat dibatalkan.</p>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('_del-cust-modal')">Batal</button>
+               <button class="btn btn-danger" onclick="CustomerModule._confirmDeleteCustomer('${id}')">Ya, Hapus</button>`,
+    });
+  }
+
+  async function _confirmDeleteCustomer(id) {
+    const i = _data.findIndex(c=>c.id===id || String(c.id)===String(id));
+    if (i < 0) return;
+    const nama = _data[i].nama;
+    _data.splice(i, 1);
+    Modal.close('_del-cust-modal');
+    DB.deleteCustomer(id).catch(e => console.warn('deleteCustomer:', e));
+    Notify.success('Customer dihapus', nama);
+    _render();
+  }
+
   function _fillAllShifts() {
     const base = parseFloat(document.getElementById('cf-harga-base')?.value) || 0;
     if (!base) { Notify.warning('Masukkan harga dasar terlebih dahulu'); return; }
@@ -603,7 +634,7 @@ const CustomerModule = (() => {
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = base; });
   }
 
-  return { init, setSearch, sortBy, openModal, _submit, _fillAllShifts, _fixSticky, editCustomerId, _saveCustomerId };
+  return { init, setSearch, sortBy, openModal, _submit, _fillAllShifts, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, _confirmDeleteCustomer };
 })();
 
 window.CustomerModule = CustomerModule;

@@ -338,6 +338,16 @@ const SettingsModule = (() => {
                             : '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'}
                         </svg>
                       </button>
+                      <button class="btn-icon" style="color:#ef4444"
+                              onclick="SettingsModule.deleteUser('${u.id||u.username}')"
+                              title="Hapus User">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="3 6 5 6 21 6"/>
+                          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                          <path d="M10 11v6M14 11v6"/>
+                          <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                        </svg>
+                      </button>
                     `:''}
                   </div>
                 </td>
@@ -459,6 +469,33 @@ const SettingsModule = (() => {
     _syncAuthJs();
     Notify.success(u.aktif?'User diaktifkan':'User dinonaktifkan');
     renderUsers();
+  }
+
+  async function deleteUser(idOrUsername) {
+    const u = _usersCache.find(u=>u.id===idOrUsername||u.username===idOrUsername)
+           || Auth._defaultUsers.find(u=>u.id===idOrUsername||u.username===idOrUsername);
+    const nama = u?.nama || idOrUsername;
+    Modal.open({
+      id: '_del-user-modal',
+      title: 'Hapus User',
+      body: `<p style="font-size:14px;color:var(--text)">Apakah kamu yakin ingin menghapus user <strong>${nama}</strong>?</p>
+             <p style="font-size:12px;color:var(--danger);margin-top:8px">⚠ Tindakan ini tidak dapat dibatalkan.</p>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('_del-user-modal')">Batal</button>
+               <button class="btn btn-danger" onclick="SettingsModule._confirmDeleteUser('${idOrUsername}')">Ya, Hapus</button>`,
+    });
+  }
+
+  async function _confirmDeleteUser(idOrUsername) {
+    Modal.close('_del-user-modal');
+    try {
+      await DB.deleteUser(idOrUsername);
+      _usersCache = _usersCache.filter(u=>u.id!==idOrUsername&&u.username!==idOrUsername);
+      _syncAuthJs();
+      Notify.success('User dihapus');
+      renderUsers();
+    } catch(e) {
+      Notify.error('Gagal menghapus user', e.message);
+    }
   }
 
   /* ===================== TAB: PRIVILEGE ===================== */
@@ -1320,7 +1357,7 @@ const SettingsModule = (() => {
   return {
     init, switchTab,
     saveGeneralSettings, _handleLogoUpload, _removeLogo, openChangePasswordModal, _changePassword,
-    renderUsers, openUserModal, _submitUser, toggleUser,
+    renderUsers, openUserModal, _submitUser, toggleUser, deleteUser, _confirmDeleteUser,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData, _syncAuthJs, _downloadAuthJs, _saveGithubToken
