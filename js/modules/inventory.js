@@ -1637,6 +1637,7 @@ const InventoryModule = (() => {
     _submitTransaksi,
     startLogEdit,
     commitLogEdit,
+    unlockInvRow,
     addLogRow,
     deleteLogRow,
     renderOpnameTab,
