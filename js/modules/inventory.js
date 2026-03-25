@@ -808,11 +808,25 @@ const InventoryModule = (() => {
     const vals = _ivReadDOM(id);
 
     if (!skipValidation) {
-      if (!vals.itemId) {
-        Notify.warning('Nama Barang wajib dipilih sebelum menyimpan');
+      const _failV = (msg) => {
+        Notify.warning(msg);
         _invEditId = id;
         setTimeout(() => document.addEventListener('click', _ivOutsideClick), 50);
         return false;
+      };
+      if (!vals.itemId)
+        return _failV('Nama Barang wajib dipilih sebelum menyimpan');
+      if (row._isNew) {
+        if (!vals.tgl)
+          return _failV('Tanggal wajib diisi');
+        if (!vals.jumlah || vals.jumlah <= 0)
+          return _failV('Jumlah wajib diisi dan harus lebih dari 0');
+        if (!vals.kodeAktivitas)
+          return _failV('Kode Aktivitas wajib dipilih');
+        if (!vals.pengambil || !vals.pengambil.trim())
+          return _failV('Pengambil wajib diisi');
+        if (!vals.penanggungJawab || !vals.penanggungJawab.trim())
+          return _failV('Penanggung Jawab wajib diisi');
       }
     }
     const origStr = row._original || '{}';
@@ -828,10 +842,10 @@ const InventoryModule = (() => {
     }
     if (row._hasChanged === false) {
       // Tidak ada perubahan - skip save dan log
-      delete row._original; delete row._hasChanged;
+      delete row._original; delete row._hasChanged; delete row._isNew;
       return true;
     }
-    delete row._original; delete row._hasChanged;
+    delete row._original; delete row._hasChanged; delete row._isNew;
     DB.saveInventoryLog(row).then(() => {
       _recalcStok();
       // Update item hargaSatuan if MASUK and harga provided
@@ -875,6 +889,7 @@ const InventoryModule = (() => {
     const newRow = {tgl:today,itemId:'',itemNama:'',jenis:'MASUK',jumlah:0,stokAkhir:0,harga:0,kodeAktivitas:'',hpp:0,pengambil:'',penanggungJawab:'',catatan:''};
     try {
       const saved = await DB.saveInventoryLog(newRow);
+      saved._isNew = true;  // strict validation until first commit
       _logs.unshift(saved);
       DB.logActivity({type:'add_inventory', detail:'Baris baru', snapshot:{after: {...saved}}});
       renderTransaksi();
