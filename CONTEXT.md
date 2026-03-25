@@ -18,7 +18,7 @@
 | Frontend | Vanilla HTML/CSS/JS (no framework, no build step) |
 | Database | **Supabase** (PostgreSQL + RLS) dengan localStorage fallback |
 | Auth | Custom (session di localStorage/sessionStorage) |
-| Deploy | Vercel (static hosting) |
+| Deploy | **GitHub Pages** — `https://segaDG.github.io/Becca-V2.0/` |
 | Fonts | Inter (UI), JetBrains Mono (code) — Google Fonts CDN |
 | Icons | Inline SVG |
 | Repo | https://github.com/segaDG/Becca-V2.0 |
@@ -30,8 +30,12 @@
 ## Struktur File
 
 ```
-index.html              → HTML entry point (67 baris, seminimal mungkin)
+index.html              → HTML entry point (seminimal mungkin)
+share.html              → Standalone task share page (OG preview + deep link ke app)
 data-migrator.js        → Migration tool dari v1.0 (jalankan di console browser)
+
+img/
+  og-becca.svg          → OG image 1200×630 untuk WhatsApp/social link preview
 
 css/
   base.css              → Design tokens, CSS variables, reset, utility classes
@@ -73,27 +77,29 @@ js/modules/             → Satu file per modul fitur (lihat status di bawah)
 
 ```html
 <!-- 1. CORE: Synchronous (no defer) — harus load duluan -->
-<script src="js/utils.js"></script>
-<script src="js/utils-extensions.js"></script>  <!-- WAJIB setelah utils.js, sebelum db.js -->
-<script src="js/db.js"></script>
-<script src="js/db-extensions.js"></script>
-<script src="js/db-patch.js"></script>
-<script src="js/auth.js"></script>
+<script src="js/utils.js?v=..."></script>
+<script src="js/utils-extensions.js?v=..."></script>  <!-- WAJIB setelah utils.js, sebelum db.js -->
+<script src="js/db.js?v=..."></script>
+<script src="js/db-extensions.js?v=..."></script>
+<script src="js/db-patch.js?v=..."></script>
+<script src="js/auth.js?v=..."></script>
 
 <!-- 2. UI COMPONENTS: Deferred -->
-<script src="js/ui/notify.js" defer></script>
-<script src="js/ui/modal.js" defer></script>
-<script src="js/ui/sidebar.js" defer></script>
+<script src="js/ui/notify.js?v=..." defer></script>
+<script src="js/ui/modal.js?v=..." defer></script>
+<script src="js/ui/sidebar.js?v=..." defer></script>
 
 <!-- 3. MODULES: Deferred (sebelum app.js) -->
-<script src="js/modules/dashboard.js" defer></script>
+<script src="js/modules/dashboard.js?v=..." defer></script>
 ...semua modul lainnya...
 
 <!-- 4. APP BOOT: Deferred, terakhir -->
-<script src="js/notifications.js" defer></script>
-<script src="js/search-fix.js" defer></script>
-<script src="js/app.js" defer></script>
+<script src="js/notifications.js?v=..." defer></script>
+<script src="js/search-fix.js?v=..." defer></script>
+<script src="js/app.js?v=..." defer></script>
 ```
+
+> Semua `<script>` menggunakan query string `?v=YYYYMMDD` untuk cache busting. Update versi saat ada perubahan penting.
 
 ---
 
@@ -104,14 +110,20 @@ js/modules/             → Satu file per modul fitur (lihat status di bawah)
 | dashboard  | DashboardModule | ✅ Done    | Stat cards, widgets, real-time refresh |
 | order      | OrderModule     | ✅ Done    | Full CRUD, generate invoice, filter |
 | invoice    | InvoiceModule   | ✅ Done    | AR tracking, payment status, overdue alerts |
+| customer   | CustomerModule  | ✅ Done    | Full CRUD + delete dengan konfirmasi |
+| inventory  | InventoryModule | ✅ Done    | Stok produk, activity log, in/out |
+| kas        | KasModule       | ✅ Done    | Kas masuk/keluar, ringkasan saldo |
+| ap         | APModule        | ✅ Done    | Accounts Payable, supplier management |
+| task       | TaskModule      | ✅ Done    | Kanban board, WA share deep link |
+| report     | ReportModule    | ✅ Done    | Laporan keuangan & operasional |
 | employee   | EmployeeModule  | ✅ Done    | Data table, logbook, kartu karyawan, foto |
-| customer   | CustomerModule  | 🚧 TODO   | Struktur placeholder sudah ada |
-| inventory  | InventoryModule | 🚧 TODO   | Struktur placeholder sudah ada |
-| kas        | KasModule       | 🚧 TODO   | Struktur placeholder sudah ada |
-| ap         | APModule        | 🚧 TODO   | Dalam pengerjaan aktif |
-| task       | TaskModule      | 🚧 TODO   | Struktur placeholder sudah ada |
-| report     | ReportModule    | 🚧 TODO   | Struktur placeholder sudah ada |
-| settings   | SettingsModule  | 🚧 TODO   | Struktur placeholder sudah ada |
+| settings   | SettingsModule  | ✅ Done    | User management + delete, company settings |
+
+### Upcoming Modules
+
+| pageId         | Module              | Status     | Keterangan |
+|----------------|---------------------|------------|------------|
+| produksi       | ProduksiModule      | 📋 Planned | Form produksi: order+customer+inventory terintegrasi, 3 shift, date picker, saveable |
 
 ---
 
@@ -145,15 +157,16 @@ window.XModule = XModule;
 ### Cara Tambah Modul Baru
 
 1. Buat `js/modules/namaModul.js` — ikuti Module Pattern di atas
-2. Tambah `<script src="js/modules/namaModul.js" defer></script>` di `index.html` (sebelum `app.js`)
+2. Tambah `<script src="js/modules/namaModul.js?v=..." defer></script>` di `index.html` (sebelum `app.js`)
 3. Daftarkan di `App._modules` dalam `app.js`
-4. Tambah `<section id="page-namaModul" class="page hidden"></section>` di `index.html`
+4. Tambah `<section id="page-namaModul" class="page"></section>` di `index.html`
 5. Update tabel status di CONTEXT.md ini
 
 ### HTML Pattern untuk Halaman Modul
 
 ```html
-<section id="page-namaModul" class="page hidden">
+<!-- BENAR: class="page" (bukan "page hidden") — visibility via .active class -->
+<section id="page-namaModul" class="page">
   <div class="page-header">
     <div>
       <h1 class="page-title">Nama Modul</h1>
@@ -168,6 +181,8 @@ window.XModule = XModule;
   </div>
 </section>
 ```
+
+> **Penting**: Halaman menggunakan `class="page"` saja. Visibility dikontrol lewat `.active` class yang ditambah/dihapus oleh `App.navigate()` — BUKAN `hidden` class. Jangan tambah `hidden` ke page sections.
 
 ---
 
@@ -187,10 +202,13 @@ DB.getInventoryProducts() / DB.saveInventoryProduct(data)
 DB.getInventoryActivity() / DB.saveInventoryActivity(data)
 DB.getKas()             / DB.saveKas(data)           / DB.deleteKas(id)
 DB.getAP()              / DB.saveAP(data)            / DB.deleteAP(id)
-DB.getSuppliers()       / DB.saveSupplier(data)
+DB.getSuppliers()       / DB.saveSupplier(data)      / DB.deleteSupplier(id)
 DB.getTasks()           / DB.saveTask(data)          / DB.deleteTask(id)
 DB.getSettings()        / DB.saveSettings(data)
+DB.deleteCustomer(id)   // Menghapus dari Supabase + localStorage
+DB.deleteUser(id)       // Menghapus dari Supabase + localStorage
 DB.logActivity({ type, detail })   // Audit trail
+DB.migrateFromLocalStorage()       // One-time migration: push semua localStorage → Supabase
 ```
 
 **Data Architecture:**
@@ -198,17 +216,27 @@ DB.logActivity({ type, detail })   // Audit trail
 - Konversi otomatis: Supabase snake_case ↔ JS camelCase via `_fromRow()` di db.js
 - `DB.getXxx()` selalu return array (tidak pernah null)
 - Saat offline / Supabase unavailable → fallback ke localStorage
+- Memory cache 60 detik di `_get()`, auto-invalidate saat `_save`/`_delete`
 
 ### Auth
 
 ```js
-Auth.currentUser()           // → { id, username, nama, role, email }
+Auth.currentUser()           // → { id, username, nama, role, email, noWA? }
 Auth.can('feature', 'action') // → bool — privilege check
 Auth.isSuperAdmin()           // → bool
 Auth.logout()
 
 // Roles: superadmin | admin | operator | viewer
 // Contoh privilege: Auth.can('order', 'edit'), Auth.can('report', 'view')
+// Auth.can('customer', 'edit') → true hanya untuk admin/superadmin
+```
+
+**User Object Fields:**
+```js
+{
+  id, username, nama, role, email,
+  noWA: '628xxx'  // optional — nomor WA tanpa '+', dipakai untuk share/notifikasi
+}
 ```
 
 **Demo credentials:**
@@ -307,6 +335,32 @@ App.boot()                // init saat pertama load (dipanggil otomatis)
 
 ---
 
+## Fitur: WA Task Share + Deep Link
+
+### Alur Lengkap
+
+1. User klik tombol share di task → `TaskModule._waText(t)` membuat pesan WA
+2. Pesan berisi link ke `share.html?id=ID&t=JUDUL&s=STATUS&p=PRIORITY&a=ASSIGNEE&d=DEADLINE`
+3. `share.html` menampilkan task card (standalone, dark theme) + tombol "Buka di BECCA"
+4. Tombol "Buka di BECCA" → link ke `index.html?task=ID`
+5. Di `app.js` `boot()`: tangkap `?task=ID` → simpan ke `sessionStorage('becca_deep_task')` → strip dari URL
+6. Setelah login → `_showApp()`: cek `sessionStorage('becca_deep_task')` → `navigate('task')` → `TaskModule.openModal(id)`
+
+### `share.html`
+
+- File mandiri, tidak butuh `index.html` atau JS module apapun
+- OG meta tags: `og:image` → `img/og-becca.svg` (1200×630 SVG)
+- Membaca URL params: `id`, `t` (title), `s` (status), `p` (priority), `a` (assignee), `d` (deadline)
+- "Buka di BECCA" button → `index.html?task=ENCODED_ID`
+
+### `img/og-becca.svg`
+
+- 1200×630 px — ukuran standar WA/OG preview
+- Dark gradient background, logo BECCA, headline "Ada task baru untukmu!"
+- Dipakai oleh `og:image` di `share.html`
+
+---
+
 ## Design System
 
 ### CSS Variables (dari `base.css`)
@@ -362,6 +416,7 @@ App.boot()                // init saat pertama load (dipanggil otomatis)
 <button class="btn btn-danger">Hapus</button>
 <button class="btn btn-ghost">Ghost</button>
 <button class="btn btn-sm btn-primary">Kecil</button>
+<button class="btn-icon" style="color:var(--danger)"><!-- SVG icon --></button>
 
 <!-- Badges/Status -->
 <span class="badge badge-success">Lunas</span>
@@ -446,43 +501,53 @@ async function deleteItem(id) {
 
 ---
 
-## WAT Framework — Cara Operasi AI
-
-> Baca instruksi WAT framework penuh di sesi jika ada. Ini ringkasannya untuk konteks project ini.
-
-**Prinsip:**
-- AI mengerjakan **orchestration & reasoning** — bukan eksekusi langsung yang error-prone
-- Pisahkan: **apa yang mau dilakukan** (workflow) dari **bagaimana eksekusinya** (code)
-- Setiap kegagalan → pelajari → fix → verifikasi → update context
-
-**Sebelum menulis kode:**
-1. Cek apakah pola yang dibutuhkan sudah ada di codebase (lihat modul yang sudah Done)
-2. Ikuti modul pattern yang sudah established — jangan reinvent the wheel
-3. Gunakan CSS variables dan komponen yang sudah ada, jangan tulis style inline
-
-**Loop perbaikan:**
-1. Identifikasi apa yang rusak
-2. Fix kodenya
-3. Verifikasi fix bekerja
-4. Update CONTEXT.md jika ada hal baru yang perlu dicatat
-5. Lanjutkan dengan sistem yang lebih robust
-
----
-
 ## Catatan Penting & Gotchas
+
+### Supabase & Data
 
 - **Jangan gunakan Firebase** — backend adalah Supabase
 - **Semua DB calls adalah async** — selalu `await DB.getXxx()`
 - **`DB.getXxx()` selalu return array** — tidak perlu null check
+- **Supabase RLS** — anon key terekspos di client (normal untuk Supabase). Untuk production, pastikan RLS policy sudah dikonfigurasi. File `supabase_rls_fix.sql` tersedia di repo
+- **`DB.migrateFromLocalStorage()`** — tersedia untuk one-time migration data localStorage → Supabase. Diproteksi flag `becca_migrated_v2` di localStorage
+- **Cross-device data** — data hanya sinkron antar device lewat Supabase. Jika Supabase write gagal (misal RLS block), data hanya tersimpan di localStorage device tersebut
+
+### Script & Module Loading
+
 - **Script loading order penting** — utils.js → utils-extensions.js → db.js → ... → modules (defer) → app.js (defer)
-- **`Utils.ls` auto-prefix** — `Utils.ls.set('foo', val)` menyimpan ke `becca_foo`. Jangan masukkan `becca_` dalam key!
+- **Cache busting** — semua `<script>` pakai `?v=YYYYMMDD`. Update versi setelah perubahan major
+- **Module pattern** — semua modul ikuti IIFE pattern + `window.XModule = XModule`
+
+### Routing & Navigation
+
+- **Page visibility** — `class="page"` + `.active` class. BUKAN `hidden` class. Jangan tambah `hidden` ke `<section class="page">`
+- **`App.navigate(pageId)`** — async, memanggil `XModule.init()`, return Promise. Selalu await jika perlu aksi setelah navigate
+- **Deep link** — `?task=ID` di URL → `sessionStorage('becca_deep_task')` → setelah login → auto-open task modal
+
+### Utils & Storage
+
+- **`Utils.ls` auto-prefix** — `Utils.ls.set('foo', val)` → `becca_foo`. Jangan masukkan `becca_` dalam key!
   - Benar: `Utils.ls.set('lastPage', pageId)` → tersimpan sebagai `becca_lastPage`
-  - Salah: `Utils.ls.set('becca_lastPage', ...)` → tersimpan sebagai `becca_becca_lastPage` (diclean db-patch!)
-- **db-patch.js** menghapus semua key dengan prefix `becca_becca_` saat load — jangan double-prefix key Utils.ls
-- **Toast container** adalah `id="toast-container"` di index.html (bukan `toast-root`)
-- **CSS variables** — gunakan var(--primary) bukan hardcode hex
-- **Dark theme** — ada toggle light/dark, tapi desain utamanya dark
-- **Supabase camelCase** — `_fromRow()` di db.js handle konversi snake_case → camelCase
-- **Memory cache** — `_get()` di db.js cache 60s, di-invalidate otomatis saat `_save`/`_delete`
+  - Salah: `Utils.ls.set('becca_lastPage', ...)` → tersimpan sebagai `becca_becca_lastPage`
+- **db-patch.js** membersihkan key double-prefix `becca_becca_` saat load
+
+### UI Components
+
+- **Toast container** — `id="toast-container"` di `index.html`
 - **Modal escape** — setiap `Modal.open()` punya independent escape handler, tidak saling overwrite
-- **Real-time sync** — Supabase realtime subscription via `db-extensions.js`, auto-refresh modul yang sedang aktif
+- **Sidebar overlay** — `id="sidebar-overlay"` di `index.html`. Dikontrol via `.active` class di `.app-container`
+- **CSS variables** — gunakan `var(--primary)` bukan hardcode hex
+
+### Auth & Privilege
+
+- **Delete buttons** — gated by privilege. Customer delete: `Auth.can('customer','edit')` (admin/superadmin saja). Settings user delete: semua user kecuali diri sendiri
+- **`_usersCache`** — module-level cache di `settings.js` untuk lookup user saat edit/delete
+
+### Supplier & AP
+
+- **Supplier No. Rekening** — field disimpan sebagai `noRek` di form, tapi render perlu fallback: `s.data?.no_rekening || s.noRekening || s.noRek`
+
+### Keamanan (Known Issues — Internal App)
+
+- Beberapa tempat di modul menggunakan `innerHTML` untuk render data user — potensi XSS jika data diinject. Untuk app internal ini acceptable, tapi perlu sanitasi jika exposed ke public
+- Demo credentials hardcoded di `auth.js` — hanya untuk development/demo
