@@ -810,6 +810,49 @@ const OrderModule = (() => {
     _invRecs.push({nomor, customer:cust, dari, sampai, invoiceDate:invDate, orderCount:list.length, orderIds:ids, totals:tots});
     _saveInvs();
 
+    // Persist invoice to DB
+    (function() {
+      try {
+        const custs = JSON.parse(localStorage.getItem('becca_customers')||'[]');
+        const c = custs.find(x => x.nama === cust) || {};
+        const gh = k => {
+          const map = {
+            breakfast:c.hargaBreakfast||17500, s1:c.hargaShift1||17500,
+            spare1:c.hargaSpare1||17500,       ot1:c.hargaOT1||17500,
+            snack1:c.hargaSnack1||17500,       s2:c.hargaShift2||17500,
+            spare2:c.hargaSpare2||17500,       ot2:c.hargaOT2||17500,
+            snack2:c.hargaSnack2||17500,       s3:c.hargaShift3||17500,
+            spare3:c.hargaSpare3||17500,       ot3:c.hargaOT3||17500,
+            snack3:c.hargaSnack3||17500,       snackBerat:c.hargaSnackBerat||17500,
+          };
+          return map[k] ?? 17500;
+        };
+        const subtotal = _cols.reduce((s,col) => s + (tots[col.key]||0) * gh(col.key), 0);
+        const grand    = subtotal + Math.round(subtotal*0.10) - Math.round(subtotal*0.02);
+        DB.saveInvoice({
+          id:            'ord_' + nomor,
+          customerId:    c.customerId || '',
+          customer:      cust,
+          po:            '',
+          invoiceNum:    nomor,
+          tglInvoice:    invDate,
+          tglBayar:      '',
+          total:         subtotal,
+          afterPph:      grand,
+          totalTerbayar: 0,
+          tglTerbayar:   '',
+          lamaTerbayar:  '',
+          sisa:          subtotal,
+          status:        'Unpaid',
+          dari:          dari,
+          sampai:        sampai,
+          orderIds:      ids,
+          totals:        tots,
+          source:        'order',
+        }).catch(e => console.warn('[OrderModule] DB.saveInvoice error:', e));
+      } catch(e) { console.warn('[OrderModule] DB.saveInvoice prep error:', e); }
+    })();
+
     const includeAdd = document.getElementById('ic-add-chk')?.checked || false;
     const addRows    = includeAdd ? _getAdditionalRows() : [];
 

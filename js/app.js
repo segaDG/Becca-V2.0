@@ -27,7 +27,7 @@ const App = {
     const _deepTask = _urlP.get('task');
     if (_deepTask) {
       sessionStorage.setItem('becca_deep_task', _deepTask);
-      history.replaceState({}, '', location.pathname + location.hash);
+      history.replaceState({}, '', location.pathname);
     }
 
     // Init Supabase DB

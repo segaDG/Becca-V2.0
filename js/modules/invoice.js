@@ -1,8 +1,8 @@
 /* ============================================
    BECCA V2.0 — Invoice / AR Module
-   Data: AR2026 update 22 Mar 2026 — 55 invoice
-   Status: 38 Paid · 17 Unpaid (0 Overdue)
    Tabs: Daftar AR | Summary | Overdue | Soon Due
+   Data source: Supabase (DB.getInvoices())
+   Historical seed: _SEED_INVOICES (55 records, seeded once on first load)
 ============================================ */
 
 const InvoiceModule = (() => {
@@ -10,23 +10,11 @@ const InvoiceModule = (() => {
   let _search         = '';
   let _filterStatus   = 'all';
 
-  /* ─── DATA ─── */
-  let _invoices = [{"id":"inv_050","no":1,"customerId":"51","customer":"SODEXO INDONESIA","po":"","invoiceNum":"05101152603","tglInvoice":"2026-03-17","tglBayar":"2026-05-16","sisaHari":55,"total":146207600,"afterPph":132916000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":143283448,"status":"Unpaid"},{"id":"inv_049","no":2,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06601152603","tglInvoice":"2026-03-17","tglBayar":"2026-04-01","sisaHari":10,"total":23750478,"afterPph":21551359,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":23750478,"status":"Unpaid"},{"id":"inv_048","no":3,"customerId":"67","customer":"PT. NBC INDONESIA","po":"","invoiceNum":"06701152603","tglInvoice":"2026-03-17","tglBayar":"2026-04-01","sisaHari":10,"total":14347200,"afterPph":14347200,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":14347200,"status":"Unpaid"},{"id":"inv_047","no":4,"customerId":"71","customer":"PT. RESONAC MATERIALS INDONESIA","po":"","invoiceNum":"07101152603","tglInvoice":"2026-03-17","tglBayar":"2026-04-01","sisaHari":10,"total":43149400,"afterPph":39154085,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":43149400,"status":"Unpaid"},{"id":"inv_055","no":5,"customerId":"","customer":"Event","po":"","invoiceNum":"09916162603","tglInvoice":"2026-03-16","tglBayar":"2026-03-16","sisaHari":null,"total":1116000,"afterPph":1116000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":1116000,"status":"Paid"},{"id":"inv_054","no":6,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"03001152603","tglInvoice":"2026-03-15","tglBayar":"2026-03-30","sisaHari":8,"total":57188880,"afterPph":57188880,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":57188880,"status":"Unpaid"},{"id":"inv_053","no":7,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"030A07072612","tglInvoice":"2026-03-15","tglBayar":"2026-03-30","sisaHari":8,"total":7350000,"afterPph":7350000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":7350000,"status":"Unpaid"},{"id":"inv_052","no":8,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027B01122603","tglInvoice":"2026-03-12","tglBayar":"2026-04-11","sisaHari":20,"total":7167720,"afterPph":7167720,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":7167720,"status":"Unpaid"},{"id":"inv_051","no":9,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027A01122603","tglInvoice":"2026-03-12","tglBayar":"2026-04-11","sisaHari":20,"total":19276600,"afterPph":19276600,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":19276600,"status":"Unpaid"},{"id":"inv_035","no":10,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01016282602R","tglInvoice":"2026-03-11","tglBayar":"2026-04-25","sisaHari":34,"total":47765160,"afterPph":43342460,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":47765160,"status":"Unpaid"},{"id":"inv_044","no":11,"customerId":"64","customer":"PT. Akashi Wahana Indonesia","po":"0813/PO/AWI/II/26","invoiceNum":"06416282602R","tglInvoice":"2026-03-10","tglBayar":"2026-03-25","sisaHari":3,"total":106870658,"afterPph":106870658,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":106870658,"status":"Unpaid"},{"id":"inv_046","no":12,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01004042603","tglInvoice":"2026-03-05","tglBayar":"","sisaHari":null,"total":7938000,"afterPph":7203000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":7938000,"status":"Unpaid"},{"id":"inv_037","no":13,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"03016282602R","tglInvoice":"2026-03-04","tglBayar":"2026-03-19","sisaHari":null,"total":58397220,"afterPph":58397220,"totalTerbayar":58397220,"tglTerbayar":"2026-03-13","lamaTerbayar":"9 Hari","sisa":0,"status":"Paid"},{"id":"inv_036","no":14,"customerId":"51","customer":"SODEXO INDONESIA","po":"PO/G/26/03/02/6552","invoiceNum":"05116282602","tglInvoice":"2026-03-03","tglBayar":"2026-05-02","sisaHari":41,"total":112054800,"afterPph":101868000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":109813704,"status":"Unpaid"},{"id":"inv_039","no":15,"customerId":"62","customer":"PT. DAIKI ALMUNIUM INDUSTRI IND","po":"","invoiceNum":"062B01282602","tglInvoice":"2026-03-02","tglBayar":"2026-03-17","sisaHari":null,"total":76642200,"afterPph":69545700,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":76642200,"status":"Paid"},{"id":"inv_045","no":16,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06616282602","tglInvoice":"2026-03-03","tglBayar":"2026-03-18","sisaHari":null,"total":10889360,"afterPph":9881085,"totalTerbayar":31816580,"tglTerbayar":"2026-03-10","lamaTerbayar":"7 Hari","sisa":0,"status":"Paid"},{"id":"inv_043","no":17,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027B16282602","tglInvoice":"2026-03-03","tglBayar":"2026-04-02","sisaHari":null,"total":8635760,"afterPph":8635760,"totalTerbayar":30777880,"tglTerbayar":"2026-03-16","lamaTerbayar":"13 Hari","sisa":0,"status":"Paid"},{"id":"inv_042","no":18,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027A16282602","tglInvoice":"2026-03-03","tglBayar":"2026-04-02","sisaHari":null,"total":22142120,"afterPph":22142120,"totalTerbayar":0,"tglTerbayar":"2026-03-16","lamaTerbayar":"13 Hari","sisa":0,"status":"Paid"},{"id":"inv_038","no":19,"customerId":"62","customer":"PT. DAIKI ALMUNIUM INDUSTRI IND","po":"","invoiceNum":"062A01282602R","tglInvoice":"2026-03-03","tglBayar":"2026-03-18","sisaHari":null,"total":39625200,"afterPph":35956200,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":39625200,"status":"Paid"},{"id":"inv_022","no":20,"customerId":"","customer":"PT. SDM ( Outsource )","po":"","invoiceNum":"01016312601TR","tglInvoice":"2026-03-02","tglBayar":"2026-04-01","sisaHari":10,"total":11799200,"afterPph":10726545,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":11799200,"status":"Paid"},{"id":"inv_041","no":21,"customerId":"71","customer":"PT. RESONAC MATERIALS INDONESIA","po":"","invoiceNum":"07116282602","tglInvoice":"2026-03-02","tglBayar":"2026-03-17","sisaHari":null,"total":40880700,"afterPph":37095450,"totalTerbayar":40880700,"tglTerbayar":"2026-03-13","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_040","no":22,"customerId":"67","customer":"PT. NBC INDONESIA","po":"","invoiceNum":"06716282602","tglInvoice":"2026-03-02","tglBayar":"2026-03-17","sisaHari":null,"total":16787400,"afterPph":16787400,"totalTerbayar":58359000,"tglTerbayar":"2026-03-16","lamaTerbayar":"14 Hari","sisa":0,"status":"Paid"},{"id":"inv_034","no":23,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01025252602","tglInvoice":"2026-02-25","tglBayar":"2026-04-11","sisaHari":20,"total":10638000,"afterPph":9653000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":10638000,"status":"Unpaid"},{"id":"inv_027","no":24,"customerId":"51","customer":"SODEXO INDONESIA","po":"PO/G/26/02/20/5560","invoiceNum":"05109092602","tglInvoice":"2026-02-23","tglBayar":"2026-04-24","sisaHari":33,"total":9350000,"afterPph":8500000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":9163000,"status":"Unpaid"},{"id":"inv_026","no":25,"customerId":"51","customer":"SODEXO INDONESIA","po":"PO/G/26/02/20/5559","invoiceNum":"05101152602","tglInvoice":"2026-02-23","tglBayar":"2026-04-24","sisaHari":33,"total":128024600,"afterPph":116386000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":125464108,"status":"Unpaid"},{"id":"inv_032","no":26,"customerId":"67","customer":"PT. NBC INDONESIA","po":"","invoiceNum":"06701152602R","tglInvoice":"2026-02-23","tglBayar":"2026-03-10","sisaHari":null,"total":41571600,"afterPph":41571600,"totalTerbayar":0,"tglTerbayar":"2026-03-16","lamaTerbayar":"21 Hari","sisa":0,"status":"Paid"},{"id":"inv_031","no":27,"customerId":"71","customer":"PT. RESONAC MATERIALS INDONESIA","po":"","invoiceNum":"07101152602","tglInvoice":"2026-02-17","tglBayar":"2026-03-04","sisaHari":null,"total":69418300,"afterPph":62990679,"totalTerbayar":69416300,"tglTerbayar":"2026-02-27","lamaTerbayar":"10 Hari","sisa":2000,"status":"Paid"},{"id":"inv_025","no":28,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06606062602E","tglInvoice":"2026-02-15","tglBayar":"2026-03-02","sisaHari":null,"total":188748,"afterPph":171271,"totalTerbayar":0,"tglTerbayar":"2026-03-10","lamaTerbayar":"23 Hari","sisa":0,"status":"Paid"},{"id":"inv_029","no":29,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027B01152602","tglInvoice":"2026-02-15","tglBayar":"2026-03-17","sisaHari":null,"total":13935600,"afterPph":13935600,"totalTerbayar":0,"tglTerbayar":"2026-02-27","lamaTerbayar":"12 Hari","sisa":0,"status":"Paid"},{"id":"inv_028","no":30,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027A01152602","tglInvoice":"2026-02-15","tglBayar":"2026-03-17","sisaHari":null,"total":33957000,"afterPph":33957000,"totalTerbayar":47892600,"tglTerbayar":"2026-02-27","lamaTerbayar":"12 Hari","sisa":0,"status":"Paid"},{"id":"inv_030","no":31,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06601152602","tglInvoice":"2026-02-15","tglBayar":"2026-03-02","sisaHari":null,"total":20738472,"afterPph":18818243,"totalTerbayar":0,"tglTerbayar":"2026-03-10","lamaTerbayar":"23 Hari","sisa":0,"status":"Paid"},{"id":"inv_033","no":32,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"03001152602","tglInvoice":"2026-02-15","tglBayar":"2026-03-02","sisaHari":null,"total":70177800,"afterPph":70177800,"totalTerbayar":70177800,"tglTerbayar":"2026-02-27","lamaTerbayar":"12 Hari","sisa":0,"status":"Paid"},{"id":"inv_020","no":33,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01016312601R","tglInvoice":"2026-02-11","tglBayar":"2026-03-28","sisaHari":6,"total":72330300,"afterPph":65633050,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":72330300,"status":"Unpaid"},{"id":"inv_024","no":34,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01012122602","tglInvoice":"2026-02-11","tglBayar":"2026-03-28","sisaHari":null,"total":2750000,"afterPph":2495370,"totalTerbayar":2750000,"tglTerbayar":"2026-03-16","lamaTerbayar":"33 Hari","sisa":0,"status":"Paid"},{"id":"inv_023","no":35,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01006062602","tglInvoice":"2026-02-11","tglBayar":"2026-03-28","sisaHari":null,"total":1750000,"afterPph":1587962,"totalTerbayar":1750000,"tglTerbayar":"2026-03-09","lamaTerbayar":"26 Hari","sisa":0,"status":"Paid"},{"id":"inv_016","no":36,"customerId":"51","customer":"SODEXO INDONESIA","po":"PO/G/26/02/04/3804","invoiceNum":"05116312601","tglInvoice":"2026-02-06","tglBayar":"2026-04-07","sisaHari":16,"total":136705250,"afterPph":124277500,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":133971145,"status":"Unpaid"},{"id":"inv_015","no":37,"customerId":"62","customer":"PT. DAIKI ALMUNIUM INDUSTRI IND","po":"","invoiceNum":"062B01312601R","tglInvoice":"2026-02-05","tglBayar":"2026-02-20","sisaHari":null,"total":85827600,"afterPph":77880600,"totalTerbayar":0,"tglTerbayar":"2026-02-27","lamaTerbayar":"22 Hari","sisa":0,"status":"Paid"},{"id":"inv_014","no":38,"customerId":"62","customer":"PT. DAIKI ALMUNIUM INDUSTRI IND","po":"","invoiceNum":"062A01312601","tglInvoice":"2026-02-05","tglBayar":"2026-02-20","sisaHari":null,"total":43448400,"afterPph":39425400,"totalTerbayar":129275000,"tglTerbayar":"2026-02-27","lamaTerbayar":"22 Hari","sisa":1000,"status":"Paid"},{"id":"inv_021","no":39,"customerId":"64","customer":"PT. Akashi Wahana Indonesia","po":"","invoiceNum":"064A25252601","tglInvoice":"2026-02-03","tglBayar":"2026-02-18","sisaHari":null,"total":1488670,"afterPph":1488670,"totalTerbayar":1488670,"tglTerbayar":"2026-02-25","lamaTerbayar":"22 Hari","sisa":-30381,"status":"Paid"},{"id":"inv_005","no":40,"customerId":"64","customer":"PT. Akashi Wahana Indonesia","po":"0196/PO/AWI/I/26","invoiceNum":"06401152601","tglInvoice":"2026-02-03","tglBayar":"2026-02-18","sisaHari":null,"total":108816452,"afterPph":108816452,"totalTerbayar":106640123,"tglTerbayar":"2026-02-26","lamaTerbayar":"23 Hari","sisa":-44414,"status":"Paid"},{"id":"inv_011","no":41,"customerId":"67","customer":"PT. NBC INDONESIA","po":"","invoiceNum":"06716312601","tglInvoice":"2026-02-02","tglBayar":"2026-02-17","sisaHari":null,"total":41601000,"afterPph":41601000,"totalTerbayar":41601000,"tglTerbayar":"2026-02-18","lamaTerbayar":"16 Hari","sisa":0,"status":"Paid"},{"id":"inv_012","no":42,"customerId":"71","customer":"PT. RESONAC MATERIALS INDONESIA","po":"","invoiceNum":"07116312601","tglInvoice":"2026-02-02","tglBayar":"2026-02-17","sisaHari":null,"total":68237400,"afterPph":61919122,"totalTerbayar":68279500,"tglTerbayar":"2026-02-13","lamaTerbayar":"11 Hari","sisa":-42100,"status":"Paid"},{"id":"inv_013","no":43,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06619312601","tglInvoice":"2026-02-02","tglBayar":"2026-02-17","sisaHari":null,"total":34683306,"afterPph":31471888,"totalTerbayar":34683306,"tglTerbayar":"2026-02-27","lamaTerbayar":"25 Hari","sisa":0,"status":"Paid"},{"id":"inv_017","no":44,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"03016312601","tglInvoice":"2026-02-02","tglBayar":"2026-02-17","sisaHari":null,"total":69516300,"afterPph":69516300,"totalTerbayar":69516300,"tglTerbayar":"2026-02-13","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_019","no":45,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027B16312601","tglInvoice":"2026-02-02","tglBayar":"2026-03-04","sisaHari":null,"total":13018320,"afterPph":13018320,"totalTerbayar":0,"tglTerbayar":"2026-02-13","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_018","no":46,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027A16312601","tglInvoice":"2026-02-02","tglBayar":"2026-03-04","sisaHari":null,"total":34874280,"afterPph":34874280,"totalTerbayar":47892600,"tglTerbayar":"2026-02-13","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_007","no":47,"customerId":"51","customer":"SODEXO INDONESIA","po":"PO/G/26/01/20/2125","invoiceNum":"05101152601","tglInvoice":"2026-01-21","tglBayar":"2026-03-22","sisaHari":0,"total":124999600,"afterPph":113636000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":122499608,"status":"Unpaid"},{"id":"inv_001","no":48,"customerId":"71","customer":"PT. RESONAC MATERIALS INDONESIA","po":"","invoiceNum":"07101152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":57124200,"afterPph":51834922,"totalTerbayar":57122200,"tglTerbayar":"2026-01-30","lamaTerbayar":"11 Hari","sisa":2000,"status":"Paid"},{"id":"inv_002","no":49,"customerId":"67","customer":"PT. NBC INDONESIA","po":"","invoiceNum":"06701152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":39954600,"afterPph":39954600,"totalTerbayar":39954600,"tglTerbayar":"2026-01-27","lamaTerbayar":"8 Hari","sisa":0,"status":"Paid"},{"id":"inv_003","no":50,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06601152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":18818940,"afterPph":17076445,"totalTerbayar":19357940,"tglTerbayar":"2026-01-27","lamaTerbayar":"8 Hari","sisa":0,"status":"Paid"},{"id":"inv_004","no":51,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06601152601E","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":539000,"afterPph":489092,"totalTerbayar":0,"tglTerbayar":"2026-01-27","lamaTerbayar":"8 Hari","sisa":0,"status":"Paid"},{"id":"inv_006","no":52,"customerId":"64","customer":"PT. Akashi Wahana Indonesia","po":"","invoiceNum":"064A14142601","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":500000,"afterPph":500000,"totalTerbayar":500000,"tglTerbayar":"2026-01-23","lamaTerbayar":"4 Hari","sisa":-10204,"status":"Paid"},{"id":"inv_008","no":53,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"03001152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":61960500,"afterPph":61960500,"totalTerbayar":61960500,"tglTerbayar":"2026-01-30","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_009","no":54,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027A01152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-18","sisaHari":null,"total":30552480,"afterPph":30552480,"totalTerbayar":40413240,"tglTerbayar":"2026-01-30","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_010","no":55,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027B01152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-18","sisaHari":null,"total":9860760,"afterPph":9860760,"totalTerbayar":0,"tglTerbayar":"2026-01-30","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"}];
+  /* ─── LIVE DATA (loaded from DB) ─── */
+  let _invoices = [];
 
-  const _monthly = [
-    {no:1,bulan:'JANUARI',omzetInvoice:1066656558,totalInvoice:22,totalClient:10,overdue:0,unpaid:256946580,pb1:60142629},
-    {no:2,bulan:'FEBRUARI',omzetInvoice:943190698,totalInvoice:23,totalClient:9,overdue:0,unpaid:407987104,pb1:52424117},
-    {no:3,bulan:'MARET',omzetInvoice:320141878,totalInvoice:9,totalClient:8,overdue:0,unpaid:316367558,pb1:20221033},
-    {no:4,bulan:'APRIL',omzetInvoice:0,totalInvoice:0,totalClient:0,overdue:0,unpaid:0,pb1:0},
-    {no:5,bulan:'MEI',omzetInvoice:0,totalInvoice:0,totalClient:0,overdue:0,unpaid:0,pb1:0},
-    {no:6,bulan:'JUNI',omzetInvoice:0,totalInvoice:0,totalClient:0,overdue:0,unpaid:0,pb1:0},
-    {no:7,bulan:'JULI',omzetInvoice:0,totalInvoice:0,totalClient:0,overdue:0,unpaid:0,pb1:0},
-    {no:8,bulan:'AGUSTUS',omzetInvoice:0,totalInvoice:0,totalClient:0,overdue:0,unpaid:0,pb1:0},
-    {no:9,bulan:'SEPTEMBER',omzetInvoice:0,totalInvoice:0,totalClient:0,overdue:0,unpaid:0,pb1:0},
-    {no:10,bulan:'OKTOBER',omzetInvoice:0,totalInvoice:0,totalClient:0,overdue:0,unpaid:0,pb1:0},
-    {no:11,bulan:'NOVEMBER',omzetInvoice:0,totalInvoice:0,totalClient:0,overdue:0,unpaid:0,pb1:0},
-    {no:12,bulan:'DESEMBER',omzetInvoice:7350000,totalInvoice:1,totalClient:1,overdue:0,unpaid:7350000,pb1:0},
-  ];
+  /* ─── HISTORICAL SEED (loaded once to DB if empty) ─── */
+  const _SEED_INVOICES = [{"id":"inv_050","no":1,"customerId":"51","customer":"SODEXO INDONESIA","po":"","invoiceNum":"05101152603","tglInvoice":"2026-03-17","tglBayar":"2026-05-16","sisaHari":55,"total":146207600,"afterPph":132916000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":143283448,"status":"Unpaid"},{"id":"inv_049","no":2,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06601152603","tglInvoice":"2026-03-17","tglBayar":"2026-04-01","sisaHari":10,"total":23750478,"afterPph":21551359,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":23750478,"status":"Unpaid"},{"id":"inv_048","no":3,"customerId":"67","customer":"PT. NBC INDONESIA","po":"","invoiceNum":"06701152603","tglInvoice":"2026-03-17","tglBayar":"2026-04-01","sisaHari":10,"total":14347200,"afterPph":14347200,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":14347200,"status":"Unpaid"},{"id":"inv_047","no":4,"customerId":"71","customer":"PT. RESONAC MATERIALS INDONESIA","po":"","invoiceNum":"07101152603","tglInvoice":"2026-03-17","tglBayar":"2026-04-01","sisaHari":10,"total":43149400,"afterPph":39154085,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":43149400,"status":"Unpaid"},{"id":"inv_055","no":5,"customerId":"","customer":"Event","po":"","invoiceNum":"09916162603","tglInvoice":"2026-03-16","tglBayar":"2026-03-16","sisaHari":null,"total":1116000,"afterPph":1116000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":1116000,"status":"Paid"},{"id":"inv_054","no":6,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"03001152603","tglInvoice":"2026-03-15","tglBayar":"2026-03-30","sisaHari":8,"total":57188880,"afterPph":57188880,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":57188880,"status":"Unpaid"},{"id":"inv_053","no":7,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"030A07072612","tglInvoice":"2026-03-15","tglBayar":"2026-03-30","sisaHari":8,"total":7350000,"afterPph":7350000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":7350000,"status":"Unpaid"},{"id":"inv_052","no":8,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027B01122603","tglInvoice":"2026-03-12","tglBayar":"2026-04-11","sisaHari":20,"total":7167720,"afterPph":7167720,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":7167720,"status":"Unpaid"},{"id":"inv_051","no":9,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027A01122603","tglInvoice":"2026-03-12","tglBayar":"2026-04-11","sisaHari":20,"total":19276600,"afterPph":19276600,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":19276600,"status":"Unpaid"},{"id":"inv_035","no":10,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01016282602R","tglInvoice":"2026-03-11","tglBayar":"2026-04-25","sisaHari":34,"total":47765160,"afterPph":43342460,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":47765160,"status":"Unpaid"},{"id":"inv_044","no":11,"customerId":"64","customer":"PT. Akashi Wahana Indonesia","po":"0813/PO/AWI/II/26","invoiceNum":"06416282602R","tglInvoice":"2026-03-10","tglBayar":"2026-03-25","sisaHari":3,"total":106870658,"afterPph":106870658,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":106870658,"status":"Unpaid"},{"id":"inv_046","no":12,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01004042603","tglInvoice":"2026-03-05","tglBayar":"","sisaHari":null,"total":7938000,"afterPph":7203000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":7938000,"status":"Unpaid"},{"id":"inv_037","no":13,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"03016282602R","tglInvoice":"2026-03-04","tglBayar":"2026-03-19","sisaHari":null,"total":58397220,"afterPph":58397220,"totalTerbayar":58397220,"tglTerbayar":"2026-03-13","lamaTerbayar":"9 Hari","sisa":0,"status":"Paid"},{"id":"inv_036","no":14,"customerId":"51","customer":"SODEXO INDONESIA","po":"PO/G/26/03/02/6552","invoiceNum":"05116282602","tglInvoice":"2026-03-03","tglBayar":"2026-05-02","sisaHari":41,"total":112054800,"afterPph":101868000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":109813704,"status":"Unpaid"},{"id":"inv_039","no":15,"customerId":"62","customer":"PT. DAIKI ALMUNIUM INDUSTRI IND","po":"","invoiceNum":"062B01282602","tglInvoice":"2026-03-02","tglBayar":"2026-03-17","sisaHari":null,"total":76642200,"afterPph":69545700,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":76642200,"status":"Paid"},{"id":"inv_045","no":16,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06616282602","tglInvoice":"2026-03-03","tglBayar":"2026-03-18","sisaHari":null,"total":10889360,"afterPph":9881085,"totalTerbayar":31816580,"tglTerbayar":"2026-03-10","lamaTerbayar":"7 Hari","sisa":0,"status":"Paid"},{"id":"inv_043","no":17,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027B16282602","tglInvoice":"2026-03-03","tglBayar":"2026-04-02","sisaHari":null,"total":8635760,"afterPph":8635760,"totalTerbayar":30777880,"tglTerbayar":"2026-03-16","lamaTerbayar":"13 Hari","sisa":0,"status":"Paid"},{"id":"inv_042","no":18,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027A16282602","tglInvoice":"2026-03-03","tglBayar":"2026-04-02","sisaHari":null,"total":22142120,"afterPph":22142120,"totalTerbayar":0,"tglTerbayar":"2026-03-16","lamaTerbayar":"13 Hari","sisa":0,"status":"Paid"},{"id":"inv_038","no":19,"customerId":"62","customer":"PT. DAIKI ALMUNIUM INDUSTRI IND","po":"","invoiceNum":"062A01282602R","tglInvoice":"2026-03-03","tglBayar":"2026-03-18","sisaHari":null,"total":39625200,"afterPph":35956200,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":39625200,"status":"Paid"},{"id":"inv_022","no":20,"customerId":"","customer":"PT. SDM ( Outsource )","po":"","invoiceNum":"01016312601TR","tglInvoice":"2026-03-02","tglBayar":"2026-04-01","sisaHari":10,"total":11799200,"afterPph":10726545,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":11799200,"status":"Paid"},{"id":"inv_041","no":21,"customerId":"71","customer":"PT. RESONAC MATERIALS INDONESIA","po":"","invoiceNum":"07116282602","tglInvoice":"2026-03-02","tglBayar":"2026-03-17","sisaHari":null,"total":40880700,"afterPph":37095450,"totalTerbayar":40880700,"tglTerbayar":"2026-03-13","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_040","no":22,"customerId":"67","customer":"PT. NBC INDONESIA","po":"","invoiceNum":"06716282602","tglInvoice":"2026-03-02","tglBayar":"2026-03-17","sisaHari":null,"total":16787400,"afterPph":16787400,"totalTerbayar":58359000,"tglTerbayar":"2026-03-16","lamaTerbayar":"14 Hari","sisa":0,"status":"Paid"},{"id":"inv_034","no":23,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01025252602","tglInvoice":"2026-02-25","tglBayar":"2026-04-11","sisaHari":20,"total":10638000,"afterPph":9653000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":10638000,"status":"Unpaid"},{"id":"inv_027","no":24,"customerId":"51","customer":"SODEXO INDONESIA","po":"PO/G/26/02/20/5560","invoiceNum":"05109092602","tglInvoice":"2026-02-23","tglBayar":"2026-04-24","sisaHari":33,"total":9350000,"afterPph":8500000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":9163000,"status":"Unpaid"},{"id":"inv_026","no":25,"customerId":"51","customer":"SODEXO INDONESIA","po":"PO/G/26/02/20/5559","invoiceNum":"05101152602","tglInvoice":"2026-02-23","tglBayar":"2026-04-24","sisaHari":33,"total":128024600,"afterPph":116386000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":125464108,"status":"Unpaid"},{"id":"inv_032","no":26,"customerId":"67","customer":"PT. NBC INDONESIA","po":"","invoiceNum":"06701152602R","tglInvoice":"2026-02-23","tglBayar":"2026-03-10","sisaHari":null,"total":41571600,"afterPph":41571600,"totalTerbayar":0,"tglTerbayar":"2026-03-16","lamaTerbayar":"21 Hari","sisa":0,"status":"Paid"},{"id":"inv_031","no":27,"customerId":"71","customer":"PT. RESONAC MATERIALS INDONESIA","po":"","invoiceNum":"07101152602","tglInvoice":"2026-02-17","tglBayar":"2026-03-04","sisaHari":null,"total":69418300,"afterPph":62990679,"totalTerbayar":69416300,"tglTerbayar":"2026-02-27","lamaTerbayar":"10 Hari","sisa":2000,"status":"Paid"},{"id":"inv_025","no":28,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06606062602E","tglInvoice":"2026-02-15","tglBayar":"2026-03-02","sisaHari":null,"total":188748,"afterPph":171271,"totalTerbayar":0,"tglTerbayar":"2026-03-10","lamaTerbayar":"23 Hari","sisa":0,"status":"Paid"},{"id":"inv_029","no":29,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027B01152602","tglInvoice":"2026-02-15","tglBayar":"2026-03-17","sisaHari":null,"total":13935600,"afterPph":13935600,"totalTerbayar":0,"tglTerbayar":"2026-02-27","lamaTerbayar":"12 Hari","sisa":0,"status":"Paid"},{"id":"inv_028","no":30,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027A01152602","tglInvoice":"2026-02-15","tglBayar":"2026-03-17","sisaHari":null,"total":33957000,"afterPph":33957000,"totalTerbayar":47892600,"tglTerbayar":"2026-02-27","lamaTerbayar":"12 Hari","sisa":0,"status":"Paid"},{"id":"inv_030","no":31,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06601152602","tglInvoice":"2026-02-15","tglBayar":"2026-03-02","sisaHari":null,"total":20738472,"afterPph":18818243,"totalTerbayar":0,"tglTerbayar":"2026-03-10","lamaTerbayar":"23 Hari","sisa":0,"status":"Paid"},{"id":"inv_033","no":32,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"03001152602","tglInvoice":"2026-02-15","tglBayar":"2026-03-02","sisaHari":null,"total":70177800,"afterPph":70177800,"totalTerbayar":70177800,"tglTerbayar":"2026-02-27","lamaTerbayar":"12 Hari","sisa":0,"status":"Paid"},{"id":"inv_020","no":33,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01016312601R","tglInvoice":"2026-02-11","tglBayar":"2026-03-28","sisaHari":6,"total":72330300,"afterPph":65633050,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":72330300,"status":"Unpaid"},{"id":"inv_024","no":34,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01012122602","tglInvoice":"2026-02-11","tglBayar":"2026-03-28","sisaHari":null,"total":2750000,"afterPph":2495370,"totalTerbayar":2750000,"tglTerbayar":"2026-03-16","lamaTerbayar":"33 Hari","sisa":0,"status":"Paid"},{"id":"inv_023","no":35,"customerId":"10","customer":"PT. NUGRAHA INDAH CITARASA INDONESIA","po":"","invoiceNum":"01006062602","tglInvoice":"2026-02-11","tglBayar":"2026-03-28","sisaHari":null,"total":1750000,"afterPph":1587962,"totalTerbayar":1750000,"tglTerbayar":"2026-03-09","lamaTerbayar":"26 Hari","sisa":0,"status":"Paid"},{"id":"inv_016","no":36,"customerId":"51","customer":"SODEXO INDONESIA","po":"PO/G/26/02/04/3804","invoiceNum":"05116312601","tglInvoice":"2026-02-06","tglBayar":"2026-04-07","sisaHari":16,"total":136705250,"afterPph":124277500,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":133971145,"status":"Unpaid"},{"id":"inv_015","no":37,"customerId":"62","customer":"PT. DAIKI ALMUNIUM INDUSTRI IND","po":"","invoiceNum":"062B01312601R","tglInvoice":"2026-02-05","tglBayar":"2026-02-20","sisaHari":null,"total":85827600,"afterPph":77880600,"totalTerbayar":0,"tglTerbayar":"2026-02-27","lamaTerbayar":"22 Hari","sisa":0,"status":"Paid"},{"id":"inv_014","no":38,"customerId":"62","customer":"PT. DAIKI ALMUNIUM INDUSTRI IND","po":"","invoiceNum":"062A01312601","tglInvoice":"2026-02-05","tglBayar":"2026-02-20","sisaHari":null,"total":43448400,"afterPph":39425400,"totalTerbayar":129275000,"tglTerbayar":"2026-02-27","lamaTerbayar":"22 Hari","sisa":1000,"status":"Paid"},{"id":"inv_021","no":39,"customerId":"64","customer":"PT. Akashi Wahana Indonesia","po":"","invoiceNum":"064A25252601","tglInvoice":"2026-02-03","tglBayar":"2026-02-18","sisaHari":null,"total":1488670,"afterPph":1488670,"totalTerbayar":1488670,"tglTerbayar":"2026-02-25","lamaTerbayar":"22 Hari","sisa":-30381,"status":"Paid"},{"id":"inv_005","no":40,"customerId":"64","customer":"PT. Akashi Wahana Indonesia","po":"0196/PO/AWI/I/26","invoiceNum":"06401152601","tglInvoice":"2026-02-03","tglBayar":"2026-02-18","sisaHari":null,"total":108816452,"afterPph":108816452,"totalTerbayar":106640123,"tglTerbayar":"2026-02-26","lamaTerbayar":"23 Hari","sisa":-44414,"status":"Paid"},{"id":"inv_011","no":41,"customerId":"67","customer":"PT. NBC INDONESIA","po":"","invoiceNum":"06716312601","tglInvoice":"2026-02-02","tglBayar":"2026-02-17","sisaHari":null,"total":41601000,"afterPph":41601000,"totalTerbayar":41601000,"tglTerbayar":"2026-02-18","lamaTerbayar":"16 Hari","sisa":0,"status":"Paid"},{"id":"inv_012","no":42,"customerId":"71","customer":"PT. RESONAC MATERIALS INDONESIA","po":"","invoiceNum":"07116312601","tglInvoice":"2026-02-02","tglBayar":"2026-02-17","sisaHari":null,"total":68237400,"afterPph":61919122,"totalTerbayar":68279500,"tglTerbayar":"2026-02-13","lamaTerbayar":"11 Hari","sisa":-42100,"status":"Paid"},{"id":"inv_013","no":43,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06619312601","tglInvoice":"2026-02-02","tglBayar":"2026-02-17","sisaHari":null,"total":34683306,"afterPph":31471888,"totalTerbayar":34683306,"tglTerbayar":"2026-02-27","lamaTerbayar":"25 Hari","sisa":0,"status":"Paid"},{"id":"inv_017","no":44,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"03016312601","tglInvoice":"2026-02-02","tglBayar":"2026-02-17","sisaHari":null,"total":69516300,"afterPph":69516300,"totalTerbayar":69516300,"tglTerbayar":"2026-02-13","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_019","no":45,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027B16312601","tglInvoice":"2026-02-02","tglBayar":"2026-03-04","sisaHari":null,"total":13018320,"afterPph":13018320,"totalTerbayar":0,"tglTerbayar":"2026-02-13","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_018","no":46,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027A16312601","tglInvoice":"2026-02-02","tglBayar":"2026-03-04","sisaHari":null,"total":34874280,"afterPph":34874280,"totalTerbayar":47892600,"tglTerbayar":"2026-02-13","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_007","no":47,"customerId":"51","customer":"SODEXO INDONESIA","po":"PO/G/26/01/20/2125","invoiceNum":"05101152601","tglInvoice":"2026-01-21","tglBayar":"2026-03-22","sisaHari":0,"total":124999600,"afterPph":113636000,"totalTerbayar":0,"tglTerbayar":"","lamaTerbayar":"","sisa":122499608,"status":"Unpaid"},{"id":"inv_001","no":48,"customerId":"71","customer":"PT. RESONAC MATERIALS INDONESIA","po":"","invoiceNum":"07101152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":57124200,"afterPph":51834922,"totalTerbayar":57122200,"tglTerbayar":"2026-01-30","lamaTerbayar":"11 Hari","sisa":2000,"status":"Paid"},{"id":"inv_002","no":49,"customerId":"67","customer":"PT. NBC INDONESIA","po":"","invoiceNum":"06701152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":39954600,"afterPph":39954600,"totalTerbayar":39954600,"tglTerbayar":"2026-01-27","lamaTerbayar":"8 Hari","sisa":0,"status":"Paid"},{"id":"inv_003","no":50,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06601152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":18818940,"afterPph":17076445,"totalTerbayar":19357940,"tglTerbayar":"2026-01-27","lamaTerbayar":"8 Hari","sisa":0,"status":"Paid"},{"id":"inv_004","no":51,"customerId":"66","customer":"PT. DDMI","po":"","invoiceNum":"06601152601E","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":539000,"afterPph":489092,"totalTerbayar":0,"tglTerbayar":"2026-01-27","lamaTerbayar":"8 Hari","sisa":0,"status":"Paid"},{"id":"inv_006","no":52,"customerId":"64","customer":"PT. Akashi Wahana Indonesia","po":"","invoiceNum":"064A14142601","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":500000,"afterPph":500000,"totalTerbayar":500000,"tglTerbayar":"2026-01-23","lamaTerbayar":"4 Hari","sisa":-10204,"status":"Paid"},{"id":"inv_008","no":53,"customerId":"30","customer":"PT. Shinto Kogyo Indonesia","po":"","invoiceNum":"03001152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-03","sisaHari":null,"total":61960500,"afterPph":61960500,"totalTerbayar":61960500,"tglTerbayar":"2026-01-30","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_009","no":54,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027A01152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-18","sisaHari":null,"total":30552480,"afterPph":30552480,"totalTerbayar":40413240,"tglTerbayar":"2026-01-30","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"},{"id":"inv_010","no":55,"customerId":"27","customer":"SUPER STEEL KARAWANG","po":"","invoiceNum":"027B01152601","tglInvoice":"2026-01-19","tglBayar":"2026-02-18","sisaHari":null,"total":9860760,"afterPph":9860760,"totalTerbayar":0,"tglTerbayar":"2026-01-30","lamaTerbayar":"11 Hari","sisa":0,"status":"Paid"}];
 
   // Dynamic days-left — always relative to today (tidak pakai sisaHari hardcoded)
   function _daysLeft(tglBayar) {
@@ -50,19 +38,36 @@ const InvoiceModule = (() => {
       return d !== null && d >= 0 && d <= 15;
     });
   }
-  const _clients = [
-    {nama:'SODEXO INDONESIA',omzet:597583500,customerId:'51'},
-    {nama:'PT. Shinto Kogyo Indonesia',omzet:331215000,customerId:'30'},
-    {nama:'PT. RESONAC MATERIALS INDONESIA',omzet:258157407,customerId:'71'},
-    {nama:'PT. DAIKI ALMUNIUM INDUSTRI IND',omzet:227355000,customerId:'62'},
-    {nama:'PT. Akashi Wahana Indonesia',omzet:222118143,customerId:'64'},
-    {nama:'SUPER STEEL KARAWANG',omzet:197368000,customerId:'27'},
-    {nama:'PT. NBC INDONESIA',omzet:157410000,customerId:'67'},
-    {nama:'PT. NUGRAHA INDAH CITARASA INDONESIA',omzet:132566167,customerId:'10'},
-    {nama:'PT. DDMI',omzet:101489170,customerId:'66'},
-    {nama:'PT. SDM ( Outsource )',omzet:10726545,customerId:''},
-    {nama:'Event',omzet:1116000,customerId:''},
-  ];
+  /* ─── COMPUTED: Monthly summary (dari _invoices) ─── */
+  function _computeMonthly() {
+    const NAMES = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
+    const months = NAMES.map((b, i) => ({ no:i+1, bulan:b, omzetInvoice:0, totalInvoice:0, totalClient:0, overdue:0, unpaid:0, pb1:0 }));
+    const clientsByMonth = {};
+    _invoices.forEach(inv => {
+      if (!inv.tglInvoice) return;
+      const m = parseInt(inv.tglInvoice.slice(5,7), 10) - 1;
+      if (m < 0 || m > 11) return;
+      months[m].omzetInvoice += inv.total || 0;
+      months[m].totalInvoice += 1;
+      months[m].pb1 += Math.round((inv.total || 0) * 0.1);
+      if (inv.status !== 'Paid') months[m].unpaid += inv.sisa || 0;
+      if (!clientsByMonth[m]) clientsByMonth[m] = new Set();
+      if (inv.customerId || inv.customer) clientsByMonth[m].add(inv.customerId || inv.customer);
+    });
+    Object.entries(clientsByMonth).forEach(([m, set]) => { months[parseInt(m)].totalClient = set.size; });
+    return months;
+  }
+
+  /* ─── COMPUTED: Client contribution (dari _invoices) ─── */
+  function _computeClients() {
+    const map = {};
+    _invoices.forEach(inv => {
+      const key = inv.customer || 'Unknown';
+      if (!map[key]) map[key] = { nama:key, omzet:0, customerId:inv.customerId||'' };
+      map[key].omzet += inv.total || 0;
+    });
+    return Object.values(map).sort((a,b) => b.omzet - a.omzet);
+  }
 
   /* ─── HELPERS ─── */
   function _rp(v) {
@@ -138,23 +143,45 @@ const InvoiceModule = (() => {
     const page = document.getElementById('page-invoice');
     if (!page) return;
 
-    // Merge invoices dari becca_order_invoices dengan _invoices hardcoded
-    // Hindari duplikat berdasarkan invoiceNum
+    // Load dari DB
     try {
-      const orderInvs = JSON.parse(localStorage.getItem('becca_order_invoices')||'[]');
+      _invoices = await DB.getInvoices();
+    } catch(e) {
+      console.warn('[InvoiceModule] DB.getInvoices error:', e);
+      _invoices = [];
+    }
+
+    // One-time seed: jika DB kosong & belum pernah diseed, masukkan 55 historical invoices
+    if (_invoices.length === 0 && !localStorage.getItem('becca_inv_seeded_v1')) {
+      localStorage.setItem('becca_inv_seeded_v1', '1');
+      try {
+        await Promise.all(_SEED_INVOICES.map(inv => DB.saveInvoice(Object.assign({}, inv))));
+        _invoices = await DB.getInvoices();
+        if (!_invoices.length) _invoices = [..._SEED_INVOICES];
+      } catch(e) {
+        console.warn('[InvoiceModule] seed error:', e);
+        _invoices = [..._SEED_INVOICES];
+      }
+    }
+
+    // Merge order-invoices dari localStorage yang belum ada di DB
+    try {
+      const orderInvs = JSON.parse(localStorage.getItem('becca_order_invoices') || '[]');
       if (orderInvs.length) {
-        const existingNums = new Set(_invoices.map(i=>i.invoiceNum));
+        const existingNums = new Set(_invoices.map(i => i.invoiceNum));
         const newEntries = orderInvs
           .filter(r => r.nomor && !existingNums.has(r.nomor))
-          .map((r,i) => _convertOrderInv(r, _invoices.length + i));
+          .map((r, i) => _convertOrderInv(r, _invoices.length + i));
         if (newEntries.length) {
-          // Inject at top (urutan terbaru dulu)
+          await Promise.all(newEntries.map(inv => DB.saveInvoice(Object.assign({}, inv)).catch(()=>{})));
           newEntries.reverse().forEach(e => _invoices.unshift(e));
-          // Re-number
-          _invoices.forEach((inv, i) => { inv.no = i+1; });
         }
       }
-    } catch(e) { console.warn('invoice merge error:', e); }
+    } catch(e) { console.warn('[InvoiceModule] order merge error:', e); }
+
+    // Re-number untuk display (urut tglInvoice desc)
+    _invoices.sort((a, b) => (b.tglInvoice || '').localeCompare(a.tglInvoice || ''));
+    _invoices.forEach((inv, i) => { inv.no = i + 1; });
 
     _renderFull(page);
   }
@@ -204,15 +231,15 @@ const InvoiceModule = (() => {
 
     <div class="page-header">
       <div class="page-header-left">
-        <h2>Account Receivable (AR) 2026</h2>
-        <p>Piutang & monitoring invoice — update 22 Maret 2026</p>
+        <h2>Account Receivable (AR)</h2>
+        <p>Piutang & monitoring invoice</p>
       </div>
     </div>
 
     <div class="inv-stats">
       <div class="inv-stat" style="--c:#6366f1">
-        <div class="inv-stat-label">Total Omzet 2026</div>
-        <div class="inv-stat-val">Rp2,34M</div>
+        <div class="inv-stat-label">Total Omzet</div>
+        <div class="inv-stat-val">${_rp(_invoices.reduce((s,i)=>s+(i.total||0),0))}</div>
         <div class="inv-stat-sub">${_invoices.length} invoice · ${paid} lunas · ${unpaid} pending</div>
       </div>
       <div class="inv-stat" style="--c:#f59e0b">
@@ -342,10 +369,18 @@ const InvoiceModule = (() => {
 
   /* ══ TAB SUMMARY ══ */
   function _renderSummary() {
+    const monthly  = _computeMonthly();
+    const clients  = _computeClients();
+    const totalOmz = _invoices.reduce((s,i)=>s+(i.total||0),0);
+    const totalPb1 = _invoices.reduce((s,i)=>s+Math.round((i.total||0)*.1),0);
+    const totalUnp = _invoices.filter(i=>i.status!=='Paid').reduce((s,i)=>s+(i.sisa||0),0);
+    const totalInv = _invoices.length;
+    const totalCli = new Set(_invoices.map(i=>i.customerId||i.customer).filter(Boolean)).size;
+
     return `
     <div style="padding:16px">
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px">
-        <div style="padding:10px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);border-bottom:1px solid var(--border)">📅 Summary Bulanan 2026</div>
+        <div style="padding:10px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);border-bottom:1px solid var(--border)">📅 Summary Bulanan</div>
         <div class="inv-scroll">
           <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:600px">
             <thead>
@@ -356,11 +391,11 @@ const InvoiceModule = (() => {
                 <th class="inv-th" style="text-align:center">Inv Terbit</th>
                 <th class="inv-th" style="text-align:center">Client</th>
                 <th class="inv-th" style="text-align:right;color:#f59e0b">Unpaid</th>
-                <th class="inv-th" style="text-align:right">PB1</th>
+                <th class="inv-th" style="text-align:right">PB1 (10%)</th>
               </tr>
             </thead>
             <tbody>
-            ${_monthly.map((m,i) => {
+            ${monthly.map((m,i) => {
               const bg = i%2===0?'var(--surface)':'var(--surface2)';
               const on = m.omzetInvoice > 0;
               return `<tr style="border-bottom:1px solid var(--border);opacity:${on?1:.45}">
@@ -375,11 +410,11 @@ const InvoiceModule = (() => {
             }).join('')}
             <tr style="background:rgba(99,102,241,.08);border-top:2px solid var(--border)">
               <td colspan="2" class="inv-td" style="font-weight:700">TOTAL YTD</td>
-              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:900;color:#6366f1">Rp2,34M</td>
-              <td class="inv-td" style="text-align:center;font-weight:700">55</td>
-              <td class="inv-td" style="text-align:center;font-weight:700">11</td>
-              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:700;color:#f59e0b">${_rpFull(_invoices.filter(i=>i.status!=='Paid').reduce((s,i)=>s+i.sisa,0))}</td>
-              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:700">Rp132,8jt</td>
+              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:900;color:#6366f1">${_rp(totalOmz)}</td>
+              <td class="inv-td" style="text-align:center;font-weight:700">${totalInv}</td>
+              <td class="inv-td" style="text-align:center;font-weight:700">${totalCli}</td>
+              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:700;color:#f59e0b">${_rpFull(totalUnp)}</td>
+              <td class="inv-td" style="text-align:right;font-family:var(--font-mono);font-weight:700">${_rp(totalPb1)}</td>
             </tr>
             </tbody>
           </table>
@@ -387,10 +422,10 @@ const InvoiceModule = (() => {
       </div>
 
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-        <div style="padding:10px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);border-bottom:1px solid var(--border)">🏆 Kontribusi Client 2026</div>
-        ${_clients.map((c,i) => {
-          const pct = Math.round(c.omzet/2337339134*100);
-          const w   = Math.min(pct*1.5,100);
+        <div style="padding:10px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);border-bottom:1px solid var(--border)">🏆 Kontribusi Client</div>
+        ${clients.map((c,i) => {
+          const pct = totalOmz > 0 ? Math.round(c.omzet/totalOmz*100) : 0;
+          const w   = Math.min(pct*1.5, 100);
           return `<div class="client-bar">
             <div style="font-size:10px;color:var(--text-3);width:18px">${i+1}</div>
             ${c.customerId ? `<span style="font-size:9px;font-weight:700;font-family:var(--font-mono);background:rgba(99,102,241,.1);color:#6366f1;padding:2px 5px;border-radius:4px;min-width:28px;text-align:center">${c.customerId}</span>` : '<span style="min-width:28px"></span>'}
@@ -525,12 +560,24 @@ const InvoiceModule = (() => {
     return _invoices.find(i => i.id === key || i.invoiceNum === key);
   }
 
-  // Ambil data order terkait dari becca_order_invoices
+  // Ambil data order terkait dari becca_order_invoices, fallback ke _invoices
   function _getOrderRec(invoiceNum) {
     try {
       const recs = JSON.parse(localStorage.getItem('becca_order_invoices') || '[]');
-      return recs.find(r => r.nomor === invoiceNum) || null;
-    } catch(e) { return null; }
+      const fromLS = recs.find(r => r.nomor === invoiceNum);
+      if (fromLS) return fromLS;
+      // Fallback: invoice yang disimpan di DB mungkin punya orderIds langsung
+      const inv = _invoices.find(i => i.invoiceNum === invoiceNum && i.orderIds?.length);
+      if (inv) return {
+        nomor:    inv.invoiceNum,
+        customer: inv.customer,
+        dari:     inv.dari    || '',
+        sampai:   inv.sampai  || '',
+        orderIds: inv.orderIds || [],
+        totals:   inv.totals  || {},
+      };
+    } catch(e) {}
+    return null;
   }
 
   // Simpan perubahan nomor invoice ke becca_order_invoices
@@ -696,6 +743,27 @@ const InvoiceModule = (() => {
         <!-- Rekap editable -->
         ${rekapEditable}
 
+        <!-- Payment edit -->
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:10px">💳 Edit Pembayaran</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text-3);display:block;margin-bottom:4px">Total Terbayar (Rp)</label>
+              <input type="number" id="pay-total" min="0" value="${inv.totalTerbayar||0}"
+                style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);font-size:12px;font-family:var(--font-mono);box-sizing:border-box">
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text-3);display:block;margin-bottom:4px">Tanggal Bayar</label>
+              <input type="date" id="pay-tgl" value="${inv.tglTerbayar||''}"
+                style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);font-size:12px;box-sizing:border-box">
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="InvoiceModule.savePayment('${inv.id||inv.invoiceNum}')"
+            style="width:100%;padding:9px">
+            💾 Simpan Pembayaran
+          </button>
+        </div>
+
         <!-- Action buttons -->
         <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;align-items:center">
           <button class="btn btn-ghost" onclick="Modal.close(window._beccaDetailModalId)">Tutup</button>
@@ -729,7 +797,7 @@ const InvoiceModule = (() => {
   }
 
   // Simpan revisi: baca semua input → bandingkan → jika berubah → update + nomor R
-  function reviseInv(key) {
+  async function reviseInv(key) {
     const inv = _findInv(key);
     if (!inv) return;
 
@@ -805,8 +873,48 @@ const InvoiceModule = (() => {
     // Update di _invoices (in-memory)
     inv.invoiceNum = newNomor;
 
+    // Sync ke DB: changed orders + invoice dengan nomor baru
+    try {
+      const changedOrderIds = new Set(Object.keys(changes));
+      allOrders.forEach(o => {
+        if (changedOrderIds.has(o.id)) DB.saveOrder(Object.assign({}, o)).catch(()=>{});
+      });
+      await DB.saveInvoice(Object.assign({}, inv));
+    } catch(e) { console.warn('[InvoiceModule] reviseInv DB sync error:', e); }
+
     Modal.close(window._beccaDetailModalId);
     Notify.success(`Revisi tersimpan: ${oldNomor} → ${newNomor}`);
+    setTimeout(() => _renderFull(), 50);
+  }
+
+  // Simpan data pembayaran invoice
+  async function savePayment(key) {
+    const inv = _findInv(key);
+    if (!inv) return;
+    const totalTerbayar = parseInt(document.getElementById('pay-total')?.value) || 0;
+    const tglTerbayar   = document.getElementById('pay-tgl')?.value || '';
+
+    // Hitung lama terbayar dari tglInvoice
+    let lamaTerbayar = '';
+    if (tglTerbayar && inv.tglInvoice) {
+      const diff = Math.round((new Date(tglTerbayar) - new Date(inv.tglInvoice)) / 86400000);
+      if (diff >= 0) lamaTerbayar = diff + ' Hari';
+    }
+
+    inv.totalTerbayar = totalTerbayar;
+    inv.tglTerbayar   = tglTerbayar;
+    inv.lamaTerbayar  = lamaTerbayar;
+    inv.sisa          = Math.max(0, (inv.total || 0) - totalTerbayar);
+    inv.status        = totalTerbayar >= (inv.total || 0) ? 'Paid' : 'Unpaid';
+
+    try {
+      await DB.saveInvoice(Object.assign({}, inv));
+      Notify.success('Pembayaran tersimpan ✓');
+    } catch(e) {
+      console.warn('[InvoiceModule] savePayment DB error:', e);
+      Notify.error('Gagal simpan ke DB');
+    }
+    Modal.close(window._beccaDetailModalId);
     setTimeout(() => _renderFull(), 50);
   }
 
@@ -1298,7 +1406,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, _printFromDetail, _markChanged, _sendEmail, _doSendEmail };
+  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail };
 })();
 
 window.InvoiceModule = InvoiceModule;
