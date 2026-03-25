@@ -139,24 +139,30 @@ const InvoiceModule = (() => {
     };
   }
 
+  // Validasi: record invoice harus punya setidaknya customer atau invoiceNum
+  function _isValidInv(inv) { return !!(inv && (inv.customer || inv.invoiceNum)); }
+
   async function init() {
     const page = document.getElementById('page-invoice');
     if (!page) return;
 
-    // Load dari DB
+    // Load dari DB — filter skeleton rows (baris lama tanpa field bisnis)
     try {
-      _invoices = await DB.getInvoices();
+      const raw = await DB.getInvoices();
+      _invoices = raw.filter(_isValidInv);
     } catch(e) {
       console.warn('[InvoiceModule] DB.getInvoices error:', e);
       _invoices = [];
     }
 
-    // One-time seed: jika DB kosong & belum pernah diseed, masukkan 55 historical invoices
-    if (_invoices.length === 0 && !localStorage.getItem('becca_inv_seeded_v1')) {
-      localStorage.setItem('becca_inv_seeded_v1', '1');
+    // One-time seed: jika hasil valid = 0 & belum pernah diseed
+    // Pakai flag v2 agar re-seed otomatis jika v1 pernah jalan tapi data rusak
+    if (_invoices.length === 0 && !localStorage.getItem('becca_inv_seeded_v2')) {
+      localStorage.setItem('becca_inv_seeded_v2', '1');
       try {
         await Promise.all(_SEED_INVOICES.map(inv => DB.saveInvoice(Object.assign({}, inv))));
-        _invoices = await DB.getInvoices();
+        const raw2 = await DB.getInvoices();
+        _invoices = raw2.filter(_isValidInv);
         if (!_invoices.length) _invoices = [..._SEED_INVOICES];
       } catch(e) {
         console.warn('[InvoiceModule] seed error:', e);
