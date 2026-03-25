@@ -475,23 +475,18 @@ const SettingsModule = (() => {
     const u = _usersCache.find(u=>u.id===idOrUsername||u.username===idOrUsername)
            || Auth._defaultUsers.find(u=>u.id===idOrUsername||u.username===idOrUsername);
     const nama = u?.nama || idOrUsername;
-    Modal.open({
-      id: '_del-user-modal',
+    const ok = await Modal.confirm({
       title: 'Hapus User',
-      body: `<p style="font-size:14px;color:var(--text)">Apakah kamu yakin ingin menghapus user <strong>${nama}</strong>?</p>
-             <p style="font-size:12px;color:var(--danger);margin-top:8px">⚠ Tindakan ini tidak dapat dibatalkan.</p>`,
-      footer: `<button class="btn btn-ghost" onclick="Modal.close('_del-user-modal')">Batal</button>
-               <button class="btn btn-danger" onclick="SettingsModule._confirmDeleteUser('${idOrUsername}')">Ya, Hapus</button>`,
+      message: `Hapus user <strong>${nama}</strong>? Tindakan ini tidak dapat dibatalkan.`,
+      danger: true,
+      confirmText: 'Ya, Hapus',
     });
-  }
-
-  async function _confirmDeleteUser(idOrUsername) {
-    Modal.close('_del-user-modal');
+    if (!ok) return;
     try {
       await DB.deleteUser(idOrUsername);
       _usersCache = _usersCache.filter(u=>u.id!==idOrUsername&&u.username!==idOrUsername);
       _syncAuthJs();
-      Notify.success('User dihapus');
+      Notify.success('User dihapus', nama);
       renderUsers();
     } catch(e) {
       Notify.error('Gagal menghapus user', e.message);
@@ -1357,7 +1352,7 @@ const SettingsModule = (() => {
   return {
     init, switchTab,
     saveGeneralSettings, _handleLogoUpload, _removeLogo, openChangePasswordModal, _changePassword,
-    renderUsers, openUserModal, _submitUser, toggleUser, deleteUser, _confirmDeleteUser,
+    renderUsers, openUserModal, _submitUser, toggleUser, deleteUser,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData, _syncAuthJs, _downloadAuthJs, _saveGithubToken

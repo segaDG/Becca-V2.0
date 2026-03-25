@@ -603,25 +603,18 @@ const CustomerModule = (() => {
   async function deleteCustomer(id) {
     const cust = _data.find(c=>c.id===id) || _data.find(c=>String(c.id)===String(id));
     if (!cust) return;
-    const nama = cust.nama || 'Customer ini';
-    Modal.open({
-      id: '_del-cust-modal',
+    const ok = await Modal.confirm({
       title: 'Hapus Customer',
-      body: `<p style="font-size:14px;color:var(--text)">Apakah kamu yakin ingin menghapus <strong>${nama}</strong>?</p>
-             <p style="font-size:12px;color:var(--danger);margin-top:8px">⚠ Tindakan ini tidak dapat dibatalkan.</p>`,
-      footer: `<button class="btn btn-ghost" onclick="Modal.close('_del-cust-modal')">Batal</button>
-               <button class="btn btn-danger" onclick="CustomerModule._confirmDeleteCustomer('${id}')">Ya, Hapus</button>`,
+      message: `Hapus <strong>${cust.nama}</strong>? Tindakan ini tidak dapat dibatalkan.`,
+      danger: true,
+      confirmText: 'Ya, Hapus',
     });
-  }
-
-  async function _confirmDeleteCustomer(id) {
+    if (!ok) return;
     const i = _data.findIndex(c=>c.id===id || String(c.id)===String(id));
     if (i < 0) return;
-    const nama = _data[i].nama;
     _data.splice(i, 1);
-    Modal.close('_del-cust-modal');
     DB.deleteCustomer(id).catch(e => console.warn('deleteCustomer:', e));
-    Notify.success('Customer dihapus', nama);
+    Notify.success('Customer dihapus', cust.nama);
     _render();
   }
 
@@ -634,7 +627,7 @@ const CustomerModule = (() => {
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = base; });
   }
 
-  return { init, setSearch, sortBy, openModal, _submit, _fillAllShifts, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, _confirmDeleteCustomer };
+  return { init, setSearch, sortBy, openModal, _submit, _fillAllShifts, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer };
 })();
 
 window.CustomerModule = CustomerModule;
