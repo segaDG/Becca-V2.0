@@ -408,7 +408,7 @@ const KasModule = (() => {
 
     if (!skipValidation) {
       const _failV = (msg) => {
-        Notify.warning(msg);
+        Notify.popup(msg);
         _editingId = id;
         setTimeout(() => document.addEventListener('click', _handleOutsideClick), 50);
       };
@@ -567,13 +567,7 @@ const KasModule = (() => {
     const typeMap={};
     kasRaw.forEach(r=>{ const t=r.type||'Lain-lain'; typeMap[t]=(typeMap[t]||0)+(r.jumlah||0); });
     const allTypes=Object.entries(typeMap).sort((a,b)=>b[1]-a[1]).map(([t])=>t);
-    const fmtS=n=>{
-      if(!n) return '<span style="color:var(--text-3)">—</span>';
-      if(n>=1e9) return 'Rp '+Math.round(n/1e9).toLocaleString('id')+'<sup style="font-size:10px;color:var(--text-3)">M</sup>';
-      if(n>=1e6) return 'Rp '+Math.round(n/1e6).toLocaleString('id')+'<sup style="font-size:10px;color:var(--text-3)">jt</sup>';
-      if(n>=1e3) return 'Rp '+Math.round(n/1e3).toLocaleString('id')+'<sup style="font-size:10px;color:var(--text-3)">rb</sup>';
-      return 'Rp '+n;
-    };
+    const fmtS = n => n ? Utils.formatRupiah(n) : '<span style="color:var(--text-3)">—</span>';
     const badge=(curr,prev)=>{ if(prev===null||!prev) return ''; const p=Math.round((curr-prev)/prev*100); return '<span style="font-size:10px;font-weight:700;color:'+(p>=0?'#ef4444':'#10b981')+';margin-left:4px">'+(p>=0?'▲':'▼')+Math.abs(p)+'%</span>'; };
     // Cards
     const cards = bulan.map((b,i)=>{ const total=Object.values(nd[b]).reduce((s,v)=>s+v,0); const prev=i>0?Object.values(nd[bulan[i-1]]).reduce((s,v)=>s+v,0):0; const rows=kasRaw.filter(r=>(NORM[r.bulan||'']||r.bulan)===b).length; const p=prev?Math.round((total-prev)/prev*100):null; const clr=COLORS[i%COLORS.length]; return '<div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;width:4px;height:100%;background:'+clr+'"></div><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:20px;font-weight:900;color:'+clr+'">'+(SHORT[b]||b)+'</div>'+(p!==null?'<div style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:'+(p>=0?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)')+';color:'+(p>=0?'#ef4444':'#10b981')+'">'+(p>=0?'▲':'▼')+Math.abs(p)+'% vs '+SHORT[bulan[i-1]]+'</div>':'<div style="font-size:11px;color:var(--text-3);padding:2px 8px;border-radius:20px;background:var(--surface2)">Base Month</div>')+'</div><div style="font-family:var(--font-mono);font-size:22px;font-weight:900;color:var(--heading)">'+fmtS(total)+'</div><div style="font-size:11px;color:var(--text-3);margin-top:4px">'+rows.toLocaleString('id')+' transaksi</div></div>'; }).join('');

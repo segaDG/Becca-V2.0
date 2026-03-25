@@ -405,20 +405,24 @@ const InventoryModule = (() => {
     }
 
     document.getElementById('inv-tab-transaksi').innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span style="font-size:11px;color:var(--text-3);font-style:italic">${canEdit ? 'Klik baris untuk edit · Enter untuk simpan' : ''}</span>
-        <div style="display:flex;gap:var(--s2)">
-          ${canEdit ? `
-            <button class="btn btn-primary btn-sm" onclick="InventoryModule.addLogRow()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M12 5v14M5 12h14"/></svg>
-              Baris Baru
-            </button>` : ''}
-        </div>
-      </div>
+      ${canEdit ? '<div style="margin-bottom:8px"><span style="font-size:11px;color:var(--text-3);font-style:italic">Klik baris untuk edit · Enter untuk simpan · + untuk tambah baris baru</span></div>' : ''}
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-lg)">
         <table class="iv-tbl" id="inv-grid">
           <thead><tr>
-            <th style="width:32px">#</th>
+            <th style="width:32px;padding:0;text-align:center">
+              ${canEdit
+                ? `<button title="Tambah Baris Baru" onclick="InventoryModule.addLogRow()"
+                    style="width:26px;height:26px;border-radius:6px;
+                           background:rgba(99,102,241,.25);
+                           border:1.5px solid rgba(99,102,241,.5);
+                           cursor:pointer;color:var(--primary-h);
+                           font-size:15px;font-weight:900;line-height:1;
+                           display:flex;align-items:center;justify-content:center;
+                           transition:all .15s;margin:auto;"
+                    onmouseover="this.style.background='var(--primary)';this.style.color='white';this.style.borderColor='var(--primary)'"
+                    onmouseout="this.style.background='rgba(99,102,241,.25)';this.style.color='var(--primary-h)';this.style.borderColor='rgba(99,102,241,.5)'">+</button>`
+                : '<span style="color:var(--text-3);font-size:11px">#</span>'}
+            </th>
             <th style="width:108px">Tanggal</th>
             <th style="min-width:160px">Nama Barang</th>
             <th style="width:90px">Jenis</th>
@@ -436,7 +440,7 @@ const InventoryModule = (() => {
           </tr></thead>
           <tbody id="inv-tbody">
             ${pageData.length ? pageData.map((r,i)=>_ivRowView(r,i+1+offset,canEdit)).join('') :
-              `<tr><td colspan="${canEdit?12:11}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data. Klik Baris Baru untuk mulai.</td></tr>`}
+              `<tr><td colspan="${canEdit?12:11}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data. Klik + di header untuk mulai.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -809,7 +813,7 @@ const InventoryModule = (() => {
 
     if (!skipValidation) {
       const _failV = (msg) => {
-        Notify.warning(msg);
+        Notify.popup(msg);
         _invEditId = id;
         setTimeout(() => document.addEventListener('click', _ivOutsideClick), 50);
         return false;
