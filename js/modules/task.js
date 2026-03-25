@@ -913,32 +913,33 @@ const TaskModule = (() => {
     const base = location.href.startsWith('file:')
       ? 'https://segaDG.github.io/Becca-V2.0/'
       : (location.origin + location.pathname.replace(/[^/]*$/, ''));
-    const params = new URLSearchParams({
-      id:   t.id   || '',
-      t:    t.judul || '',
-      s:    t.status   || 'todo',
-      p:    t.priority || 'medium',
-      a:    _assigneeDisplay(t),
-      d:    t.deadline || '',
-      desc: (t.deskripsi || '').substring(0, 100),
-    });
-    return base + 'share.html?' + params.toString();
+    const enc = encodeURIComponent;
+    return base + 'share.html'
+      + '?id='   + enc(t.id || '')
+      + '&t='    + enc(t.judul || '')
+      + '&s='    + enc(t.status || 'todo')
+      + '&p='    + enc(t.priority || 'medium')
+      + '&a='    + enc(_assigneeDisplay(t))
+      + '&d='    + enc(t.deadline || '');
   }
 
   function _waText(t) {
     const STATUS_LBL = { todo:'To Do', inprogress:'In Progress', review:'Review', done:'Done', arsip:'Arsip' };
     const PRIO_LBL   = { high:'🔴 High', medium:'🟡 Medium', low:'🟢 Low' };
-    const lines = ['📋 *Task dari BECCA*', '', '*' + (t.judul || 'Tanpa judul') + '*'];
-    if (t.deskripsi) lines.push(t.deskripsi);
-    lines.push('');
+    const assignDisp = _assigneeDisplay(t);
+    const lines = [
+      '📋 *Task dari BECCA*',
+      '',
+      '*' + (t.judul || 'Tanpa judul') + '*',
+      '🔗 ' + _shareUrl(t),
+      '',
+    ];
+    if (t.deskripsi) lines.push(t.deskripsi, '');
     lines.push('Status   : ' + (STATUS_LBL[t.status] || 'To Do'));
     lines.push('Priority : ' + (PRIO_LBL[t.priority] || 'Medium'));
-    const assignDisp = _assigneeDisplay(t);
-    if (assignDisp) lines.push('Assignee : ' + assignDisp);
+    if (assignDisp)  lines.push('Assignee : ' + assignDisp);
     if (t.deadline)  lines.push('Deadline : ' + _fmtDate(t.deadline));
     if (t.createdBy) lines.push('Dibuat oleh: ' + t.createdBy);
-    lines.push('');
-    lines.push('🔗 Buka Task: ' + _shareUrl(t));
     return lines.join('\n');
   }
 
