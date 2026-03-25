@@ -22,6 +22,14 @@ const App = {
   },
 
   async boot() {
+    // Handle deep link — capture ?task=ID before anything, survive login redirect
+    const _urlP = new URLSearchParams(location.search);
+    const _deepTask = _urlP.get('task');
+    if (_deepTask) {
+      sessionStorage.setItem('becca_deep_task', _deepTask);
+      history.replaceState({}, '', location.pathname + location.hash);
+    }
+
     // Init Supabase DB
     DB.init().then(() => {
       if (DB.isReady() && !localStorage.getItem('becca_migrated_v5')) {
@@ -67,7 +75,18 @@ const App = {
     }
     Sidebar.render();
     this._renderHeader();
-    this.navigate(Utils.ls.get('lastPage') || 'dashboard');
+
+    // Deep link: open specific task after login
+    const _deepTask = sessionStorage.getItem('becca_deep_task');
+    if (_deepTask) {
+      sessionStorage.removeItem('becca_deep_task');
+      this.navigate('task').then(() => {
+        if (typeof TaskModule !== 'undefined') TaskModule.openModal(_deepTask);
+      });
+    } else {
+      this.navigate(Utils.ls.get('lastPage') || 'dashboard');
+    }
+
     this._handleResize();
     window.addEventListener('resize', () => this._handleResize());
     setTimeout(() => { if (typeof NotifCenter !== 'undefined') NotifCenter.refresh(); }, 800);

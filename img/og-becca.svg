@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1100" cy="80"  r="300" fill="#6366f1" opacity="0.06"/>
+  <circle cx="100"  cy="580" r="250" fill="#8b5cf6" opacity="0.06"/>
+
+  <!-- BECCA logo box -->
+  <rect x="80" y="80" width="130" height="130" rx="28" fill="#6366f1"/>
+  <text x="145" y="177" text-anchor="middle" font-family="Arial,Helvetica,sans-serif"
+        font-size="80" font-weight="900" fill="white">B</text>
+
+  <!-- Brand name -->
+  <text x="236" y="140" font-family="Arial,Helvetica,sans-serif"
+        font-size="58" font-weight="800" fill="white" letter-spacing="3">BECCA</text>
+  <text x="238" y="178" font-family="Arial,Helvetica,sans-serif"
+        font-size="24" fill="#94a3b8">Catering Management System</text>
+
+  <!-- Divider -->
+  <rect x="80" y="248" width="1040" height="2" fill="#334155"/>
+
+  <!-- Tag line -->
+  <text x="80" y="320" font-family="Arial,Helvetica,sans-serif"
+        font-size="17" font-weight="700" fill="#6366f1" letter-spacing="2">📋  NOTIFIKASI TASK</text>
+
+  <!-- Main headline -->
+  <text x="80" y="400" font-family="Arial,Helvetica,sans-serif"
+        font-size="58" font-weight="800" fill="white">Ada task baru untukmu!</text>
+
+  <!-- Sub text -->
+  <text x="80" y="456" font-family="Arial,Helvetica,sans-serif"
+        font-size="26" fill="#94a3b8">Klik link untuk melihat detail dan mulai dikerjakan di BECCA</text>
+
+  <!-- CTA pill -->
+  <rect x="80" y="500" width="280" height="64" rx="14" fill="#6366f1"/>
+  <text x="220" y="540" text-anchor="middle" font-family="Arial,Helvetica,sans-serif"
+        font-size="24" font-weight="700" fill="white">Buka Task →</text>
+</svg>
