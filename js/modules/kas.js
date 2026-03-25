@@ -420,7 +420,6 @@ const KasModule = (() => {
 
     // Save to DB async
     DB.saveKas(row).then(() => {
-      _kasLocked.add(id); localStorage.setItem(_KAS_LOCK_KEY, JSON.stringify([..._kasLocked]));
       DB.logActivity({type:'edit_kas', detail:'Edit: '+(row.nama||id), snapshot:{after:{nama:row.nama,type:row.type,jumlah:row.jumlah,vendor:row.vendor,tgl:row.tgl,status:row.status}}});
       const newTr = document.getElementById('ks-row-'+id);
       if (newTr) { newTr.classList.add('ks-saved'); setTimeout(()=>newTr.classList.remove('ks-saved'),500); }

@@ -93,21 +93,20 @@ const DB = (() => {
 
   function _fromRow(row) {
     if (!row) return null;
-    // Parse data jsonb jika ada
-    let base = {};
-    if (row.data) {
-      try { base = typeof row.data === 'string' ? JSON.parse(row.data) : row.data; } catch {}
-    }
-    const merged = { ...base };
-    // Hanya override dengan native column untuk metadata — jangan override
-    // business data dari kolom native (harga, jumlah, dll) karena defaultnya 0
-    // bisa menimpa nilai benar yang ada di data JSON.
-    const META_COLS = new Set(['id', 'created_at', 'updated_at']);
+    const merged = {};
+    // 1. Copy native columns dulu (termasuk snake_case seperti harga_satuan)
     Object.entries(row).forEach(([k, v]) => {
       if (k === 'data') return;
-      if (!META_COLS.has(k)) return;
       if (v !== null && v !== undefined) merged[k] = v;
     });
+    // 2. Override dengan data JSON — JSON adalah source of truth untuk business data
+    // Mencegah native column default (0, '') menimpa nilai benar dari JSON
+    if (row.data) {
+      try {
+        const base = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+        Object.assign(merged, base);
+      } catch {}
+    }
     merged.data = undefined;
 
     // Normalize: tambah alias camelCase untuk field yang dipakai BECCA
@@ -243,6 +242,11 @@ const DB = (() => {
     if (!obj.id) obj.id = Utils.uid();
     obj.updated_at = new Date().toISOString();
 
+    // Pre-save ke localStorage + invalidate cache SEBELUM Supabase call
+    // agar data tidak hilang jika user navigasi saat request masih in-flight
+    _invalidateCache(table);
+    _lsSave(table, obj);
+
     // Selalu pakai minimal upsert: hanya id + data JSON + timestamps
     // Menghindari error kolom (42703/PGRST116) karena field BECCA tidak selalu
     // match nama kolom Supabase. Kolom 'data' adalah source of truth.
@@ -265,8 +269,7 @@ const DB = (() => {
 
     if (error) {
       console.warn('[DB] save ' + table + ':', error.message);
-      _invalidateCache(table);
-      return _lsSave(table, obj);
+      return obj; // sudah disimpan ke localStorage di pre-save atas
     }
 
     // Jika upsert sukses tapi tidak return row (204), fetch manual
