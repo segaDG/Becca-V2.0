@@ -635,6 +635,13 @@ const TaskModule = (() => {
           <button class="btn btn-sm btn-ghost" style="color:var(--danger);font-size:10px;padding:2px 8px"
             onclick="TaskModule.deleteTask('${t.id}')">🗑 Hapus</button>
         ` : ''}
+
+        <button onclick="event.stopPropagation();TaskModule.shareWA('${t.id}')"
+          title="Kirim via WhatsApp"
+          style="margin-left:auto;background:#25d366;color:#fff;border:none;border-radius:6px;
+                 padding:3px 9px;cursor:pointer;font-size:11px;display:flex;align-items:center;gap:4px;flex-shrink:0">
+          ${_WA_SVG} WA
+        </button>
       </div>
     </div>`;
   }
@@ -767,7 +774,13 @@ const TaskModule = (() => {
               <div style="font-size:13px">${d.createdBy}</div>
             </div>` : ''}
           </div>`,
-        footer: `<button class="btn btn-ghost" onclick="Modal.close('${viewId}')">Tutup</button>`,
+        footer: `
+          <button class="btn btn-ghost" onclick="Modal.close('${viewId}')">Tutup</button>
+          <button onclick="TaskModule.shareWA('${editId}')"
+            style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:7px 16px;
+                   cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;font-weight:600">
+            ${_WA_SVG.replace('width="12" height="12"','width="14" height="14"')} Kirim via WhatsApp
+          </button>`,
       });
       return;
     }
@@ -837,9 +850,15 @@ const TaskModule = (() => {
         </form>`,
       footer: `
         <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        ${editId ? `<button class="btn btn-ghost" style="color:var(--danger)"
-          onclick="event.stopPropagation();TaskModule.deleteTask('${editId}');Modal.close('${mid}')">
-          🗑 Hapus</button>` : ''}
+        ${editId ? `
+          <button class="btn btn-ghost" style="color:var(--danger)"
+            onclick="event.stopPropagation();TaskModule.deleteTask('${editId}');Modal.close('${mid}')">
+            🗑 Hapus</button>
+          <button onclick="TaskModule.shareWA('${editId}')"
+            style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:7px 14px;
+                   cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px;font-weight:600">
+            ${_WA_SVG.replace('width="12" height="12"','width="13" height="13"')} WA
+          </button>` : ''}
         <button class="btn btn-primary" onclick="TaskModule._submit('${mid}','${editId||''}')">Simpan</button>`,
     });
     return mid;
@@ -887,8 +906,32 @@ const TaskModule = (() => {
     } catch(err) { Notify.error('Gagal', err.message); }
   }
 
+  /* ── WhatsApp Share ── */
+  const _WA_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495.001 12.05.001c3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.867-2.031-.967-.272-.099-.47-.148-.669.15-.198.297-.768.967-.941 1.165-.173.198-.345.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.611-.916-2.206-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.298-1.04 1.016-1.04 2.479 0 1.463 1.065 2.876 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>`;
+
+  function _waText(t) {
+    const STATUS_LBL = { todo:'To Do', inprogress:'In Progress', review:'Review', done:'Done', arsip:'Arsip' };
+    const PRIO_LBL   = { high:'🔴 High', medium:'🟡 Medium', low:'🟢 Low' };
+    const lines = ['📋 *Task dari BECCA*', '', '*' + (t.judul || 'Tanpa judul') + '*'];
+    if (t.deskripsi) lines.push(t.deskripsi);
+    lines.push('');
+    lines.push('Status   : ' + (STATUS_LBL[t.status] || 'To Do'));
+    lines.push('Priority : ' + (PRIO_LBL[t.priority] || 'Medium'));
+    const assignDisp = _assigneeDisplay(t);
+    if (assignDisp) lines.push('Assignee : ' + assignDisp);
+    if (t.deadline)  lines.push('Deadline : ' + _fmtDate(t.deadline));
+    if (t.createdBy) lines.push('Dibuat oleh: ' + t.createdBy);
+    return lines.join('\n');
+  }
+
+  function shareWA(id) {
+    const t = _tasks.find(x => x.id === id);
+    if (!t) return;
+    window.open('https://wa.me/?text=' + encodeURIComponent(_waText(t)), '_blank');
+  }
+
   return {
-    init, setFilter, render, openModal, _submit,
+    init, setFilter, render, openModal, _submit, shareWA,
     moveNext, movePrev, markReviewed, markDone, markArsip, markTodo, deleteTask, toggleUrgent,
     _onDragStart, _onDragEnd, _onColDragOver, _onColDragLeave, _onDrop
   };
