@@ -151,6 +151,9 @@ const DB = (() => {
   // Table yang tidak punya created_at column
   const NO_CREATED_AT = ['settings', 'presence', 'activity_logs', 'opname_logs'];
 
+  // Table yang tidak punya updated_at column
+  const NO_UPDATED_AT = ['activity_logs', 'opname_logs', 'emp_logs'];
+
   // Table yang TIDAK dicache di localStorage (selalu fetch fresh dari Supabase)
   const NO_CACHE = ['customers','users','tasks','suppliers','ap'];
 
@@ -234,7 +237,10 @@ const DB = (() => {
     // Selalu pakai minimal upsert: hanya id + data JSON + timestamps
     // Menghindari error kolom (42703/PGRST116) karena field BECCA tidak selalu
     // match nama kolom Supabase. Kolom 'data' adalah source of truth.
-    const minimal = { id: obj.id, data: JSON.stringify(obj), updated_at: obj.updated_at };
+    const minimal = { id: obj.id, data: JSON.stringify(obj) };
+    if (!NO_UPDATED_AT.includes(table)) {
+      minimal.updated_at = obj.updated_at;
+    }
     if (!NO_CREATED_AT.includes(table)) {
       minimal.created_at = obj.created_at || obj.createdAt || new Date().toISOString();
     }

@@ -104,8 +104,9 @@ const Auth = {
     // Baca langsung dari localStorage (bukan via Utils.ls agar tidak double-prefix 'becca_becca_')
     let custom = null;
     try { custom = JSON.parse(localStorage.getItem('becca_privileges') || 'null'); } catch {}
-    if (custom && custom[role]) return custom[role];
-    return this._defaultPrivileges[role] || {};
+    if (custom && custom[role] && Object.keys(custom[role]).length > 0) return custom[role];
+    // Fallback ke default; jika role tidak dikenal, pakai hak operator
+    return this._defaultPrivileges[role] || this._defaultPrivileges['operator'];
   },
 
   /* ===================== RENDER LOGIN ===================== */

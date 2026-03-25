@@ -726,8 +726,49 @@ const TaskModule = (() => {
     const d   = editId ? (_tasks.find(t=>t.id===editId)||{}) : {};
     const mid = Utils.uid();
 
-    if (editId&&!_canEdit(d)) {
-      Notify.info('Kamu hanya bisa melihat task ini'); return;
+    if (editId && !_canEdit(d)) {
+      // Assignee: tampilkan read-only view
+      const assignDisp = _assigneeDisplay(d);
+      const pc = {high:'var(--danger)',medium:'var(--warning)',low:'var(--success)'}[d.priority]||'var(--text-3)';
+      Modal.open({
+        id: Utils.uid(),
+        title: 'Detail Task',
+        body: `
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:2px">Judul</div>
+              <div style="font-weight:700;font-size:15px">${d.judul||'-'}</div>
+            </div>
+            ${d.deskripsi ? `<div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:2px">Deskripsi</div>
+              <div style="font-size:13px">${d.deskripsi}</div>
+            </div>` : ''}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div>
+                <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Priority</div>
+                <span style="font-size:12px;font-weight:600;color:${pc}">${d.priority||'medium'}</span>
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Status</div>
+                <span style="font-size:12px;font-weight:600">${d.status||'todo'}</span>
+              </div>
+            </div>
+            ${assignDisp ? `<div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Assignee</div>
+              <div style="font-size:13px">👤 ${assignDisp}</div>
+            </div>` : ''}
+            ${d.deadline ? `<div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Deadline</div>
+              <div style="font-size:13px">📅 ${_fmtDate(d.deadline)}</div>
+            </div>` : ''}
+            ${d.createdBy ? `<div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Dibuat oleh</div>
+              <div style="font-size:13px">${d.createdBy}</div>
+            </div>` : ''}
+          </div>`,
+        footer: `<button class="btn btn-ghost" onclick="Modal.close('${Utils.uid()}')">Tutup</button>`,
+      });
+      return;
     }
 
     const users  = await DB.getUsers().catch(()=>[]);
