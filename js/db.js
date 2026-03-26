@@ -180,11 +180,16 @@ const DB = (() => {
       nama:     obj.nama     || obj.namaLengkap || obj.username || '',
       role:     obj.role     || 'operator',
     }),
-    // invoices: periode_dari & periode_sampai NOT NULL di Supabase
-    invoices: (obj) => ({
-      periode_dari:   obj.dari    || obj.periode_dari   || '',
-      periode_sampai: obj.sampai  || obj.periode_sampai || '',
-    }),
+    // invoices: periode_dari & periode_sampai adalah tipe DATE di Supabase
+    // Kirim hanya jika ada nilai valid — string kosong '' invalid untuk DATE
+    invoices: (obj) => {
+      const r = {};
+      const dari   = obj.dari   || obj.periode_dari   || '';
+      const sampai = obj.sampai || obj.periode_sampai || '';
+      if (dari)   r.periode_dari   = dari;
+      if (sampai) r.periode_sampai = sampai;
+      return r;
+    },
   };
 
   // In-memory cache — cleared on save/delete
