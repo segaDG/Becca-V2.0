@@ -189,7 +189,7 @@ const KasModule = (() => {
                  color:var(--text-2);font-size:18px;transition:all .15s;"
           onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'"
           onmouseout="this.style.background='transparent';this.style.color='var(--text-2)'">↺</button>
-        <span class="text-muted text-small" style="margin-left:auto">${total} baris · ${Utils.formatRupiah(sum)}</span>
+        <span class="text-muted text-small" style="margin-left:auto">${total} baris</span>
       </div>
 
 
@@ -548,7 +548,6 @@ const KasModule = (() => {
       _card('Confirmed',    Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),   'var(--success)'),
       _card('TBC',          Utils.formatRupiah(tbc.reduce((s,r)=>s+(r.jumlah||0),0)),    'var(--warning)', "KasModule.filterByStatus('TBC')"),
       _card('Belum Diisi',  noSt.length+' baris',                                         'var(--text-2)',  "KasModule.filterByStatus('-')"),
-      _card('Total Baris',  data.length+' baris',                                         'var(--primary-h)'),
     ].join('');
   }
 
