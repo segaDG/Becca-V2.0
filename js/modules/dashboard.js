@@ -84,7 +84,7 @@ const DashboardModule = (() => {
     // Level 3: ambil summary dari server (RPC), bukan full-fetch semua baris.
     // Setiap call hanya transfer ~1KB JSON. Fallback otomatis ke full-fetch
     // jika SQL functions belum di-deploy di Supabase.
-    const [kasSumm, empSumm, invSumm, taskSumm, invoiceSumm, apSumm, _settings] = await Promise.all([
+    let [kasSumm, empSumm, invSumm, taskSumm, invoiceSumm, apSumm, _settings] = await Promise.all([
       canKas       ? DB.getKasSummary().catch(()=>null)       : Promise.resolve(null),
       canEmployee  ? DB.getEmployeeSummary().catch(()=>null)  : Promise.resolve(null),
       canInventory ? DB.getInventorySummary().catch(()=>null) : Promise.resolve(null),
@@ -93,6 +93,47 @@ const DashboardModule = (() => {
       canAP        ? DB.getAPSummary().catch(()=>null)        : Promise.resolve(null),
       DB.getSettings().catch(()=>({})),
     ]);
+
+    // Fallback ke full-fetch jika RPC belum di-deploy (SQL functions tidak ada di Supabase)
+    const _rpcFailed = (canKas && !kasSumm) || (canEmployee && !empSumm) || (canInventory && !invSumm);
+    if (_rpcFailed) {
+      const [kas, employees, invItems, invoices, apList, tasks] = await Promise.all([
+        canKas       ? DB.getKas().catch(()=>[])           : Promise.resolve([]),
+        canEmployee  ? DB.getEmployees().catch(()=>[])     : Promise.resolve([]),
+        canInventory ? DB.getInventoryItems().catch(()=>[]) : Promise.resolve([]),
+        canInvoice   ? DB.getInvoices().catch(()=>[])      : Promise.resolve([]),
+        canAP        ? DB.getAP().catch(()=>[])            : Promise.resolve([]),
+        canTask      ? DB.getTasks().catch(()=>[])         : Promise.resolve([]),
+      ]);
+      const _ACTIVE_EMP = ['AKTIF','ACTIVE','aktif','active','Aktif','Tetap','Kontrak','Percobaan','Harian'];
+      const _ACTIVE_INV = ['AKTIF','ACTIVE','aktif','active','Aktif','Activated'];
+      if (!kasSumm && canKas) {
+        const masuk  = kas.filter(k=>k.type==='Kas').reduce((s,k)=>s+(+k.jumlah||0),0);
+        const keluar = kas.filter(k=>k.type!=='Kas').reduce((s,k)=>s+(+k.jumlah||0),0);
+        const sorted = [...kas].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')||String(b.id).localeCompare(String(a.id)));
+        kasSumm = { total_masuk: masuk, total_keluar: keluar, count: kas.length, recent: sorted.slice(0,10) };
+      }
+      if (!empSumm && canEmployee) {
+        const active = employees.filter(e=>_ACTIVE_EMP.includes(e.status));
+        empSumm = {
+          active_count: active.length,
+          total_hutang: active.reduce((s,e)=>s+(+(e.sisaHutang??e.hutang)||0),0),
+          top_hutang:   [...active].filter(e=>(+(e.sisaHutang??e.hutang)||0)>0)
+                          .sort((a,b)=>(+(b.sisaHutang??b.hutang)||0)-(+(a.sisaHutang??a.hutang)||0)).slice(0,5),
+        };
+      }
+      if (!invSumm && canInventory) {
+        const activeInv = invItems.filter(p=>_ACTIVE_INV.includes(p.status));
+        invSumm = {
+          active_items: activeInv.length,
+          total_nilai:  activeInv.reduce((s,p)=>s+(+(p.balance||p._stok)||0)*(+(p.harga||p.hargaSatuan)||0),0),
+          low_stock:    invItems.filter(p=>(+(p.balance||p._stok)||0)<=(+(p.stokMin)||0)).slice(0,8),
+        };
+      }
+      if (!taskSumm    && canTask)    taskSumm    = { open_count:    tasks.filter(t=>t.status!=='done'&&t.status!=='arsip').length };
+      if (!invoiceSumm && canInvoice) invoiceSumm = { belum_lunas:   invoices.filter(i=>i.status!=='LUNAS').reduce((s,i)=>s+(+i.total||0),0) };
+      if (!apSumm      && canAP)      apSumm      = { belum_lunas:   apList.filter(a=>a.status!=='LUNAS').reduce((s,a)=>s+(+a.total||0),0) };
+    }
 
     const totalMasuk    = kasSumm?.total_masuk  || 0;
     const totalKeluar   = kasSumm?.total_keluar || 0;
