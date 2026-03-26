@@ -3,7 +3,7 @@
    Spreadsheet: click row to edit inline
    AI type suggestion from nama field
 ============================================ */
-console.log('[BECCA] KasModule v20260325d loaded ✓');
+console.log('[BECCA] KasModule v20260326e loaded ✓');
 const KasModule = (() => {
   let _kas        = [];
   let _masuk      = [];
@@ -135,7 +135,8 @@ const KasModule = (() => {
     });
     const hdr = document.getElementById('kas-hdr-btn');
     if (hdr) hdr.innerHTML = tab==='transaksi' && Auth.can('kas','edit')
-      ? `<button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>`
+      ? `<button class="btn btn-ghost btn-sm" onclick="KasModule.importExcel()" title="Import data dari file Excel (.xlsx)">Import Excel</button>
+         <button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>`
       : '';
     if (tab==='transaksi') { renderTransaksi(); _renderBalanceCards(); }
     else if (tab==='summary')  renderSummary();
@@ -533,6 +534,157 @@ const KasModule = (() => {
   }
 
   /* ===================== EXPORT CSV ===================== */
+  /* ===================== IMPORT EXCEL ===================== */
+  function importExcel() {
+    const inp = Object.assign(document.createElement('input'), { type:'file', accept:'.xlsx,.xls', style:'display:none' });
+    document.body.appendChild(inp);
+    inp.onchange = async (e) => {
+      const file = e.target.files[0];
+      document.body.removeChild(inp);
+      if (!file) return;
+      // Load SheetJS dari CDN jika belum ada
+      if (!window.XLSX) {
+        Notify.info('Memuat library Excel...');
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js';
+          s.onload = res; s.onerror = () => rej(new Error('Gagal memuat SheetJS'));
+          document.head.appendChild(s);
+        }).catch(err => { Notify.error('Gagal memuat library Excel', err.message); return null; });
+        if (!window.XLSX) return;
+      }
+      // Baca file
+      const buf  = await file.arrayBuffer();
+      const wb   = XLSX.read(buf, { type:'array', cellDates:true });
+      // Kolom yang akan di-match (case-insensitive)
+      const COL_MAP = {
+        tanggal:    'tgl',
+        tgl:        'tgl',
+        date:       'tgl',
+        nama:       'nama',
+        keterangan: 'nama',
+        ket:        'nama',
+        description:'nama',
+        type:       'type',
+        tipe:       'type',
+        vendor:     'vendor',
+        qty:        'qty',
+        jumlah_qty: 'qty',
+        satuan:     'satuan',
+        sat:        'satuan',
+        unit:       'satuan',
+        harga:      'hargaSatuan',
+        harga_satuan:'hargaSatuan',
+        'harga/sat':'hargaSatuan',
+        hargasat:   'hargaSatuan',
+        price:      'hargaSatuan',
+        jumlah:     'jumlah',
+        total:      'jumlah',
+        amount:     'jumlah',
+        penerima:   'penerima',
+        pic:        'penerima',
+        status:     'status',
+      };
+      const _parseDate = (v) => {
+        if (!v) return '';
+        // If it's already a JS Date (from cellDates:true)
+        if (v instanceof Date) {
+          const y = v.getFullYear(), m = String(v.getMonth()+1).padStart(2,'0'), d = String(v.getDate()).padStart(2,'0');
+          return `${y}-${m}-${d}`;
+        }
+        const s = String(v).trim();
+        // DD-MM-YYYY or DD/MM/YYYY
+        if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
+          const [dd,mm,yyyy] = s.split(/[\/\-]/);
+          return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+        }
+        // YYYY-MM-DD (already correct)
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        // Excel serial number
+        if (/^\d+$/.test(s)) {
+          const d = new Date(Math.round((parseInt(s)-25569)*86400000));
+          const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+          return `${y}-${mo}-${day}`;
+        }
+        return s;
+      };
+      const _parseNum = (v) => {
+        if (v === undefined || v === null || v === '') return 0;
+        if (typeof v === 'number') return v;
+        return parseFloat(String(v).replace(/[^\d.]/g,'')) || 0;
+      };
+      let imported = 0, skipped = 0;
+      const errors = [];
+      // Proses tiap sheet
+      for (const sheetName of wb.SheetNames) {
+        // Derive bulan dari nama sheet (e.g. "Januari 2026", "Jan", "JAN 2025")
+        const sheetWords = sheetName.trim().split(/\s+/);
+        const bulanRaw   = sheetWords[0] || sheetName;
+        const bulan      = _normalizeBulan(bulanRaw) || 'Jan';
+        const ws   = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+        if (rows.length < 2) continue; // no data rows
+        // Find header row (first row with recognizable columns)
+        let hdrIdx = -1, colIdx = {};
+        for (let ri = 0; ri < Math.min(rows.length, 5); ri++) {
+          const row = rows[ri];
+          const map = {};
+          row.forEach((cell, ci) => {
+            const key = String(cell).toLowerCase().trim().replace(/[\s\/]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+            const altKey = String(cell).toLowerCase().trim().replace(/\s+/g,'').replace('/','');
+            const field = COL_MAP[key] || COL_MAP[altKey] || COL_MAP[String(cell).toLowerCase().trim()];
+            if (field) map[field] = ci;
+          });
+          if (Object.keys(map).length >= 2) { hdrIdx = ri; colIdx = map; break; }
+        }
+        if (hdrIdx < 0) { skipped++; continue; }
+        // Process data rows
+        for (let ri = hdrIdx + 1; ri < rows.length; ri++) {
+          const row = rows[ri];
+          // Skip empty rows (all cells empty or first cell looks like a summary row)
+          if (row.every(c => c === '' || c === null || c === undefined)) continue;
+          const tglRaw = colIdx.tgl !== undefined ? row[colIdx.tgl] : '';
+          const tgl    = _parseDate(tglRaw);
+          if (!tgl) continue; // skip rows without a date (summary rows, etc.)
+          const nama       = String(row[colIdx.nama]       ?? '').trim();
+          const typeRaw    = String(row[colIdx.type]       ?? '').trim();
+          const vendor     = String(row[colIdx.vendor]     ?? '').trim();
+          const satuanRaw  = String(row[colIdx.satuan]     ?? '').trim();
+          const penerima   = String(row[colIdx.penerima]   ?? '').trim();
+          const statusRaw  = String(row[colIdx.status]     ?? '').trim().toUpperCase();
+          const qty        = _parseNum(colIdx.qty        !== undefined ? row[colIdx.qty]        : 1) || 1;
+          const hargaSatuan= _parseNum(colIdx.hargaSatuan !== undefined ? row[colIdx.hargaSatuan] : 0);
+          let   jumlah     = _parseNum(colIdx.jumlah     !== undefined ? row[colIdx.jumlah]     : 0);
+          if (!jumlah && hargaSatuan) jumlah = qty * hargaSatuan;
+          // Normalize type (try to match against known TYPES)
+          const typeNorm = TYPES.find(t => t.toLowerCase() === typeRaw.toLowerCase()) || typeRaw || _suggestType(nama) || '';
+          // Normalize satuan
+          const satuanNorm = SATUANS.find(s => s.toLowerCase() === satuanRaw.toLowerCase()) || satuanRaw || 'Pcs';
+          // Normalize status
+          const status = statusRaw === 'DONE' ? 'DONE' : statusRaw === 'TBC' ? 'TBC' : '';
+          const newRow = { tgl, nama, type:typeNorm, vendor, qty, satuan:satuanNorm, hargaSatuan, jumlah, penerima, status, bulan };
+          try {
+            const saved = await DB.saveKas(newRow);
+            _kas.unshift(saved);
+            imported++;
+          } catch(err) {
+            errors.push(`Sheet "${sheetName}" baris ${ri+1}: ${err.message}`);
+          }
+        }
+      }
+      // Done — show result and refresh
+      if (imported > 0) {
+        renderTransaksi();
+        DB.logActivity({ type:'import_kas', detail:`Import Excel: ${imported} baris` });
+        Notify.success(`Import selesai: ${imported} baris berhasil diimport`);
+      } else {
+        Notify.error('Tidak ada data yang berhasil diimport', errors.slice(0,3).join('; ') || 'Periksa format file Excel (header baris pertama: Tanggal, Nama, Type, Vendor, dll)');
+      }
+      if (errors.length) console.warn('[KasModule] Import errors:', errors);
+    };
+    inp.click();
+  }
+
   function exportCSV() {
     const data=_applyFilter(_kas).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
     const hdr=['Tanggal','Nama','Type','Vendor','Qty','Satuan','Harga/Sat','Total','Penerima','Status','Bulan'];
@@ -1013,6 +1165,6 @@ const KasModule = (() => {
     _doCommit(id, true); // skipValidation = true
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
+  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
 })();
 window.KasModule = KasModule;
