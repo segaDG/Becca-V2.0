@@ -3,7 +3,7 @@
    Spreadsheet: click row to edit inline
    AI type suggestion from nama field
 ============================================ */
-console.log('[BECCA] KasModule v20260326j loaded ✓');
+console.log('[BECCA] KasModule v20260326k loaded ✓');
 const KasModule = (() => {
   let _kas        = [];
   let _masuk      = [];
@@ -263,7 +263,7 @@ const KasModule = (() => {
       <td><div class="ks-cell">${r.nama||''}</div></td>
       <td><div class="ks-cell"><span class="badge badge-neutral" style="font-size:10px">${r.type||''}</span></div></td>
       <td><div class="ks-cell">${r.vendor||''}</div></td>
-      <td class="ks-num"><div class="ks-cell">${r.qty||0}</div></td>
+      <td class="ks-num"><div class="ks-cell">${(r.qty||0)%1===0?(r.qty||0):parseFloat((r.qty||0).toFixed(2))}</div></td>
       <td><div class="ks-cell">${r.satuan||''}</div></td>
       <td class="ks-num"><div class="ks-cell">${Utils.formatRupiah(r.hargaSatuan||0)}</div></td>
       <td class="ks-num"><div class="ks-cell"><strong>${Utils.formatRupiah(r.jumlah||0)}</strong></div></td>
@@ -533,7 +533,7 @@ const KasModule = (() => {
       {l:'Total Keluar',v:Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)),    c:'var(--danger)'},
       {l:'Confirmed',   v:Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),      c:'var(--success)'},
       {l:'TBC',         v:Utils.formatRupiah(tbc.reduce((s,r) =>s+(r.jumlah||0),0)),      c:'var(--warning)'},
-      {l:'Total Baris', v:keluar.length+' baris',                                          c:'var(--primary-h)'},
+      {l:'Total Baris', v:data.length+' baris',                                           c:'var(--primary-h)'},
     ].map(c=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">
       <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${c.l}</div>
       <div style="font-size:18px;font-weight:700;color:${c.c};font-family:var(--font-mono)">${c.v}</div>
@@ -610,20 +610,22 @@ const KasModule = (() => {
       const _parseDate = (v) => {
         if (!v) return '';
         if (v instanceof Date) {
-          const y=v.getFullYear(), m=String(v.getMonth()+1).padStart(2,'0'), d=String(v.getDate()).padStart(2,'0');
+          // SheetJS creates UTC-based dates — use getUTC* to avoid timezone -1 day shift
+          const y=v.getUTCFullYear(), m=String(v.getUTCMonth()+1).padStart(2,'0'), d=String(v.getUTCDate()).padStart(2,'0');
           return `${y}-${m}-${d}`;
         }
-        // Bisa berupa float Excel serial: "46023.0"
-        const s = String(v).trim().replace(/\.0+$/, '');
+        const s = String(v).trim();
         if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
           const [dd,mm,yyyy]=s.split(/[\/\-]/);
           return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
         }
         if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-        // Excel serial number (angka 5 digit seperti 46023)
-        if (/^\d{5,}$/.test(s)) {
-          const d=new Date(Math.round((parseInt(s)-25569)*86400000));
-          return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        // Excel serial number — Math.floor(parseFloat) handles floats (46107.0, 46107.5, 46107.00001)
+        const num = parseFloat(s);
+        if (!isNaN(num) && num > 40000) {
+          const serial = Math.floor(num);
+          const d = new Date((serial - 25569) * 86400000);
+          return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
         }
         return '';
       };
@@ -1018,11 +1020,9 @@ const KasModule = (() => {
     container.innerHTML = ''; // clear dulu
     
     try {
-      // Kas masuk = manual entries (kas_masuk table) + type="Kas" dari _kas (from Excel import)
-      const masukData = await DB.getKasMasuk().catch(()=>[]);
-      const masukManual = masukData.reduce((s,r) => s + (r.kredit||0), 0);
-      const masukKas    = _kas.filter(r=>r.type==='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
-      const totalMasuk  = masukManual + masukKas;
+      // Kas masuk = hanya dari _kas type="Kas" (menghindari double-counting dengan kas_masuk table)
+      const masukKas   = _kas.filter(r=>r.type==='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
+      const totalMasuk = masukKas;
 
       // Kas keluar = semua pengeluaran (exclude type="Kas"), termasuk TBC & unconfirmed
       const totalKeluar    = _kas.filter(r=>r.type!=='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
