@@ -705,27 +705,51 @@ const KasModule = (() => {
         return;
       }
 
-      // ── 5. Langsung masukkan ke _kas + _masuk + tampilkan ────────────────
-      _kas.unshift(...newRows);
-      _masuk.unshift(...newMasuk);
+      // ── 5. Deduplication — skip baris yang sudah ada ─────────────────────
+      // Key: tgl|nama|jumlah (case-insensitive) — cukup untuk deteksi duplikat
+      const existingKeys = new Set(
+        _kas.map(r => `${r.tgl}|${(r.nama||'').toLowerCase().trim()}|${r.jumlah}`)
+      );
+      const existingMasukKeys = new Set(
+        _masuk.map(r => `${r.tgl}|${(r.keterangan||r.ket||'').toLowerCase().trim()}|${r.kredit}`)
+      );
+      const dedupedRows  = newRows.filter(r => {
+        const k = `${r.tgl}|${(r.nama||'').toLowerCase().trim()}|${r.jumlah}`;
+        return !existingKeys.has(k);
+      });
+      const dedupedMasuk = newMasuk.filter(r => {
+        const k = `${r.tgl}|${(r.keterangan||'').toLowerCase().trim()}|${r.kredit}`;
+        return !existingMasukKeys.has(k);
+      });
+      const skippedCount = (newRows.length - dedupedRows.length) + (newMasuk.length - dedupedMasuk.length);
+
+      if (!dedupedRows.length && !dedupedMasuk.length) {
+        Notify.info(`Semua ${newRows.length + newMasuk.length} baris sudah ada — tidak ada data baru yang diimport`);
+        return;
+      }
+
+      // ── 6. Langsung masukkan ke _kas + _masuk + tampilkan ────────────────
+      _kas.unshift(...dedupedRows);
+      _masuk.unshift(...dedupedMasuk);
       _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'' };
       _page   = 1;
       renderTransaksi();
-      const totalImport = newRows.length + newMasuk.length;
-      Notify.success(`${newRows.length} pengeluaran + ${newMasuk.length} kas masuk diimport — menyimpan ke cloud...`);
+      const totalImport = dedupedRows.length + dedupedMasuk.length;
+      const skipMsg = skippedCount > 0 ? ` (${skippedCount} duplikat dilewati)` : '';
+      Notify.success(`${dedupedRows.length} pengeluaran + ${dedupedMasuk.length} kas masuk diimport${skipMsg} — menyimpan ke cloud...`);
 
-      // ── 6. Sync ke Supabase di background (paralel, max 10 sekaligus) ────
+      // ── 7. Sync ke Supabase di background (paralel, max 10 sekaligus) ────
       const CHUNK = 10;
       let saved = 0;
-      for (let i=0; i<newRows.length; i+=CHUNK) {
-        const batch = newRows.slice(i, i+CHUNK);
+      for (let i=0; i<dedupedRows.length; i+=CHUNK) {
+        const batch = dedupedRows.slice(i, i+CHUNK);
         await Promise.allSettled(batch.map(r => DB.saveKas(r).then(()=>saved++)));
       }
-      for (let i=0; i<newMasuk.length; i+=CHUNK) {
-        const batch = newMasuk.slice(i, i+CHUNK);
+      for (let i=0; i<dedupedMasuk.length; i+=CHUNK) {
+        const batch = dedupedMasuk.slice(i, i+CHUNK);
         await Promise.allSettled(batch.map(r => DB.saveKasMasuk(r).then(()=>saved++)));
       }
-      DB.logActivity({ type:'import_kas', detail:`Import Excel: ${newRows.length} pengeluaran, ${newMasuk.length} kas masuk` });
+      DB.logActivity({ type:'import_kas', detail:`Import Excel: ${dedupedRows.length} pengeluaran, ${dedupedMasuk.length} kas masuk (${skippedCount} duplikat dilewati)` });
       console.log('[KasImport] Sync Supabase selesai:', saved, '/', totalImport);
     };
     inp.click();
