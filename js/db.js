@@ -203,7 +203,7 @@ const DB = (() => {
 
   // In-memory cache — cleared on save/delete
   const _memCache = {};
-  const _CACHE_TTL = 60000; // 60 detik
+  const _CACHE_TTL = 300000; // 5 menit
 
   // Fetch semua baris dengan auto-pagination (Supabase max_rows=1000 per request)
   async function _fetchAll(sb, table) {
@@ -271,6 +271,13 @@ const DB = (() => {
 
   function _invalidateCache(table) {
     delete _memCache[table];
+  }
+
+  // Kembalikan data dari memCache jika masih fresh, null jika sudah expired/belum ada
+  // Dipakai oleh modul untuk progressive loading (render langsung jika cache warm)
+  function getCached(table) {
+    const c = _memCache[table];
+    return (c && (Date.now() - c.ts) < _CACHE_TTL) ? c.data : null;
   }
 
   async function _save(table, obj) {
@@ -753,6 +760,7 @@ const DB = (() => {
     subscribe, unsubscribeAll, setupRealtime,
     migrateFromLocalStorage,
     isReady: () => _ready,
+    getCached,
 
     // Users
     getUsers, saveUser, deleteUser,

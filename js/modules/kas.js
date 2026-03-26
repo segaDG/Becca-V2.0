@@ -3,7 +3,7 @@
    Spreadsheet: click row to edit inline
    AI type suggestion from nama field
 ============================================ */
-console.log('[BECCA] KasModule v20260326r loaded ✓');
+console.log('[BECCA] KasModule v20260327d loaded ✓');
 const KasModule = (() => {
   let _kas        = [];
   let _masuk      = [];
@@ -76,14 +76,35 @@ const KasModule = (() => {
   async function init() {
     const page = document.getElementById('page-kas');
     page.innerHTML = _renderShell();
-    [_kas, _masuk] = await Promise.all([DB.getKas(), DB.getKasMasuk()]);
     _saldoAwal = await _loadSaldoAwal();
-    // Load only manually-locked rows from localStorage (no auto-lock all rows)
     try { _kasLocked = new Set(JSON.parse(localStorage.getItem(_KAS_LOCK_KEY)||'[]')); } catch { _kasLocked = new Set(); }
     _editingId = null;
     _pendingChanges = {};
+
+    // Level 4 — Progressive loading:
+    // Jika cache warm (dalam 5 menit), langsung render.
+    // Jika cache cold, render dulu dengan data kosong (tampil cepat),
+    // lalu load di background dan re-render saat data tiba.
+    const cachedKas   = DB.getCached('kas');
+    const cachedMasuk = DB.getCached('kas_masuk');
+    if (cachedKas)   _kas   = cachedKas;
+    if (cachedMasuk) _masuk = cachedMasuk;
+
+    // Render segera — fast jika cache warm, empty-state jika cold
     switchTab('transaksi');
     _injectStyles();
+
+    // Jika salah satu cache cold, load di background lalu re-render
+    if (!cachedKas || !cachedMasuk) {
+      const [freshKas, freshMasuk] = await Promise.all([
+        cachedKas   ? Promise.resolve(cachedKas)   : DB.getKas(),
+        cachedMasuk ? Promise.resolve(cachedMasuk) : DB.getKasMasuk(),
+      ]);
+      _kas   = freshKas;
+      _masuk = freshMasuk;
+      if (_activeTab === 'transaksi') renderTransaksi();
+      else switchTab(_activeTab);
+    }
   }
 
   function _injectStyles() {

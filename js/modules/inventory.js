@@ -10,7 +10,7 @@
        jumlah, stokAkhir, harga, supplier, catatan, createdBy }
 ============================================ */
 
-console.log('[BECCA] InventoryModule v20260325d loaded ✓');
+console.log('[BECCA] InventoryModule v20260327d loaded ✓');
 const InventoryModule = (() => {
 
   let _items      = [];   // master barang
@@ -57,27 +57,53 @@ const InventoryModule = (() => {
       <div id="inv-tab-opname"    class="hidden"></div>
     `;
 
-    [_items, _logs, _opnameLogs] = await Promise.all([
-      DB.getInventoryItems(),
-      DB.getInventory(),
-      typeof DB.getOpnameLogs === 'function' ? DB.getOpnameLogs().catch(()=>[]) : Promise.resolve([]),
-    ]);
+    // Level 4 — gunakan cache jika warm, render segera lalu background-load jika cold
+    const cachedItems  = DB.getCached('inv_products');
+    const cachedLogs   = DB.getCached('inv_activities');
+    const cachedOpname = DB.getCached('opname_logs');
 
-    // Hitung stok setiap item dari logs + auto-update hargaSatuan
-    _recalcStok();
-    // Simpan hargaSatuan terbaru ke DB (batch, silent)
-    _items.forEach(item => {
-      if (item._hargaTerbaru && item._hargaTerbaru !== item._savedHarga) {
-        DB.saveInventoryItem({...item}).catch(()=>{});
-        item._savedHarga = item._hargaTerbaru;
-      }
-    });
-    // Reset edit state on every page load
+    if (cachedItems)  _items      = cachedItems;
+    if (cachedLogs)   _logs       = cachedLogs;
+    if (cachedOpname) _opnameLogs = cachedOpname;
+
+    // Reset edit state
     _invEditId = null;
     _invLogPage = 1;
-    // Load only manually-locked rows from localStorage (no auto-lock all rows)
     try { _invLocked = new Set(JSON.parse(localStorage.getItem(_INV_LOCK_KEY)||'[]')); } catch { _invLocked = new Set(); }
+
+    // Render segera dengan data yang ada (cache atau kosong)
+    _recalcStok();
     switchTab('stok');
+
+    // Background-load jika ada yang cold
+    if (!cachedItems || !cachedLogs || !cachedOpname) {
+      const [freshItems, freshLogs, freshOpname] = await Promise.all([
+        cachedItems  ? Promise.resolve(cachedItems)  : DB.getInventoryItems(),
+        cachedLogs   ? Promise.resolve(cachedLogs)   : DB.getInventory(),
+        cachedOpname ? Promise.resolve(cachedOpname) : (typeof DB.getOpnameLogs === 'function' ? DB.getOpnameLogs().catch(()=>[]) : Promise.resolve([])),
+      ]);
+      _items      = freshItems;
+      _logs       = freshLogs;
+      _opnameLogs = freshOpname;
+      // Hitung stok setiap item dari logs + auto-update hargaSatuan
+      _recalcStok();
+      _items.forEach(item => {
+        if (item._hargaTerbaru && item._hargaTerbaru !== item._savedHarga) {
+          DB.saveInventoryItem({...item}).catch(()=>{});
+          item._savedHarga = item._hargaTerbaru;
+        }
+      });
+      if (_activeTab === 'stok') renderStok();
+      else switchTab(_activeTab);
+    } else {
+      // Hanya simpan hargaSatuan jika cache sudah fresh
+      _items.forEach(item => {
+        if (item._hargaTerbaru && item._hargaTerbaru !== item._savedHarga) {
+          DB.saveInventoryItem({...item}).catch(()=>{});
+          item._savedHarga = item._hargaTerbaru;
+        }
+      });
+    }
   }
 
   /* ===================== HITUNG STOK ===================== */
