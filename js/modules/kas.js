@@ -3,7 +3,7 @@
    Spreadsheet: click row to edit inline
    AI type suggestion from nama field
 ============================================ */
-console.log('[BECCA] KasModule v20260326e loaded ✓');
+console.log('[BECCA] KasModule v20260326f loaded ✓');
 const KasModule = (() => {
   let _kas        = [];
   let _masuk      = [];
@@ -242,10 +242,12 @@ const KasModule = (() => {
   /* ---- VIEW ROW ---- */
   function _rowView(r, rowNum, canEdit) {
     const sc = r.status==='DONE'?'badge-success':r.status==='TBC'?'badge-warning':'badge-neutral';
-    const rowBg = r.status==='DONE'
-      ? 'style="background:rgba(0,0,0,.25)"'
+    const rowBg = r.type==='Kas'
+      ? 'style="background:rgba(59,130,246,.08)"'
+      : r.status==='DONE'
+      ? 'style="background:rgba(40,40,60,.28)"'
       : r.status==='TBC'
-      ? 'style="background:rgba(99,102,241,.04)"'
+      ? 'style="background:rgba(245,158,11,.08)"'
       : '';
     const ksOnClick = _kasLocked.has(r.id) ? 'void(0)' : 'KasModule.startEdit(\'' + r.id + '\''+')';
     return `<tr class="ks-view" id="ks-row-${r.id}" data-id="${r.id}" ${rowBg} style="${_kasLocked.has(r.id)?'opacity:.75':''}" onclick="${ksOnClick}">
@@ -521,12 +523,16 @@ const KasModule = (() => {
 
   /* ===================== SUMMARY STRIP ===================== */
   function _summaryStrip(data) {
-    const done=data.filter(r=>r.status==='DONE'), tbc=data.filter(r=>r.status==='TBC');
+    const keluar = data.filter(r=>r.type!=='Kas');
+    const masukRows = data.filter(r=>r.type==='Kas');
+    const done = keluar.filter(r=>r.status==='DONE');
+    const tbc  = keluar.filter(r=>r.status==='TBC');
     return [
-      {l:'Total Keluar',v:Utils.formatRupiah(data.reduce((s,r)=>s+(r.jumlah||0),0)),c:'var(--danger)'},
-      {l:'Confirmed',   v:Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),c:'var(--success)'},
-      {l:'TBC',         v:Utils.formatRupiah(tbc.reduce((s,r) =>s+(r.jumlah||0),0)),c:'var(--warning)'},
-      {l:'Total Baris', v:data.length+' baris', c:'var(--primary-h)'},
+      {l:'Kas Masuk',   v:Utils.formatRupiah(masukRows.reduce((s,r)=>s+(r.jumlah||0),0)), c:'var(--success)'},
+      {l:'Total Keluar',v:Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)),    c:'var(--danger)'},
+      {l:'Confirmed',   v:Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),      c:'var(--success)'},
+      {l:'TBC',         v:Utils.formatRupiah(tbc.reduce((s,r) =>s+(r.jumlah||0),0)),      c:'var(--warning)'},
+      {l:'Total Baris', v:keluar.length+' baris',                                          c:'var(--primary-h)'},
     ].map(c=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">
       <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${c.l}</div>
       <div style="font-size:18px;font-weight:700;color:${c.c};font-family:var(--font-mono)">${c.v}</div>
@@ -772,7 +778,9 @@ const KasModule = (() => {
   function renderSummary() {
     const el = document.getElementById('kas-tab-summary');
     if (!el) return;
-    const kasRaw = JSON.parse(localStorage.getItem('becca_kas')||'[]');
+    // Gunakan _kas in-memory (bukan localStorage yang bisa corrupt/kosong untuk dataset besar)
+    // Exclude type="Kas" (kas masuk) dari summary pengeluaran
+    const kasRaw = _kas.filter(r => r.type !== 'Kas');
     const NORM = {'Jan':'Januari','Febuari':'Februari','Feb':'Februari','Mar':'Maret','Apr':'April','Mei':'Mei','Jun':'Juni','Jul':'Juli','Ags':'Agustus','Sep':'September','Okt':'Oktober','Nov':'November','Des':'Desember'};
     const ORDER = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
     const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#ec4899','#3b82f6','#8b5cf6','#06b6d4','#84cc16','#f97316'];
@@ -975,8 +983,11 @@ const KasModule = (() => {
   /* ===================== CASH FLOW ===================== */
   function renderCashflow() {
     const mD={},kD={};
-    _masuk.forEach(r=>{mD[r.tgl]=(mD[r.tgl]||0)+r.kredit;});
-    _kas.filter(r=>r.status==='DONE').forEach(r=>{kD[r.tgl]=(kD[r.tgl]||0)+r.jumlah;});
+    // Kas masuk = manual entries (_masuk table) + rows dengan type="Kas" dari _kas
+    _masuk.forEach(r=>{mD[r.tgl]=(mD[r.tgl]||0)+(r.kredit||0);});
+    _kas.filter(r=>r.type==='Kas').forEach(r=>{mD[r.tgl]=(mD[r.tgl]||0)+(r.jumlah||0);});
+    // Kas keluar = semua rows type≠"Kas" yang status DONE
+    _kas.filter(r=>r.type!=='Kas'&&r.status==='DONE').forEach(r=>{kD[r.tgl]=(kD[r.tgl]||0)+r.jumlah;});
     const dates=[...new Set([...Object.keys(mD),...Object.keys(kD)])].sort();
     let bal=0;
     const rows=dates.map(tgl=>{const m=mD[tgl]||0,k=kD[tgl]||0;bal+=m-k;return{tgl,m,k,bal};});
@@ -1012,13 +1023,15 @@ const KasModule = (() => {
     container.innerHTML = ''; // clear dulu
     
     try {
-      // Kas masuk dari DB
+      // Kas masuk = manual entries (kas_masuk table) + type="Kas" dari _kas (from Excel import)
       const masukData = await DB.getKasMasuk().catch(()=>[]);
-      const totalMasuk  = masukData.reduce((s,r) => s + (r.kredit||0), 0);
-      
-      // Kas keluar (confirmed/DONE only)
-      const totalKeluar = _kas.filter(r=>r.status==='DONE').reduce((s,r) => s + (r.jumlah||0), 0);
-      const totalAllKeluar = _kas.reduce((s,r) => s + (r.jumlah||0), 0); // incl TBC
+      const masukManual = masukData.reduce((s,r) => s + (r.kredit||0), 0);
+      const masukKas    = _kas.filter(r=>r.type==='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
+      const totalMasuk  = masukManual + masukKas;
+
+      // Kas keluar (confirmed/DONE only, exclude type="Kas")
+      const totalKeluar    = _kas.filter(r=>r.type!=='Kas'&&r.status==='DONE').reduce((s,r) => s + (r.jumlah||0), 0);
+      const totalAllKeluar = _kas.filter(r=>r.type!=='Kas').reduce((s,r) => s + (r.jumlah||0), 0); // incl TBC
 
       // Balance = Saldo Awal + Kas Masuk - Kas Keluar (DONE)
       const saldoAwal = _loadSaldoAwal();
