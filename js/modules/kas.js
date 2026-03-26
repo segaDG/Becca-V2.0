@@ -3,14 +3,28 @@
    Spreadsheet: click row to edit inline
    AI type suggestion from nama field
 ============================================ */
-console.log('[BECCA] KasModule v20260326l loaded ✓');
+console.log('[BECCA] KasModule v20260326r loaded ✓');
 const KasModule = (() => {
   let _kas        = [];
   let _masuk      = [];
   let _saldoAwal  = 0;  // Saldo awal kas, bisa di-edit user
 
-  function _loadSaldoAwal()  { return parseFloat(localStorage.getItem('becca_kas_saldo_awal')||'0') || 0; }
-  function _saveSaldoAwal(v) { localStorage.setItem('becca_kas_saldo_awal', String(v)); _saldoAwal = v; }
+  async function _loadSaldoAwal() {
+    try {
+      const cfg = await DB.getSettings().catch(()=>({}));
+      if (cfg && cfg.saldoAwal !== undefined && cfg.saldoAwal !== null) {
+        const v = parseFloat(cfg.saldoAwal) || 0;
+        localStorage.setItem('becca_kas_saldo_awal', String(v));
+        return v;
+      }
+    } catch {}
+    return parseFloat(localStorage.getItem('becca_kas_saldo_awal')||'0') || 0;
+  }
+  function _saveSaldoAwal(v) {
+    localStorage.setItem('becca_kas_saldo_awal', String(v));
+    _saldoAwal = v;
+    DB.saveSettings({ saldoAwal: v }).catch(()=>{});
+  }
   let _activeTab = 'transaksi';
   let _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'' };
   let _page   = 1;
@@ -63,7 +77,7 @@ const KasModule = (() => {
     const page = document.getElementById('page-kas');
     page.innerHTML = _renderShell();
     [_kas, _masuk] = await Promise.all([DB.getKas(), DB.getKasMasuk()]);
-    _saldoAwal = _loadSaldoAwal();
+    _saldoAwal = await _loadSaldoAwal();
     // Load only manually-locked rows from localStorage (no auto-lock all rows)
     try { _kasLocked = new Set(JSON.parse(localStorage.getItem(_KAS_LOCK_KEY)||'[]')); } catch { _kasLocked = new Set(); }
     _editingId = null;
@@ -881,7 +895,7 @@ const KasModule = (() => {
     const grand      = rows.reduce((s,r) => s+( r.jumlah||0), 0);
     const grandDone  = rows.filter(r=>r.status==='DONE').reduce((s,r)=>s+(r.jumlah||0),0);
     const grandTBC   = rows.filter(r=>r.status==='TBC').reduce((s,r)=>s+(r.jumlah||0),0);
-    const saldoAwal  = _loadSaldoAwal();
+    const saldoAwal  = _saldoAwal;
     const bulanLabel = _bulanLabel(bulan);
 
     const typesSorted = Object.entries(byType)
@@ -1059,7 +1073,7 @@ const KasModule = (() => {
       const totalKeluar = _kas.filter(r=>r.type!=='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
 
       // Balance = Saldo Awal + Kas Masuk - Total Keluar
-      const saldoAwal = _loadSaldoAwal();
+      const saldoAwal = _saldoAwal;
       const balance   = saldoAwal + totalMasuk - totalKeluar;
       const balanceColor = balance >= 0 ? 'var(--success)' : 'var(--danger)';
       
@@ -1089,7 +1103,7 @@ const KasModule = (() => {
       // Inject Saldo Awal bar kiri atas (editable hanya Superadmin)
       const saldoBarEl = document.getElementById('kas-saldo-bar');
       if (saldoBarEl) {
-        const sa = _loadSaldoAwal();
+        const sa = _saldoAwal;
         const canEditSaldo = Auth.isSuperAdmin();
         saldoBarEl.innerHTML =
           '<span style="color:var(--text-3);font-size:12px">Saldo Awal &nbsp;</span>'
@@ -1222,7 +1236,7 @@ const KasModule = (() => {
   /* ===================== EDIT SALDO AWAL ===================== */
   function editSaldoAwal() {
     if (!Auth.isSuperAdmin()) { Notify.error('Hanya Superadmin yang dapat mengubah Saldo Awal'); return; }
-    const current = _loadSaldoAwal();
+    const current = _saldoAwal;
     const mid = Utils.uid();
     Modal.open({ id: mid,
       title: 'Edit Saldo Awal Kas',

@@ -81,7 +81,7 @@ const DashboardModule = (() => {
     const canAP       = Auth.can('ap','view');
     const canTask     = Auth.can('task','view');
 
-    const [kas, kasMasuk, employees, invLogs, invItems, invoices, apList, tasks] = await Promise.all([
+    const [kas, kasMasuk, employees, invLogs, invItems, invoices, apList, tasks, _settings] = await Promise.all([
       canKas       ? DB.getKas().catch(()=>[])              : Promise.resolve([]),
       canKas       ? DB.getKasMasuk().catch(()=>[])         : Promise.resolve([]),
       canEmployee  ? DB.getEmployees().catch(()=>[])         : Promise.resolve([]),
@@ -90,12 +90,13 @@ const DashboardModule = (() => {
       canInvoice   ? DB.getInvoices().catch(()=>[])          : Promise.resolve([]),
       canAP        ? DB.getAP().catch(()=>[])                : Promise.resolve([]),
       canTask      ? DB.getTasks().catch(()=>[])             : Promise.resolve([]),
+      DB.getSettings().catch(()=>({})),
     ]);
 
     const totalKeluar   = kas.filter(r=>r.type!=='Kas').reduce((s,r)=>s+(r.jumlah||0), 0);
     const totalMasuk    = kas.filter(r=>r.type==='Kas').reduce((s,r)=>s+(r.jumlah||0), 0)
                         + kasMasuk.reduce((s,r)=>s+(r.kredit||0), 0);
-    const saldoAwal     = parseFloat(localStorage.getItem('becca_kas_saldo_awal')||'0') || 0;
+    const saldoAwal     = parseFloat((_settings && _settings.saldoAwal) ?? localStorage.getItem('becca_kas_saldo_awal') ?? '0') || 0;
     const saldo         = saldoAwal + totalMasuk - totalKeluar;
     const activeEmp     = employees.filter(e=>['AKTIF','ACTIVE','aktif','active'].includes(e.status)).length;
     const totalHutang   = employees.reduce((s,e)=>s+(e.sisaHutang||0), 0);

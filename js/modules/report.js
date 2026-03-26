@@ -33,15 +33,15 @@ const ReportModule = (() => {
   }
 
   async function renderKas() {
-    const [kas, masuk] = await Promise.all([DB.getKas().catch(()=>[]), DB.getKasMasuk().catch(()=>[])]);
+    const [kas, masuk, _cfg] = await Promise.all([DB.getKas().catch(()=>[]), DB.getKasMasuk().catch(()=>[]), DB.getSettings().catch(()=>({}))]);
 
     // Masuk: kas rows type="Kas" (import Excel) + kas_masuk manual entries
     const totalMasuk  = kas.filter(r=>r.type==='Kas').reduce((s,r) => s+(r.jumlah||0), 0)
                       + masuk.reduce((s,r) => s+(r.kredit||0), 0);
     // Keluar: semua kas rows kecuali type="Kas"
     const totalKeluar = kas.filter(r=>r.type!=='Kas').reduce((s,r) => s+(r.jumlah||0), 0);
-    // Saldo Awal dari localStorage (sama dengan yang di halaman Kas Kecil)
-    const saldoAwal = parseFloat(localStorage.getItem('becca_kas_saldo_awal')||'0') || 0;
+    // Saldo Awal: ambil dari Supabase settings (sync semua device), fallback localStorage
+    const saldoAwal = parseFloat((_cfg && _cfg.saldoAwal) ?? localStorage.getItem('becca_kas_saldo_awal') ?? '0') || 0;
     const saldo = saldoAwal + totalMasuk - totalKeluar;
 
     // Pengeluaran per kategori — exclude type="Kas" (itu masuk, bukan keluar)
