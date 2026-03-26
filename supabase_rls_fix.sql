@@ -103,6 +103,22 @@ DO $$ BEGIN
 EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
 DO $$ BEGIN
+  ALTER TABLE public.users ALTER COLUMN nama DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE public.users ALTER COLUMN nama SET DEFAULT '';
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE public.users ALTER COLUMN role DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE public.users ALTER COLUMN role SET DEFAULT '';
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
   ALTER TABLE public.tasks ALTER COLUMN title DROP NOT NULL;
 EXCEPTION WHEN undefined_column THEN NULL; END $$;
 

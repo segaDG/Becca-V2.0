@@ -173,8 +173,13 @@ const DB = (() => {
     employees:      (obj) => ({ nama:        obj.nama        || '' }),
     inv_activities: (obj) => ({ nama:        obj.itemNama    || obj.nama          || '' }),
     inv_products:   (obj) => ({ nama:        obj.nama        || obj.itemNama      || '' }),
-    // users: username + password wajib ada di tabel Supabase (default '' agar tidak null)
-    users:          (obj) => ({ username: obj.username || '', password: obj.password || obj._pw || '' }),
+    // users: semua kolom NOT NULL di tabel Supabase wajib disertakan
+    users: (obj) => ({
+      username: obj.username || '',
+      password: obj.password || obj._pw || '',
+      nama:     obj.nama     || obj.namaLengkap || obj.username || '',
+      role:     obj.role     || 'operator',
+    }),
   };
 
   // In-memory cache — cleared on save/delete
