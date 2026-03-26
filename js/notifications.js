@@ -4,9 +4,29 @@
 ============================================ */
 const NotifCenter = {
   _items: [],
+  _DISMISS_KEY: 'becca_notif_dismissed',
+
+  _getDismissed() {
+    try { return new Set(JSON.parse(sessionStorage.getItem(this._DISMISS_KEY)||'[]')); } catch { return new Set(); }
+  },
+  _saveDismissed(set) {
+    try { sessionStorage.setItem(this._DISMISS_KEY, JSON.stringify([...set])); } catch {}
+  },
+  _itemKey(item) { return `${item.type}|${item.title}`; },
+
+  clearAll() {
+    const dismissed = this._getDismissed();
+    this._items.forEach(item => dismissed.add(this._itemKey(item)));
+    this._saveDismissed(dismissed);
+    this._items = [];
+    this._updateBadge();
+    if (window._notifModalId) Modal.close(window._notifModalId);
+    Notify.success('Notifikasi dibersihkan');
+  },
 
   async refresh() {
     this._items = [];
+    const dismissed = this._getDismissed();
     const today = new Date().toISOString().split('T')[0];
     const soon  = new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0];
 
@@ -65,6 +85,8 @@ const NotifCenter = {
 
     } catch(e){ console.error('NotifCenter error:',e); }
 
+    // Filter out dismissed items (session-scoped)
+    this._items = this._items.filter(item => !dismissed.has(this._itemKey(item)));
     this._updateBadge();
     return this._items;
   },
@@ -127,11 +149,12 @@ const NotifCenter = {
           `).join('')}
         </div>
       `,
-      /* FIX: Pakai placeholder dulu — footer di-update setelah mid ada */
-      footer: `<button class="btn btn-ghost" id="notif-close-btn">Tutup</button>`,
+      footer: items.length > 0
+        ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="NotifCenter.clearAll()">Clear All</button>
+           <button class="btn btn-ghost" id="notif-close-btn">Tutup</button>`
+        : `<button class="btn btn-ghost" id="notif-close-btn">Tutup</button>`,
     });
 
-    /* FIX: Sekarang mid sudah terdefinisi, pasang onclick */
     const closeBtn = document.getElementById('notif-close-btn');
     if(closeBtn) closeBtn.onclick = () => Modal.close(mid);
 
