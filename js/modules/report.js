@@ -34,23 +34,31 @@ const ReportModule = (() => {
 
   async function renderKas() {
     const [kas, masuk] = await Promise.all([DB.getKas().catch(()=>[]), DB.getKasMasuk().catch(()=>[])]);
-    const totalKeluar = kas.reduce((s,r) => s+(r.jumlah||0), 0);
-    const totalMasuk  = masuk.reduce((s,r) => s+(r.kredit||0), 0);
-    const saldo = totalMasuk - totalKeluar;
+
+    // Masuk: kas rows type="Kas" (import Excel) + kas_masuk manual entries
+    const totalMasuk  = kas.filter(r=>r.type==='Kas').reduce((s,r) => s+(r.jumlah||0), 0)
+                      + masuk.reduce((s,r) => s+(r.kredit||0), 0);
+    // Keluar: semua kas rows kecuali type="Kas"
+    const totalKeluar = kas.filter(r=>r.type!=='Kas').reduce((s,r) => s+(r.jumlah||0), 0);
+    // Saldo Awal dari localStorage (sama dengan yang di halaman Kas Kecil)
+    const saldoAwal = parseFloat(localStorage.getItem('becca_kas_saldo_awal')||'0') || 0;
+    const saldo = saldoAwal + totalMasuk - totalKeluar;
+
+    // Pengeluaran per kategori — exclude type="Kas" (itu masuk, bukan keluar)
     const byType = {};
-    kas.forEach(r => { byType[r.type] = (byType[r.type]||0) + (r.jumlah||0); });
+    kas.filter(r=>r.type!=='Kas').forEach(r => { byType[r.type] = (byType[r.type]||0) + (r.jumlah||0); });
     const typeRows = Object.entries(byType).sort((a,b) => b[1]-a[1]);
 
     document.getElementById('rpt-kas').innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--s4);margin-bottom:var(--s5)">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s4);margin-bottom:var(--s5)">
         ${[
-          { l:'Saldo Kas',    v: Utils.formatRupiah(saldo,true),      c: saldo>=0?'var(--success)':'var(--danger)' },
-          { l:'Total Masuk',  v: Utils.formatRupiah(totalMasuk,true), c:'var(--success)' },
-          { l:'Total Keluar', v: Utils.formatRupiah(totalKeluar,true),c:'var(--danger)' },
+          { l:'Saldo Kas',    v: Utils.formatRupiah(saldo),      c: saldo>=0?'var(--success)':'var(--danger)' },
+          { l:'Total Masuk',  v: Utils.formatRupiah(totalMasuk), c:'var(--success)' },
+          { l:'Total Keluar', v: Utils.formatRupiah(totalKeluar),c:'var(--danger)' },
         ].map(s => `
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5)">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase">${s.l}</div>
-            <div style="font-size:22px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
+            <div style="font-size:20px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
           </div>
         `).join('')}
       </div>
@@ -108,8 +116,8 @@ const ReportModule = (() => {
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--s4);margin-bottom:var(--s5)">
         ${[
           { l:'Karyawan Aktif',   v: active.length + ' orang',          c:'var(--primary-h)' },
-          { l:'Total Gaji/Bulan', v: Utils.formatRupiah(totalGaji,true), c:'var(--success)' },
-          { l:'Total Hutang',     v: Utils.formatRupiah(totalHutang,true),c:'var(--warning)' },
+          { l:'Total Gaji/Bulan', v: Utils.formatRupiah(totalGaji),   c:'var(--success)' },
+          { l:'Total Hutang',     v: Utils.formatRupiah(totalHutang), c:'var(--warning)' },
         ].map(s => `
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5)">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase">${s.l}</div>
