@@ -180,6 +180,11 @@ const DB = (() => {
       nama:     obj.nama     || obj.namaLengkap || obj.username || '',
       role:     obj.role     || 'operator',
     }),
+    // invoices: periode_dari & periode_sampai NOT NULL di Supabase
+    invoices: (obj) => ({
+      periode_dari:   obj.dari    || obj.periode_dari   || '',
+      periode_sampai: obj.sampai  || obj.periode_sampai || '',
+    }),
   };
 
   // In-memory cache — cleared on save/delete

@@ -140,7 +140,11 @@ DO $$ BEGIN ALTER TABLE public.tasks ALTER COLUMN creator     DROP NOT NULL; EXC
 DO $$ BEGIN ALTER TABLE public.orders ALTER COLUMN customer_id DROP NOT NULL; EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
 -- invoices
-DO $$ BEGIN ALTER TABLE public.invoices ALTER COLUMN order_id DROP NOT NULL; EXCEPTION WHEN undefined_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.invoices ALTER COLUMN order_id      DROP NOT NULL; EXCEPTION WHEN undefined_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.invoices ALTER COLUMN periode_dari   DROP NOT NULL; EXCEPTION WHEN undefined_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.invoices ALTER COLUMN periode_dari   SET DEFAULT ''; EXCEPTION WHEN undefined_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.invoices ALTER COLUMN periode_sampai DROP NOT NULL; EXCEPTION WHEN undefined_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.invoices ALTER COLUMN periode_sampai SET DEFAULT ''; EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
 -- customers / suppliers
 DO $$ BEGIN ALTER TABLE public.customers ALTER COLUMN nama DROP NOT NULL; EXCEPTION WHEN undefined_column THEN NULL; END $$;
