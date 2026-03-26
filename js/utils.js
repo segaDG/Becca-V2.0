@@ -17,7 +17,7 @@ const Utils = {
       if (Math.abs(n) >= 1e3) return 'Rp ' + (n/1e3).toFixed(0) + 'rb';
       return 'Rp ' + n.toLocaleString('id-ID');
     }
-    return 'Rp ' + n.toLocaleString('id-ID');
+    return 'Rp ' + Math.round(n).toLocaleString('id-ID');
   },
 
   // Format Date
