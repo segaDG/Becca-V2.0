@@ -73,7 +73,6 @@ const DashboardModule = (() => {
   };
 
   async function _render() {
-    // Load only data user has access to
     const canKas      = Auth.can('kas','view');
     const canEmployee = Auth.can('employee','view');
     const canInventory= Auth.can('inventory','view');
@@ -81,90 +80,60 @@ const DashboardModule = (() => {
     const canAP       = Auth.can('ap','view');
     const canTask     = Auth.can('task','view');
 
-    // Level 3: ambil summary dari server (RPC), bukan full-fetch semua baris.
-    // Setiap call hanya transfer ~1KB JSON. Fallback otomatis ke full-fetch
-    // jika SQL functions belum di-deploy di Supabase.
-    let [kasSumm, empSumm, invSumm, taskSumm, invoiceSumm, apSumm, _settings] = await Promise.all([
-      canKas       ? DB.getKasSummary().catch(()=>null)       : Promise.resolve(null),
-      canEmployee  ? DB.getEmployeeSummary().catch(()=>null)  : Promise.resolve(null),
-      canInventory ? DB.getInventorySummary().catch(()=>null) : Promise.resolve(null),
-      canTask      ? DB.getTasksSummary().catch(()=>null)     : Promise.resolve(null),
-      canInvoice   ? DB.getInvoicesSummary().catch(()=>null)  : Promise.resolve(null),
-      canAP        ? DB.getAPSummary().catch(()=>null)        : Promise.resolve(null),
+    // Full-fetch parallel — hasil masuk ke _memCache (60s TTL) sehingga
+    // modul Kas/Employee/Inventory langsung fast saat user navigate berikutnya.
+    const [kas, employees, invItems, invoices, apList, tasks, _settings] = await Promise.all([
+      canKas       ? DB.getKas().catch(()=>[])            : Promise.resolve([]),
+      canEmployee  ? DB.getEmployees().catch(()=>[])      : Promise.resolve([]),
+      canInventory ? DB.getInventoryItems().catch(()=>[]) : Promise.resolve([]),
+      canInvoice   ? DB.getInvoices().catch(()=>[])       : Promise.resolve([]),
+      canAP        ? DB.getAP().catch(()=>[])             : Promise.resolve([]),
+      canTask      ? DB.getTasks().catch(()=>[])          : Promise.resolve([]),
       DB.getSettings().catch(()=>({})),
     ]);
 
-    // Fallback ke full-fetch jika RPC belum di-deploy (SQL functions tidak ada di Supabase)
-    const _rpcFailed = (canKas && !kasSumm) || (canEmployee && !empSumm) || (canInventory && !invSumm);
-    if (_rpcFailed) {
-      const [kas, employees, invItems, invoices, apList, tasks] = await Promise.all([
-        canKas       ? DB.getKas().catch(()=>[])           : Promise.resolve([]),
-        canEmployee  ? DB.getEmployees().catch(()=>[])     : Promise.resolve([]),
-        canInventory ? DB.getInventoryItems().catch(()=>[]) : Promise.resolve([]),
-        canInvoice   ? DB.getInvoices().catch(()=>[])      : Promise.resolve([]),
-        canAP        ? DB.getAP().catch(()=>[])            : Promise.resolve([]),
-        canTask      ? DB.getTasks().catch(()=>[])         : Promise.resolve([]),
-      ]);
-      const _ACTIVE_EMP = ['AKTIF','ACTIVE','aktif','active','Aktif','Tetap','Kontrak','Percobaan','Harian'];
-      const _ACTIVE_INV = ['AKTIF','ACTIVE','aktif','active','Aktif','Activated'];
-      if (!kasSumm && canKas) {
-        const masuk  = kas.filter(k=>k.type==='Kas').reduce((s,k)=>s+(+k.jumlah||0),0);
-        const keluar = kas.filter(k=>k.type!=='Kas').reduce((s,k)=>s+(+k.jumlah||0),0);
-        const sorted = [...kas].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')||String(b.id).localeCompare(String(a.id)));
-        kasSumm = { total_masuk: masuk, total_keluar: keluar, count: kas.length, recent: sorted.slice(0,10) };
-      }
-      if (!empSumm && canEmployee) {
-        const active = employees.filter(e=>_ACTIVE_EMP.includes(e.status));
-        empSumm = {
-          active_count: active.length,
-          total_hutang: active.reduce((s,e)=>s+(+(e.sisaHutang??e.hutang)||0),0),
-          top_hutang:   [...active].filter(e=>(+(e.sisaHutang??e.hutang)||0)>0)
-                          .sort((a,b)=>(+(b.sisaHutang??b.hutang)||0)-(+(a.sisaHutang??a.hutang)||0)).slice(0,5),
-        };
-      }
-      if (!invSumm && canInventory) {
-        const activeInv = invItems.filter(p=>_ACTIVE_INV.includes(p.status));
-        invSumm = {
-          active_items: activeInv.length,
-          total_nilai:  activeInv.reduce((s,p)=>s+(+(p.balance||p._stok)||0)*(+(p.harga||p.hargaSatuan)||0),0),
-          low_stock:    invItems.filter(p=>(+(p.balance||p._stok)||0)<=(+(p.stokMin)||0)).slice(0,8),
-        };
-      }
-      if (!taskSumm    && canTask)    taskSumm    = { open_count:    tasks.filter(t=>t.status!=='done'&&t.status!=='arsip').length };
-      if (!invoiceSumm && canInvoice) invoiceSumm = { belum_lunas:   invoices.filter(i=>i.status!=='LUNAS').reduce((s,i)=>s+(+i.total||0),0) };
-      if (!apSumm      && canAP)      apSumm      = { belum_lunas:   apList.filter(a=>a.status!=='LUNAS').reduce((s,a)=>s+(+a.total||0),0) };
-    }
+    const _ACTIVE_EMP = ['AKTIF','ACTIVE','aktif','active','Aktif','Tetap','Kontrak','Percobaan','Harian'];
+    const _ACTIVE_INV = ['AKTIF','ACTIVE','aktif','active','Aktif','Activated'];
 
-    const totalMasuk    = kasSumm?.total_masuk  || 0;
-    const totalKeluar   = kasSumm?.total_keluar || 0;
-    const saldoAwal     = parseFloat((_settings?.saldoAwal) ?? localStorage.getItem('becca_kas_saldo_awal') ?? '0') || 0;
-    const saldo         = saldoAwal + totalMasuk - totalKeluar;
-    const activeEmp     = empSumm?.active_count || 0;
-    const totalHutang   = empSumm?.total_hutang || 0;
-    const activeItems   = invSumm?.active_items || 0;
-    const totalInvValue = invSumm?.total_nilai  || 0;
-    const invBelum      = invoiceSumm?.belum_lunas || 0;
-    const apBelum       = apSumm?.belum_lunas      || 0;
-    const taskOpen      = taskSumm?.open_count     || 0;
-    const recentKas     = kasSumm?.recent    || [];
-    const lowStock      = invSumm?.low_stock  || [];
-    const topHutang     = empSumm?.top_hutang || [];
+    const totalMasuk  = kas.filter(k=>k.type==='Kas').reduce((s,k)=>s+(+k.jumlah||0),0);
+    const totalKeluar = kas.filter(k=>k.type!=='Kas').reduce((s,k)=>s+(+k.jumlah||0),0);
+    const saldoAwal   = parseFloat((_settings?.saldoAwal) ?? localStorage.getItem('becca_kas_saldo_awal') ?? '0') || 0;
+    const saldo       = saldoAwal + totalMasuk - totalKeluar;
+
+    const activeEmpList = employees.filter(e=>_ACTIVE_EMP.includes(e.status));
+    const activeEmp     = activeEmpList.length;
+    const totalHutang   = activeEmpList.reduce((s,e)=>s+(+(e.sisaHutang??e.hutang)||0),0);
+    const topHutang     = [...activeEmpList]
+                            .filter(e=>(+(e.sisaHutang??e.hutang)||0)>0)
+                            .sort((a,b)=>(+(b.sisaHutang??b.hutang)||0)-(+(a.sisaHutang??a.hutang)||0))
+                            .slice(0,5);
+
+    const activeInvList = invItems.filter(p=>_ACTIVE_INV.includes(p.status));
+    const activeItems   = activeInvList.length;
+    const totalInvValue = activeInvList.reduce((s,p)=>s+(+(p.balance||p._stok)||0)*(+(p.harga||p.hargaSatuan)||0),0);
+    const lowStock      = invItems.filter(p=>(+(p.balance||p._stok)||0)<=(+(p.stokMin)||0)).slice(0,8);
+
+    const invBelum  = invoices.filter(i=>i.status!=='LUNAS').reduce((s,i)=>s+(+i.total||0),0);
+    const apBelum   = apList.filter(a=>a.status!=='LUNAS').reduce((s,a)=>s+(+a.total||0),0);
+    const taskOpen  = tasks.filter(t=>t.status!=='done'&&t.status!=='arsip').length;
+    const recentKas = [...kas]
+                        .sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')||String(b.id).localeCompare(String(a.id)))
+                        .slice(0,10);
 
     const vals = {
-      saldo_kas:    {v: Utils.formatRupiah(saldo),                 c: saldo>=0?'var(--success)':'var(--danger)'},
-      total_keluar: {v: Utils.formatRupiah(totalKeluar),           c: 'var(--danger)'},
-      total_masuk:  {v: Utils.formatRupiah(totalMasuk),            c: 'var(--success)'},
-      karyawan:     {v: activeEmp+' orang',                       c: 'var(--primary-h)'},
-      hutang:       {v: Utils.formatRupiah(totalHutang,true),     c: 'var(--warning)'},
-      barang_aktif: {v: activeItems+' item',                      c: 'var(--info)'},
-      nilai_inv:    {v: Utils.formatRupiah(totalInvValue,true),   c: 'var(--primary-h)'},
-      total_trx:    {v: (kasSumm?.count||0)+' transaksi',          c: 'var(--text-2)'},
-      task_open:    {v: taskOpen+' task',                         c: taskOpen>0?'var(--warning)':'var(--success)'},
-      invoice_belum:{v: Utils.formatRupiah(invBelum,true),        c: 'var(--danger)'},
-      ap_belum:     {v: Utils.formatRupiah(apBelum,true),         c: 'var(--danger)'},
+      saldo_kas:    {v: Utils.formatRupiah(saldo),               c: saldo>=0?'var(--success)':'var(--danger)'},
+      total_keluar: {v: Utils.formatRupiah(totalKeluar),         c: 'var(--danger)'},
+      total_masuk:  {v: Utils.formatRupiah(totalMasuk),          c: 'var(--success)'},
+      karyawan:     {v: activeEmp+' orang',                      c: 'var(--primary-h)'},
+      hutang:       {v: Utils.formatRupiah(totalHutang,true),    c: 'var(--warning)'},
+      barang_aktif: {v: activeItems+' item',                     c: 'var(--info)'},
+      nilai_inv:    {v: Utils.formatRupiah(totalInvValue,true),  c: 'var(--primary-h)'},
+      total_trx:    {v: kas.length+' transaksi',                  c: 'var(--text-2)'},
+      task_open:    {v: taskOpen+' task',                        c: taskOpen>0?'var(--warning)':'var(--success)'},
+      invoice_belum:{v: Utils.formatRupiah(invBelum,true),       c: 'var(--danger)'},
+      ap_belum:     {v: Utils.formatRupiah(apBelum,true),        c: 'var(--danger)'},
     };
 
-    // Filter widgets by user privilege
     const widgets = _getCfg().filter(w => {
       if (!w.enabled) return false;
       const mod = _WIDGET_MODULE[w.id];
@@ -188,22 +157,11 @@ const DashboardModule = (() => {
 
       <div style="display:grid;grid-template-columns:${[canKas,canInventory].filter(Boolean).length>1?'1fr 360px':'1fr'};gap:var(--s4);margin-bottom:var(--s5)">
         ${canKas ? _renderRecentKasTable(recentKas) : ''}
-
         ${canInventory ? _renderLowStockCard(lowStock) : ''}
       </div>
 
       ${canEmployee && topHutang.length ? _renderHutangTable(topHutang) : ''}
     `;
-
-    // Pre-warm module caches di background setelah dashboard ditampilkan.
-    // Sebelum Level 3, dashboard full-fetch otomatis mengisi _memCache.
-    // Sekarang dashboard pakai RPC (tidak mengisi cache), jadi kita isi manual
-    // agar saat user buka Kas/Employee/Inventory, data sudah tersedia di cache.
-    setTimeout(() => {
-      if (canKas)       DB.getKas().catch(()=>{});
-      if (canEmployee)  DB.getEmployees().catch(()=>{});
-      if (canInventory) DB.getInventoryItems().catch(()=>{});
-    }, 800);
   }
 
   /* ===================== WIDGET EDITOR ===================== */
