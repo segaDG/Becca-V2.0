@@ -61,13 +61,20 @@ const App = {
     }
   },
 
+  _hideLoading() {
+    const el = document.getElementById('app-loading');
+    if (el) el.style.display = 'none';
+  },
+
   _showLogin() {
+    this._hideLoading();
     document.getElementById('app').style.display = 'none';
     document.getElementById('page-login').style.display = '';
     Auth.renderLogin();
   },
 
   _showApp() {
+    this._hideLoading();
     document.getElementById('page-login').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     if (!document.getElementById('sidebar-overlay')) {
