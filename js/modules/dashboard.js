@@ -194,6 +194,16 @@ const DashboardModule = (() => {
 
       ${canEmployee && topHutang.length ? _renderHutangTable(topHutang) : ''}
     `;
+
+    // Pre-warm module caches di background setelah dashboard ditampilkan.
+    // Sebelum Level 3, dashboard full-fetch otomatis mengisi _memCache.
+    // Sekarang dashboard pakai RPC (tidak mengisi cache), jadi kita isi manual
+    // agar saat user buka Kas/Employee/Inventory, data sudah tersedia di cache.
+    setTimeout(() => {
+      if (canKas)       DB.getKas().catch(()=>{});
+      if (canEmployee)  DB.getEmployees().catch(()=>{});
+      if (canInventory) DB.getInventoryItems().catch(()=>{});
+    }, 800);
   }
 
   /* ===================== WIDGET EDITOR ===================== */

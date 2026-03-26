@@ -7,8 +7,9 @@ const DB = (() => {
   'use strict';
 
   // ── Supabase client ────────────────────────────────────────
-  let _sb   = null;   // supabase client instance
-  let _ready = false;
+  let _sb          = null;   // supabase client instance
+  let _ready       = false;
+  let _initPromise = null;   // singleton — prevents concurrent SDK loads
   let _realtimeSubs = [];
 
   // ── Supabase config (otomatis semua device) ──
@@ -33,31 +34,39 @@ const DB = (() => {
   }
 
   async function _initClient() {
+    // Fast path: already connected
     if (_sb) return _sb;
-    const cfg = _getConfig();
-    if (!cfg.url || !cfg.key) {
-      console.warn('[DB] Supabase not configured — falling back to localStorage');
-      return null;
+    // Singleton: if init is already in flight, wait for it — prevents concurrent SDK loads
+    if (!_initPromise) {
+      _initPromise = (async () => {
+        const cfg = _getConfig();
+        if (!cfg.url || !cfg.key) {
+          console.warn('[DB] Supabase not configured — falling back to localStorage');
+          return null;
+        }
+        try {
+          // Load SDK hanya sekali — kalau sudah ada di window, skip
+          if (!window.supabase) {
+            await new Promise((resolve, reject) => {
+              const s = document.createElement('script');
+              s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+              s.onload = resolve;
+              s.onerror = reject;
+              document.head.appendChild(s);
+            });
+          }
+          _sb    = window.supabase.createClient(cfg.url, cfg.key);
+          _ready = true;
+          console.log('[DB] Supabase connected ✓');
+          return _sb;
+        } catch(e) {
+          console.error('[DB] Supabase init failed:', e.message);
+          _initPromise = null;  // allow retry on transient failure
+          return null;
+        }
+      })();
     }
-    try {
-      // Load Supabase SDK jika belum ada
-      if (!window.supabase) {
-        await new Promise((resolve, reject) => {
-          const s = document.createElement('script');
-          s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
-          s.onload = resolve;
-          s.onerror = reject;
-          document.head.appendChild(s);
-        });
-      }
-      _sb    = window.supabase.createClient(cfg.url, cfg.key);
-      _ready = true;
-      console.log('[DB] Supabase connected ✓');
-      return _sb;
-    } catch(e) {
-      console.error('[DB] Supabase init failed:', e.message);
-      return null;
-    }
+    return _initPromise;
   }
 
   // ── REALTIME subscription ─────────────────────────────────
