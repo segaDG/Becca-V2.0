@@ -688,93 +688,54 @@ const DB = (() => {
   // ── AGGREGATION RPC (Level 3 — server-side summary) ───────
   // Setiap fungsi mencoba RPC dulu (1KB transfer vs ribuan baris).
   // Jika SQL belum di-deploy, otomatis fallback ke full-fetch.
+  // Setiap fungsi hanya mencoba RPC. Jika gagal (SQL belum di-deploy),
+  // kembalikan null — dashboard akan menangani fallback secara batch.
   async function getKasSummary() {
     const sb = await _initClient();
-    if (sb) {
-      const { data, error } = await sb.rpc('becca_kas_summary');
-      if (!error && data) {
-        if (data.recent) data.recent = data.recent.map(r => _fromRow(r));
-        return data;
-      }
-    }
-    // Fallback: hitung dari data lengkap
-    const rows = await _get('kas').catch(() => []);
-    const sorted = [...rows].sort((a, b) => (b.tgl||'').localeCompare(a.tgl||''));
-    return {
-      total_masuk:  rows.filter(r => r.type === 'Kas').reduce((s, r) => s + (r.jumlah||0), 0),
-      total_keluar: rows.filter(r => r.type !== 'Kas').reduce((s, r) => s + (r.jumlah||0), 0),
-      count:        rows.length,
-      recent:       sorted.slice(0, 10),
-    };
+    if (!sb) return null;
+    const { data, error } = await sb.rpc('becca_kas_summary');
+    if (error || !data) return null;
+    if (data.recent) data.recent = data.recent.map(r => _fromRow(r));
+    return data;
   }
 
   async function getEmployeeSummary() {
     const sb = await _initClient();
-    if (sb) {
-      const { data, error } = await sb.rpc('becca_employee_summary');
-      if (!error && data) {
-        if (data.top_hutang) data.top_hutang = data.top_hutang.map(r => _fromRow(r));
-        return data;
-      }
-    }
-    const rows = await _get('employees').catch(() => []);
-    const ACTIVE = ['AKTIF','ACTIVE','aktif','active','Aktif','Tetap','Kontrak','Percobaan','Harian'];
-    const active = rows.filter(e => ACTIVE.includes(e.status));
-    return {
-      active_count: active.length,
-      total_hutang: active.reduce((s, e) => s + (e.sisaHutang||e.hutang||0), 0),
-      top_hutang:   active.filter(e => (e.sisaHutang||e.hutang||0) > 0)
-                      .sort((a, b) => (b.sisaHutang||b.hutang||0) - (a.sisaHutang||a.hutang||0))
-                      .slice(0, 5),
-    };
+    if (!sb) return null;
+    const { data, error } = await sb.rpc('becca_employee_summary');
+    if (error || !data) return null;
+    if (data.top_hutang) data.top_hutang = data.top_hutang.map(r => _fromRow(r));
+    return data;
   }
 
   async function getInventorySummary() {
     const sb = await _initClient();
-    if (sb) {
-      const { data, error } = await sb.rpc('becca_inventory_summary');
-      if (!error && data) {
-        if (data.low_stock) data.low_stock = data.low_stock.map(r => _fromRow(r));
-        return data;
-      }
-    }
-    const items = await _get('inv_products').catch(() => []);
-    const ACTIVE = ['AKTIF','ACTIVE','aktif','active','Aktif','Activated'];
-    return {
-      active_items: items.filter(p => ACTIVE.includes(p.status)).length,
-      total_nilai:  items.reduce((s, p) => s + (p.balance||0) * (p.harga||p.hargaSatuan||0), 0),
-      low_stock:    items.filter(p => (p.balance||0) <= (p.stokMin||0)).slice(0, 8),
-    };
+    if (!sb) return null;
+    const { data, error } = await sb.rpc('becca_inventory_summary');
+    if (error || !data) return null;
+    if (data.low_stock) data.low_stock = data.low_stock.map(r => _fromRow(r));
+    return data;
   }
 
   async function getTasksSummary() {
     const sb = await _initClient();
-    if (sb) {
-      const { data, error } = await sb.rpc('becca_tasks_summary');
-      if (!error && data) return data;
-    }
-    const rows = await _get('tasks').catch(() => []);
-    return { open_count: rows.filter(t => t.status !== 'done' && t.status !== 'arsip').length };
+    if (!sb) return null;
+    const { data, error } = await sb.rpc('becca_tasks_summary');
+    return (error || !data) ? null : data;
   }
 
   async function getInvoicesSummary() {
     const sb = await _initClient();
-    if (sb) {
-      const { data, error } = await sb.rpc('becca_invoices_summary');
-      if (!error && data) return data;
-    }
-    const rows = await _get('invoices').catch(() => []);
-    return { belum_lunas: rows.filter(r => r.status !== 'LUNAS').reduce((s, r) => s + (r.total||0), 0) };
+    if (!sb) return null;
+    const { data, error } = await sb.rpc('becca_invoices_summary');
+    return (error || !data) ? null : data;
   }
 
   async function getAPSummary() {
     const sb = await _initClient();
-    if (sb) {
-      const { data, error } = await sb.rpc('becca_ap_summary');
-      if (!error && data) return data;
-    }
-    const rows = await _get('ap').catch(() => []);
-    return { belum_lunas: rows.filter(r => r.status !== 'LUNAS').reduce((s, r) => s + (r.total||0), 0) };
+    if (!sb) return null;
+    const { data, error } = await sb.rpc('becca_ap_summary');
+    return (error || !data) ? null : data;
   }
 
   // ── Public API ─────────────────────────────────────────────
