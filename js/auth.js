@@ -154,20 +154,6 @@ const Auth = {
           <button type="submit" class="btn btn-primary w-full btn-lg" id="login-btn">Masuk ke BECCA</button>
           <div id="login-error" class="form-error mt-1" style="text-align:center;display:none"></div>
         </form>
-        <div style="margin-top:var(--s6);padding:var(--s4);background:var(--surface2);border-radius:var(--r-md);border:1px solid var(--border)">
-          <div class="text-small text-muted mb-1" style="font-weight:600">Demo Accounts</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)">
-            ${[['superadmin','admin123','Super Admin'],['admin','admin123','Admin'],['operator','op123','Operator'],['viewer','view123','Viewer']]
-              .map(([u,p,label]) => `
-                <div onclick="Auth._fillDemo('${u}','${p}')"
-                     style="padding:6px 10px;background:var(--surface3);border-radius:var(--r-sm);cursor:pointer;font-size:12px;transition:background .15s"
-                     onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface3)'">
-                  <div style="font-weight:600;color:var(--heading)">${label}</div>
-                  <div style="color:var(--text-3)">${u} / ${p}</div>
-                </div>
-              `).join('')}
-          </div>
-        </div>
       </div>
     `;
     document.getElementById('login-form').onsubmit = async (e) => {
