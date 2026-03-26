@@ -4,6 +4,43 @@
 ============================================ */
 const App = {
   _currentPage: 'dashboard',
+  _loadedModules: new Set(),
+
+  _MODULE_MAP: {
+    dashboard : 'js/modules/dashboard.js?v=20260326r',
+    order     : 'js/modules/order.js?v=20260326l',
+    invoice   : 'js/modules/invoice.js?v=20260326l',
+    customer  : 'js/modules/customer.js?v=20260326l',
+    kas       : 'js/modules/kas.js?v=20260326r',
+    inventory : 'js/modules/inventory.js?v=20260326l',
+    employee  : 'js/modules/employee.js?v=20260326l',
+    ap        : 'js/modules/ap.js?v=20260326l',
+    task      : 'js/modules/task.js?v=20260326l',
+    report    : 'js/modules/report.js?v=20260326r',
+    settings  : 'js/modules/settings.js?v=20260326l',
+  },
+
+  _loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  },
+
+  async _loadModule(pageId) {
+    if (this._loadedModules.has(pageId)) return;
+    const src = this._MODULE_MAP[pageId];
+    if (!src) return;
+    try {
+      await this._loadScript(src);
+      this._loadedModules.add(pageId);
+    } catch(e) {
+      console.error('[App] Failed to load module:', pageId, e);
+    }
+  },
 
   get _modules() {
     return {
@@ -31,7 +68,7 @@ const App = {
     }
 
     // Init Supabase DB
-    DB.init().then(() => {
+    DB.init().then(async () => {
       if (DB.isReady() && !localStorage.getItem('becca_migrated_v6')) {
         localStorage.setItem('becca_migrated_v6', '1');
         DB.migrateFromLocalStorage()
@@ -46,8 +83,11 @@ const App = {
           .catch(() => {});
       }
       // Selalu sync users ke Supabase settings saat boot (cross-device login)
-      if (DB.isReady() && typeof SettingsModule !== 'undefined') {
-        SettingsModule._syncAuthJs().catch(() => {});
+      if (DB.isReady()) {
+        await this._loadModule('settings').catch(() => {});
+        if (typeof SettingsModule !== 'undefined') {
+          SettingsModule._syncAuthJs().catch(() => {});
+        }
       }
     }).catch(()=>{});
     if (!Auth.init()) { this._showLogin(); return; }
@@ -100,6 +140,10 @@ const App = {
 
     this._handleResize();
     window.addEventListener('resize', () => this._handleResize());
+
+    // Load non-critical scripts async — tidak block render awal
+    this._loadScript('js/notifications.js?v=20260326o').catch(() => {});
+    this._loadScript('js/search-fix.js?v=20260326l').catch(() => {});
     setTimeout(() => { if (typeof NotifCenter !== 'undefined') NotifCenter.refresh(); }, 800);
   },
 
@@ -295,6 +339,9 @@ const App = {
     if (titleEl) titleEl.textContent = titles[pageId] || pageId;
 
     Utils.ls.set('lastPage', pageId);
+
+    /* Lazy-load module script jika belum dimuat */
+    await this._loadModule(pageId);
 
     /* Init module */
     const mod = this._modules[pageId];
