@@ -1009,6 +1009,48 @@ const SettingsModule = (() => {
           </div>
         </div>
       </div>
+      ${Auth.isSuperAdmin() ? `
+      <div class="card" style="margin-top:var(--s5);border:1px solid rgba(239,68,68,.25)">
+        <div class="card-header" style="border-bottom:1px solid rgba(239,68,68,.15)">
+          <div class="card-title" style="color:var(--danger)">⚠️ Data Control</div>
+          <span style="font-size:11px;color:var(--text-3)">Superadmin only</span>
+        </div>
+        <div style="padding:var(--s5)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s4)">
+
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s4)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:4px">📦 Inventory</div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:var(--s3)">
+                Produk + log aktivitas inventory.
+              </div>
+              <button class="btn btn-ghost btn-sm w-full" style="margin-bottom:var(--s2)"
+                onclick="SettingsModule.importInventoryExcel()">
+                📤 Import dari Excel
+              </button>
+              <button class="btn btn-sm w-full"
+                style="background:rgba(239,68,68,.08);color:var(--danger);border:1px solid rgba(239,68,68,.25)"
+                onclick="SettingsModule.clearInventoryData()">
+                🗑️ Hapus Semua Data Inventory
+              </button>
+            </div>
+
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s4)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:4px">💰 Kas Kecil</div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:var(--s3)">
+                Semua transaksi kas kecil.
+              </div>
+              <div style="font-size:11px;color:var(--text-3);padding:8px;background:var(--surface);border-radius:var(--r-sm)">
+                Import Excel tersedia langsung di halaman Kas Kecil.
+              </div>
+            </div>
+
+          </div>
+          <div style="margin-top:var(--s3);font-size:11px;color:var(--text-3)">
+            ⚠️ Hapus akan menghapus permanen dari Supabase. Tidak bisa dikembalikan.
+          </div>
+        </div>
+      </div>
+      ` : ''}
     `;
   }
 
@@ -1040,6 +1082,170 @@ const SettingsModule = (() => {
       } catch(err) { Notify.error('Import gagal',err.message); }
     };
     reader.readAsText(file); input.value='';
+  }
+
+  /* ============ INVENTORY: HAPUS DATA ============ */
+  async function clearInventoryData() {
+    if (!Auth.isSuperAdmin()) return;
+
+    // Konfirmasi ke-1
+    const ok1 = await Modal.confirm({
+      title: '⚠️ Hapus Semua Data Inventory',
+      message: 'Tindakan ini akan menghapus SEMUA produk dan log aktivitas inventory dari Supabase secara permanen.\n\nData TIDAK bisa dikembalikan. Lanjutkan?',
+      danger: true,
+      confirmText: 'Ya, Lanjutkan'
+    });
+    if (!ok1) return;
+
+    // Konfirmasi ke-2
+    const ok2 = await Modal.confirm({
+      title: '🔴 Konfirmasi Akhir',
+      message: 'YAKIN BENAR-BENAR INGIN MENGHAPUS?\n\nSemua produk inventory dan semua log aktivitas akan dihapus dari server sekarang.',
+      danger: true,
+      confirmText: '🗑️ Hapus Sekarang'
+    });
+    if (!ok2) return;
+
+    try {
+      Notify.info('Menghapus data inventory dari Supabase...');
+      await DB.clearTableData('inv_products');
+      await DB.clearTableData('inv_activities');
+      // Juga bersihkan tabel lama jika ada
+      await DB.clearTableData('inventory').catch(()=>{});
+      Notify.success('Semua data inventory berhasil dihapus ✓');
+      DB.logActivity({ type: 'clear_inventory', detail: 'Hapus semua data inventory (produk + log aktivitas)' });
+      renderData();
+    } catch(e) {
+      Notify.error('Gagal menghapus', e.message);
+    }
+  }
+
+  /* ============ INVENTORY: IMPORT EXCEL ============ */
+  function importInventoryExcel() {
+    if (!Auth.isSuperAdmin()) return;
+
+    const mid = Utils.uid();
+    Modal.open({
+      id: mid,
+      title: '📤 Import Inventory dari Excel',
+      size: 'modal-md',
+      body: `
+        <div style="margin-bottom:var(--s4)">
+          <p style="color:var(--text-2);font-size:13px;margin-bottom:var(--s3)">
+            Upload file Excel (.xlsx/.xls) berisi daftar produk inventory.<br>
+            Data lama tidak dihapus — baris baru ditambahkan.
+          </p>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s3);font-size:12px;color:var(--text-3)">
+            <strong>Kolom yang dikenali:</strong><br>
+            Nama / Nama Barang &nbsp;|&nbsp; Satuan / Unit &nbsp;|&nbsp; Harga / Harga Satuan<br>
+            Stok Min / Min Stock &nbsp;|&nbsp; Status &nbsp;|&nbsp; Kategori / Jenis
+          </div>
+        </div>
+        <button class="btn btn-primary w-full" onclick="SettingsModule._doImportInventoryExcel('${mid}')">
+          📂 Pilih File Excel
+        </button>
+      `,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+  }
+
+  async function _doImportInventoryExcel(mid) {
+    const inp = Object.assign(document.createElement('input'), { type:'file', accept:'.xlsx,.xls', style:'display:none' });
+    document.body.appendChild(inp);
+    inp.onchange = async (e) => {
+      const file = e.target.files[0];
+      document.body.removeChild(inp);
+      if (!file) return;
+      Modal.close(mid);
+
+      // Load SheetJS
+      if (!window.XLSX) {
+        Notify.info('Memuat library Excel...');
+        const loaded = await new Promise(res => {
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload = () => res(true); s.onerror = () => res(false);
+          document.head.appendChild(s);
+        });
+        if (!loaded || !window.XLSX) { Notify.error('Gagal memuat library Excel'); return; }
+      }
+
+      Notify.info('Membaca file Excel...');
+      let wb;
+      try {
+        const buf = await file.arrayBuffer();
+        wb = XLSX.read(buf, { type:'array', cellDates:false });
+      } catch(err) { Notify.error('File tidak bisa dibaca', err.message); return; }
+
+      // Mapping kolom
+      const COL_MAP = {
+        nama:'nama', name:'nama', 'nama barang':'nama', nama_barang:'nama', namabarang:'nama', item:'nama',
+        satuan:'satuan', unit:'satuan', uom:'satuan',
+        harga:'harga', price:'harga', harga_satuan:'harga', hargasatuan:'harga', 'harga satuan':'harga',
+        stok_min:'stokMin', stokmin:'stokMin', 'stok min':'stokMin', min_stock:'stokMin', minstock:'stokMin', minimum:'stokMin',
+        status:'status',
+        kategori:'kategori', category:'kategori', jenis:'kategori', type:'kategori',
+        keterangan:'ket', keterangan_tambahan:'ket', ket:'ket', notes:'ket',
+      };
+
+      const _mapHeader = (row) => {
+        const map = {};
+        row.forEach((cell, ci) => {
+          const k = String(cell).toLowerCase().trim().replace(/\s+/g,' ');
+          const k2 = k.replace(/\s/g,'_');
+          const field = COL_MAP[k] || COL_MAP[k2];
+          if (field && !(field in map)) map[field] = ci;
+        });
+        return map;
+      };
+
+      const items = [];
+      for (const sheetName of wb.SheetNames) {
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+        if (rows.length < 2) continue;
+
+        // Cari baris header
+        let hdrIdx = -1, colIdx = {};
+        for (let ri = 0; ri < Math.min(rows.length, 10); ri++) {
+          const map = _mapHeader(rows[ri]);
+          if (map.nama !== undefined) { hdrIdx = ri; colIdx = map; break; }
+        }
+        if (hdrIdx < 0) continue;
+
+        for (let ri = hdrIdx + 1; ri < rows.length; ri++) {
+          const row = rows[ri];
+          if (row.every(c => c === '' || c === null || c === undefined)) continue;
+          const nama = String(row[colIdx.nama] ?? '').trim();
+          if (!nama) continue;
+
+          const harga   = parseFloat(String(row[colIdx.harga]??'0').replace(/[^\d.]/g,'')) || 0;
+          const satuan  = String(row[colIdx.satuan]??'').trim() || 'Pcs';
+          const stokMin = parseFloat(String(row[colIdx.stokMin]??'0').replace(/[^\d.]/g,'')) || 0;
+          const status  = String(row[colIdx.status]??'').trim() || 'AKTIF';
+          const kategori= String(row[colIdx.kategori]??'').trim();
+          const ket     = String(row[colIdx.ket]??'').trim();
+
+          items.push({ id:Utils.uid(), nama, satuan, harga, stokMin, status, kategori, ket, _stok:0, balance:0 });
+        }
+      }
+
+      if (!items.length) {
+        Notify.error('Tidak ada data yang dibaca', 'Pastikan kolom "Nama" atau "Nama Barang" ada di file Excel');
+        return;
+      }
+
+      Notify.info(`Menyimpan ${items.length} produk...`);
+      let saved = 0;
+      for (const item of items) {
+        try { await DB.saveInventoryItem(item); saved++; } catch {}
+      }
+
+      Notify.success(`Import selesai: ${saved} produk berhasil disimpan`);
+      DB.logActivity({ type:'import_inventory', detail:`Import Excel inventory: ${saved} produk dari ${file.name}` });
+      renderData();
+    };
+    inp.click();
   }
 
   async function clearData() {
@@ -1355,7 +1561,9 @@ const SettingsModule = (() => {
     renderUsers, openUserModal, _submitUser, toggleUser, deleteUser,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
-    renderData, exportData, _doImport, clearData, _syncAuthJs, _downloadAuthJs, _saveGithubToken
+    renderData, exportData, _doImport, clearData,
+    clearInventoryData, importInventoryExcel, _doImportInventoryExcel,
+    _syncAuthJs, _downloadAuthJs, _saveGithubToken
   };
 })();
 window.SettingsModule = SettingsModule;

@@ -345,6 +345,17 @@ const DB = (() => {
     return true;
   }
 
+  // Hapus semua baris dari satu tabel (Supabase + localStorage + memCache)
+  async function clearTableData(table) {
+    _invalidateCache(table);
+    localStorage.removeItem('becca_' + table);
+    const sb = await _initClient();
+    if (!sb) return;
+    // PostgREST requires a filter — .not('id','is',null) matches all rows
+    const { error } = await sb.from(table).delete().not('id', 'is', null);
+    if (error) throw new Error(error.message);
+  }
+
   // ── localStorage fallback ──────────────────────────────────
   function _lsGet(key) {
     try {
@@ -794,6 +805,8 @@ const DB = (() => {
     // Aggregation RPC (Level 3)
     getKasSummary, getEmployeeSummary, getInventorySummary,
     getTasksSummary, getInvoicesSummary, getAPSummary,
+    // Bulk operations
+    clearTableData,
   };
 })();
 
