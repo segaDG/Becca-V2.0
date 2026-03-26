@@ -106,11 +106,12 @@ const ReportModule = (() => {
 
   async function renderKaryawan() {
     const employees = await DB.getEmployees().catch(() => []);
-    const active = employees.filter(e => e.status === 'ACTIVE');
-    const totalGaji = active.reduce((s,e) => s+(e.gaji||0), 0);
-    const totalHutang = active.reduce((s,e) => s+(e.sisaHutang||0), 0);
+    const ACTIVE_STATS = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const active = employees.filter(e => ACTIVE_STATS.includes(e.status));
+    const totalGaji   = active.reduce((s,e) => s+(e.gaji||e.gajiPokok||0), 0);
+    const totalHutang = active.reduce((s,e) => s+(e.sisaHutang||e.hutang||0), 0);
     const byDiv = {};
-    active.forEach(e => { byDiv[e.divisi||'Lainnya'] = (byDiv[e.divisi||'Lainnya']||0) + 1; });
+    active.forEach(e => { const d=e.divisi||e.departemen||'Lainnya'; byDiv[d]=(byDiv[d]||0)+1; });
 
     document.getElementById('rpt-karyawan').innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--s4);margin-bottom:var(--s5)">

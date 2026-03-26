@@ -514,7 +514,10 @@ const KasModule = (() => {
     return data.filter(r=>{
       if (_filter.bulan   && r.bulan !==_filter.bulan)   return false;
       if (_filter.type    && r.type  !==_filter.type)    return false;
-      if (_filter.status  && r.status!==_filter.status)  return false;
+      if (_filter.status) {
+        if (_filter.status==='-') { if (r.status) return false; }
+        else if (r.status!==_filter.status) return false;
+      }
       if (_filter.dateFrom && r.tgl  < _filter.dateFrom) return false;
       if (_filter.dateTo  && r.tgl   > _filter.dateTo)   return false;
       return true;
@@ -527,17 +530,26 @@ const KasModule = (() => {
   /* ===================== SUMMARY STRIP ===================== */
   function _summaryStrip(data) {
     const keluar = data.filter(r=>r.type!=='Kas');
-    const done = keluar.filter(r=>r.status==='DONE');
-    const tbc  = keluar.filter(r=>r.status==='TBC');
+    const done   = keluar.filter(r=>r.status==='DONE');
+    const tbc    = keluar.filter(r=>r.status==='TBC');
+    const noSt   = keluar.filter(r=>!r.status);
+    const _card = (label, value, color, onclick='') => {
+      const clickable = onclick ? `cursor:pointer;` : '';
+      const hover     = onclick ? `onmouseover="this.style.outline='2px solid ${color}'" onmouseout="this.style.outline=''"` : '';
+      const clk       = onclick ? `onclick="${onclick}"` : '';
+      const arrow     = onclick ? ' <span style="font-size:9px;opacity:.6">▼</span>' : '';
+      return `<div ${clk} ${hover} style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px;${clickable}transition:all .15s">
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${label}${arrow}</div>
+        <div style="font-size:18px;font-weight:700;color:${color};font-family:var(--font-mono)">${value}</div>
+      </div>`;
+    };
     return [
-      {l:'Total Keluar',v:Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)),    c:'var(--danger)'},
-      {l:'Confirmed',   v:Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),      c:'var(--success)'},
-      {l:'TBC',         v:Utils.formatRupiah(tbc.reduce((s,r) =>s+(r.jumlah||0),0)),      c:'var(--warning)'},
-      {l:'Total Baris', v:data.length+' baris',                                           c:'var(--primary-h)'},
-    ].map(c=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">
-      <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${c.l}</div>
-      <div style="font-size:18px;font-weight:700;color:${c.c};font-family:var(--font-mono)">${c.v}</div>
-    </div>`).join('');
+      _card('Total Keluar', Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)), 'var(--danger)'),
+      _card('Confirmed',    Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),   'var(--success)'),
+      _card('TBC',          Utils.formatRupiah(tbc.reduce((s,r)=>s+(r.jumlah||0),0)),    'var(--warning)', "KasModule.filterByStatus('TBC')"),
+      _card('Belum Diisi',  noSt.length+' baris',                                         'var(--text-2)',  "KasModule.filterByStatus('-')"),
+      _card('Total Baris',  data.length+' baris',                                         'var(--primary-h)'),
+    ].join('');
   }
 
   /* ===================== EXPORT CSV ===================== */
@@ -1072,16 +1084,19 @@ const KasModule = (() => {
           + balSign+Utils.formatRupiah(Math.abs(balance))+'</span>'
           + '&nbsp;<span style="font-size:11px;color:'+balColor+'">'+balLabel+'</span>';
       }
-      // Inject Saldo Awal bar kiri atas (editable)
+      // Inject Saldo Awal bar kiri atas (editable hanya Superadmin)
       const saldoBarEl = document.getElementById('kas-saldo-bar');
       if (saldoBarEl) {
         const sa = _loadSaldoAwal();
+        const canEditSaldo = Auth.isSuperAdmin();
         saldoBarEl.innerHTML =
           '<span style="color:var(--text-3);font-size:12px">Saldo Awal &nbsp;</span>'
-          + '<span id="kas-saldo-val" style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--primary-h);cursor:pointer;border-bottom:1px dashed rgba(99,102,241,.4);padding-bottom:1px"'
-          + ' title="Klik untuk edit saldo awal" onclick="KasModule.editSaldoAwal()">'
-          + Utils.formatRupiah(sa)+'</span>'
-          + ' <span style="font-size:10px;color:var(--text-3);cursor:pointer" onclick="KasModule.editSaldoAwal()" title="Edit">✎</span>';
+          + '<span id="kas-saldo-val" style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--primary-h);'
+          + (canEditSaldo ? 'cursor:pointer;border-bottom:1px dashed rgba(99,102,241,.4);padding-bottom:1px' : '')
+          + '"'
+          + (canEditSaldo ? ' title="Klik untuk edit saldo awal" onclick="KasModule.editSaldoAwal()"' : '')
+          + '>' + Utils.formatRupiah(sa) + '</span>'
+          + (canEditSaldo ? ' <span style="font-size:10px;color:var(--text-3);cursor:pointer" onclick="KasModule.editSaldoAwal()" title="Edit">✎</span>' : '');
       }
       
       // Render Kas Masuk card - clickable, buka modal filter
@@ -1098,6 +1113,16 @@ const KasModule = (() => {
     } catch(e) {
       console.error('Balance cards error:', e);
     }
+  }
+
+  /* ===================== STATUS FILTER ===================== */
+  function filterByStatus(status) {
+    _activeTab = 'transaksi';
+    document.querySelectorAll('.kas-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab==='transaksi'));
+    document.querySelectorAll('[id^="kas-tab-"]').forEach(el => el.style.display = el.id==='kas-tab-transaksi' ? '' : 'none');
+    _filter = { bulan:'', type:'', status, dateFrom:'', dateTo:'' };
+    _page = 1;
+    renderTransaksi();
   }
 
   /* ===================== KAS MASUK FILTER ===================== */
@@ -1194,6 +1219,7 @@ const KasModule = (() => {
 
   /* ===================== EDIT SALDO AWAL ===================== */
   function editSaldoAwal() {
+    if (!Auth.isSuperAdmin()) { Notify.error('Hanya Superadmin yang dapat mengubah Saldo Awal'); return; }
     const current = _loadSaldoAwal();
     const mid = Utils.uid();
     Modal.open({ id: mid,
@@ -1276,6 +1302,6 @@ const KasModule = (() => {
     _doCommit(id, true); // skipValidation = true
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
+  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
 })();
 window.KasModule = KasModule;
