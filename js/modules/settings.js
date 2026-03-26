@@ -1027,10 +1027,14 @@ const SettingsModule = (() => {
                 onclick="SettingsModule.importInventoryExcel()">
                 📤 Import dari Excel
               </button>
-              <button class="btn btn-sm w-full"
-                style="background:rgba(239,68,68,.08);color:var(--danger);border:1px solid rgba(239,68,68,.25)"
+              <button class="btn btn-sm w-full" style="margin-bottom:var(--s2);background:rgba(239,68,68,.08);color:var(--danger);border:1px solid rgba(239,68,68,.25)"
                 onclick="SettingsModule.clearInventoryData()">
                 🗑️ Hapus Semua Data Inventory
+              </button>
+              <button class="btn btn-sm w-full"
+                style="background:rgba(239,68,68,.08);color:var(--danger);border:1px solid rgba(239,68,68,.25)"
+                onclick="SettingsModule.clearOpnameData()">
+                🗑️ Hapus Data Stock Opname
               </button>
             </div>
 
@@ -1114,6 +1118,37 @@ const SettingsModule = (() => {
       await DB.clearTableData('inventory').catch(()=>{});
       Notify.success('Semua data inventory berhasil dihapus ✓');
       DB.logActivity({ type: 'clear_inventory', detail: 'Hapus semua data inventory (produk + log aktivitas)' });
+      renderData();
+    } catch(e) {
+      Notify.error('Gagal menghapus', e.message);
+    }
+  }
+
+  /* ============ OPNAME: HAPUS DATA ============ */
+  async function clearOpnameData() {
+    if (!Auth.isSuperAdmin()) return;
+
+    const ok1 = await Modal.confirm({
+      title: '⚠️ Hapus Data Stock Opname',
+      message: 'Semua catatan stock opname akan dihapus permanen dari Supabase.\n\nData tidak bisa dikembalikan. Lanjutkan?',
+      danger: true,
+      confirmText: 'Ya, Lanjutkan'
+    });
+    if (!ok1) return;
+
+    const ok2 = await Modal.confirm({
+      title: '🔴 Konfirmasi Akhir',
+      message: 'YAKIN? Semua data stock opname akan dihapus dari server sekarang.',
+      danger: true,
+      confirmText: '🗑️ Hapus Sekarang'
+    });
+    if (!ok2) return;
+
+    try {
+      Notify.info('Menghapus data stock opname...');
+      await DB.clearTableData('opname_logs');
+      Notify.success('Data stock opname berhasil dihapus ✓');
+      DB.logActivity({ type: 'clear_opname', detail: 'Hapus semua data stock opname' });
       renderData();
     } catch(e) {
       Notify.error('Gagal menghapus', e.message);
@@ -1562,7 +1597,7 @@ const SettingsModule = (() => {
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData,
-    clearInventoryData, importInventoryExcel, _doImportInventoryExcel,
+    clearInventoryData, clearOpnameData, importInventoryExcel, _doImportInventoryExcel,
     _syncAuthJs, _downloadAuthJs, _saveGithubToken
   };
 })();
