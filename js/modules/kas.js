@@ -646,6 +646,7 @@ const KasModule = (() => {
 
       // ── 4. Parse semua sheet → newRows (synchronous, cepat) ───
       const newRows = [];
+      const newMasuk = [];
       for (const sheetName of wb.SheetNames) {
         const bulanRaw = sheetName.trim().split(/\s+/)[0] || sheetName;
         const bulan    = _normalizeBulan(bulanRaw) || 'Jan';
@@ -683,9 +684,8 @@ const KasModule = (() => {
           // Cek kolom KREDIT (O) — jika ada nilai → ini baris kas masuk
           const kreditVal  = _parseNum(colIdx.kredit!==undefined ? row[colIdx.kredit] : 0);
           if (kreditVal > 0) {
-            // Baris kas masuk: Type=Kas, Qty=1, Satuan=Kali, jumlah=kreditVal
-            const typeK = TYPES.find(t=>t.toLowerCase()===typeRaw.toLowerCase()) || typeRaw || 'Kas';
-            newRows.push({ id:Utils.uid(), tgl, nama, type:typeK, vendor, qty:1, satuan:'Kali', hargaSatuan:kreditVal, jumlah:kreditVal, penerima, status, bulan });
+            // Baris kas masuk → simpan ke kas_masuk (agar tampil di kartu Kas Masuk + balance)
+            newMasuk.push({ id:Utils.uid(), tgl, keterangan:nama, ket:nama, kredit:kreditVal, bulan });
           } else {
             // Baris pengeluaran normal: jumlah = QTY × HARGA SATUAN
             const qty        = _parseNum(colIdx.qty!==undefined ? row[colIdx.qty] : 1)||1;
@@ -705,12 +705,14 @@ const KasModule = (() => {
         return;
       }
 
-      // ── 5. Langsung masukkan ke _kas + tampilkan (tanpa tunggu Supabase) ──
+      // ── 5. Langsung masukkan ke _kas + _masuk + tampilkan ────────────────
       _kas.unshift(...newRows);
+      _masuk.unshift(...newMasuk);
       _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'' };
       _page   = 1;
       renderTransaksi();
-      Notify.success(`${newRows.length} baris berhasil diimport — menyimpan ke cloud...`);
+      const totalImport = newRows.length + newMasuk.length;
+      Notify.success(`${newRows.length} pengeluaran + ${newMasuk.length} kas masuk diimport — menyimpan ke cloud...`);
 
       // ── 6. Sync ke Supabase di background (paralel, max 10 sekaligus) ────
       const CHUNK = 10;
@@ -719,8 +721,12 @@ const KasModule = (() => {
         const batch = newRows.slice(i, i+CHUNK);
         await Promise.allSettled(batch.map(r => DB.saveKas(r).then(()=>saved++)));
       }
-      DB.logActivity({ type:'import_kas', detail:`Import Excel: ${newRows.length} baris` });
-      console.log('[KasImport] Sync Supabase selesai:', saved, '/', newRows.length);
+      for (let i=0; i<newMasuk.length; i+=CHUNK) {
+        const batch = newMasuk.slice(i, i+CHUNK);
+        await Promise.allSettled(batch.map(r => DB.saveKasMasuk(r).then(()=>saved++)));
+      }
+      DB.logActivity({ type:'import_kas', detail:`Import Excel: ${newRows.length} pengeluaran, ${newMasuk.length} kas masuk` });
+      console.log('[KasImport] Sync Supabase selesai:', saved, '/', totalImport);
     };
     inp.click();
   }

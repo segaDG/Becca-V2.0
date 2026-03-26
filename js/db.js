@@ -206,7 +206,7 @@ const DB = (() => {
       return cached.data;
     }
 
-    let query = sb.from(table).select('*');
+    let query = sb.from(table).select('*').limit(100000);
     if (!NO_CREATED_AT.includes(table)) {
       query = query.order('created_at', { ascending: false });
     }
