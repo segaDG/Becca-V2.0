@@ -7,7 +7,7 @@ const App = {
   _loadedModules: new Set(),
 
   _MODULE_MAP: {
-    dashboard : 'js/modules/dashboard.js?v=20260327c',
+    dashboard : 'js/modules/dashboard.js?v=20260327e',
     order     : 'js/modules/order.js?v=20260326l',
     invoice   : 'js/modules/invoice.js?v=20260326l',
     customer  : 'js/modules/customer.js?v=20260326l',
@@ -88,6 +88,26 @@ const App = {
         if (typeof SettingsModule !== 'undefined') {
           SettingsModule._syncAuthJs().catch(() => {});
         }
+      }
+      // Refresh role user aktif jika berubah di DB sejak login terakhir
+      // (misal: admin ganti role user dari operator → finance, user tidak perlu logout)
+      const _cu = Auth.currentUser();
+      if (_cu && DB.isReady()) {
+        DB.getUsers().then(users => {
+          const fresh = users.find(u =>
+            (u.id && u.id === _cu.id) ||
+            (u.username?.toLowerCase() === (_cu.username||'').toLowerCase())
+          );
+          if (fresh && fresh.role && fresh.role !== _cu.role) {
+            Auth._user = { ..._cu, role: fresh.role };
+            // Update session di tempat yang sama dengan saat login
+            Utils.ls.get(Auth._SESSION_KEY)
+              ? Utils.ls.set(Auth._SESSION_KEY, Auth._user)
+              : sessionStorage.setItem(Auth._SESSION_KEY, JSON.stringify(Auth._user));
+            App._renderHeader();
+            if (typeof Sidebar !== 'undefined') Sidebar.render();
+          }
+        }).catch(()=>{});
       }
     }).catch(()=>{});
     if (!Auth.init()) { this._showLogin(); return; }

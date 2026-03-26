@@ -27,6 +27,15 @@ const DashboardModule = (() => {
   }
   function _saveCfg(c) { localStorage.setItem(_WIDGET_KEY, JSON.stringify(c.map(w=>({id:w.id,enabled:w.enabled})))); }
 
+  // Baca array dari localStorage (synchronous, tidak tunggu network)
+  function _lsArr(k) { try { return JSON.parse(localStorage.getItem('becca_'+k)||'[]'); } catch { return []; } }
+  function _lsSettings() {
+    try {
+      const r = JSON.parse(localStorage.getItem('becca_settings')||'{}');
+      return Array.isArray(r) ? (r[0]||{}) : r;
+    } catch { return {}; }
+  }
+
   /* ===================== INIT ===================== */
   async function init() {
     const page = document.getElementById('page-dashboard');
@@ -79,19 +88,46 @@ const DashboardModule = (() => {
     const canInvoice  = Auth.can('invoice','view');
     const canAP       = Auth.can('ap','view');
     const canTask     = Auth.can('task','view');
+    const perms = {canKas, canEmployee, canInventory, canInvoice, canAP, canTask};
 
-    // Full-fetch parallel — hasil masuk ke _memCache (60s TTL) sehingga
-    // modul Kas/Employee/Inventory langsung fast saat user navigate berikutnya.
-    const [kas, employees, invItems, invoices, apList, tasks, _settings] = await Promise.all([
-      canKas       ? DB.getKas().catch(()=>[])            : Promise.resolve([]),
-      canEmployee  ? DB.getEmployees().catch(()=>[])      : Promise.resolve([]),
-      canInventory ? DB.getInventoryItems().catch(()=>[]) : Promise.resolve([]),
-      canInvoice   ? DB.getInvoices().catch(()=>[])       : Promise.resolve([]),
-      canAP        ? DB.getAP().catch(()=>[])             : Promise.resolve([]),
-      canTask      ? DB.getTasks().catch(()=>[])          : Promise.resolve([]),
-      DB.getSettings().catch(()=>({})),
-    ]);
+    // Phase 1 — tampil SEKETIKA dari memCache atau localStorage (tidak tunggu network)
+    const kas      = canKas       ? (DB.getCached('kas')          || _lsArr('kas'))         : [];
+    const employees= canEmployee  ? (DB.getCached('employees')    || _lsArr('employees'))   : [];
+    const invItems = canInventory ? (DB.getCached('inv_products') || _lsArr('inv_products')): [];
+    const invoices = canInvoice   ? (DB.getCached('invoices')     || _lsArr('invoices'))    : [];
+    const apList   = canAP        ? (DB.getCached('ap')           || _lsArr('ap'))          : [];
+    const tasks    = canTask      ? (DB.getCached('tasks')        || _lsArr('tasks'))       : [];
+    const settings = DB.getCached('settings') || _lsSettings();
 
+    _renderData(kas, employees, invItems, invoices, apList, tasks, settings, perms);
+
+    // Phase 2 — background fetch jika ada yang belum ada di memCache
+    const needFetch =
+      (canKas       && !DB.getCached('kas'))        ||
+      (canEmployee  && !DB.getCached('employees'))  ||
+      (canInventory && !DB.getCached('inv_products'));
+
+    if (needFetch) {
+      Promise.all([
+        canKas       ? DB.getKas().catch(()=>null)            : null,
+        canEmployee  ? DB.getEmployees().catch(()=>null)      : null,
+        canInventory ? DB.getInventoryItems().catch(()=>null) : null,
+        canInvoice   ? DB.getInvoices().catch(()=>null)       : null,
+        canAP        ? DB.getAP().catch(()=>null)             : null,
+        canTask      ? DB.getTasks().catch(()=>null)          : null,
+        DB.getSettings().catch(()=>null),
+      ]).then(([fKas, fEmp, fInv, fInv2, fAP, fTasks, fSet]) => {
+        if (!document.getElementById('dash-content')) return; // user navigated away
+        _renderData(
+          fKas  ?? kas,    fEmp   ?? employees, fInv ?? invItems,
+          fInv2 ?? invoices, fAP ?? apList,    fTasks ?? tasks,
+          fSet  ?? settings, perms
+        );
+      }).catch(()=>{});
+    }
+  }
+
+  function _renderData(kas, employees, invItems, invoices, apList, tasks, _settings, {canKas, canEmployee, canInventory, canInvoice, canAP, canTask}) {
     const _ACTIVE_EMP = ['AKTIF','ACTIVE','aktif','active','Aktif','Tetap','Kontrak','Percobaan','Harian'];
     const _ACTIVE_INV = ['AKTIF','ACTIVE','aktif','active','Aktif','Activated'];
 
@@ -142,7 +178,9 @@ const DashboardModule = (() => {
     });
     const arrowSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M5 12h14M12 5l7 7-7 7"/></svg>`;
 
-    document.getElementById('dash-content').innerHTML = `
+    const el = document.getElementById('dash-content');
+    if (!el) return;
+    el.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:var(--s4);margin-bottom:var(--s5)">
         ${widgets.map(w => {
           const v = vals[w.id] || {v:'-', c:'var(--text-2)'};
