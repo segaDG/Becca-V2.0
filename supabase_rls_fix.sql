@@ -95,6 +95,14 @@ DO $$ BEGIN
 EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
 DO $$ BEGIN
+  ALTER TABLE public.users ALTER COLUMN password DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE public.users ALTER COLUMN password SET DEFAULT '';
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
   ALTER TABLE public.tasks ALTER COLUMN title DROP NOT NULL;
 EXCEPTION WHEN undefined_column THEN NULL; END $$;
 

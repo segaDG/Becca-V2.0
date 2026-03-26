@@ -33,7 +33,11 @@ const Auth = {
   /* ===================== LOGIN ===================== */
   async login(username, password, remember = false) {
     let users = [];
-    try { users = await DB.getUsers(); } catch(e) {}
+    try {
+      const raw = await DB.getUsers();
+      // Filter skeleton rows (Supabase rows tanpa data JSONB) — tidak punya username yang valid
+      users = raw.filter(u => u && u.username);
+    } catch(e) {}
     // Fallback: baca dari becca_auth_users yang di-sync oleh settings
     if (!users.length) {
       try {
