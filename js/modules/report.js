@@ -52,7 +52,7 @@ const ReportModule = (() => {
     document.getElementById('rpt-kas').innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s4);margin-bottom:var(--s5)">
         ${[
-          { l:'Saldo Kas',    v: Utils.formatRupiah(saldo),      c: saldo>=0?'var(--success)':'var(--danger)' },
+          { l:'Saldo Kas Kecil', v: Utils.formatRupiah(saldo),   c: saldo>=0?'var(--success)':'var(--danger)' },
           { l:'Total Masuk',  v: Utils.formatRupiah(totalMasuk), c:'var(--success)' },
           { l:'Total Keluar', v: Utils.formatRupiah(totalKeluar),c:'var(--danger)' },
         ].map(s => `

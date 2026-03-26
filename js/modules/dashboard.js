@@ -4,7 +4,7 @@
 const DashboardModule = (() => {
 
   const DEFAULT_WIDGETS = [
-    {id:'saldo_kas',    label:'Saldo Kas',         icon:'&#x1F4B0;', enabled:true,  nav:'kas'},
+    {id:'saldo_kas',    label:'Saldo Kas Kecil',   icon:'&#x1F4B0;', enabled:true,  nav:'kas'},
     {id:'total_keluar', label:'Total Keluar',       icon:'&#x1F4E4;', enabled:true,  nav:'kas'},
     {id:'total_masuk',  label:'Total Masuk',        icon:'&#x1F4E5;', enabled:true,  nav:'kas'},
     {id:'karyawan',     label:'Karyawan Aktif',     icon:'&#x1F477;', enabled:true,  nav:'employee'},
@@ -17,12 +17,15 @@ const DashboardModule = (() => {
     {id:'ap_belum',     label:'AP Belum Lunas',     icon:'&#x1F4B3;', enabled:false, nav:'ap'},
   ];
 
+  const _WIDGET_KEY = 'becca_dashboard_widgets';
   function _getCfg() {
-    const s = Utils.ls.get('becca_dashboard_widgets');
-    if (!s) return DEFAULT_WIDGETS.map(w => ({...w}));
-    return DEFAULT_WIDGETS.map(w => { const f=s.find(x=>x.id===w.id); return f ? {...w, enabled:f.enabled} : {...w}; });
+    try {
+      const s = JSON.parse(localStorage.getItem(_WIDGET_KEY));
+      if (Array.isArray(s)) return DEFAULT_WIDGETS.map(w => { const f=s.find(x=>x.id===w.id); return f ? {...w, enabled:f.enabled} : {...w}; });
+    } catch {}
+    return DEFAULT_WIDGETS.map(w => ({...w}));
   }
-  function _saveCfg(c) { Utils.ls.set('becca_dashboard_widgets', c); }
+  function _saveCfg(c) { localStorage.setItem(_WIDGET_KEY, JSON.stringify(c.map(w=>({id:w.id,enabled:w.enabled})))); }
 
   /* ===================== INIT ===================== */
   async function init() {
@@ -89,9 +92,11 @@ const DashboardModule = (() => {
       canTask      ? DB.getTasks().catch(()=>[])             : Promise.resolve([]),
     ]);
 
-    const totalKeluar   = kas.reduce((s,r)=>s+(r.jumlah||0), 0);
-    const totalMasuk    = kasMasuk.reduce((s,r)=>s+(r.kredit||0), 0);
-    const saldo         = totalMasuk - totalKeluar;
+    const totalKeluar   = kas.filter(r=>r.type!=='Kas').reduce((s,r)=>s+(r.jumlah||0), 0);
+    const totalMasuk    = kas.filter(r=>r.type==='Kas').reduce((s,r)=>s+(r.jumlah||0), 0)
+                        + kasMasuk.reduce((s,r)=>s+(r.kredit||0), 0);
+    const saldoAwal     = parseFloat(localStorage.getItem('becca_kas_saldo_awal')||'0') || 0;
+    const saldo         = saldoAwal + totalMasuk - totalKeluar;
     const activeEmp     = employees.filter(e=>['AKTIF','ACTIVE','aktif','active'].includes(e.status)).length;
     const totalHutang   = employees.reduce((s,e)=>s+(e.sisaHutang||0), 0);
     const activeItems   = invItems.filter(p=>['AKTIF','ACTIVE','aktif','active','Activated'].includes(p.status)).length;
@@ -105,9 +110,9 @@ const DashboardModule = (() => {
                            .sort((a,b)=>(b.sisaHutang||0)-(a.sisaHutang||0)).slice(0,5);
 
     const vals = {
-      saldo_kas:    {v: Utils.formatRupiah(saldo,true),           c: saldo>=0?'var(--success)':'var(--danger)'},
-      total_keluar: {v: Utils.formatRupiah(totalKeluar,true),     c: 'var(--danger)'},
-      total_masuk:  {v: Utils.formatRupiah(totalMasuk,true),      c: 'var(--success)'},
+      saldo_kas:    {v: Utils.formatRupiah(saldo),                 c: saldo>=0?'var(--success)':'var(--danger)'},
+      total_keluar: {v: Utils.formatRupiah(totalKeluar),           c: 'var(--danger)'},
+      total_masuk:  {v: Utils.formatRupiah(totalMasuk),            c: 'var(--success)'},
       karyawan:     {v: activeEmp+' orang',                       c: 'var(--primary-h)'},
       hutang:       {v: Utils.formatRupiah(totalHutang,true),     c: 'var(--warning)'},
       barang_aktif: {v: activeItems+' item',                      c: 'var(--info)'},
@@ -187,7 +192,7 @@ const DashboardModule = (() => {
   }
 
   function _resetW(mid) {
-    Utils.ls.del('becca_dashboard_widgets');
+    localStorage.removeItem(_WIDGET_KEY);
     Modal.close(mid);
     Notify.success('Widget direset');
     _render();
