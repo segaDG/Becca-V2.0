@@ -196,6 +196,24 @@ const DB = (() => {
   const _memCache = {};
   const _CACHE_TTL = 60000; // 60 detik
 
+  // Fetch semua baris dengan auto-pagination (Supabase max_rows=1000 per request)
+  async function _fetchAll(sb, table) {
+    const PAGE = 1000;
+    let all = [], from = 0;
+    const needOrder = !NO_CREATED_AT.includes(table);
+    while (true) {
+      let q = sb.from(table).select('*').range(from, from + PAGE - 1);
+      if (needOrder) q = q.order('created_at', { ascending: false });
+      const { data, error } = await q;
+      if (error) { console.warn('[DB] fetchAll ' + table + ':', error.message); break; }
+      if (!data || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    return all;
+  }
+
   async function _get(table) {
     const sb = await _initClient();
     if (!sb) return _lsGet(table);
@@ -206,15 +224,7 @@ const DB = (() => {
       return cached.data;
     }
 
-    let query = sb.from(table).select('*').limit(100000);
-    if (!NO_CREATED_AT.includes(table)) {
-      query = query.order('created_at', { ascending: false });
-    }
-    const { data, error } = await query;
-    if (error) {
-      console.warn('[DB] get ' + table + ':', error.message);
-      return _lsGet(table);
-    }
+    const data = await _fetchAll(sb, table);
     let result = _fromRows(data);
 
     // PENTING: Jika Supabase kosong tapi localStorage punya data,
