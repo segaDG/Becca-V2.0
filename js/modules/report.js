@@ -113,13 +113,14 @@ const ReportModule = (() => {
     const byDiv = {};
     active.forEach(e => { const d=e.divisi||e.departemen||'Lainnya'; byDiv[d]=(byDiv[d]||0)+1; });
 
+    const canFinance = Auth.can('emp_finance', 'view');
     document.getElementById('rpt-karyawan').innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--s4);margin-bottom:var(--s5)">
         ${[
-          { l:'Karyawan Aktif',   v: active.length + ' orang',          c:'var(--primary-h)' },
-          { l:'Total Gaji/Bulan', v: Utils.formatRupiah(totalGaji),   c:'var(--success)' },
-          { l:'Total Hutang',     v: Utils.formatRupiah(totalHutang), c:'var(--warning)' },
-        ].map(s => `
+          { l:'Karyawan Aktif',   v: active.length + ' orang',        c:'var(--primary-h)', show: true },
+          { l:'Total Gaji/Bulan', v: Utils.formatRupiah(totalGaji),   c:'var(--success)',   show: canFinance },
+          { l:'Total Hutang',     v: Utils.formatRupiah(totalHutang), c:'var(--warning)',   show: canFinance },
+        ].filter(s => s.show).map(s => `
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5)">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase">${s.l}</div>
             <div style="font-size:22px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
