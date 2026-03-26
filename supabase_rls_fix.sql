@@ -44,7 +44,25 @@ GRANT ALL ON public.suppliers        TO anon;
 GRANT ALL ON public.presence         TO anon;
 GRANT ALL ON public.activity_logs    TO anon;
 
--- ── 3. Tambah kolom 'data' JSONB ke semua tabel ──────────────
+-- ── 3. Fix tipe kolom 'id' yang salah (bigint → text) ────────
+-- invoices.id dibuat sebagai bigint (auto-increment), tapi BECCA
+-- menggunakan string ID seperti "inv_001". Harus diubah ke text.
+-- DROP DEFAULT dulu agar tidak ada sequence conflict.
+
+DO $$ BEGIN
+  ALTER TABLE public.invoices ALTER COLUMN id DROP DEFAULT;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE public.invoices ALTER COLUMN id TYPE text USING id::text;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Cek tabel lain yang mungkin juga bigint (users biasanya uuid, tapi jaga-jaga)
+DO $$ BEGIN
+  ALTER TABLE public.users ALTER COLUMN id TYPE text USING id::text;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- ── 4. Tambah kolom 'data' JSONB ke semua tabel ──────────────
 -- IF NOT EXISTS aman jika kolom sudah ada
 
 ALTER TABLE IF EXISTS public.users          ADD COLUMN IF NOT EXISTS data JSONB;
