@@ -672,8 +672,10 @@ const KasModule = (() => {
           }
         }
       }
-      // Done — show result and refresh
+      // Done — reset filter & refresh agar semua data yang diimport langsung terlihat
       if (imported > 0) {
+        _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'' };
+        _page   = 1;
         renderTransaksi();
         DB.logActivity({ type:'import_kas', detail:`Import Excel: ${imported} baris` });
         Notify.success(`Import selesai: ${imported} baris berhasil diimport`);
