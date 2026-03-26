@@ -3,7 +3,7 @@
    Spreadsheet: click row to edit inline
    AI type suggestion from nama field
 ============================================ */
-console.log('[BECCA] KasModule v20260326i loaded ✓');
+console.log('[BECCA] KasModule v20260326j loaded ✓');
 const KasModule = (() => {
   let _kas        = [];
   let _masuk      = [];
@@ -105,10 +105,13 @@ const KasModule = (() => {
         border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;}
       .ks-tbl tr.ks-row-kas td{background:rgba(59,130,246,.10)!important;}
       .ks-tbl tr.ks-row-kas:hover td{background:rgba(59,130,246,.20)!important;}
-      .ks-tbl tr.ks-row-done td{background:rgba(40,40,60,.30)!important;}
-      .ks-tbl tr.ks-row-done:hover td{background:rgba(40,40,60,.42)!important;}
+      .ks-tbl tr.ks-row-done td{background:rgba(30,40,30,.55)!important;color:rgba(220,255,220,.85)!important;}
+      .ks-tbl tr.ks-row-done:hover td{background:rgba(30,50,30,.70)!important;}
+      .ks-tbl tr.ks-row-done .badge{background:#16a34a!important;color:#fff!important;font-weight:700!important;}
+      .ks-tbl tr.ks-row-done .ks-cell{color:rgba(220,255,220,.85)!important;}
       .ks-tbl tr.ks-row-tbc td{background:rgba(245,158,11,.10)!important;}
       .ks-tbl tr.ks-row-tbc:hover td{background:rgba(245,158,11,.20)!important;}
+      .ks-tbl tr.ks-row-tbc .badge-warning{background:#d97706!important;color:#fff!important;font-weight:700!important;}
     `;
     document.head.appendChild(s);
   }
@@ -688,8 +691,8 @@ const KasModule = (() => {
           // Cek kolom KREDIT (O) — jika ada nilai → ini baris kas masuk
           const kreditVal  = _parseNum(colIdx.kredit!==undefined ? row[colIdx.kredit] : 0);
           if (kreditVal > 0) {
-            // Baris kas masuk → simpan ke kas_masuk (agar tampil di kartu Kas Masuk + balance)
-            newMasuk.push({ id:Utils.uid(), tgl, keterangan:nama, ket:nama, kredit:kreditVal, bulan });
+            // Baris kas masuk → simpan ke kas table sebagai type="Kas" agar tampil di tabel utama
+            newRows.push({ id:Utils.uid(), tgl, nama, type:'Kas', vendor:'', qty:1, satuan:'Kali', hargaSatuan:kreditVal, jumlah:kreditVal, penerima, status, bulan });
           } else {
             // Baris pengeluaran normal: jumlah = QTY × HARGA SATUAN
             const qty        = _parseNum(colIdx.qty!==undefined ? row[colIdx.qty] : 1)||1;
@@ -725,22 +728,20 @@ const KasModule = (() => {
         const k = `${r.tgl}|${(r.keterangan||'').toLowerCase().trim()}|${r.kredit}`;
         return !existingMasukKeys.has(k);
       });
-      const skippedCount = (newRows.length - dedupedRows.length) + (newMasuk.length - dedupedMasuk.length);
+      const skippedCount = newRows.length - dedupedRows.length;
 
-      if (!dedupedRows.length && !dedupedMasuk.length) {
-        Notify.info(`Semua ${newRows.length + newMasuk.length} baris sudah ada — tidak ada data baru yang diimport`);
+      if (!dedupedRows.length) {
+        Notify.info(`Semua ${newRows.length} baris sudah ada — tidak ada data baru yang diimport`);
         return;
       }
 
-      // ── 6. Langsung masukkan ke _kas + _masuk + tampilkan ────────────────
+      // ── 6. Langsung masukkan ke _kas + tampilkan ────────────────
       _kas.unshift(...dedupedRows);
-      _masuk.unshift(...dedupedMasuk);
       _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'' };
       _page   = 1;
       renderTransaksi();
-      const totalImport = dedupedRows.length + dedupedMasuk.length;
       const skipMsg = skippedCount > 0 ? ` (${skippedCount} duplikat dilewati)` : '';
-      Notify.success(`${dedupedRows.length} pengeluaran + ${dedupedMasuk.length} kas masuk diimport${skipMsg} — menyimpan ke cloud...`);
+      Notify.success(`${dedupedRows.length} baris diimport${skipMsg} — menyimpan ke cloud...`);
 
       // ── 7. Sync ke Supabase di background (paralel, max 10 sekaligus) ────
       const CHUNK = 10;
@@ -749,12 +750,8 @@ const KasModule = (() => {
         const batch = dedupedRows.slice(i, i+CHUNK);
         await Promise.allSettled(batch.map(r => DB.saveKas(r).then(()=>saved++)));
       }
-      for (let i=0; i<dedupedMasuk.length; i+=CHUNK) {
-        const batch = dedupedMasuk.slice(i, i+CHUNK);
-        await Promise.allSettled(batch.map(r => DB.saveKasMasuk(r).then(()=>saved++)));
-      }
-      DB.logActivity({ type:'import_kas', detail:`Import Excel: ${dedupedRows.length} pengeluaran, ${dedupedMasuk.length} kas masuk (${skippedCount} duplikat dilewati)` });
-      console.log('[KasImport] Sync Supabase selesai:', saved, '/', totalImport);
+      DB.logActivity({ type:'import_kas', detail:`Import Excel: ${dedupedRows.length} baris (${skippedCount} duplikat dilewati)` });
+      console.log('[KasImport] Sync Supabase selesai:', saved, '/', dedupedRows.length);
     };
     inp.click();
   }
@@ -1027,11 +1024,11 @@ const KasModule = (() => {
       const masukKas    = _kas.filter(r=>r.type==='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
       const totalMasuk  = masukManual + masukKas;
 
-      // Kas keluar (confirmed/DONE only, exclude type="Kas")
-      const totalKeluar    = _kas.filter(r=>r.type!=='Kas'&&r.status==='DONE').reduce((s,r) => s + (r.jumlah||0), 0);
-      const totalAllKeluar = _kas.filter(r=>r.type!=='Kas').reduce((s,r) => s + (r.jumlah||0), 0); // incl TBC
+      // Kas keluar = semua pengeluaran (exclude type="Kas"), termasuk TBC & unconfirmed
+      const totalKeluar    = _kas.filter(r=>r.type!=='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
+      const totalAllKeluar = totalKeluar;
 
-      // Balance = Saldo Awal + Kas Masuk - Kas Keluar (DONE)
+      // Balance = Saldo Awal + Kas Masuk - Total Keluar (semua)
       const saldoAwal = _loadSaldoAwal();
       const balance   = saldoAwal + totalMasuk - totalKeluar;
       const balanceColor = balance >= 0 ? 'var(--success)' : 'var(--danger)';
