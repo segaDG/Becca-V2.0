@@ -9,6 +9,8 @@ const OrderModule = (() => {
   let _search = '';
   let _filterCustomer = '';
   let _filterDate = '';
+  let _page    = 1;
+  let _perPage = parseInt(localStorage.getItem('becca_ord_perPage') || '50');
 
   const _defaultCols = [
     {key:'breakfast', label:'BF',     group:'s1', editable:true},
@@ -200,6 +202,7 @@ const OrderModule = (() => {
           <tbody id="ord-tbody"></tbody>
         </table>
       </div>
+      <div id="ord-pagination"></div>
     </div>`;
 
     _renderThead();
@@ -252,19 +255,22 @@ const OrderModule = (() => {
     if (_filterCustomer) list = list.filter(o => o.namaPerusahaan === _filterCustomer);
     if (_filterDate) list = list.filter(o => o.tglOrder === _filterDate);
 
+    const total   = list.length;
+    const totalPg = Math.max(1, Math.ceil(total / _perPage));
+    if (_page > totalPg) _page = totalPg;
+    const paged   = list.slice((_page - 1) * _perPage, _page * _perPage);
+
     const ct = document.getElementById('ord-count');
-    if (ct) ct.textContent = list.length + ' order';
+    if (ct) ct.textContent = total + ' order';
 
     const tbody = document.getElementById('ord-tbody');
     if (!tbody) { _renderFull(); return; }
 
-    if (!list.length) {
+    if (!paged.length) {
       const span = 5 + _cols.length + 2;
       tbody.innerHTML = `<tr><td colspan="${span}" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data order.</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = list.map((o, i) => {
+    } else {
+      tbody.innerHTML = paged.map((o, i) => {
       const bg  = i%2===0 ? 'var(--surface)' : 'var(--surface2)';
       const hov = o.invoiced ? 'rgba(16,185,129,.05)' : 'rgba(99,102,241,.07)';
       const oid = o.id;
@@ -280,7 +286,7 @@ const OrderModule = (() => {
         onmouseenter="this.querySelectorAll('td').forEach(function(t){t.dataset.ori=t.style.background;t.style.background='${hov}'})"
         onmouseleave="this.querySelectorAll('td').forEach(function(t){t.style.background=t.dataset.ori})"
         style="border-bottom:1px solid var(--border)${o.invoiced?';opacity:.72':''}">
-        <td class="ord-td" style="font-size:10px;color:var(--text-3);background:${bg}">${i+1}</td>
+        <td class="ord-td" style="font-size:10px;color:var(--text-3);background:${bg}">${(_page-1)*_perPage+i+1}</td>
         <td class="ord-td" style="text-align:left;font-size:10px;font-family:var(--font-mono);color:var(--text-2);background:${bg};white-space:nowrap">${_fmtTs(o.timestamp)}</td>
         <td class="ord-td" style="text-align:left;font-size:10px;color:var(--text-2);background:${bg};white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">${o.pelapor||'-'}</td>
         <td class="ord-td" style="font-weight:600;font-size:10px;background:${bg};white-space:nowrap">${_fmtDate(o.tglOrder)}</td>
@@ -293,7 +299,25 @@ const OrderModule = (() => {
           <button onclick="OrderModule.deleteOrder('${oid}')" style="width:24px;height:24px;border-radius:4px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);cursor:pointer;color:#ef4444;font-size:11px" title="Hapus">✕</button>
         </td>
       </tr>`;
-    }).join('');
+      }).join('');
+    }
+
+    const pg = document.getElementById('ord-pagination');
+    if (pg) pg.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;font-size:12px;color:var(--text-3);border-top:1px solid var(--border)">
+        <span>Hal ${_page}/${totalPg} · ${total} order</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          <select onchange="OrderModule.setPerPage(+this.value)"
+            style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;
+                   background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer">
+            ${[20,50,100].map(n=>`<option value="${n}" ${_perPage===n?'selected':''}>${n}/hal</option>`).join('')}
+          </select>
+          <button class="btn btn-sm" onclick="OrderModule.goPage(1)" ${_page===1?'disabled':''}>«</button>
+          <button class="btn btn-sm" onclick="OrderModule.goPage(${_page-1})" ${_page===1?'disabled':''}>‹</button>
+          <button class="btn btn-sm" onclick="OrderModule.goPage(${_page+1})" ${_page===totalPg?'disabled':''}>›</button>
+          <button class="btn btn-sm" onclick="OrderModule.goPage(${totalPg})" ${_page===totalPg?'disabled':''}>»</button>
+        </div>
+      </div>`;
   }
 
   /* ─── INLINE EDIT ─── */
@@ -1368,9 +1392,11 @@ const OrderModule = (() => {
 
   /* ─── CONTROLS ─── */
   /* ─── CONTROLS ─── */
-  function setSearch(val)          { _search = (val||'').toLowerCase().trim(); _renderTbody(); }
-  function setFilterCustomer(val)  { _filterCustomer = val; _renderTbody(); }
-  function setFilterDate(val)      { _filterDate = val; _renderTbody(); }
+  function setSearch(val)          { _search = (val||'').toLowerCase().trim(); _page = 1; _renderTbody(); }
+  function setFilterCustomer(val)  { _filterCustomer = val; _page = 1; _renderTbody(); }
+  function setFilterDate(val)      { _filterDate = val; _page = 1; _renderTbody(); }
+  function goPage(p)               { _page = p; _renderTbody(); }
+  function setPerPage(n)           { _perPage = n; localStorage.setItem('becca_ord_perPage', n); _page = 1; _renderTbody(); }
 
   return {
     init, openModal, _submitOrder,
@@ -1380,6 +1406,7 @@ const OrderModule = (() => {
     openInvoiceModal, _previewInv, _printInvoice,
     _toggleAdditional, _addAdditionalRow, _getAdditionalRows,
     setSearch, setFilterCustomer, setFilterDate,
+    goPage, setPerPage,
   };
 })();
 

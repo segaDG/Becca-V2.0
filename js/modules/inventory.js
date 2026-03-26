@@ -200,6 +200,10 @@ const InventoryModule = (() => {
     }
 
     const totalNilai = filtered.reduce((a, i) => a + (i._stok || 0) * (i.hargaSatuan || 0), 0);
+    const totalStokPg = Math.max(1, Math.ceil(filtered.length / _stokPerPage));
+    if (_stokPage > totalStokPg) _stokPage = totalStokPg;
+    const stokOffset  = (_stokPage - 1) * _stokPerPage;
+    const pagedItems  = filtered.slice(stokOffset, stokOffset + _stokPerPage);
 
     document.getElementById('inv-tab-stok').innerHTML = `
       <!-- Stats -->
@@ -236,6 +240,11 @@ const InventoryModule = (() => {
             oninput="InventoryModule.setSearch(this.value)">
         </div>
         <span style="font-size:11px;color:var(--text-3)" id="inv-stok-count">${filtered.length} barang</span>
+        <select onchange="InventoryModule.setStokPerPage(+this.value)"
+          style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;
+                 background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer">
+          ${[20,50,100].map(n=>`<option value="${n}" ${_stokPerPage===n?'selected':''}>${n}/hal</option>`).join('')}
+        </select>
       </div>
 
       <!-- Table -->
@@ -258,7 +267,8 @@ const InventoryModule = (() => {
               </tr>
             </thead>
             <tbody>
-              ${filtered.length ? filtered.map((item, i) => {
+              ${pagedItems.length ? pagedItems.map((item, i) => {
+                const i_abs = stokOffset + i;
                 const stok    = item._stok || 0;
                 const min     = item.stokMin || 0;
                 // FIFO: nilai stok menggunakan harga batch terbaru
@@ -271,7 +281,7 @@ const InventoryModule = (() => {
                 const stockOut = itemLogs.filter(l=>l.jenis==='KELUAR').reduce((s,l)=>s+(l.jumlah||0),0);
                 return `
                   <tr>
-                    <td class="text-muted text-small">${i+1}</td>
+                    <td class="text-muted text-small">${i_abs+1}</td>
                     <td>
                       <div class="font-semibold">${item.nama}</div>
                       ${item.keterangan ? `<div class="text-small text-muted">${item.keterangan}</div>` : ''}
@@ -329,19 +339,31 @@ const InventoryModule = (() => {
           </table>
         </div>
       </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--text-3)">
+        <span>Hal ${_stokPage}/${totalStokPg} · ${filtered.length} barang</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button class="btn btn-sm" onclick="InventoryModule.goStokPage(1)" ${_stokPage===1?'disabled':''}>«</button>
+          <button class="btn btn-sm" onclick="InventoryModule.goStokPage(${_stokPage-1})" ${_stokPage===1?'disabled':''}>‹</button>
+          <button class="btn btn-sm" onclick="InventoryModule.goStokPage(${_stokPage+1})" ${_stokPage===totalStokPg?'disabled':''}>›</button>
+          <button class="btn btn-sm" onclick="InventoryModule.goStokPage(${totalStokPg})" ${_stokPage===totalStokPg?'disabled':''}>»</button>
+        </div>
+      </div>
     `;
   }
 
   function setKatFilter(kat) {
     _filterKat = kat;
+    _stokPage = 1;
     renderStok();
   }
 
   /* ===================== TAB: TRANSAKSI ===================== */
   /* ===================== ACTIVITY LINE — click to edit ===================== */
   let _invEditId   = null;
-  let _invLogPage  = 1;
-  const _INV_LOG_PER_PAGE = 50;
+  let _stokPage      = 1;
+  let _stokPerPage   = parseInt(localStorage.getItem('becca_inv_stok_perPage') || '50');
+  let _invLogPage    = 1;
+  let _invLogPerPage = parseInt(localStorage.getItem('becca_inv_log_perPage') || '50');
   let _invLocked   = new Set();
   const _INV_LOCK_KEY = 'becca_inv_locked_ids';
 
@@ -369,6 +391,10 @@ const InventoryModule = (() => {
     renderTransaksi();
   }
 
+  function goStokPage(p)        { _stokPage = p; renderStok(); }
+  function setStokPerPage(n)    { _stokPerPage = n; localStorage.setItem('becca_inv_stok_perPage', n); _stokPage = 1; renderStok(); }
+  function setInvLogPerPage(n)  { _invLogPerPage = n; localStorage.setItem('becca_inv_log_perPage', n); _invLogPage = 1; renderTransaksi(); }
+
   function renderTransaksi() {
     const canEdit = Auth.can('inventory','edit');
     // Activity Line: hanya MASUK dan KELUAR, filter OPNAME dan baris kosong/corrupted
@@ -377,10 +403,10 @@ const InventoryModule = (() => {
       .filter(l => l.itemNama || l.tgl)   // buang baris tanpa nama & tanggal
       .sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
 
-    const totalPages = Math.max(1, Math.ceil(sorted.length / _INV_LOG_PER_PAGE));
+    const totalPages = Math.max(1, Math.ceil(sorted.length / _invLogPerPage));
     if (_invLogPage > totalPages) _invLogPage = totalPages;
-    const offset   = (_invLogPage - 1) * _INV_LOG_PER_PAGE;
-    const pageData = sorted.slice(offset, offset + _INV_LOG_PER_PAGE);
+    const offset   = (_invLogPage - 1) * _invLogPerPage;
+    const pageData = sorted.slice(offset, offset + _invLogPerPage);
 
     if (!document.getElementById('inv-ss-style')) {
       const st=document.createElement('style'); st.id='inv-ss-style';
@@ -444,16 +470,20 @@ const InventoryModule = (() => {
           </tbody>
         </table>
       </div>
-      ${totalPages > 1 ? `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--text-3)">
-        <span>${sorted.length} baris · Halaman ${_invLogPage} dari ${totalPages}</span>
-        <div style="display:flex;gap:4px">
+        <span>Hal ${_invLogPage}/${totalPages} · ${sorted.length} baris</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          <select onchange="InventoryModule.setInvLogPerPage(+this.value)"
+            style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;
+                   background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer">
+            ${[20,50,100].map(n=>`<option value="${n}" ${_invLogPerPage===n?'selected':''}>${n}/hal</option>`).join('')}
+          </select>
           <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(1)" ${_invLogPage===1?'disabled':''}>«</button>
           <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(${_invLogPage-1})" ${_invLogPage===1?'disabled':''}>‹</button>
           <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(${_invLogPage+1})" ${_invLogPage===totalPages?'disabled':''}>›</button>
           <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(${totalPages})" ${_invLogPage===totalPages?'disabled':''}>»</button>
         </div>
-      </div>` : ''}
+      </div>
     `;
   }
 
@@ -1635,6 +1665,7 @@ const InventoryModule = (() => {
     const inp = document.getElementById('inv-stok-search');
     const pos = inp ? inp.selectionStart : val.length;
     _search = (val||'').toLowerCase().trim();
+    _stokPage = 1;
     renderStok();
     requestAnimationFrame(()=>{
       const el = document.getElementById('inv-stok-search');
@@ -1668,6 +1699,9 @@ const InventoryModule = (() => {
     addLogRow,
     deleteLogRow,
     goInvLogPage,
+    goStokPage,
+    setStokPerPage,
+    setInvLogPerPage,
     flushPendingEdit,
     renderOpnameTab,
     _onOpnameItemChange,

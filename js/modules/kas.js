@@ -27,8 +27,8 @@ const KasModule = (() => {
   }
   let _activeTab = 'transaksi';
   let _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'' };
-  let _page   = 1;
-  const _perPage = 100;
+  let _page    = 1;
+  let _perPage = parseInt(localStorage.getItem('becca_kas_perPage') || '50');
   let _editingId  = null;
   let _kasLocked  = new Set();
   const _KAS_LOCK_KEY = 'becca_kas_locked_ids';
@@ -245,18 +245,22 @@ const KasModule = (() => {
           </tbody>
         </table>
       </div>
-      ${totalPg > 1 ? `
-        <div class="pagination" style="margin-top:var(--s3)">
-          <span class="pagination-info">Hal ${_page}/${totalPg} · ${total} baris</span>
-          <div class="pagination-controls">
-            <button class="page-btn" onclick="KasModule.goPage(${_page-1})" ${_page<=1?'disabled':''}>‹</button>
-            ${Array.from({length:Math.min(totalPg,7)},(_,i)=>{
-              const p=_page<=4?i+1:_page+i-3;
-              return p>=1&&p<=totalPg?`<button class="page-btn ${p===_page?'active':''}" onclick="KasModule.goPage(${p})">${p}</button>`:'';
-            }).join('')}
-            <button class="page-btn" onclick="KasModule.goPage(${_page+1})" ${_page>=totalPg?'disabled':''}>›</button>
-          </div>
-        </div>` : ''}
+      <div class="pagination" style="margin-top:var(--s3)">
+        <span class="pagination-info">Hal ${_page}/${Math.max(1,totalPg)} · ${total} baris</span>
+        <div class="pagination-controls">
+          <select onchange="KasModule.setPerPage(+this.value)"
+            style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;
+                   background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer">
+            ${[20,50,100].map(n=>`<option value="${n}" ${_perPage===n?'selected':''}>${n}/hal</option>`).join('')}
+          </select>
+          <button class="page-btn" onclick="KasModule.goPage(${_page-1})" ${_page<=1?'disabled':''}>‹</button>
+          ${Array.from({length:Math.min(totalPg,7)},(_,i)=>{
+            const p=_page<=4?i+1:_page+i-3;
+            return p>=1&&p<=totalPg?`<button class="page-btn ${p===_page?'active':''}" onclick="KasModule.goPage(${p})">${p}</button>`:'';
+          }).join('')}
+          <button class="page-btn" onclick="KasModule.goPage(${_page+1})" ${_page>=totalPg?'disabled':''}>›</button>
+        </div>
+      </div>
     `;
     // Refresh balance cards setelah render
     _renderBalanceCards();
@@ -540,6 +544,7 @@ const KasModule = (() => {
   function setFilter(k,v){ if(_editingId)commitEdit(_editingId); _filter[k]=v; _page=1; renderTransaksi(); }
   function resetFilter()  { if(_editingId)commitEdit(_editingId); _filter={}; _page=1; renderTransaksi(); }
   function goPage(p)      { if(_editingId)commitEdit(_editingId); _page=p; renderTransaksi(); }
+  function setPerPage(n)  { _perPage=n; localStorage.setItem('becca_kas_perPage',n); _page=1; renderTransaksi(); }
 
   /* ===================== SUMMARY STRIP ===================== */
   function _summaryStrip(data) {
@@ -1315,6 +1320,6 @@ const KasModule = (() => {
     _doCommit(id, true); // skipValidation = true
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
+  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
 })();
 window.KasModule = KasModule;
