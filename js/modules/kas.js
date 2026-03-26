@@ -1050,15 +1050,15 @@ const KasModule = (() => {
     container.innerHTML = ''; // clear dulu
     
     try {
-      // Kas masuk = hanya dari _kas type="Kas" (menghindari double-counting dengan kas_masuk table)
-      const masukKas   = _kas.filter(r=>r.type==='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
-      const totalMasuk = masukKas;
+      // Kas masuk = kas type="Kas" (import Excel) + kas_masuk manual entries
+      const masukKas    = _kas.filter(r=>r.type==='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
+      const masukManual = _masuk.reduce((s,r) => s + (r.kredit||0), 0);
+      const totalMasuk  = masukKas + masukManual;
 
-      // Kas keluar = semua pengeluaran (exclude type="Kas"), termasuk TBC & unconfirmed
-      const totalKeluar    = _kas.filter(r=>r.type!=='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
-      const totalAllKeluar = totalKeluar;
+      // Kas keluar = semua kas kecuali type="Kas"
+      const totalKeluar = _kas.filter(r=>r.type!=='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
 
-      // Balance = Saldo Awal + Kas Masuk - Total Keluar (semua)
+      // Balance = Saldo Awal + Kas Masuk - Total Keluar
       const saldoAwal = _loadSaldoAwal();
       const balance   = saldoAwal + totalMasuk - totalKeluar;
       const balanceColor = balance >= 0 ? 'var(--success)' : 'var(--danger)';
@@ -1071,16 +1071,19 @@ const KasModule = (() => {
           prefix: '',
         },
       ];
-      // Inject Balance bar kanan atas
+      // Inject Balance bar kanan atas — dengan breakdown formula
       const balanceBarEl = document.getElementById('kas-balance-bar');
       if (balanceBarEl) {
-        const balSign  = balance >= 0 ? '' : '- ';
         const balColor = balance >= 0 ? 'var(--success)' : 'var(--danger)';
         const balLabel = balance >= 0 ? 'Surplus' : 'Defisit';
         balanceBarEl.innerHTML =
-          '<span style="font-size:12px;color:var(--text-3)">Balance &nbsp;</span>'
+          '<span style="font-size:11px;color:var(--text-3)" title="Masuk − Keluar">'
+          + '<span style="color:var(--success)">+'+Utils.formatRupiah(totalMasuk)+'</span>'
+          + ' &minus; '
+          + '<span style="color:var(--danger)">'+Utils.formatRupiah(totalKeluar)+'</span>'
+          + ' &nbsp;=&nbsp; </span>'
           + '<span style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:'+balColor+'">'
-          + balSign+Utils.formatRupiah(Math.abs(balance))+'</span>'
+          + Utils.formatRupiah(Math.abs(balance))+'</span>'
           + '&nbsp;<span style="font-size:11px;color:'+balColor+'">'+balLabel+'</span>';
       }
       // Inject Saldo Awal bar kiri atas (editable hanya Superadmin)
