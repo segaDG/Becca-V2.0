@@ -253,7 +253,7 @@ const KasModule = (() => {
           ${_kasLocked.has(r.id)?'<span style="opacity:.4">'+rowNum+'</span>':rowNum}
         </div>
       </td>
-      <td style="white-space:nowrap"><div class="ks-cell">${r.tgl||''}</div></td>
+      <td style="white-space:nowrap"><div class="ks-cell">${r.tgl ? r.tgl.split('-').reverse().join('-') : ''}</div></td>
       <td><div class="ks-cell">${r.nama||''}</div></td>
       <td><div class="ks-cell"><span class="badge badge-neutral" style="font-size:10px">${r.type||''}</span></div></td>
       <td><div class="ks-cell">${r.vendor||''}</div></td>
