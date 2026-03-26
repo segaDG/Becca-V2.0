@@ -156,13 +156,14 @@ const InvoiceModule = (() => {
     }
 
     // One-time seed: jika hasil valid = 0 & belum pernah diseed
-    // Pakai flag v2 agar re-seed otomatis jika v1 pernah jalan tapi data rusak
-    if (_invoices.length === 0 && !localStorage.getItem('becca_inv_seeded_v2')) {
-      localStorage.setItem('becca_inv_seeded_v2', '1');
+    // Pakai flag v3 agar re-seed otomatis setelah schema fix (data JSONB ditambahkan)
+    if (_invoices.length === 0 && !localStorage.getItem('becca_inv_seeded_v3')) {
+      localStorage.setItem('becca_inv_seeded_v3', '1');
       try {
         await Promise.all(_SEED_INVOICES.map(inv => DB.saveInvoice(Object.assign({}, inv))));
         const raw2 = await DB.getInvoices();
         _invoices = raw2.filter(_isValidInv);
+        console.log('[InvoiceModule] seeded', _SEED_INVOICES.length, 'invoices → valid:', _invoices.length);
         if (!_invoices.length) _invoices = [..._SEED_INVOICES];
       } catch(e) {
         console.warn('[InvoiceModule] seed error:', e);

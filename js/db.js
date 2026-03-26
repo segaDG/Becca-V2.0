@@ -159,7 +159,9 @@ const DB = (() => {
   const NO_UPDATED_AT = ['activity_logs', 'opname_logs', 'emp_logs', 'kas', 'kas_masuk'];
 
   // Table yang TIDAK dicache di localStorage (selalu fetch fresh dari Supabase)
-  const NO_CACHE = ['customers','users','tasks','suppliers','ap'];
+  // invoices masuk NO_CACHE agar skeleton rows dari Supabase tidak overwrite
+  // seed data yang valid di localStorage
+  const NO_CACHE = ['customers','users','tasks','suppliers','ap','invoices'];
 
   // Kolom NOT NULL di Supabase yang wajib disertakan dalam minimal upsert
   // Key = nama kolom Supabase, value = fungsi yang mengambil nilai dari obj BECCA
@@ -171,6 +173,8 @@ const DB = (() => {
     employees:      (obj) => ({ nama:        obj.nama        || '' }),
     inv_activities: (obj) => ({ nama:        obj.itemNama    || obj.nama          || '' }),
     inv_products:   (obj) => ({ nama:        obj.nama        || obj.itemNama      || '' }),
+    // users: username wajib ada di tabel Supabase (default '' agar tidak null)
+    users:          (obj) => ({ username:    obj.username    || '' }),
   };
 
   // In-memory cache — cleared on save/delete

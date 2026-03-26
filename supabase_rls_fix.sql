@@ -1,21 +1,16 @@
 -- ============================================================
---  BECCA V2.0 — Supabase RLS Fix
+--  BECCA V2.0 — Supabase Schema & RLS Fix (v2)
 --  Jalankan di: Supabase Dashboard → SQL Editor → New Query
 --
 --  Masalah yang diselesaikan:
---  - Data tidak terlihat di device lain (Issue 4)
---  - User lain tidak bisa login dari device lain (Issue 5)
---  - Task hilang setelah force reload di device berbeda (Issue 3)
+--  - Invoice kosong / customer undefined (kolom 'data' belum ada di invoices)
+--  - User baru tidak bisa login di device lain (kolom 'data' belum ada di users)
+--  - Data tidak terlihat di device lain (RLS blocking anon access)
 --
---  Root cause: Supabase Row Level Security (RLS) aktif secara
---  default. Tanpa policy yang mengizinkan akses anon, semua
---  read/write dari browser akan di-blokir.
---
---  BECCA menggunakan auth layer sendiri (bukan Supabase Auth),
---  sehingga aman untuk disable RLS pada semua tabel BECCA.
+--  AMAN dijalankan berulang — semua pakai IF EXISTS / IF NOT EXISTS
 -- ============================================================
 
--- ── Disable RLS pada semua tabel BECCA ──────────────────────
+-- ── 1. Disable RLS pada semua tabel BECCA ────────────────────
 
 ALTER TABLE IF EXISTS public.users            DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.settings         DISABLE ROW LEVEL SECURITY;
@@ -35,8 +30,7 @@ ALTER TABLE IF EXISTS public.suppliers        DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.presence         DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.activity_logs    DISABLE ROW LEVEL SECURITY;
 
--- ── Grant akses anon role ke semua tabel ────────────────────
--- (Diperlukan jika tabel belum punya GRANT ke anon)
+-- ── 2. Grant akses anon role ke semua tabel ──────────────────
 
 GRANT ALL ON public.users            TO anon;
 GRANT ALL ON public.settings         TO anon;
@@ -56,10 +50,36 @@ GRANT ALL ON public.suppliers        TO anon;
 GRANT ALL ON public.presence         TO anon;
 GRANT ALL ON public.activity_logs    TO anon;
 
--- ── Drop NOT NULL constraints yang diisi via data JSON column ─
--- BECCA menyimpan semua field di kolom 'data' (JSONB), bukan di
--- kolom-kolom individual. Kolom native hanya metadata/index.
--- NOT NULL pada kolom ini menyebabkan upsert ditolak.
+-- ── 3. Tambah kolom 'data' JSONB ke SEMUA tabel ──────────────
+-- BECCA _save() selalu menulis business data ke kolom 'data'.
+-- Tanpa kolom ini, semua write gagal silently — data hanya tersimpan
+-- di localStorage device A dan tidak pernah sampai ke Supabase.
+-- IF NOT EXISTS aman dijalankan berulang.
+
+ALTER TABLE IF EXISTS public.users          ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.settings       ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.tasks          ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.orders         ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.invoices       ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.customers      ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.kas            ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.kas_masuk      ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.employees      ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.emp_logs       ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.inv_activities ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.inv_products   ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.opname_logs    ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.ap             ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.suppliers      ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.presence       ADD COLUMN IF NOT EXISTS data JSONB;
+ALTER TABLE IF EXISTS public.activity_logs  ADD COLUMN IF NOT EXISTS data JSONB;
+
+-- ── 4. Drop NOT NULL constraints yang tidak disertakan di minimal upsert ─
+-- BECCA hanya mengirim: id, data, created_at, updated_at ke Supabase.
+-- Kolom native lain harus nullable agar upsert tidak ditolak.
+
+ALTER TABLE IF EXISTS public.users
+  ALTER COLUMN username    SET DEFAULT '';
 
 ALTER TABLE IF EXISTS public.tasks
   ALTER COLUMN title       DROP NOT NULL,
@@ -85,27 +105,15 @@ ALTER TABLE IF EXISTS public.ap
 ALTER TABLE IF EXISTS public.employees
   ALTER COLUMN nama        DROP NOT NULL;
 
--- ── Tambah kolom 'data' JSONB pada tabel yang belum punya ────
--- BECCA _save() selalu menulis ke kolom 'data'. Jika tabel tidak
--- punya kolom ini, upsert gagal 400. Gunakan IF NOT EXISTS agar
--- aman dijalankan berulang.
+-- ── 5. Verifikasi hasil ──────────────────────────────────────
+-- Jalankan query ini setelah script selesai untuk memverifikasi:
 
-ALTER TABLE IF EXISTS public.inv_activities
-  ADD COLUMN IF NOT EXISTS data JSONB;
-
-ALTER TABLE IF EXISTS public.opname_logs
-  ADD COLUMN IF NOT EXISTS data JSONB;
-
-ALTER TABLE IF EXISTS public.kas
-  ADD COLUMN IF NOT EXISTS data JSONB;
-
-ALTER TABLE IF EXISTS public.kas_masuk
-  ADD COLUMN IF NOT EXISTS data JSONB;
-
-ALTER TABLE IF EXISTS public.emp_logs
-  ADD COLUMN IF NOT EXISTS data JSONB;
-
--- ── Verifikasi (opsional: jalankan ini untuk cek hasil) ──────
+-- Cek RLS status:
 -- SELECT tablename, rowsecurity FROM pg_tables
--- WHERE schemaname = 'public'
--- ORDER BY tablename;
+-- WHERE schemaname = 'public' ORDER BY tablename;
+
+-- Cek kolom 'data' ada di semua tabel:
+-- SELECT table_name, column_name, data_type
+-- FROM information_schema.columns
+-- WHERE table_schema = 'public' AND column_name = 'data'
+-- ORDER BY table_name;
