@@ -3,7 +3,7 @@
    Spreadsheet: click row to edit inline
    AI type suggestion from nama field
 ============================================ */
-console.log('[BECCA] KasModule v20260326k loaded ✓');
+console.log('[BECCA] KasModule v20260326l loaded ✓');
 const KasModule = (() => {
   let _kas        = [];
   let _masuk      = [];
@@ -576,7 +576,7 @@ const KasModule = (() => {
       let wb;
       try {
         const buf = await file.arrayBuffer();
-        wb = XLSX.read(buf, { type:'array', cellDates:true });
+        wb = XLSX.read(buf, { type:'array', cellDates:false });
       } catch(e) { Notify.error('File tidak bisa dibaca', e.message); return; }
 
       // ── 3. Mapping nama kolom Excel → field BECCA ─────────────
@@ -608,24 +608,37 @@ const KasModule = (() => {
         status:'status',
       };
       const _parseDate = (v) => {
-        if (!v) return '';
+        if (!v && v !== 0) return '';
+        // Jika instanceof Date (fallback): pakai local methods karena SheetJS bisa pakai local constructor
         if (v instanceof Date) {
-          // SheetJS creates UTC-based dates — use getUTC* to avoid timezone -1 day shift
-          const y=v.getUTCFullYear(), m=String(v.getUTCMonth()+1).padStart(2,'0'), d=String(v.getUTCDate()).padStart(2,'0');
+          if (isNaN(v.getTime())) return '';
+          const y=v.getFullYear(), m=String(v.getMonth()+1).padStart(2,'0'), d=String(v.getDate()).padStart(2,'0');
           return `${y}-${m}-${d}`;
         }
         const s = String(v).trim();
+        // Format DD/MM/YYYY atau DD-MM-YYYY
         if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
-          const [dd,mm,yyyy]=s.split(/[\/\-]/);
-          return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+          const p=s.split(/[\/\-]/);
+          // Deteksi otomatis: jika bagian pertama > 12, pasti DD (bukan MM)
+          const [a,b,c]=p;
+          const dd=parseInt(a),mm=parseInt(b);
+          if(dd>12) return `${c}-${b.padStart(2,'0')}-${a.padStart(2,'0')}`; // DD/MM/YYYY
+          if(mm>12) return `${c}-${a.padStart(2,'0')}-${b.padStart(2,'0')}`; // MM/DD/YYYY
+          return `${c}-${b.padStart(2,'0')}-${a.padStart(2,'0')}`; // default DD/MM/YYYY
         }
         if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-        // Excel serial number — Math.floor(parseFloat) handles floats (46107.0, 46107.5, 46107.00001)
+        // Excel serial number — dengan cellDates:false semua dates masuk sini sebagai float
+        // Formula: (serial - 25569) * 86400000 = ms since Unix epoch (UTC midnight)
+        // getTime() → new Date(UTC midnight) → local getFullYear/Month/Date
+        // Untuk UTC+7: UTC midnight March 26 = local March 26 07:00 → getDate()=26 ✓
         const num = parseFloat(s);
         if (!isNaN(num) && num > 40000) {
-          const serial = Math.floor(num);
-          const d = new Date((serial - 25569) * 86400000);
-          return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+          const serial = Math.floor(num); // floor() strip time component (e.g. 46107.5 → 46107)
+          const ms = (serial - 25569) * 86400000;
+          const y=new Date(ms).getUTCFullYear();
+          const mo=String(new Date(ms).getUTCMonth()+1).padStart(2,'0');
+          const d=String(new Date(ms).getUTCDate()).padStart(2,'0');
+          return `${y}-${mo}-${d}`;
         }
         return '';
       };
@@ -678,10 +691,16 @@ const KasModule = (() => {
         const dataStart = (subMap.kredit!==undefined || subMap.jumlah!==undefined) && subMap.tgl===undefined
           ? hdrIdx+2 : hdrIdx+1;
 
+        let _lastTgl = ''; // carry-forward tanggal untuk baris yang kolom tgl-nya kosong
         for (let ri=dataStart; ri<rows.length; ri++) {
           const row = rows[ri];
           if (row.every(c=>c===''||c===null||c===undefined)) continue;
-          const tgl = _parseDate(colIdx.tgl!==undefined ? row[colIdx.tgl] : '');
+          const rawTgl = colIdx.tgl!==undefined ? row[colIdx.tgl] : '';
+          const parsedTgl = _parseDate(rawTgl);
+          if (parsedTgl) _lastTgl = parsedTgl;
+          const tgl = parsedTgl || _lastTgl;
+          // Debug: log 3 baris pertama per sheet agar bisa diagnosa date parsing
+          if (ri < dataStart+3) console.log('[KasImport] row', ri, 'rawTgl=', rawTgl, 'typeof=', typeof rawTgl, 'parsedTgl=', parsedTgl, 'tgl=', tgl);
           if (!tgl) continue;
           const nama = String(row[colIdx.nama]??'').trim();
           if (!nama || nama.toUpperCase()==='ADMINISTRATOR' || nama.toUpperCase().startsWith('TOTAL')) continue;
