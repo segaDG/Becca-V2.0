@@ -1,16 +1,10 @@
 -- ============================================================
---  BECCA V2.0 — Supabase Schema & RLS Fix (v2)
+--  BECCA V2.0 — Supabase Schema & RLS Fix (v3)
 --  Jalankan di: Supabase Dashboard → SQL Editor → New Query
---
---  Masalah yang diselesaikan:
---  - Invoice kosong / customer undefined (kolom 'data' belum ada di invoices)
---  - User baru tidak bisa login di device lain (kolom 'data' belum ada di users)
---  - Data tidak terlihat di device lain (RLS blocking anon access)
---
---  AMAN dijalankan berulang — semua pakai IF EXISTS / IF NOT EXISTS
+--  AMAN dijalankan berulang (IF EXISTS / IF NOT EXISTS / exception handling)
 -- ============================================================
 
--- ── 1. Disable RLS pada semua tabel BECCA ────────────────────
+-- ── 1. Disable RLS ───────────────────────────────────────────
 
 ALTER TABLE IF EXISTS public.users            DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.settings         DISABLE ROW LEVEL SECURITY;
@@ -30,7 +24,7 @@ ALTER TABLE IF EXISTS public.suppliers        DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.presence         DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.activity_logs    DISABLE ROW LEVEL SECURITY;
 
--- ── 2. Grant akses anon role ke semua tabel ──────────────────
+-- ── 2. Grant akses anon ──────────────────────────────────────
 
 GRANT ALL ON public.users            TO anon;
 GRANT ALL ON public.settings         TO anon;
@@ -50,11 +44,8 @@ GRANT ALL ON public.suppliers        TO anon;
 GRANT ALL ON public.presence         TO anon;
 GRANT ALL ON public.activity_logs    TO anon;
 
--- ── 3. Tambah kolom 'data' JSONB ke SEMUA tabel ──────────────
--- BECCA _save() selalu menulis business data ke kolom 'data'.
--- Tanpa kolom ini, semua write gagal silently — data hanya tersimpan
--- di localStorage device A dan tidak pernah sampai ke Supabase.
--- IF NOT EXISTS aman dijalankan berulang.
+-- ── 3. Tambah kolom 'data' JSONB ke semua tabel ──────────────
+-- IF NOT EXISTS aman jika kolom sudah ada
 
 ALTER TABLE IF EXISTS public.users          ADD COLUMN IF NOT EXISTS data JSONB;
 ALTER TABLE IF EXISTS public.settings       ADD COLUMN IF NOT EXISTS data JSONB;
@@ -74,44 +65,54 @@ ALTER TABLE IF EXISTS public.suppliers      ADD COLUMN IF NOT EXISTS data JSONB;
 ALTER TABLE IF EXISTS public.presence       ADD COLUMN IF NOT EXISTS data JSONB;
 ALTER TABLE IF EXISTS public.activity_logs  ADD COLUMN IF NOT EXISTS data JSONB;
 
--- ── 4. Drop NOT NULL constraints yang tidak disertakan di minimal upsert ─
--- BECCA hanya mengirim: id, data, created_at, updated_at ke Supabase.
--- Kolom native lain harus nullable agar upsert tidak ditolak.
+-- ── 4. Drop NOT NULL & set DEFAULT (defensif — skip jika kolom tidak ada) ─
+-- Setiap ALTER dibungkus DO block agar tidak hentikan eksekusi jika kolom tidak ada
 
-ALTER TABLE IF EXISTS public.users
-  ALTER COLUMN username    SET DEFAULT '';
+DO $$ BEGIN
+  ALTER TABLE public.users ALTER COLUMN username SET DEFAULT '';
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
-ALTER TABLE IF EXISTS public.tasks
-  ALTER COLUMN title       DROP NOT NULL,
-  ALTER COLUMN description DROP NOT NULL,
-  ALTER COLUMN assignee    DROP NOT NULL,
-  ALTER COLUMN creator     DROP NOT NULL;
+DO $$ BEGIN
+  ALTER TABLE public.tasks ALTER COLUMN title DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
-ALTER TABLE IF EXISTS public.orders
-  ALTER COLUMN customer_id DROP NOT NULL;
+DO $$ BEGIN
+  ALTER TABLE public.tasks ALTER COLUMN description DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
-ALTER TABLE IF EXISTS public.invoices
-  ALTER COLUMN order_id    DROP NOT NULL;
+DO $$ BEGIN
+  ALTER TABLE public.tasks ALTER COLUMN assignee DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
-ALTER TABLE IF EXISTS public.customers
-  ALTER COLUMN nama        DROP NOT NULL;
+DO $$ BEGIN
+  ALTER TABLE public.tasks ALTER COLUMN creator DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
-ALTER TABLE IF EXISTS public.suppliers
-  ALTER COLUMN nama        DROP NOT NULL;
+DO $$ BEGIN
+  ALTER TABLE public.orders ALTER COLUMN customer_id DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
-ALTER TABLE IF EXISTS public.ap
-  ALTER COLUMN supplier_id DROP NOT NULL;
+DO $$ BEGIN
+  ALTER TABLE public.invoices ALTER COLUMN order_id DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
-ALTER TABLE IF EXISTS public.employees
-  ALTER COLUMN nama        DROP NOT NULL;
+DO $$ BEGIN
+  ALTER TABLE public.customers ALTER COLUMN nama DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
--- ── 5. Verifikasi hasil ──────────────────────────────────────
--- Jalankan query ini setelah script selesai untuk memverifikasi:
+DO $$ BEGIN
+  ALTER TABLE public.suppliers ALTER COLUMN nama DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
--- Cek RLS status:
--- SELECT tablename, rowsecurity FROM pg_tables
--- WHERE schemaname = 'public' ORDER BY tablename;
+DO $$ BEGIN
+  ALTER TABLE public.ap ALTER COLUMN supplier_id DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
+DO $$ BEGIN
+  ALTER TABLE public.employees ALTER COLUMN nama DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+
+-- ── 5. Verifikasi (opsional) ─────────────────────────────────
 -- Cek kolom 'data' ada di semua tabel:
 -- SELECT table_name, column_name, data_type
 -- FROM information_schema.columns
