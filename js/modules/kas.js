@@ -574,15 +574,30 @@ const KasModule = (() => {
 
       // ── 3. Mapping nama kolom Excel → field BECCA ─────────────
       const COL_MAP = {
+        // tanggal
         tanggal:'tgl', tgl:'tgl', date:'tgl',
+        // nama / keterangan
         nama:'nama', keterangan:'nama', ket:'nama', description:'nama',
+        nama_barang:'nama', namabarang:'nama',
+        // type
         type:'type', tipe:'type',
+        // vendor
         vendor:'vendor',
+        // qty
         qty:'qty', jumlah_qty:'qty',
+        // satuan
         satuan:'satuan', sat:'satuan', unit:'satuan',
-        harga:'hargaSatuan', harga_satuan:'hargaSatuan', hargasat:'hargaSatuan', price:'hargaSatuan',
-        jumlah:'jumlah', total:'jumlah', amount:'jumlah',
+        // harga satuan
+        harga:'hargaSatuan', harga_satuan:'hargaSatuan', hargasatuan:'hargaSatuan',
+        hargasat:'hargaSatuan', price:'hargaSatuan',
+        // jumlah total (debit = pengeluaran)
+        jumlah:'jumlah', total:'jumlah', amount:'jumlah', debit:'jumlah',
+        // kredit = uang masuk
+        kredit:'kredit',
+        // penerima
         penerima:'penerima', pic:'penerima',
+        nama_penerima:'penerima', namapenerima:'penerima',
+        // status
         status:'status',
       };
       const _parseDate = (v) => {
@@ -591,12 +606,14 @@ const KasModule = (() => {
           const y=v.getFullYear(), m=String(v.getMonth()+1).padStart(2,'0'), d=String(v.getDate()).padStart(2,'0');
           return `${y}-${m}-${d}`;
         }
-        const s = String(v).trim();
+        // Bisa berupa float Excel serial: "46023.0"
+        const s = String(v).trim().replace(/\.0+$/, '');
         if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
           const [dd,mm,yyyy]=s.split(/[\/\-]/);
           return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
         }
         if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        // Excel serial number (angka 5 digit seperti 46023)
         if (/^\d{5,}$/.test(s)) {
           const d=new Date(Math.round((parseInt(s)-25569)*86400000));
           return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -606,13 +623,21 @@ const KasModule = (() => {
       const _parseNum = (v) => {
         if (v===undefined||v===null||v==='') return 0;
         if (typeof v==='number') return v;
-        return parseFloat(String(v).replace(/[^\d.]/g,''))||0;
+        // Bisa berupa scientific notation: "1.3653161E7"
+        const n = parseFloat(String(v).replace(/[^\d.eE\-\+]/g,''));
+        return isNaN(n) ? 0 : n;
+      };
+      const _parseStatus = (v) => {
+        const s = String(v||'').trim();
+        if (s === '✔' || s.toLowerCase() === 'done' || s.toLowerCase() === 'selesai') return 'DONE';
+        if (s.toUpperCase() === 'TBC') return 'TBC';
+        return '';
       };
       const _mapHeader = (row) => {
         const map={};
         row.forEach((cell,ci)=>{
           const k=String(cell).toLowerCase().trim().replace(/[\s\/]+/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
-          const k2=String(cell).toLowerCase().trim().replace(/\s+/g,'').replace('/','');
+          const k2=String(cell).toLowerCase().trim().replace(/[\s\/]+/g,'');
           const field=COL_MAP[k]||COL_MAP[k2]||COL_MAP[String(cell).toLowerCase().trim()];
           if(field && !(field in map)) map[field]=ci;
         });
@@ -627,32 +652,51 @@ const KasModule = (() => {
         const ws   = wb.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
         if (rows.length < 2) continue;
-        // Cari baris header
+        // Cari baris header (header bisa ada di baris mana saja, cek sampai baris 25)
         let hdrIdx=-1, colIdx={};
-        for (let ri=0; ri<Math.min(rows.length,10); ri++) {
+        for (let ri=0; ri<Math.min(rows.length,25); ri++) {
           const map = _mapHeader(rows[ri]);
-          if (Object.keys(map).length >= 2) { hdrIdx=ri; colIdx=map; break; }
+          if (map.tgl!==undefined && Object.keys(map).length >= 2) { hdrIdx=ri; colIdx=map; break; }
         }
         if (hdrIdx<0) { console.warn('[KasImport] Sheet "'+sheetName+'" header tidak dikenali, dilewati'); continue; }
-        for (let ri=hdrIdx+1; ri<rows.length; ri++) {
+        // Merge sub-header row (e.g. KREDIT/DEBIT di baris setelah header utama)
+        const subRow = rows[hdrIdx+1] || [];
+        const subMap = _mapHeader(subRow);
+        for (const [field, ci] of Object.entries(subMap)) {
+          if (!(field in colIdx)) colIdx[field] = ci;
+        }
+        const dataStart = (subMap.kredit!==undefined || subMap.jumlah!==undefined) && subMap.tgl===undefined
+          ? hdrIdx+2 : hdrIdx+1;
+
+        for (let ri=dataStart; ri<rows.length; ri++) {
           const row = rows[ri];
           if (row.every(c=>c===''||c===null||c===undefined)) continue;
           const tgl = _parseDate(colIdx.tgl!==undefined ? row[colIdx.tgl] : '');
           if (!tgl) continue;
-          const nama       = String(row[colIdx.nama]??'').trim();
+          const nama = String(row[colIdx.nama]??'').trim();
+          if (!nama || nama.toUpperCase()==='ADMINISTRATOR' || nama.toUpperCase().startsWith('TOTAL')) continue;
+
           const typeRaw    = String(row[colIdx.type]??'').trim();
           const vendor     = String(row[colIdx.vendor]??'').trim();
-          const satuanRaw  = String(row[colIdx.satuan]??'').trim();
           const penerima   = String(row[colIdx.penerima]??'').trim();
-          const statusRaw  = String(row[colIdx.status]??'').trim().toUpperCase();
-          const qty        = _parseNum(colIdx.qty!==undefined ? row[colIdx.qty] : 1)||1;
-          const hargaSatuan= _parseNum(colIdx.hargaSatuan!==undefined ? row[colIdx.hargaSatuan] : 0);
-          let   jumlah     = _parseNum(colIdx.jumlah!==undefined ? row[colIdx.jumlah] : 0);
-          if (!jumlah && hargaSatuan) jumlah=qty*hargaSatuan;
-          const typeNorm   = TYPES.find(t=>t.toLowerCase()===typeRaw.toLowerCase())||typeRaw||_suggestType(nama)||'';
-          const satuanNorm = SATUANS.find(s=>s.toLowerCase()===satuanRaw.toLowerCase())||satuanRaw||'Pcs';
-          const status     = statusRaw==='DONE'?'DONE':statusRaw==='TBC'?'TBC':'';
-          newRows.push({ id:Utils.uid(), tgl, nama, type:typeNorm, vendor, qty, satuan:satuanNorm, hargaSatuan, jumlah, penerima, status, bulan });
+          const status     = _parseStatus(colIdx.status!==undefined ? row[colIdx.status] : '');
+          // Cek kolom KREDIT (O) — jika ada nilai → ini baris kas masuk
+          const kreditVal  = _parseNum(colIdx.kredit!==undefined ? row[colIdx.kredit] : 0);
+          if (kreditVal > 0) {
+            // Baris kas masuk: Type=Kas, Qty=1, Satuan=Kali, jumlah=kreditVal
+            const typeK = TYPES.find(t=>t.toLowerCase()===typeRaw.toLowerCase()) || typeRaw || 'Kas';
+            newRows.push({ id:Utils.uid(), tgl, nama, type:typeK, vendor, qty:1, satuan:'Kali', hargaSatuan:kreditVal, jumlah:kreditVal, penerima, status, bulan });
+          } else {
+            // Baris pengeluaran normal: jumlah = QTY × HARGA SATUAN
+            const qty        = _parseNum(colIdx.qty!==undefined ? row[colIdx.qty] : 1)||1;
+            const hargaSatuan= _parseNum(colIdx.hargaSatuan!==undefined ? row[colIdx.hargaSatuan] : 0);
+            const jumlah     = qty * hargaSatuan;
+            if (!jumlah && !nama) continue; // skip baris kosong
+            const satuanRaw  = String(row[colIdx.satuan]??'').trim();
+            const typeNorm   = TYPES.find(t=>t.toLowerCase()===typeRaw.toLowerCase())||typeRaw||_suggestType(nama)||'';
+            const satuanNorm = SATUANS.find(s=>s.toLowerCase()===satuanRaw.toLowerCase())||satuanRaw||'Pcs';
+            newRows.push({ id:Utils.uid(), tgl, nama, type:typeNorm, vendor, qty, satuan:satuanNorm, hargaSatuan, jumlah, penerima, status, bulan });
+          }
         }
       }
 
