@@ -542,147 +542,141 @@ const KasModule = (() => {
       const file = e.target.files[0];
       document.body.removeChild(inp);
       if (!file) return;
-      // Load SheetJS dari CDN jika belum ada
+
+      // ── 1. Load SheetJS dari CDN yang reliable ────────────────
       if (!window.XLSX) {
         Notify.info('Memuat library Excel...');
-        await new Promise((res, rej) => {
-          const s = document.createElement('script');
-          s.src = 'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js';
-          s.onload = res; s.onerror = () => rej(new Error('Gagal memuat SheetJS'));
-          document.head.appendChild(s);
-        }).catch(err => { Notify.error('Gagal memuat library Excel', err.message); return null; });
-        if (!window.XLSX) return;
+        const CDNS = [
+          'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+          'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js',
+        ];
+        let loaded = false;
+        for (const src of CDNS) {
+          loaded = await new Promise(res => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload = () => res(true);
+            s.onerror = () => res(false);
+            document.head.appendChild(s);
+          });
+          if (loaded && window.XLSX) break;
+        }
+        if (!window.XLSX) { Notify.error('Gagal memuat library Excel. Cek koneksi internet.'); return; }
       }
-      // Baca file
-      const buf  = await file.arrayBuffer();
-      const wb   = XLSX.read(buf, { type:'array', cellDates:true });
-      // Kolom yang akan di-match (case-insensitive)
+
+      // ── 2. Parse file Excel ───────────────────────────────────
+      Notify.info('Membaca file Excel...');
+      let wb;
+      try {
+        const buf = await file.arrayBuffer();
+        wb = XLSX.read(buf, { type:'array', cellDates:true });
+      } catch(e) { Notify.error('File tidak bisa dibaca', e.message); return; }
+
+      // ── 3. Mapping nama kolom Excel → field BECCA ─────────────
       const COL_MAP = {
-        tanggal:    'tgl',
-        tgl:        'tgl',
-        date:       'tgl',
-        nama:       'nama',
-        keterangan: 'nama',
-        ket:        'nama',
-        description:'nama',
-        type:       'type',
-        tipe:       'type',
-        vendor:     'vendor',
-        qty:        'qty',
-        jumlah_qty: 'qty',
-        satuan:     'satuan',
-        sat:        'satuan',
-        unit:       'satuan',
-        harga:      'hargaSatuan',
-        harga_satuan:'hargaSatuan',
-        'harga/sat':'hargaSatuan',
-        hargasat:   'hargaSatuan',
-        price:      'hargaSatuan',
-        jumlah:     'jumlah',
-        total:      'jumlah',
-        amount:     'jumlah',
-        penerima:   'penerima',
-        pic:        'penerima',
-        status:     'status',
+        tanggal:'tgl', tgl:'tgl', date:'tgl',
+        nama:'nama', keterangan:'nama', ket:'nama', description:'nama',
+        type:'type', tipe:'type',
+        vendor:'vendor',
+        qty:'qty', jumlah_qty:'qty',
+        satuan:'satuan', sat:'satuan', unit:'satuan',
+        harga:'hargaSatuan', harga_satuan:'hargaSatuan', hargasat:'hargaSatuan', price:'hargaSatuan',
+        jumlah:'jumlah', total:'jumlah', amount:'jumlah',
+        penerima:'penerima', pic:'penerima',
+        status:'status',
       };
       const _parseDate = (v) => {
         if (!v) return '';
-        // If it's already a JS Date (from cellDates:true)
         if (v instanceof Date) {
-          const y = v.getFullYear(), m = String(v.getMonth()+1).padStart(2,'0'), d = String(v.getDate()).padStart(2,'0');
+          const y=v.getFullYear(), m=String(v.getMonth()+1).padStart(2,'0'), d=String(v.getDate()).padStart(2,'0');
           return `${y}-${m}-${d}`;
         }
         const s = String(v).trim();
-        // DD-MM-YYYY or DD/MM/YYYY
         if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
-          const [dd,mm,yyyy] = s.split(/[\/\-]/);
+          const [dd,mm,yyyy]=s.split(/[\/\-]/);
           return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
         }
-        // YYYY-MM-DD (already correct)
         if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-        // Excel serial number
-        if (/^\d+$/.test(s)) {
-          const d = new Date(Math.round((parseInt(s)-25569)*86400000));
-          const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
-          return `${y}-${mo}-${day}`;
+        if (/^\d{5,}$/.test(s)) {
+          const d=new Date(Math.round((parseInt(s)-25569)*86400000));
+          return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         }
-        return s;
+        return '';
       };
       const _parseNum = (v) => {
-        if (v === undefined || v === null || v === '') return 0;
-        if (typeof v === 'number') return v;
-        return parseFloat(String(v).replace(/[^\d.]/g,'')) || 0;
+        if (v===undefined||v===null||v==='') return 0;
+        if (typeof v==='number') return v;
+        return parseFloat(String(v).replace(/[^\d.]/g,''))||0;
       };
-      let imported = 0, skipped = 0;
-      const errors = [];
-      // Proses tiap sheet
+      const _mapHeader = (row) => {
+        const map={};
+        row.forEach((cell,ci)=>{
+          const k=String(cell).toLowerCase().trim().replace(/[\s\/]+/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+          const k2=String(cell).toLowerCase().trim().replace(/\s+/g,'').replace('/','');
+          const field=COL_MAP[k]||COL_MAP[k2]||COL_MAP[String(cell).toLowerCase().trim()];
+          if(field && !(field in map)) map[field]=ci;
+        });
+        return map;
+      };
+
+      // ── 4. Parse semua sheet → newRows (synchronous, cepat) ───
+      const newRows = [];
       for (const sheetName of wb.SheetNames) {
-        // Derive bulan dari nama sheet (e.g. "Januari 2026", "Jan", "JAN 2025")
-        const sheetWords = sheetName.trim().split(/\s+/);
-        const bulanRaw   = sheetWords[0] || sheetName;
-        const bulan      = _normalizeBulan(bulanRaw) || 'Jan';
+        const bulanRaw = sheetName.trim().split(/\s+/)[0] || sheetName;
+        const bulan    = _normalizeBulan(bulanRaw) || 'Jan';
         const ws   = wb.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
-        if (rows.length < 2) continue; // no data rows
-        // Find header row (first row with recognizable columns)
-        let hdrIdx = -1, colIdx = {};
-        for (let ri = 0; ri < Math.min(rows.length, 5); ri++) {
-          const row = rows[ri];
-          const map = {};
-          row.forEach((cell, ci) => {
-            const key = String(cell).toLowerCase().trim().replace(/[\s\/]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
-            const altKey = String(cell).toLowerCase().trim().replace(/\s+/g,'').replace('/','');
-            const field = COL_MAP[key] || COL_MAP[altKey] || COL_MAP[String(cell).toLowerCase().trim()];
-            if (field) map[field] = ci;
-          });
-          if (Object.keys(map).length >= 2) { hdrIdx = ri; colIdx = map; break; }
+        if (rows.length < 2) continue;
+        // Cari baris header
+        let hdrIdx=-1, colIdx={};
+        for (let ri=0; ri<Math.min(rows.length,10); ri++) {
+          const map = _mapHeader(rows[ri]);
+          if (Object.keys(map).length >= 2) { hdrIdx=ri; colIdx=map; break; }
         }
-        if (hdrIdx < 0) { skipped++; continue; }
-        // Process data rows
-        for (let ri = hdrIdx + 1; ri < rows.length; ri++) {
+        if (hdrIdx<0) { console.warn('[KasImport] Sheet "'+sheetName+'" header tidak dikenali, dilewati'); continue; }
+        for (let ri=hdrIdx+1; ri<rows.length; ri++) {
           const row = rows[ri];
-          // Skip empty rows (all cells empty or first cell looks like a summary row)
-          if (row.every(c => c === '' || c === null || c === undefined)) continue;
-          const tglRaw = colIdx.tgl !== undefined ? row[colIdx.tgl] : '';
-          const tgl    = _parseDate(tglRaw);
-          if (!tgl) continue; // skip rows without a date (summary rows, etc.)
-          const nama       = String(row[colIdx.nama]       ?? '').trim();
-          const typeRaw    = String(row[colIdx.type]       ?? '').trim();
-          const vendor     = String(row[colIdx.vendor]     ?? '').trim();
-          const satuanRaw  = String(row[colIdx.satuan]     ?? '').trim();
-          const penerima   = String(row[colIdx.penerima]   ?? '').trim();
-          const statusRaw  = String(row[colIdx.status]     ?? '').trim().toUpperCase();
-          const qty        = _parseNum(colIdx.qty        !== undefined ? row[colIdx.qty]        : 1) || 1;
-          const hargaSatuan= _parseNum(colIdx.hargaSatuan !== undefined ? row[colIdx.hargaSatuan] : 0);
-          let   jumlah     = _parseNum(colIdx.jumlah     !== undefined ? row[colIdx.jumlah]     : 0);
-          if (!jumlah && hargaSatuan) jumlah = qty * hargaSatuan;
-          // Normalize type (try to match against known TYPES)
-          const typeNorm = TYPES.find(t => t.toLowerCase() === typeRaw.toLowerCase()) || typeRaw || _suggestType(nama) || '';
-          // Normalize satuan
-          const satuanNorm = SATUANS.find(s => s.toLowerCase() === satuanRaw.toLowerCase()) || satuanRaw || 'Pcs';
-          // Normalize status
-          const status = statusRaw === 'DONE' ? 'DONE' : statusRaw === 'TBC' ? 'TBC' : '';
-          const newRow = { tgl, nama, type:typeNorm, vendor, qty, satuan:satuanNorm, hargaSatuan, jumlah, penerima, status, bulan };
-          try {
-            const saved = await DB.saveKas(newRow);
-            _kas.unshift(saved);
-            imported++;
-          } catch(err) {
-            errors.push(`Sheet "${sheetName}" baris ${ri+1}: ${err.message}`);
-          }
+          if (row.every(c=>c===''||c===null||c===undefined)) continue;
+          const tgl = _parseDate(colIdx.tgl!==undefined ? row[colIdx.tgl] : '');
+          if (!tgl) continue;
+          const nama       = String(row[colIdx.nama]??'').trim();
+          const typeRaw    = String(row[colIdx.type]??'').trim();
+          const vendor     = String(row[colIdx.vendor]??'').trim();
+          const satuanRaw  = String(row[colIdx.satuan]??'').trim();
+          const penerima   = String(row[colIdx.penerima]??'').trim();
+          const statusRaw  = String(row[colIdx.status]??'').trim().toUpperCase();
+          const qty        = _parseNum(colIdx.qty!==undefined ? row[colIdx.qty] : 1)||1;
+          const hargaSatuan= _parseNum(colIdx.hargaSatuan!==undefined ? row[colIdx.hargaSatuan] : 0);
+          let   jumlah     = _parseNum(colIdx.jumlah!==undefined ? row[colIdx.jumlah] : 0);
+          if (!jumlah && hargaSatuan) jumlah=qty*hargaSatuan;
+          const typeNorm   = TYPES.find(t=>t.toLowerCase()===typeRaw.toLowerCase())||typeRaw||_suggestType(nama)||'';
+          const satuanNorm = SATUANS.find(s=>s.toLowerCase()===satuanRaw.toLowerCase())||satuanRaw||'Pcs';
+          const status     = statusRaw==='DONE'?'DONE':statusRaw==='TBC'?'TBC':'';
+          newRows.push({ id:Utils.uid(), tgl, nama, type:typeNorm, vendor, qty, satuan:satuanNorm, hargaSatuan, jumlah, penerima, status, bulan });
         }
       }
-      // Done — reset filter & refresh agar semua data yang diimport langsung terlihat
-      if (imported > 0) {
-        _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'' };
-        _page   = 1;
-        renderTransaksi();
-        DB.logActivity({ type:'import_kas', detail:`Import Excel: ${imported} baris` });
-        Notify.success(`Import selesai: ${imported} baris berhasil diimport`);
-      } else {
-        Notify.error('Tidak ada data yang berhasil diimport', errors.slice(0,3).join('; ') || 'Periksa format file Excel (header baris pertama: Tanggal, Nama, Type, Vendor, dll)');
+
+      if (!newRows.length) {
+        Notify.error('Tidak ada data yang berhasil dibaca', 'Pastikan header kolom ada di baris pertama: Tanggal, Nama/Keterangan, Type, Vendor, Qty, Satuan, Jumlah, dll');
+        return;
       }
-      if (errors.length) console.warn('[KasModule] Import errors:', errors);
+
+      // ── 5. Langsung masukkan ke _kas + tampilkan (tanpa tunggu Supabase) ──
+      _kas.unshift(...newRows);
+      _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'' };
+      _page   = 1;
+      renderTransaksi();
+      Notify.success(`${newRows.length} baris berhasil diimport — menyimpan ke cloud...`);
+
+      // ── 6. Sync ke Supabase di background (paralel, max 10 sekaligus) ────
+      const CHUNK = 10;
+      let saved = 0;
+      for (let i=0; i<newRows.length; i+=CHUNK) {
+        const batch = newRows.slice(i, i+CHUNK);
+        await Promise.allSettled(batch.map(r => DB.saveKas(r).then(()=>saved++)));
+      }
+      DB.logActivity({ type:'import_kas', detail:`Import Excel: ${newRows.length} baris` });
+      console.log('[KasImport] Sync Supabase selesai:', saved, '/', newRows.length);
     };
     inp.click();
   }
