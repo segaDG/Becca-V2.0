@@ -7,7 +7,7 @@ const App = {
   _loadedModules: new Set(),
 
   _MODULE_MAP: {
-    dashboard : 'js/modules/dashboard.js?v=20260327f',
+    dashboard : 'js/modules/dashboard.js?v=20260327g',
     order     : 'js/modules/order.js?v=20260326l',
     invoice   : 'js/modules/invoice.js?v=20260326l',
     customer  : 'js/modules/customer.js?v=20260326l',

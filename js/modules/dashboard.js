@@ -76,23 +76,27 @@ const DashboardModule = (() => {
   // Map each widget ID to the module it needs access to
   const _WIDGET_MODULE = {
     saldo_kas:'kas', total_keluar:'kas', total_masuk:'kas', total_trx:'kas',
-    karyawan:'employee', hutang:'employee',
+    karyawan:'employee', hutang:'emp_finance',
     barang_aktif:'inventory', nilai_inv:'inventory',
     task_open:'task', invoice_belum:'invoice', ap_belum:'ap',
   };
 
   async function _render() {
-    const canKas      = Auth.can('kas','view');
-    const canEmployee = Auth.can('employee','view');
-    const canInventory= Auth.can('inventory','view');
-    const canInvoice  = Auth.can('invoice','view');
-    const canAP       = Auth.can('ap','view');
-    const canTask     = Auth.can('task','view');
-    const perms = {canKas, canEmployee, canInventory, canInvoice, canAP, canTask};
+    const canKas        = Auth.can('kas','view');
+    const canEmployee   = Auth.can('employee','view');
+    const canEmpFinance = Auth.can('emp_finance','view');
+    const canInventory  = Auth.can('inventory','view');
+    const canInvoice    = Auth.can('invoice','view');
+    const canAP         = Auth.can('ap','view');
+    const canTask       = Auth.can('task','view');
+    const perms = {canKas, canEmployee, canEmpFinance, canInventory, canInvoice, canAP, canTask};
+
+    // Data karyawan dibutuhkan untuk employee list ATAU hutang/finance
+    const needEmp = canEmployee || canEmpFinance;
 
     // Phase 1 — tampil SEKETIKA dari memCache atau localStorage (tidak tunggu network)
-    const kas      = canKas       ? (DB.getCached('kas')          || _lsArr('kas'))         : [];
-    const employees= canEmployee  ? (DB.getCached('employees')    || _lsArr('employees'))   : [];
+    const kas      = canKas   ? (DB.getCached('kas')          || _lsArr('kas'))         : [];
+    const employees= needEmp  ? (DB.getCached('employees')    || _lsArr('employees'))   : [];
     const invItems = canInventory ? (DB.getCached('inv_products') || _lsArr('inv_products')): [];
     const invoices = canInvoice   ? (DB.getCached('invoices')     || _lsArr('invoices'))    : [];
     const apList   = canAP        ? (DB.getCached('ap')           || _lsArr('ap'))          : [];
@@ -103,18 +107,18 @@ const DashboardModule = (() => {
 
     // Phase 2 — background fetch jika ada yang belum ada di memCache
     const needFetch =
-      (canKas       && !DB.getCached('kas'))        ||
-      (canEmployee  && !DB.getCached('employees'))  ||
+      (canKas     && !DB.getCached('kas'))        ||
+      (needEmp    && !DB.getCached('employees'))  ||
       (canInventory && !DB.getCached('inv_products'));
 
     if (needFetch) {
       Promise.all([
-        canKas       ? DB.getKas().catch(()=>null)            : null,
-        canEmployee  ? DB.getEmployees().catch(()=>null)      : null,
-        canInventory ? DB.getInventoryItems().catch(()=>null) : null,
-        canInvoice   ? DB.getInvoices().catch(()=>null)       : null,
-        canAP        ? DB.getAP().catch(()=>null)             : null,
-        canTask      ? DB.getTasks().catch(()=>null)          : null,
+        canKas        ? DB.getKas().catch(()=>null)            : null,
+        needEmp       ? DB.getEmployees().catch(()=>null)      : null,
+        canInventory  ? DB.getInventoryItems().catch(()=>null) : null,
+        canInvoice    ? DB.getInvoices().catch(()=>null)       : null,
+        canAP         ? DB.getAP().catch(()=>null)             : null,
+        canTask       ? DB.getTasks().catch(()=>null)          : null,
         DB.getSettings().catch(()=>null),
       ]).then(([fKas, fEmp, fInv, fInv2, fAP, fTasks, fSet]) => {
         if (!document.getElementById('dash-content')) return; // user navigated away
@@ -127,7 +131,7 @@ const DashboardModule = (() => {
     }
   }
 
-  function _renderData(kas, employees, invItems, invoices, apList, tasks, _settings, {canKas, canEmployee, canInventory, canInvoice, canAP, canTask}) {
+  function _renderData(kas, employees, invItems, invoices, apList, tasks, _settings, {canKas, canEmployee, canEmpFinance, canInventory, canInvoice, canAP, canTask}) {
     const _ACTIVE_EMP = ['AKTIF','ACTIVE','aktif','active','Aktif','Tetap','Kontrak','Percobaan','Harian'];
     const _ACTIVE_INV = ['AKTIF','ACTIVE','aktif','active','Aktif','Activated'];
 
@@ -200,7 +204,7 @@ const DashboardModule = (() => {
         ${canInventory ? _renderLowStockCard(lowStock) : ''}
       </div>
 
-      ${canEmployee && topHutang.length ? _renderHutangTable(topHutang) : ''}
+      ${canEmpFinance && topHutang.length ? _renderHutangTable(topHutang) : ''}
     `;
   }
 
