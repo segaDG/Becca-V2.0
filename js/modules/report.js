@@ -8,7 +8,7 @@ const ReportModule = (() => {
       <div class="page-header">
         <div class="page-header-left">
           <h2>Laporan</h2>
-          <p>Ringkasan laporan operasional BECCA</p>
+          <p>Ringkasan laporan operasional BPS</p>
         </div>
       </div>
       <div class="tabs">
