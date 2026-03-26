@@ -1024,8 +1024,7 @@ const KasModule = (() => {
   /* ===================== CASH FLOW ===================== */
   function renderCashflow() {
     const mD={},kD={};
-    // Kas masuk = manual entries (_masuk table) + rows dengan type="Kas" dari _kas
-    _masuk.forEach(r=>{mD[r.tgl]=(mD[r.tgl]||0)+(r.kredit||0);});
+    // Kas masuk = rows type="Kas" dari _kas
     _kas.filter(r=>r.type==='Kas').forEach(r=>{mD[r.tgl]=(mD[r.tgl]||0)+(r.jumlah||0);});
     // Kas keluar = semua rows type≠"Kas" yang status DONE
     _kas.filter(r=>r.type!=='Kas'&&r.status==='DONE').forEach(r=>{kD[r.tgl]=(kD[r.tgl]||0)+r.jumlah;});
@@ -1064,10 +1063,8 @@ const KasModule = (() => {
     container.innerHTML = ''; // clear dulu
     
     try {
-      // Kas masuk = kas type="Kas" (import Excel) + kas_masuk manual entries
-      const masukKas    = _kas.filter(r=>r.type==='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
-      const masukManual = _masuk.reduce((s,r) => s + (r.kredit||0), 0);
-      const totalMasuk  = masukKas + masukManual;
+      // Kas masuk = kas rows type="Kas" (import Excel / entry manual di tabel utama)
+      const totalMasuk  = _kas.filter(r=>r.type==='Kas').reduce((s,r) => s + (r.jumlah||0), 0);
 
       // Kas keluar = semua kas kecuali type="Kas"
       const totalKeluar = _kas.filter(r=>r.type!=='Kas').reduce((s,r) => s + (r.jumlah||0), 0);

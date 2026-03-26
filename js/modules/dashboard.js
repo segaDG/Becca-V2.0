@@ -94,8 +94,7 @@ const DashboardModule = (() => {
     ]);
 
     const totalKeluar   = kas.filter(r=>r.type!=='Kas').reduce((s,r)=>s+(r.jumlah||0), 0);
-    const totalMasuk    = kas.filter(r=>r.type==='Kas').reduce((s,r)=>s+(r.jumlah||0), 0)
-                        + kasMasuk.reduce((s,r)=>s+(r.kredit||0), 0);
+    const totalMasuk    = kas.filter(r=>r.type==='Kas').reduce((s,r)=>s+(r.jumlah||0), 0);
     const saldoAwal     = parseFloat((_settings && _settings.saldoAwal) ?? localStorage.getItem('becca_kas_saldo_awal') ?? '0') || 0;
     const saldo         = saldoAwal + totalMasuk - totalKeluar;
     const activeEmp     = employees.filter(e=>['AKTIF','ACTIVE','aktif','active'].includes(e.status)).length;

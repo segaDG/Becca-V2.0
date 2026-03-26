@@ -33,11 +33,10 @@ const ReportModule = (() => {
   }
 
   async function renderKas() {
-    const [kas, masuk, _cfg] = await Promise.all([DB.getKas().catch(()=>[]), DB.getKasMasuk().catch(()=>[]), DB.getSettings().catch(()=>({}))]);
+    const [kas, _cfg] = await Promise.all([DB.getKas().catch(()=>[]), DB.getSettings().catch(()=>({}))]);
 
-    // Masuk: kas rows type="Kas" (import Excel) + kas_masuk manual entries
-    const totalMasuk  = kas.filter(r=>r.type==='Kas').reduce((s,r) => s+(r.jumlah||0), 0)
-                      + masuk.reduce((s,r) => s+(r.kredit||0), 0);
+    // Masuk: kas rows type="Kas" (import Excel / entry manual di tabel utama)
+    const totalMasuk  = kas.filter(r=>r.type==='Kas').reduce((s,r) => s+(r.jumlah||0), 0);
     // Keluar: semua kas rows kecuali type="Kas"
     const totalKeluar = kas.filter(r=>r.type!=='Kas').reduce((s,r) => s+(r.jumlah||0), 0);
     // Saldo Awal: ambil dari Supabase settings (sync semua device), fallback localStorage
