@@ -81,33 +81,33 @@ const DashboardModule = (() => {
     const canAP       = Auth.can('ap','view');
     const canTask     = Auth.can('task','view');
 
-    const [kas, kasMasuk, employees, invLogs, invItems, invoices, apList, tasks, _settings] = await Promise.all([
-      canKas       ? DB.getKas().catch(()=>[])              : Promise.resolve([]),
-      canKas       ? DB.getKasMasuk().catch(()=>[])         : Promise.resolve([]),
-      canEmployee  ? DB.getEmployees().catch(()=>[])         : Promise.resolve([]),
-      canInventory ? DB.getInventory().catch(()=>[])         : Promise.resolve([]),
-      canInventory ? DB.getInventoryItems().catch(()=>[])    : Promise.resolve([]),
-      canInvoice   ? DB.getInvoices().catch(()=>[])          : Promise.resolve([]),
-      canAP        ? DB.getAP().catch(()=>[])                : Promise.resolve([]),
-      canTask      ? DB.getTasks().catch(()=>[])             : Promise.resolve([]),
+    // Level 3: ambil summary dari server (RPC), bukan full-fetch semua baris.
+    // Setiap call hanya transfer ~1KB JSON. Fallback otomatis ke full-fetch
+    // jika SQL functions belum di-deploy di Supabase.
+    const [kasSumm, empSumm, invSumm, taskSumm, invoiceSumm, apSumm, _settings] = await Promise.all([
+      canKas       ? DB.getKasSummary().catch(()=>null)       : Promise.resolve(null),
+      canEmployee  ? DB.getEmployeeSummary().catch(()=>null)  : Promise.resolve(null),
+      canInventory ? DB.getInventorySummary().catch(()=>null) : Promise.resolve(null),
+      canTask      ? DB.getTasksSummary().catch(()=>null)     : Promise.resolve(null),
+      canInvoice   ? DB.getInvoicesSummary().catch(()=>null)  : Promise.resolve(null),
+      canAP        ? DB.getAPSummary().catch(()=>null)        : Promise.resolve(null),
       DB.getSettings().catch(()=>({})),
     ]);
 
-    const totalKeluar   = kas.filter(r=>r.type!=='Kas').reduce((s,r)=>s+(r.jumlah||0), 0);
-    const totalMasuk    = kas.filter(r=>r.type==='Kas').reduce((s,r)=>s+(r.jumlah||0), 0);
-    const saldoAwal     = parseFloat((_settings && _settings.saldoAwal) ?? localStorage.getItem('becca_kas_saldo_awal') ?? '0') || 0;
+    const totalMasuk    = kasSumm?.total_masuk  || 0;
+    const totalKeluar   = kasSumm?.total_keluar || 0;
+    const saldoAwal     = parseFloat((_settings?.saldoAwal) ?? localStorage.getItem('becca_kas_saldo_awal') ?? '0') || 0;
     const saldo         = saldoAwal + totalMasuk - totalKeluar;
-    const activeEmp     = employees.filter(e=>['AKTIF','ACTIVE','aktif','active'].includes(e.status)).length;
-    const totalHutang   = employees.reduce((s,e)=>s+(e.sisaHutang||0), 0);
-    const activeItems   = invItems.filter(p=>['AKTIF','ACTIVE','aktif','active','Activated'].includes(p.status)).length;
-    const totalInvValue = invItems.reduce((s,p)=>s+((p.balance||0)*(p.harga||0)), 0);
-    const invBelum      = invoices.filter(i=>i.status!=='LUNAS').reduce((s,i)=>s+(i.total||0), 0);
-    const apBelum       = apList.filter(a=>a.status!=='LUNAS').reduce((s,a)=>s+(a.total||0), 0);
-    const taskOpen      = tasks.filter(t=>t.status!=='done'&&t.status!=='arsip').length;
-    const lowStock      = invItems.filter(p=>(p._stok||p.balance||0)<=(p.stokMin||0));
-    const recentKas     = [...kas].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,10);
-    const topHutang     = employees.filter(e=>['AKTIF','ACTIVE','aktif','active'].includes(e.status)&&(e.sisaHutang||0)>0)
-                           .sort((a,b)=>(b.sisaHutang||0)-(a.sisaHutang||0)).slice(0,5);
+    const activeEmp     = empSumm?.active_count || 0;
+    const totalHutang   = empSumm?.total_hutang || 0;
+    const activeItems   = invSumm?.active_items || 0;
+    const totalInvValue = invSumm?.total_nilai  || 0;
+    const invBelum      = invoiceSumm?.belum_lunas || 0;
+    const apBelum       = apSumm?.belum_lunas      || 0;
+    const taskOpen      = taskSumm?.open_count     || 0;
+    const recentKas     = kasSumm?.recent    || [];
+    const lowStock      = invSumm?.low_stock  || [];
+    const topHutang     = empSumm?.top_hutang || [];
 
     const vals = {
       saldo_kas:    {v: Utils.formatRupiah(saldo),                 c: saldo>=0?'var(--success)':'var(--danger)'},
@@ -117,7 +117,7 @@ const DashboardModule = (() => {
       hutang:       {v: Utils.formatRupiah(totalHutang,true),     c: 'var(--warning)'},
       barang_aktif: {v: activeItems+' item',                      c: 'var(--info)'},
       nilai_inv:    {v: Utils.formatRupiah(totalInvValue,true),   c: 'var(--primary-h)'},
-      total_trx:    {v: kas.length+' transaksi',                  c: 'var(--text-2)'},
+      total_trx:    {v: (kasSumm?.count||0)+' transaksi',          c: 'var(--text-2)'},
       task_open:    {v: taskOpen+' task',                         c: taskOpen>0?'var(--warning)':'var(--success)'},
       invoice_belum:{v: Utils.formatRupiah(invBelum,true),        c: 'var(--danger)'},
       ap_belum:     {v: Utils.formatRupiah(apBelum,true),         c: 'var(--danger)'},
