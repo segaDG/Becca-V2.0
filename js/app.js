@@ -32,8 +32,8 @@ const App = {
 
     // Init Supabase DB
     DB.init().then(() => {
-      if (DB.isReady() && !localStorage.getItem('becca_migrated_v5')) {
-        localStorage.setItem('becca_migrated_v5', '1');
+      if (DB.isReady() && !localStorage.getItem('becca_migrated_v6')) {
+        localStorage.setItem('becca_migrated_v6', '1');
         DB.migrateFromLocalStorage()
           .then(n => {
             if (n > 0) Notify.success('Sinkronisasi data selesai: ' + n + ' item tersync ke cloud ✓');
