@@ -3,7 +3,7 @@
    Spreadsheet: click row to edit inline
    AI type suggestion from nama field
 ============================================ */
-console.log('[BECCA] KasModule v20260326f loaded ✓');
+console.log('[BECCA] KasModule v20260326h loaded ✓');
 const KasModule = (() => {
   let _kas        = [];
   let _masuk      = [];
@@ -103,6 +103,12 @@ const KasModule = (() => {
       @keyframes ksSv{0%{background:rgba(34,197,94,.25)}100%{background:transparent}}
       .ks-ai-badge{font-size:9px;background:rgba(99,102,241,.2);color:var(--primary-h);
         border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;}
+      .ks-tbl tr.ks-row-kas td{background:rgba(59,130,246,.10)!important;}
+      .ks-tbl tr.ks-row-kas:hover td{background:rgba(59,130,246,.20)!important;}
+      .ks-tbl tr.ks-row-done td{background:rgba(40,40,60,.30)!important;}
+      .ks-tbl tr.ks-row-done:hover td{background:rgba(40,40,60,.42)!important;}
+      .ks-tbl tr.ks-row-tbc td{background:rgba(245,158,11,.10)!important;}
+      .ks-tbl tr.ks-row-tbc:hover td{background:rgba(245,158,11,.20)!important;}
     `;
     document.head.appendChild(s);
   }
@@ -242,15 +248,8 @@ const KasModule = (() => {
   /* ---- VIEW ROW ---- */
   function _rowView(r, rowNum, canEdit) {
     const sc = r.status==='DONE'?'badge-success':r.status==='TBC'?'badge-warning':'badge-neutral';
-    const rowBg = r.type==='Kas'
-      ? 'style="background:rgba(59,130,246,.08)"'
-      : r.status==='DONE'
-      ? 'style="background:rgba(40,40,60,.28)"'
-      : r.status==='TBC'
-      ? 'style="background:rgba(245,158,11,.08)"'
-      : '';
-    const ksOnClick = _kasLocked.has(r.id) ? 'void(0)' : 'KasModule.startEdit(\'' + r.id + '\''+')';
-    return `<tr class="ks-view" id="ks-row-${r.id}" data-id="${r.id}" ${rowBg} style="${_kasLocked.has(r.id)?'opacity:.75':''}" onclick="${ksOnClick}">
+    const rowColorClass = r.type==='Kas' ? 'ks-row-kas' : r.status==='DONE' ? 'ks-row-done' : r.status==='TBC' ? 'ks-row-tbc' : '';
+    return `<tr class="ks-view ${rowColorClass}" id="ks-row-${r.id}" data-id="${r.id}" style="${_kasLocked.has(r.id)?'opacity:.75':''}" onclick="${ksOnClick}">
       <td style="width:28px">
         <div class="ks-cell" style="justify-content:center;font-size:11px;color:var(--text-3)">
           ${_kasLocked.has(r.id)?'<span style="opacity:.4">'+rowNum+'</span>':rowNum}
@@ -524,11 +523,9 @@ const KasModule = (() => {
   /* ===================== SUMMARY STRIP ===================== */
   function _summaryStrip(data) {
     const keluar = data.filter(r=>r.type!=='Kas');
-    const masukRows = data.filter(r=>r.type==='Kas');
     const done = keluar.filter(r=>r.status==='DONE');
     const tbc  = keluar.filter(r=>r.status==='TBC');
     return [
-      {l:'Kas Masuk',   v:Utils.formatRupiah(masukRows.reduce((s,r)=>s+(r.jumlah||0),0)), c:'var(--success)'},
       {l:'Total Keluar',v:Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)),    c:'var(--danger)'},
       {l:'Confirmed',   v:Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),      c:'var(--success)'},
       {l:'TBC',         v:Utils.formatRupiah(tbc.reduce((s,r) =>s+(r.jumlah||0),0)),      c:'var(--warning)'},
@@ -1072,7 +1069,7 @@ const KasModule = (() => {
       
       // Render Kas Masuk card - clickable, buka modal filter
       container.innerHTML = cards.map(c =>
-        '<div onclick="KasModule.openKasMasukModal()" '
+        '<div onclick="KasModule.filterKasMasukType()" '
         + 'style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);'
         + 'padding:12px 18px;min-width:140px;cursor:pointer;transition:all .15s" '
         + 'onmouseover="this.style.outline=\'2px solid var(--primary)\'" '
@@ -1084,6 +1081,20 @@ const KasModule = (() => {
     } catch(e) {
       console.error('Balance cards error:', e);
     }
+  }
+
+  /* ===================== KAS MASUK FILTER ===================== */
+  function filterKasMasukType() {
+    // Switch ke tab Transaksi dan filter by type=Kas
+    _activeTab = 'transaksi';
+    document.querySelectorAll('.kas-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab==='transaksi'));
+    document.querySelectorAll('[id^="kas-tab-"]').forEach(el => el.style.display = el.id==='kas-tab-transaksi' ? '' : 'none');
+    _filter = { bulan:'', type:'Kas', status:'', dateFrom:'', dateTo:'' };
+    _page = 1;
+    renderTransaksi();
+    // Sync dropdown jika ada
+    const typeEl = document.getElementById('kas-filter-type');
+    if (typeEl) typeEl.value = 'Kas';
   }
 
   /* ===================== KAS MASUK MODAL ===================== */
@@ -1248,6 +1259,6 @@ const KasModule = (() => {
     _doCommit(id, true); // skipValidation = true
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
+  return { init, switchTab, setFilter, resetFilter, goPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
 })();
 window.KasModule = KasModule;
