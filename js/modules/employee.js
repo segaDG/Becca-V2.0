@@ -55,7 +55,7 @@ const EmployeeModule = (() => {
       <div class="tabs">
         <button class="tab-btn active" id="emp-tab-btn-data"    data-tab="data"    onclick="EmployeeModule.switchTab('data')">👥 Data Karyawan</button>
         <button class="tab-btn"        id="emp-tab-btn-card"    data-tab="card"    onclick="EmployeeModule.switchTab('card')">🪪 Employee Card</button>
-        <button class="tab-btn"        id="emp-tab-btn-logbook" data-tab="logbook" onclick="EmployeeModule.switchTab('logbook')">📋 Logbook</button>
+        ${Auth.can('emp_finance','view') ? `<button class="tab-btn" id="emp-tab-btn-logbook" data-tab="logbook" onclick="EmployeeModule.switchTab('logbook')">📋 Logbook</button>` : ''}
         <button class="tab-btn"        id="emp-tab-btn-arsip"   data-tab="arsip"   onclick="EmployeeModule.switchTab('arsip')">📁 Arsip</button>
       </div>
       <div id="emp-tab-data"></div>
@@ -472,7 +472,7 @@ const EmployeeModule = (() => {
               </div>`;
             })() : ''}
           </div>
-          ${empLogs.length ? `
+          ${canFinance && empLogs.length ? `
             <div class="table-scroll">
               <table class="table" style="font-size:13px">
                 <thead><tr>
@@ -494,7 +494,7 @@ const EmployeeModule = (() => {
                   }).join('')}
                 </tbody>
               </table>
-            </div>` : `<div style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</div>`}
+            </div>` : (canFinance ? `<div style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</div>` : `<div style="text-align:center;padding:40px;color:var(--text-3)">—</div>`)}
         </div>
       </div>
     `;
@@ -502,6 +502,11 @@ const EmployeeModule = (() => {
 
   /* ===================== RENDER LOGBOOK ===================== */
   function renderLogbook() {
+    if (!Auth.can('emp_finance','view')) {
+      const el = document.getElementById('emp-tab-logbook');
+      if (el) el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-3)">Anda tidak memiliki akses ke logbook karyawan.</div>';
+      return;
+    }
     // Logbook data: hutang/pinjaman/cicilan karyawan
     // Fields: tgl, nama, bulan, hutang, bayar, ket, pj, konfirmasi
     const allNamas  = [...new Set(_logs.map(l=>l.nama).filter(Boolean))].sort();
