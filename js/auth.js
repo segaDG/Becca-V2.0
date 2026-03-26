@@ -41,6 +41,13 @@ const Auth = {
         if (synced.length) users = synced;
       } catch(e2) {}
     }
+    // Fallback: baca dari Supabase settings._users (cross-device, reliable)
+    if (!users.length) {
+      try {
+        const cfg = await DB.getSettings();
+        if (Array.isArray(cfg._users) && cfg._users.length) users = cfg._users;
+      } catch(e3) {}
+    }
     if (!users.length) users = this._defaultUsers;
 
     const user = users.find(u =>

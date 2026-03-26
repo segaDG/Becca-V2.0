@@ -45,6 +45,10 @@ const App = {
           })
           .catch(() => {});
       }
+      // Selalu sync users ke Supabase settings saat boot (cross-device login)
+      if (DB.isReady() && typeof SettingsModule !== 'undefined') {
+        SettingsModule._syncAuthJs().catch(() => {});
+      }
     }).catch(()=>{});
     if (!Auth.init()) { this._showLogin(); return; }
     this._showApp();

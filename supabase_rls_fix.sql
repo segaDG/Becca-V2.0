@@ -59,6 +59,10 @@ EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- Cek tabel lain yang mungkin juga bigint (users biasanya uuid, tapi jaga-jaga)
 DO $$ BEGIN
+  ALTER TABLE public.users ALTER COLUMN id DROP DEFAULT;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+DO $$ BEGIN
   ALTER TABLE public.users ALTER COLUMN id TYPE text USING id::text;
 EXCEPTION WHEN OTHERS THEN NULL; END $$;
 

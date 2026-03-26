@@ -1306,19 +1306,19 @@ const SettingsModule = (() => {
       // Get GitHub token dari settings (jika ada) atau dari becca_settings
       const settings = JSON.parse(localStorage.getItem('becca_settings') || '{}');
       const token    = settings.githubToken || '';
-      if (!token) {
-        // Tidak ada token — simpan ke localStorage sebagai fallback
-        // Device lain bisa ambil lewat becca_auth_users
-        localStorage.setItem('becca_auth_users', JSON.stringify(
-          users.map(u => ({
-            id: u.id, username: u.username,
-            password: u.password || u._pw || '',
-            nama: u.nama, role: u.role,
-            email: u.email || '', aktif: u.aktif !== false
-          }))
-        ));
-        return;
-      }
+
+      // Selalu sync users ke Supabase settings (berfungsi sebagai fallback cross-device)
+      // Settings table pasti bekerja karena tidak ada masalah schema seperti users table
+      const sanitizedUsers = users.map(u => ({
+        id: u.id, username: u.username,
+        password: u.password || u._pw || '',
+        nama: u.nama, role: u.role,
+        email: u.email || '', aktif: u.aktif !== false
+      }));
+      localStorage.setItem('becca_auth_users', JSON.stringify(sanitizedUsers));
+      DB.saveSettings({ _users: sanitizedUsers }).catch(() => {});
+
+      if (!token) return;
 
       // Push ke GitHub via API
       const repo    = settings.githubRepo || 'segaDG/Becca-V2.0';
