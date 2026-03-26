@@ -134,7 +134,9 @@ const DashboardModule = (() => {
     const totalMasuk  = kas.filter(k=>k.type==='Kas').reduce((s,k)=>s+(+k.jumlah||0),0);
     const totalKeluar = kas.filter(k=>k.type!=='Kas').reduce((s,k)=>s+(+k.jumlah||0),0);
     const saldoAwal   = parseFloat((_settings?.saldoAwal) ?? localStorage.getItem('becca_kas_saldo_awal') ?? '0') || 0;
-    const saldo       = saldoAwal + totalMasuk - totalKeluar;
+    // Mirror nilai balance langsung dari kas.js jika tersedia (paling akurat)
+    const _savedBal   = parseFloat(localStorage.getItem('becca_kas_balance'));
+    const saldo       = !isNaN(_savedBal) ? _savedBal : (saldoAwal + totalMasuk - totalKeluar);
 
     const activeEmpList = employees.filter(e=>_ACTIVE_EMP.includes(e.status));
     const activeEmp     = activeEmpList.length;

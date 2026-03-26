@@ -1108,17 +1108,16 @@ const KasModule = (() => {
           prefix: '',
         },
       ];
-      // Inject Balance bar kanan atas — dengan breakdown formula
+      // Simpan balance ke localStorage agar dashboard bisa mirror nilai ini secara langsung
+      localStorage.setItem('becca_kas_balance', String(balance));
+
+      // Inject Balance bar kanan atas
       const balanceBarEl = document.getElementById('kas-balance-bar');
       if (balanceBarEl) {
         const balColor = balance >= 0 ? 'var(--success)' : 'var(--danger)';
         const balLabel = balance >= 0 ? 'Surplus' : 'Defisit';
         balanceBarEl.innerHTML =
-          '<span style="font-size:11px;color:var(--text-3)" title="Masuk − Keluar">'
-          + '<span style="color:var(--success)">+'+Utils.formatRupiah(totalMasuk)+'</span>'
-          + ' &minus; '
-          + '<span style="color:var(--danger)">'+Utils.formatRupiah(totalKeluar)+'</span>'
-          + ' &nbsp;=&nbsp; </span>'
+          '<span style="font-size:11px;color:var(--text-3)">Balance &nbsp;</span>'
           + '<span style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:'+balColor+'">'
           + Utils.formatRupiah(Math.abs(balance))+'</span>'
           + '&nbsp;<span style="font-size:11px;color:'+balColor+'">'+balLabel+'</span>';
