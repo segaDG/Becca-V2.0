@@ -1061,6 +1061,14 @@ const SettingsModule = (() => {
               <div style="font-size:11px;color:var(--text-3);margin-bottom:var(--s3)">
                 Semua data order dan invoice catering.
               </div>
+              <button class="btn btn-ghost btn-sm w-full" style="margin-bottom:var(--s2)"
+                onclick="SettingsModule.importOrdersExcel()">
+                📤 Import Order (Excel)
+              </button>
+              <button class="btn btn-ghost btn-sm w-full" style="margin-bottom:var(--s2)"
+                onclick="SettingsModule.importInvoicesExcel()">
+                📤 Import Invoice (Excel)
+              </button>
               <button class="btn btn-sm w-full" style="margin-bottom:var(--s2);background:rgba(239,68,68,.08);color:var(--danger);border:1px solid rgba(239,68,68,.25)"
                 onclick="SettingsModule.clearOrdersData()">
                 🗑️ Hapus Semua Order
@@ -1145,6 +1153,267 @@ const SettingsModule = (() => {
     } catch(e) {
       Notify.error('Gagal menghapus', e.message);
     }
+  }
+
+  /* ============ ORDER: IMPORT EXCEL ============ */
+  function importOrdersExcel() {
+    if (!Auth.isSuperAdmin()) return;
+    const mid = Utils.uid();
+    Modal.open({
+      id: mid,
+      title: '📤 Import Order dari Excel',
+      body: `
+        <p style="font-size:13px;color:var(--text-2);margin-bottom:var(--s3)">
+          Upload file Excel (.xlsx/.xls) berisi data order catering.<br>
+          Kolom yang dikenali: <strong>Tanggal, Customer/Perusahaan, Jenis/Catatan,
+          BF, S1, Sp1, OT1, Snk1, S2, Sp2, OT2, Snk2, S3, Sp3, OT3, Snk3, SnkBrt</strong>
+        </p>
+        <button class="btn btn-primary w-full" onclick="SettingsModule._doImportOrdersExcel('${mid}')">
+          📂 Pilih File Excel Order
+        </button>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+  }
+
+  async function _doImportOrdersExcel(mid) {
+    const inp = Object.assign(document.createElement('input'), { type:'file', accept:'.xlsx,.xls', style:'display:none' });
+    document.body.appendChild(inp);
+    inp.onchange = async (e) => {
+      const file = e.target.files[0];
+      document.body.removeChild(inp);
+      if (!file) return;
+      Modal.close(mid);
+
+      if (!window.XLSX) {
+        Notify.info('Memuat library Excel...');
+        const loaded = await new Promise(res => {
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload = () => res(true); s.onerror = () => res(false);
+          document.head.appendChild(s);
+        });
+        if (!loaded || !window.XLSX) { Notify.error('Gagal memuat library Excel'); return; }
+      }
+
+      Notify.info('Membaca file Excel Order...');
+      let wb;
+      try {
+        const buf = await file.arrayBuffer();
+        wb = XLSX.read(buf, { type:'array', cellDates:false });
+      } catch(err) { Notify.error('File tidak bisa dibaca', err.message); return; }
+
+      const COL_MAP = {
+        tanggal:'tgl', tgl:'tgl', date:'tgl', 'tgl order':'tgl',
+        customer:'cust', perusahaan:'cust', 'nama perusahaan':'cust', 'nama customer':'cust', client:'cust',
+        jenis:'catatan', catatan:'catatan', keterangan:'catatan', notes:'catatan', type:'catatan',
+        bf:'breakfast', breakfast:'breakfast',
+        s1:'shift1', 'shift 1':'shift1', shift1:'shift1',
+        sp1:'spare1', spare1:'spare1',
+        ot1:'ot1',
+        snk1:'snack1', snack1:'snack1', 'snack 1':'snack1',
+        s2:'shift2', 'shift 2':'shift2', shift2:'shift2',
+        sp2:'spare2', spare2:'spare2',
+        ot2:'ot2',
+        snk2:'snack2', snack2:'snack2', 'snack 2':'snack2',
+        s3:'shift3', 'shift 3':'shift3', shift3:'shift3',
+        sp3:'spare3', spare3:'spare3',
+        ot3:'ot3',
+        snk3:'snack3', snack3:'snack3', 'snack 3':'snack3',
+        snkbrt:'snackBerat', 'snack berat':'snackBerat', snackberat:'snackBerat',
+      };
+
+      const orders = [];
+      for (const sheetName of wb.SheetNames) {
+        const ws   = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+        if (rows.length < 2) continue;
+
+        // Cari header row
+        let hdrIdx = -1, col = {};
+        for (let ri = 0; ri < Math.min(rows.length, 10); ri++) {
+          const tmp = {};
+          rows[ri].forEach((h, i) => {
+            const k = String(h||'').toLowerCase().trim().replace(/\s+/g,' ');
+            const f = COL_MAP[k]; if (f && !(f in tmp)) tmp[f] = i;
+          });
+          if (tmp.tgl !== undefined || tmp.cust !== undefined) { hdrIdx = ri; col = tmp; break; }
+        }
+        if (hdrIdx < 0) continue;
+
+        for (let ri = hdrIdx + 1; ri < rows.length; ri++) {
+          const row = rows[ri];
+          if (row.every(c => c === '' || c === null || c === undefined)) continue;
+          const tgl  = col.tgl  !== undefined ? String(row[col.tgl]||'').trim()  : '';
+          const cust = col.cust !== undefined ? String(row[col.cust]||'').trim() : '';
+          if (!tgl && !cust) continue;
+
+          const _n = k => col[k] !== undefined ? (parseInt(row[col[k]]) || 0) : 0;
+          const now = new Date().toISOString();
+          orders.push({
+            id: 'ord_' + Utils.uid(),
+            timestamp: now.slice(0,10) + ' ' + now.slice(11,19),
+            pelapor: Auth.currentUser()?.username || 'import',
+            tglOrder: tgl, namaPerusahaan: cust,
+            catatan: col.catatan !== undefined ? String(row[col.catatan]||'').trim() : '',
+            breakfast: _n('breakfast'),
+            shift1: _n('shift1'), spare1: _n('spare1'), ot1: _n('ot1'), snack1: _n('snack1'),
+            shift2: _n('shift2'), spare2: _n('spare2'), ot2: _n('ot2'), snack2: _n('snack2'),
+            shift3: _n('shift3'), spare3: _n('spare3'), ot3: _n('ot3'), snack3: _n('snack3'),
+            snackBerat: _n('snackBerat'),
+          });
+        }
+      }
+
+      if (!orders.length) { Notify.error('Tidak ada data order yang dibaca'); return; }
+      Notify.info(`Menyimpan ${orders.length} order...`);
+      let saved = 0;
+      for (const o of orders) {
+        try { await DB.saveOrder(o); saved++; } catch {}
+      }
+      // Refresh order module if loaded
+      if (typeof OrderModule !== 'undefined' && OrderModule.init) {
+        try { await OrderModule.init(); } catch {}
+      }
+      Notify.success(`Import Order selesai: ${saved} order disimpan`);
+      DB.logActivity({ type:'import_orders', detail:`Import Order Excel: ${saved} dari ${file.name}` });
+    };
+    inp.click();
+  }
+
+  /* ============ INVOICE: IMPORT EXCEL ============ */
+  function importInvoicesExcel() {
+    if (!Auth.isSuperAdmin()) return;
+    const mid = Utils.uid();
+    Modal.open({
+      id: mid,
+      title: '📤 Import Invoice dari Excel',
+      body: `
+        <p style="font-size:13px;color:var(--text-2);margin-bottom:var(--s3)">
+          Upload file Excel (.xlsx/.xls) berisi data invoice / AR.<br>
+          Kolom yang dikenali: <strong>No. Invoice, Customer, PO, Tgl Invoice, Tgl Bayar,
+          Total, After PPh, Total Terbayar, Sisa, Status</strong>
+        </p>
+        <button class="btn btn-primary w-full" onclick="SettingsModule._doImportInvoicesExcel('${mid}')">
+          📂 Pilih File Excel Invoice
+        </button>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+  }
+
+  async function _doImportInvoicesExcel(mid) {
+    const inp = Object.assign(document.createElement('input'), { type:'file', accept:'.xlsx,.xls', style:'display:none' });
+    document.body.appendChild(inp);
+    inp.onchange = async (e) => {
+      const file = e.target.files[0];
+      document.body.removeChild(inp);
+      if (!file) return;
+      Modal.close(mid);
+
+      if (!window.XLSX) {
+        Notify.info('Memuat library Excel...');
+        const loaded = await new Promise(res => {
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload = () => res(true); s.onerror = () => res(false);
+          document.head.appendChild(s);
+        });
+        if (!loaded || !window.XLSX) { Notify.error('Gagal memuat library Excel'); return; }
+      }
+
+      Notify.info('Membaca file Excel Invoice...');
+      let wb;
+      try {
+        const buf = await file.arrayBuffer();
+        wb = XLSX.read(buf, { type:'array', cellDates:false });
+      } catch(err) { Notify.error('File tidak bisa dibaca', err.message); return; }
+
+      const COL_MAP = {
+        'no invoice':'invoiceNum', 'nomor invoice':'invoiceNum', 'invoice num':'invoiceNum',
+        'invoice number':'invoiceNum', 'no. invoice':'invoiceNum', noinvoice:'invoiceNum',
+        invoicenum:'invoiceNum', invoice:'invoiceNum',
+        customer:'customer', 'nama customer':'customer', perusahaan:'customer',
+        'nama perusahaan':'customer', client:'customer',
+        po:'po', 'no po':'po', 'nomor po':'po',
+        'tgl invoice':'tglInvoice', 'tanggal invoice':'tglInvoice', 'date invoice':'tglInvoice',
+        'invoice date':'tglInvoice',
+        'tgl bayar':'tglBayar', 'tanggal bayar':'tglBayar', 'jatuh tempo':'tglBayar',
+        'due date':'tglBayar', duedate:'tglBayar',
+        total:'total', 'total invoice':'total', 'nilai invoice':'total',
+        'after pph':'afterPph', 'dpp':'afterPph', pph:'afterPph', net:'afterPph',
+        'after ppn':'afterPph', afterpph:'afterPph',
+        'total terbayar':'totalTerbayar', terbayar:'totalTerbayar', paid:'totalTerbayar',
+        'tgl terbayar':'tglTerbayar', 'tanggal terbayar':'tglTerbayar', 'paid date':'tglTerbayar',
+        sisa:'sisa', outstanding:'sisa', remaining:'sisa',
+        status:'status',
+      };
+
+      // Excel date serial → YYYY-MM-DD
+      const _exDate = v => {
+        const n = parseFloat(v);
+        if (!n || n < 1) return String(v||'').trim();
+        return new Date(Math.round((n - 25569) * 86400 * 1000)).toISOString().slice(0,10);
+      };
+
+      const invoices = [];
+      for (const sheetName of wb.SheetNames) {
+        const ws   = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+        if (rows.length < 2) continue;
+
+        let hdrIdx = -1, col = {};
+        for (let ri = 0; ri < Math.min(rows.length, 10); ri++) {
+          const tmp = {};
+          rows[ri].forEach((h, i) => {
+            const k = String(h||'').toLowerCase().trim().replace(/\s+/g,' ');
+            const f = COL_MAP[k]; if (f && !(f in tmp)) tmp[f] = i;
+          });
+          if (tmp.invoiceNum !== undefined || tmp.customer !== undefined) { hdrIdx = ri; col = tmp; break; }
+        }
+        if (hdrIdx < 0) continue;
+
+        let no = 1;
+        for (let ri = hdrIdx + 1; ri < rows.length; ri++) {
+          const row = rows[ri];
+          if (row.every(c => c === '' || c === null || c === undefined)) continue;
+          const invoiceNum = col.invoiceNum !== undefined ? String(row[col.invoiceNum]||'').trim() : '';
+          const customer   = col.customer   !== undefined ? String(row[col.customer]  ||'').trim() : '';
+          if (!invoiceNum && !customer) continue;
+
+          const _s = k => col[k] !== undefined ? String(row[col[k]]||'').trim() : '';
+          const _n = k => col[k] !== undefined ? (parseFloat(String(row[col[k]]||'0').replace(/[^\d.]/g,'')) || 0) : 0;
+
+          const total         = _n('total');
+          const afterPph      = _n('afterPph') || total;
+          const totalTerbayar = _n('totalTerbayar');
+          const sisa          = col.sisa !== undefined ? _n('sisa') : Math.max(0, total - totalTerbayar);
+          const rawStatus     = _s('status');
+          const status        = rawStatus ? rawStatus : (sisa <= 0 ? 'Paid' : 'Unpaid');
+
+          invoices.push({
+            id: 'inv_' + Utils.uid(),
+            no: no++,
+            customerId: '',
+            customer, po: _s('po'), invoiceNum,
+            tglInvoice: _exDate(_s('tglInvoice') || (col.tglInvoice !== undefined ? row[col.tglInvoice] : '')),
+            tglBayar:   _exDate(_s('tglBayar')   || (col.tglBayar   !== undefined ? row[col.tglBayar]   : '')),
+            sisaHari: null,
+            total, afterPph, totalTerbayar,
+            tglTerbayar: _s('tglTerbayar'), lamaTerbayar: '',
+            sisa, status,
+          });
+        }
+      }
+
+      if (!invoices.length) { Notify.error('Tidak ada data invoice yang dibaca'); return; }
+      Notify.info(`Menyimpan ${invoices.length} invoice...`);
+      let saved = 0;
+      for (const inv of invoices) {
+        try { await DB.saveInvoice(inv); saved++; } catch {}
+      }
+      Notify.success(`Import Invoice selesai: ${saved} invoice disimpan`);
+      DB.logActivity({ type:'import_invoices', detail:`Import Invoice Excel: ${saved} dari ${file.name}` });
+    };
+    inp.click();
   }
 
   /* ============ ORDER & INVOICE: HAPUS DATA ============ */
@@ -1981,6 +2250,7 @@ const SettingsModule = (() => {
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData,
     clearInventoryData, clearOpnameData, clearOrdersData, clearInvoicesData,
+    importOrdersExcel, _doImportOrdersExcel, importInvoicesExcel, _doImportInvoicesExcel,
     importInventoryExcel, _doImportInventoryExcel,
     _saveImportedItems, _confirmKategoriReview,
     importActivityExcel, _doImportActivityExcel,
