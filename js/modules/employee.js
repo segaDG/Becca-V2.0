@@ -999,30 +999,53 @@ const EmployeeModule = (() => {
   }
 
   /* === Migrate Photos from localStorage → Supabase === */
+  // Dijalankan setiap init — hanya proses employee yang LS punya foto tapi Supabase tidak.
+  // Tanpa one-time flag agar bisa recover jika Supabase foto hilang/ditimpa oleh migrasi lain.
+  // Handles both fotoUrl (profil) dan ktpUrl (KTP).
   async function migratePhotosFromLS(snapshot) {
-    const FLAG = 'becca_photos_migrated_v2'; // v2: fix — snapshot diambil sebelum _get() overwrite LS
-    if (localStorage.getItem(FLAG)) return 0;
-    // Gunakan snapshot yang di-capture sebelum _get() — fallback ke LS langsung jika tidak ada
+    // Bersihkan flag lama agar tidak menghalangi recovery
+    localStorage.removeItem('becca_photos_migrated_v2');
+
+    // Gunakan snapshot yang di-capture sebelum _get() menimpa localStorage
     let lsEmps = Array.isArray(snapshot) && snapshot.length ? snapshot : [];
     if (!lsEmps.length) {
       try { lsEmps = JSON.parse(localStorage.getItem('becca_employees') || '[]'); } catch {}
     }
-    if (!Array.isArray(lsEmps) || !lsEmps.length) { localStorage.setItem(FLAG,'1'); return 0; }
+    if (!Array.isArray(lsEmps) || !lsEmps.length) return 0;
 
     let migrated = 0;
     for (const lsEmp of lsEmps) {
-      if (!lsEmp.fotoUrl || !lsEmp.fotoUrl.startsWith('data:')) continue;
       const dbEmp = _employees.find(e => e.id === lsEmp.id);
       if (!dbEmp) continue;
-      if (dbEmp.fotoUrl && dbEmp.fotoUrl.startsWith('data:')) continue; // already synced
-      try {
-        const compressed = await _compressFoto(lsEmp.fotoUrl);
-        dbEmp.fotoUrl = compressed;
-        await DB.saveEmployee({...dbEmp});
-        migrated++;
-      } catch(e) { console.warn('[EMP] migrate foto failed:', lsEmp.id, e.message); }
+
+      let changed = false;
+
+      // Migrate fotoUrl (profil) — hanya jika LS punya foto tapi Supabase tidak
+      if (lsEmp.fotoUrl && lsEmp.fotoUrl.startsWith('data:') &&
+          (!dbEmp.fotoUrl || !dbEmp.fotoUrl.startsWith('data:'))) {
+        try {
+          dbEmp.fotoUrl = await _compressFoto(lsEmp.fotoUrl, 256, 0.72);
+          changed = true;
+        } catch(e) { console.warn('[EMP] compress fotoUrl failed:', lsEmp.id, e.message); }
+      }
+
+      // Migrate ktpUrl (KTP) — hanya jika LS punya foto tapi Supabase tidak
+      if (lsEmp.ktpUrl && lsEmp.ktpUrl.startsWith('data:') &&
+          (!dbEmp.ktpUrl || !dbEmp.ktpUrl.startsWith('data:'))) {
+        try {
+          dbEmp.ktpUrl = await _compressFoto(lsEmp.ktpUrl, 700, 0.85);
+          changed = true;
+        } catch(e) { console.warn('[EMP] compress ktpUrl failed:', lsEmp.id, e.message); }
+      }
+
+      if (changed) {
+        try {
+          await DB.saveEmployee({...dbEmp});
+          migrated++;
+        } catch(e) { console.warn('[EMP] migrate photo save failed:', dbEmp.id, e.message); }
+      }
     }
-    localStorage.setItem(FLAG, '1');
+
     if (migrated > 0) {
       Notify.success(migrated + ' foto karyawan berhasil disinkronisasi ke cloud ✓');
       if (_activeTab === 'data' || _activeTab === 'card') renderData();
