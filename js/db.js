@@ -301,6 +301,23 @@ const DB = (() => {
     if (NO_CACHE.includes(table) && !obj._ls_saved_at) obj._ls_saved_at = Date.now();
     _lsSave(table, obj);
 
+    // Guard khusus employees: jika save tidak membawa foto (fotoUrl/ktpUrl),
+    // ambil dari Supabase dulu dan merge — mencegah foto terhapus oleh save parsial.
+    if (table === 'employees' && obj.id) {
+      const hasFoto = obj.fotoUrl && String(obj.fotoUrl).startsWith('data:');
+      const hasKtp  = obj.ktpUrl  && String(obj.ktpUrl).startsWith('data:');
+      if (!hasFoto || !hasKtp) {
+        try {
+          const { data: existRow } = await sb.from('employees').select('data').eq('id', obj.id).maybeSingle();
+          if (existRow) {
+            const exist = typeof existRow.data === 'string' ? JSON.parse(existRow.data) : (existRow.data || {});
+            if (!hasFoto && exist.fotoUrl?.startsWith('data:')) obj.fotoUrl = exist.fotoUrl;
+            if (!hasKtp  && exist.ktpUrl?.startsWith('data:'))  obj.ktpUrl  = exist.ktpUrl;
+          }
+        } catch {}
+      }
+    }
+
     // Selalu pakai minimal upsert: hanya id + data JSON + timestamps
     // Menghindari error kolom (42703/PGRST116) karena field BECCA tidak selalu
     // match nama kolom Supabase. Kolom 'data' adalah source of truth.
@@ -692,7 +709,7 @@ const DB = (() => {
 
         // Upsert minimal: hanya id + data JSON blob + timestamps
         // Hindari spread ...r karena bisa include kolom yang tidak ada di Supabase (error 42703)
-        const toInsert = rows.map(r => {
+        let toInsert = rows.map(r => {
           const minimal = {
             id:   r.id || Utils.uid(),
             data: JSON.stringify(r),
@@ -705,6 +722,39 @@ const DB = (() => {
           }
           return minimal;
         });
+
+        // Khusus employees: preserve foto yang sudah ada di Supabase.
+        // Upsert menimpa seluruh kolom data — jika LS tidak punya foto tapi
+        // Supabase sudah punya, foto akan terhapus. Cegah dengan merge dulu.
+        if (table === 'employees') {
+          try {
+            const { data: supaRows } = await sb.from('employees').select('id, data');
+            const photoMap = {};
+            (supaRows || []).forEach(row => {
+              try {
+                const d = typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {});
+                if (d.fotoUrl?.startsWith('data:') || d.ktpUrl?.startsWith('data:')) {
+                  photoMap[row.id] = { fotoUrl: d.fotoUrl || '', ktpUrl: d.ktpUrl || '' };
+                }
+              } catch {}
+            });
+            toInsert = toInsert.map(minimal => {
+              const supaPhoto = photoMap[minimal.id];
+              if (!supaPhoto) return minimal;
+              try {
+                const d = JSON.parse(minimal.data || '{}');
+                let changed = false;
+                if (!d.fotoUrl?.startsWith('data:') && supaPhoto.fotoUrl?.startsWith('data:')) {
+                  d.fotoUrl = supaPhoto.fotoUrl; changed = true;
+                }
+                if (!d.ktpUrl?.startsWith('data:') && supaPhoto.ktpUrl?.startsWith('data:')) {
+                  d.ktpUrl = supaPhoto.ktpUrl; changed = true;
+                }
+                return changed ? { ...minimal, data: JSON.stringify(d) } : minimal;
+              } catch { return minimal; }
+            });
+          } catch(e) { console.warn('[DB] migrate employees photo-preserve:', e.message); }
+        }
 
         const { error } = await sb.from(table).upsert(toInsert, { onConflict: 'id' });
         if (error) {
