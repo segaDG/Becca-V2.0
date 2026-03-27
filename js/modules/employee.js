@@ -457,6 +457,23 @@ const EmployeeModule = (() => {
           </div>` : ''}
         </div>
 
+        <!-- Right Column: KTP + Log History -->
+        <div style="display:flex;flex-direction:column;gap:var(--s4)">
+
+        <!-- Foto KTP -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+          <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:14px;font-weight:700;color:var(--heading)">🪪 Foto KTP</div>
+            ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="EmployeeModule.openEmpModal('${emp.id}')">Edit / Upload KTP</button>` : ''}
+          </div>
+          <div style="padding:16px;text-align:center;min-height:80px;display:flex;align-items:center;justify-content:center">
+            ${emp.ktpUrl
+              ? `<img src="${emp.ktpUrl}" style="max-width:100%;max-height:260px;border-radius:var(--r);object-fit:contain;cursor:zoom-in;box-shadow:var(--shadow)"
+                      onclick="EmployeeModule._viewPhoto(this.src)" title="Klik untuk perbesar">`
+              : `<div style="color:var(--text-3);font-size:13px">Belum ada foto KTP${canEdit ? ' · Klik "Edit / Upload KTP" untuk menambahkan' : ''}</div>`}
+          </div>
+        </div>
+
         <!-- Log History -->
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
@@ -496,6 +513,8 @@ const EmployeeModule = (() => {
               </table>
             </div>` : (canFinance ? `<div style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</div>` : `<div style="text-align:center;padding:40px;color:var(--text-3)">—</div>`)}
         </div>
+
+        </div><!-- /right column -->
       </div>
     `;
   }
@@ -698,20 +717,41 @@ const EmployeeModule = (() => {
       title: editId ? 'Edit Karyawan' : 'Tambah Karyawan',
       size: 'modal-lg',
       body: `<form id="emp-form">
-        <!-- Foto Karyawan -->
-        <div class="form-group" style="display:flex;align-items:center;gap:var(--s4);margin-bottom:var(--s4)">
-          <div id="emp-foto-preview" style="width:60px;height:60px;border-radius:50%;overflow:hidden;flex-shrink:0;
-               background:var(--surface2);border:2px dashed var(--border2);display:flex;align-items:center;justify-content:center">
-            ${d.fotoUrl ? '<img src="'+d.fotoUrl+'" style="width:100%;height:100%;object-fit:cover">' : '<span style="font-size:24px">👤</span>'}
+        <!-- Foto Karyawan + KTP -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);margin-bottom:var(--s4)">
+          <!-- Foto Diri -->
+          <div class="form-group" style="display:flex;align-items:center;gap:12px;margin-bottom:0">
+            <div id="emp-foto-preview" style="width:60px;height:60px;border-radius:50%;overflow:hidden;flex-shrink:0;
+                 background:var(--surface2);border:2px dashed var(--border2);display:flex;align-items:center;justify-content:center">
+              ${d.fotoUrl ? '<img src="'+d.fotoUrl+'" style="width:100%;height:100%;object-fit:cover">' : '<span style="font-size:24px">👤</span>'}
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;font-weight:600">Foto Diri</div>
+              <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin-bottom:4px;display:block">
+                📷 Pilih Foto
+                <input type="file" id="emp-foto-input" accept="image/*" style="display:none"
+                  onchange="EmployeeModule._handleFotoUpload(this)">
+              </label>
+              ${d.fotoUrl ? '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);display:block" onclick="EmployeeModule._removeFoto()">✕ Hapus</button>' : ''}
+              <div style="font-size:10px;color:var(--text-3)">PNG/JPG · Max 1MB</div>
+            </div>
           </div>
-          <div>
-            <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin-bottom:4px">
-              📷 Pilih Foto
-              <input type="file" id="emp-foto-input" accept="image/*" style="display:none"
-                onchange="EmployeeModule._handleFotoUpload(this)">
-            </label>
-            ${d.fotoUrl ? '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="EmployeeModule._removeFoto()">✕ Hapus</button>' : ''}
-            <div style="font-size:10px;color:var(--text-3)">PNG/JPG · Max 1MB</div>
+          <!-- Foto KTP -->
+          <div class="form-group" style="display:flex;align-items:center;gap:12px;margin-bottom:0">
+            <div id="emp-ktp-preview" style="width:100px;height:62px;border-radius:6px;overflow:hidden;flex-shrink:0;
+                 background:var(--surface2);border:2px dashed var(--border2);display:flex;align-items:center;justify-content:center">
+              ${d.ktpUrl ? '<img src="'+d.ktpUrl+'" style="width:100%;height:100%;object-fit:contain">' : '<span style="font-size:20px">🪪</span>'}
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;font-weight:600">Foto KTP</div>
+              <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin-bottom:4px;display:block">
+                🪪 Pilih KTP
+                <input type="file" id="emp-ktp-input" accept="image/*" style="display:none"
+                  onchange="EmployeeModule._handleKtpUpload(this)">
+              </label>
+              ${d.ktpUrl ? '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);display:block" onclick="EmployeeModule._removeKtp()">✕ Hapus</button>' : ''}
+              <div style="font-size:10px;color:var(--text-3)">PNG/JPG · Max 5MB</div>
+            </div>
           </div>
         </div>
         <div class="form-row">
@@ -790,11 +830,20 @@ const EmployeeModule = (() => {
     } else if (_tempFotoUrl === '__remove__') {
       data.fotoUrl = '';
     } else if (editId) {
-      // Preserve existing foto
       const existing = _employees.find(e=>e.id===editId);
       if (existing?.fotoUrl) data.fotoUrl = existing.fotoUrl;
     }
     _tempFotoUrl = null;
+    // Handle KTP foto upload
+    if (_tempKtpUrl && _tempKtpUrl !== '__remove__') {
+      data.ktpUrl = _tempKtpUrl;
+    } else if (_tempKtpUrl === '__remove__') {
+      data.ktpUrl = '';
+    } else if (editId) {
+      const existing2 = _employees.find(e=>e.id===editId);
+      if (existing2?.ktpUrl) data.ktpUrl = existing2.ktpUrl;
+    }
+    _tempKtpUrl = null;
     try {
       const saved = await DB.saveEmployee(data);
       const idx   = _employees.findIndex(e=>e.id===saved.id);
@@ -886,6 +935,7 @@ const EmployeeModule = (() => {
 
   /* === Foto Handler === */
   let _tempFotoUrl = null;
+  let _tempKtpUrl  = null;
 
   // Compress foto to JPEG 256px max, ~70% quality (≈15-30KB result)
   function _compressFoto(dataUrl, maxPx, quality) {
@@ -925,6 +975,27 @@ const EmployeeModule = (() => {
     _tempFotoUrl = '__remove__';
     const prev = document.getElementById('emp-foto-preview');
     if (prev) prev.innerHTML = '<span style="font-size:20px">👤</span>';
+  }
+
+  function _handleKtpUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 5*1024*1024) { Notify.warning('Foto KTP terlalu besar. Maks 5MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      // KTP butuh resolusi lebih tinggi agar teks terbaca
+      const compressed = await _compressFoto(e.target.result, 700, 0.85);
+      _tempKtpUrl = compressed;
+      const prev = document.getElementById('emp-ktp-preview');
+      if (prev) prev.innerHTML = '<img src="'+compressed+'" style="width:100%;height:100%;object-fit:contain">';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function _removeKtp() {
+    _tempKtpUrl = '__remove__';
+    const prev = document.getElementById('emp-ktp-preview');
+    if (prev) prev.innerHTML = '<span style="font-size:20px">🪪</span>';
   }
 
   /* === Migrate Photos from localStorage → Supabase === */
@@ -1499,7 +1570,7 @@ const EmployeeModule = (() => {
 
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip, _deleteEmpFromArsip,
-    _handleFotoUpload, _removeFoto, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter, migratePhotosFromLS,
+    _handleFotoUpload, _removeFoto, _handleKtpUpload, _removeKtp, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter, migratePhotosFromLS,
     _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, recalcAllHutang, _showLogDetail,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
