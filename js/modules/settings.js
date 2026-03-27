@@ -1025,7 +1025,11 @@ const SettingsModule = (() => {
               </div>
               <button class="btn btn-ghost btn-sm w-full" style="margin-bottom:var(--s2)"
                 onclick="SettingsModule.importInventoryExcel()">
-                📤 Import dari Excel
+                📤 Import Daftar Barang (Excel)
+              </button>
+              <button class="btn btn-ghost btn-sm w-full" style="margin-bottom:var(--s2)"
+                onclick="SettingsModule.importActivityExcel()">
+                📋 Import Activity Line (Excel)
               </button>
               <button class="btn btn-sm w-full" style="margin-bottom:var(--s2);background:rgba(239,68,68,.08);color:var(--danger);border:1px solid rgba(239,68,68,.25)"
                 onclick="SettingsModule.clearInventoryData()">
@@ -1124,6 +1128,215 @@ const SettingsModule = (() => {
     }
   }
 
+  /* ============ ACTIVITY LINE: IMPORT EXCEL ============ */
+  function importActivityExcel() {
+    if (!Auth.isSuperAdmin()) return;
+    const mid = Utils.uid();
+    Modal.open({
+      id: mid,
+      title: '📋 Import Activity Line dari Excel',
+      size: 'modal-md',
+      body: `
+        <div style="margin-bottom:var(--s4)">
+          <p style="color:var(--text-2);font-size:13px;margin-bottom:var(--s3)">
+            Upload file Excel (.xlsx/.xls) berisi sheet <strong>ACTIVITY LINE</strong>.<br>
+            Pastikan <strong>Daftar Barang sudah diimport terlebih dahulu</strong>.
+          </p>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s3);font-size:12px;color:var(--text-3)">
+            <strong>Mapping otomatis:</strong><br>
+            STOCK OPNAME → Stok Awal (MASUK) · STOCK IN → Masuk<br>
+            SHIFT 1/2/3 · EVENT · PENJUALAN → Keluar<br>
+            RUSAK / RETUR → Keluar (ditandai khusus di Laporan Bulanan)
+          </div>
+        </div>
+        <button class="btn btn-primary w-full" onclick="SettingsModule._doImportActivityExcel('${mid}')">
+          📂 Pilih File Excel Activity Line
+        </button>
+      `,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+  }
+
+  async function _doImportActivityExcel(mid) {
+    const inp = Object.assign(document.createElement('input'), { type:'file', accept:'.xlsx,.xls', style:'display:none' });
+    document.body.appendChild(inp);
+    inp.onchange = async (e) => {
+      const file = e.target.files[0];
+      document.body.removeChild(inp);
+      if (!file) return;
+      Modal.close(mid);
+
+      if (!window.XLSX) {
+        Notify.info('Memuat library Excel...');
+        const loaded = await new Promise(res => {
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload = () => res(true); s.onerror = () => res(false);
+          document.head.appendChild(s);
+        });
+        if (!loaded || !window.XLSX) { Notify.error('Gagal memuat library Excel'); return; }
+      }
+
+      Notify.info('Membaca Activity Line...');
+      let wb;
+      try {
+        const buf = await file.arrayBuffer();
+        wb = XLSX.read(buf, { type:'array', cellDates:false });
+      } catch(err) { Notify.error('File tidak bisa dibaca', err.message); return; }
+
+      // Find Activity Line sheet
+      const sheetName = wb.SheetNames.find(n => n.toUpperCase().includes('ACTIVITY LINE')) || wb.SheetNames[1];
+      if (!sheetName) { Notify.error('Sheet "ACTIVITY LINE" tidak ditemukan'); return; }
+
+      const ws  = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+
+      // Find header row (contains KODE AKTIFITAS)
+      let hdrIdx = -1;
+      for (let ri = 0; ri < Math.min(rows.length, 15); ri++) {
+        if (rows[ri].some(c => String(c||'').toUpperCase().includes('KODE AKTIFITAS'))) {
+          hdrIdx = ri; break;
+        }
+      }
+      if (hdrIdx < 0) { Notify.error('Header "KODE AKTIFITAS" tidak ditemukan'); return; }
+
+      // Build column map
+      const hdr = rows[hdrIdx];
+      const col = {};
+      hdr.forEach((h, i) => {
+        const k = String(h||'').toUpperCase().trim();
+        if (k === 'TANGGAL') col.tgl = i;
+        else if (k === 'NAMA PRODUK') col.nama = i;
+        else if (k === 'STOCK IN') col.stockIn = i;
+        else if (k === 'STOCK OUT') col.stockOut = i;
+        else if (k === 'PENGAMBIL BARANG') col.pengambil = i;
+        else if (k === 'PENANGGUNG JAWAB') col.pj = i;
+        else if (k === 'KODE AKTIFITAS') col.kode = i;
+        else if (k === 'CATATAN') col.catatan = i;
+        else if (k.includes('HARGA SATUAN') && k.includes('SYSTEM')) col.harga = i;
+        else if (k.includes('HARGA SATUAN') && !col.harga) col.harga = i;
+        else if (k === 'HPP') col.hpp = i;
+      });
+
+      // Load all inventory items for name matching
+      Notify.info('Memuat daftar produk...');
+      let allItems;
+      try { allItems = await DB.getInventoryItems(); } catch { allItems = []; }
+      if (!allItems.length) {
+        Notify.error('Tidak ada produk inventory. Import Daftar Barang terlebih dahulu.');
+        return;
+      }
+
+      // Normalize helper
+      const _norm = s => String(s||'').toLowerCase().replace(/\s+/g,' ').trim();
+      const nameMap = new Map(allItems.map(it => [_norm(it.nama), it]));
+
+      // Excel date → YYYY-MM-DD
+      const _excelDate = v => {
+        const n = parseFloat(v);
+        if (!n || n < 1) return new Date().toISOString().slice(0,10);
+        return new Date(Math.round((n - 25569) * 86400 * 1000)).toISOString().slice(0,10);
+      };
+
+      const KELUAR_CODES = new Set(['SHIFT 1','SHIFT 2','SHIFT 3','SHIFT3','EVENT','PENJUALAN','TAKJIL','PENJUALAN TAKJIL']);
+      const RETUR_CODES  = new Set(['RUSAK','RETUR','RETUR RUSAK','BARANG RUSAK','RUSAK RETUR']);
+
+      const activities = [];
+      const skipped    = new Set();
+
+      for (let ri = hdrIdx + 1; ri < rows.length; ri++) {
+        const row = rows[ri];
+        if (row.every(c => c === '' || c === null || c === undefined)) continue;
+
+        const kodeRaw = String(row[col.kode]||'').trim();
+        if (!kodeRaw || kodeRaw.toUpperCase() === 'KODE AKTIFITAS' || kodeRaw === '#REF!') continue;
+        const kode = kodeRaw.toUpperCase();
+
+        const namaRaw = String(row[col.nama]||'').trim();
+        if (!namaRaw) continue;
+
+        const item = nameMap.get(_norm(namaRaw));
+        if (!item) { skipped.add(namaRaw); continue; }
+
+        const tgl      = _excelDate(row[col.tgl]);
+        const stockIn  = parseFloat(row[col.stockIn])  || 0;
+        const stockOut = parseFloat(row[col.stockOut]) || 0;
+        const harga    = parseFloat(row[col.harga])    || item.hargaSatuan || 0;
+        const hpp      = parseFloat(row[col.hpp])      || 0;
+        const pengambil = String(row[col.pengambil]||'').trim();
+        const pj        = String(row[col.pj]||'').trim();
+        const catatan   = String(row[col.catatan]||'').trim();
+
+        let jenis, jumlah, isRetur = false;
+
+        if (kode === 'STOCK OPNAME') {
+          if (stockIn <= 0) continue;
+          jenis = 'MASUK'; jumlah = stockIn;
+        } else if (kode === 'STOCK IN') {
+          if (stockIn <= 0) continue;
+          jenis = 'MASUK'; jumlah = stockIn;
+        } else if (KELUAR_CODES.has(kode) || kode.startsWith('SHIFT')) {
+          if (stockOut <= 0) continue;
+          jenis = 'KELUAR'; jumlah = stockOut;
+        } else if (RETUR_CODES.has(kode) || Array.from(RETUR_CODES).some(r => kode.includes(r))) {
+          jumlah = stockOut > 0 ? stockOut : stockIn;
+          if (jumlah <= 0) continue;
+          jenis = 'KELUAR'; isRetur = true;
+        } else {
+          // Unknown code — use whichever field has data
+          if (stockOut > 0)      { jenis = 'KELUAR'; jumlah = stockOut; }
+          else if (stockIn > 0)  { jenis = 'MASUK';  jumlah = stockIn; }
+          else continue;
+        }
+
+        activities.push({
+          id: Utils.uid(),
+          tgl,
+          itemId: item.id,
+          itemNama: item.nama,
+          jenis,
+          jumlah,
+          stokAkhir: 0,
+          harga,
+          hpp,
+          kodeAktivitas: kodeRaw,
+          pengambil,
+          penanggungJawab: pj,
+          catatan,
+          isRetur,
+          createdBy: Auth.currentUser()?.username || 'import',
+        });
+      }
+
+      if (!activities.length) {
+        let msg = 'Tidak ada aktivitas yang berhasil dipetakan.';
+        if (skipped.size) msg += ' Produk tidak cocok: ' + [...skipped].slice(0,5).join(', ');
+        Notify.error(msg);
+        return;
+      }
+
+      const total = activities.length;
+      Notify.info(`Menyimpan ${total} aktivitas...`);
+      let saved = 0, failed = 0;
+      const BATCH = 30;
+      for (let b = 0; b < activities.length; b += BATCH) {
+        const batch = activities.slice(b, b + BATCH);
+        await Promise.all(batch.map(a =>
+          DB.saveInventoryLog(a).then(() => saved++).catch(() => failed++)
+        ));
+        if (b % 300 === 0 && b > 0) Notify.info(`Menyimpan... ${saved}/${total}`);
+      }
+
+      let doneMsg = `Import Activity Line selesai: ${saved} aktivitas disimpan`;
+      if (skipped.size) doneMsg += ` · ${skipped.size} produk tidak cocok`;
+      if (failed) doneMsg += ` · ${failed} gagal`;
+      Notify.success(doneMsg);
+      if (skipped.size) console.warn('[Import Activity] Produk tidak cocok:', [...skipped]);
+      DB.logActivity({ type:'import_activity', detail:`Import Activity Line: ${saved} dari ${file.name}` });
+    };
+    inp.click();
+  }
+
   /* ============ OPNAME: HAPUS DATA ============ */
   async function clearOpnameData() {
     if (!Auth.isSuperAdmin()) return;
@@ -1214,11 +1427,12 @@ const SettingsModule = (() => {
 
       // Mapping kolom
       const COL_MAP = {
-        nama:'nama', name:'nama', 'nama barang':'nama', nama_barang:'nama', namabarang:'nama', item:'nama',
+        nama:'nama', name:'nama', 'nama barang':'nama', 'nama produk':'nama', nama_barang:'nama', namabarang:'nama', item:'nama',
         satuan:'satuan', unit:'satuan', uom:'satuan',
         harga:'harga', price:'harga', harga_satuan:'harga', hargasatuan:'harga', 'harga satuan':'harga',
         stok_min:'stokMin', stokmin:'stokMin', 'stok min':'stokMin', min_stock:'stokMin', minstock:'stokMin', minimum:'stokMin',
-        status:'status',
+        'min stock':'stokMin',
+        status:'status', 'status barang':'status',
         kategori:'kategori', category:'kategori', jenis:'kategori', type:'kategori',
         keterangan:'ket', keterangan_tambahan:'ket', ket:'ket', notes:'ket',
       };
@@ -1242,7 +1456,7 @@ const SettingsModule = (() => {
 
         // Cari baris header
         let hdrIdx = -1, colIdx = {};
-        for (let ri = 0; ri < Math.min(rows.length, 10); ri++) {
+        for (let ri = 0; ri < Math.min(rows.length, 15); ri++) {
           const map = _mapHeader(rows[ri]);
           if (map.nama !== undefined) { hdrIdx = ri; colIdx = map; break; }
         }
@@ -1598,6 +1812,7 @@ const SettingsModule = (() => {
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData,
     clearInventoryData, clearOpnameData, importInventoryExcel, _doImportInventoryExcel,
+    importActivityExcel, _doImportActivityExcel,
     _syncAuthJs, _downloadAuthJs, _saveGithubToken
   };
 })();

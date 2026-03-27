@@ -10,16 +10,17 @@
        jumlah, stokAkhir, harga, supplier, catatan, createdBy }
 ============================================ */
 
-console.log('[BECCA] InventoryModule v20260327f loaded ✓');
+console.log('[BECCA] InventoryModule v20260327g loaded ✓');
 const InventoryModule = (() => {
 
   let _items      = [];   // master barang
   let _itemLookup = new Map(); // id→item (String keys), always in sync with _items
   let _logs       = [];   // activity line (MASUK/KELUAR only)
   let _opnameLogs = [];   // stok opname (terpisah)
-  let _activeTab = 'stok';
-  let _filterKat = '';
+  let _activeTab   = 'stok';
+  let _filterKat   = '';
   let _search      = '';
+  let _laporanBulan = null; // selected month for laporan tab
 
   const KATEGORIS = ['Bahan Baku','Bumbu','Minuman','Kemasan','Peralatan','Lain-lain'];
   const SATUANS   = ['kg','gr','liter','ml','pcs','pack','karton','lusin','botol','sachet'];
@@ -50,12 +51,16 @@ const InventoryModule = (() => {
         <button id="inv-tab-btn-transaksi" class="tab-btn" data-tab="transaksi" onclick="InventoryModule.switchTab('transaksi')">📋 Activity Line</button>
         <button id="inv-tab-btn-alert" class="tab-btn" data-tab="alert"     onclick="InventoryModule.switchTab('alert')">⚠️ Stok Menipis</button>
         <button id="inv-tab-btn-opname" class="tab-btn" data-tab="opname"    onclick="InventoryModule.switchTab('opname')">🔢 Stok Opname</button>
+        <button id="inv-tab-btn-laporan" class="tab-btn" data-tab="laporan"  onclick="InventoryModule.switchTab('laporan')">📊 Laporan Bulanan</button>
+        <button id="inv-tab-btn-summary" class="tab-btn" data-tab="summary"  onclick="InventoryModule.switchTab('summary')">📈 Summary</button>
       </div>
 
       <div id="inv-tab-stok"></div>
       <div id="inv-tab-transaksi" class="hidden"></div>
       <div id="inv-tab-alert"     class="hidden"></div>
       <div id="inv-tab-opname"    class="hidden"></div>
+      <div id="inv-tab-laporan"   class="hidden"></div>
+      <div id="inv-tab-summary"   class="hidden"></div>
     `;
 
     // Level 4 — gunakan cache jika warm, render segera lalu background-load jika cold
@@ -95,6 +100,8 @@ const InventoryModule = (() => {
         }
       });
       if (_activeTab === 'stok') renderStok();
+      else if (_activeTab === 'laporan') renderLaporanBulanan();
+      else if (_activeTab === 'summary') renderSummary();
       else switchTab(_activeTab);
     } else {
       // Hanya simpan hargaSatuan jika cache sudah fresh
@@ -187,13 +194,13 @@ const InventoryModule = (() => {
     if (hdrBtns && Auth.can('inventory','edit')) {
       if (tab === 'transaksi') {
         hdrBtns.innerHTML = ''; // Button is above table in renderTransaksi
-      } else if (tab === 'opname') {
+      } else if (tab === 'opname' || tab === 'laporan' || tab === 'summary') {
         hdrBtns.innerHTML = '';
       } else {
         hdrBtns.innerHTML = '<button class="btn btn-primary" onclick="InventoryModule.openItemModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d=\"M12 5v14M5 12h14\"/></svg> Barang Baru</button>';
       }
     }
-    ['stok','transaksi','alert','opname'].forEach(t => {
+    ['stok','transaksi','alert','opname','laporan','summary'].forEach(t => {
       const tabContent = document.getElementById('inv-tab-'+t);
       if (tabContent) tabContent.classList.toggle('hidden', t !== tab);
       const tabBtn = document.getElementById('inv-tab-btn-'+t);
@@ -213,6 +220,10 @@ const InventoryModule = (() => {
         _opnameLogs = fresh;
         renderOpnameTab();
       });
+    } else if (tab === 'laporan') {
+      renderLaporanBulanan();
+    } else if (tab === 'summary') {
+      renderSummary();
     } else {
       const renders = { stok: renderStok, alert: renderAlert };
       renders[tab]?.();
@@ -1706,6 +1717,289 @@ const InventoryModule = (() => {
     });
   }
 
+  /* ===================== TAB: LAPORAN BULANAN ===================== */
+  function setLaporanBulan(bulan) {
+    _laporanBulan = bulan;
+    renderLaporanBulanan();
+  }
+
+  function renderLaporanBulanan() {
+    const el = document.getElementById('inv-tab-laporan');
+    if (!el) return;
+
+    const BULAN = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const allMonths = [...new Set(_logs.filter(l=>l.tgl).map(l=>l.tgl.slice(0,7)))].sort();
+    if (!allMonths.length) {
+      el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-3)">Belum ada data activity. Import Activity Line terlebih dahulu.</div>';
+      return;
+    }
+    const currMonth = (_laporanBulan && allMonths.includes(_laporanBulan)) ? _laporanBulan : allMonths[allMonths.length - 1];
+    const [yr, mo] = currMonth.split('-');
+    const bulanLabel = (BULAN[parseInt(mo)]||mo) + ' ' + yr;
+
+    const monthLogs  = _logs.filter(l => l.tgl && l.tgl.startsWith(currMonth));
+    const opnameLogs = monthLogs.filter(l => l.kodeAktivitas && l.kodeAktivitas.toUpperCase() === 'STOCK OPNAME');
+    const masukLogs  = monthLogs.filter(l => l.jenis === 'MASUK' && (!l.kodeAktivitas || l.kodeAktivitas.toUpperCase() !== 'STOCK OPNAME'));
+    const returLogs  = monthLogs.filter(l => l.isRetur || (l.kodeAktivitas && (l.kodeAktivitas.toUpperCase().includes('RUSAK') || l.kodeAktivitas.toUpperCase().includes('RETUR'))));
+    const keluarLogs = monthLogs.filter(l => l.jenis === 'KELUAR' && !returLogs.includes(l));
+
+    const totalMasukQty  = masukLogs.reduce((s,l)=>s+(l.jumlah||0),0);
+    const totalMasukVal  = masukLogs.reduce((s,l)=>s+(l.jumlah||0)*(l.harga||0),0);
+    const totalKeluarQty = keluarLogs.reduce((s,l)=>s+(l.jumlah||0),0);
+    const totalKeluarHPP = keluarLogs.reduce((s,l)=>s+(l.hpp||(l.jumlah||0)*(l.harga||0)),0);
+    const totalReturQty  = returLogs.reduce((s,l)=>s+(l.jumlah||0),0);
+    const totalReturVal  = returLogs.reduce((s,l)=>s+(l.jumlah||0)*(l.harga||0),0);
+
+    // Top 10 items by HPP keluar
+    const byItem = {};
+    keluarLogs.forEach(l => {
+      if (!l.itemNama) return;
+      if (!byItem[l.itemNama]) byItem[l.itemNama] = { nama:l.itemNama, qty:0, hpp:0 };
+      byItem[l.itemNama].qty += l.jumlah||0;
+      byItem[l.itemNama].hpp += l.hpp||(l.jumlah||0)*(l.harga||0);
+    });
+    const top10 = Object.values(byItem).sort((a,b)=>b.hpp-a.hpp).slice(0,10);
+
+    el.innerHTML = `
+      <div style="padding-top:var(--s4)">
+        <div style="display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
+          <span style="font-size:13px;color:var(--text-3)">Bulan:</span>
+          <select onchange="InventoryModule.setLaporanBulan(this.value)"
+            style="padding:5px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);font-size:13px">
+            ${allMonths.map(m=>{const[y,m2]=m.split('-');return`<option value="${m}"${m===currMonth?' selected':''}>${(BULAN[parseInt(m2)]||m2)+' '+y}</option>`;}).join('')}
+          </select>
+          <span style="font-size:15px;font-weight:700;color:var(--heading)">Laporan Inventory — ${bulanLabel}</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:var(--s3);margin-bottom:var(--s5)">
+          ${[
+            {l:'Stock In (Masuk)',    v:totalMasukQty.toFixed(2)+' unit',  sub:'Nilai: '+Utils.formatRupiah(totalMasukVal), c:'var(--success)'},
+            {l:'Stock Out (Keluar)',  v:totalKeluarQty.toFixed(2)+' unit', sub:'HPP: '+Utils.formatRupiah(totalKeluarHPP), c:'var(--danger)'},
+            {l:'Stock Opname',       v:opnameLogs.length+' item',          sub:'Data awal stok', c:'var(--primary)'},
+            {l:'Rusak / Retur',      v:totalReturQty.toFixed(2)+' unit',   sub:'Nilai: '+Utils.formatRupiah(totalReturVal), c:'var(--warning)'},
+          ].map(c=>`
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s4)">
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${c.l}</div>
+              <div style="font-size:18px;font-weight:700;color:${c.c};font-family:var(--font-mono)">${c.v}</div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:4px">${c.sub}</div>
+            </div>`).join('')}
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s5);align-items:start">
+
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+            <div style="padding:12px 18px;border-bottom:1px solid var(--border);font-size:14px;font-weight:700;color:var(--heading)">
+              Top 10 Produk — HPP Tertinggi
+            </div>
+            <div class="table-scroll">
+              <table class="table" style="font-size:12px">
+                <thead><tr><th>#</th><th>Nama Produk</th><th class="num">Qty</th><th class="num">HPP</th></tr></thead>
+                <tbody>
+                  ${top10.length ? top10.map((it,i)=>`<tr>
+                    <td class="text-muted">${i+1}</td>
+                    <td style="font-weight:500">${it.nama}</td>
+                    <td class="num" style="font-family:var(--font-mono)">${it.qty.toFixed(2)}</td>
+                    <td class="num" style="font-family:var(--font-mono);color:var(--danger)">${Utils.formatRupiah(it.hpp)}</td>
+                  </tr>`).join('')
+                  : '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-3)">Belum ada data keluar</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+            <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:14px;font-weight:700;color:var(--heading)">⚠️ Barang Rusak / Retur</span>
+              <span style="font-size:11px;color:var(--text-3)">${returLogs.length} transaksi</span>
+            </div>
+            <div class="table-scroll">
+              <table class="table" style="font-size:12px">
+                <thead><tr><th>Tanggal</th><th>Nama Produk</th><th class="num">Qty</th><th class="num">Nilai</th><th>Kode</th><th>PJ</th></tr></thead>
+                <tbody>
+                  ${returLogs.length ? returLogs.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).map(l=>{
+                    const tgl2=(l.tgl||'').slice(8,10)+'-'+(l.tgl||'').slice(5,7)+'-'+(l.tgl||'').slice(0,4);
+                    return `<tr>
+                      <td style="white-space:nowrap;color:var(--text-2)">${tgl2||'-'}</td>
+                      <td style="font-weight:500">${l.itemNama||'-'}</td>
+                      <td class="num" style="font-family:var(--font-mono);color:var(--warning)">${(l.jumlah||0).toFixed(2)}</td>
+                      <td class="num" style="font-family:var(--font-mono)">${Utils.formatRupiah((l.jumlah||0)*(l.harga||0))}</td>
+                      <td><span class="badge badge-warning" style="font-size:10px">${l.kodeAktivitas||'-'}</span></td>
+                      <td style="color:var(--text-3)">${l.penanggungJawab||'-'}</td>
+                    </tr>`;
+                  }).join('') : '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-3)">Tidak ada data rusak/retur</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    `;
+  }
+
+  /* ===================== TAB: SUMMARY (3-BULAN) ===================== */
+  function renderSummary() {
+    const el = document.getElementById('inv-tab-summary');
+    if (!el) return;
+
+    const BULAN = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const _bl = m => { const [y,m2]=m.split('-'); return (BULAN[parseInt(m2)]||m2)+' '+y; };
+
+    const allMonths = [...new Set(_logs.filter(l=>l.tgl).map(l=>l.tgl.slice(0,7)))].sort();
+    if (!allMonths.length) {
+      el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-3)">Belum ada data activity. Import Activity Line terlebih dahulu.</div>';
+      return;
+    }
+    const last3 = allMonths.slice(-3);
+
+    // Build stats per month
+    const stats = last3.map(m => {
+      const logs    = _logs.filter(l => l.tgl && l.tgl.startsWith(m));
+      const retur   = logs.filter(l => l.isRetur || (l.kodeAktivitas && (l.kodeAktivitas.toUpperCase().includes('RUSAK')||l.kodeAktivitas.toUpperCase().includes('RETUR'))));
+      const masuk   = logs.filter(l => l.jenis==='MASUK' && (!l.kodeAktivitas||l.kodeAktivitas.toUpperCase()!=='STOCK OPNAME'));
+      const keluar  = logs.filter(l => l.jenis==='KELUAR' && !retur.includes(l));
+      const masukVal   = masuk.reduce((s,l)=>s+(l.jumlah||0)*(l.harga||0),0);
+      const keluarHPP  = keluar.reduce((s,l)=>s+(l.hpp||(l.jumlah||0)*(l.harga||0)),0);
+      const returVal   = retur.reduce((s,l)=>s+(l.jumlah||0)*(l.harga||0),0);
+      // HPP by kode
+      const byKode = {};
+      keluar.forEach(l => {
+        const k = l.kodeAktivitas||'Lainnya';
+        byKode[k] = (byKode[k]||0) + (l.hpp||(l.jumlah||0)*(l.harga||0));
+      });
+      return { m, label:_bl(m), masukCnt:masuk.length, keluarCnt:keluar.length, masukVal, keluarHPP, returVal, byKode };
+    });
+
+    // Top items across all 3 months (by HPP keluar)
+    const itemMap = {};
+    last3.forEach(m => {
+      const logs = _logs.filter(l=>l.tgl&&l.tgl.startsWith(m)&&l.jenis==='KELUAR'&&!l.isRetur);
+      logs.forEach(l => {
+        if (!l.itemNama) return;
+        if (!itemMap[l.itemNama]) itemMap[l.itemNama] = { nama:l.itemNama, months:{} };
+        itemMap[l.itemNama].months[m] = (itemMap[l.itemNama].months[m]||0) + (l.hpp||(l.jumlah||0)*(l.harga||0));
+      });
+    });
+    const topItems = Object.values(itemMap)
+      .map(it => ({ ...it, total: Object.values(it.months).reduce((s,v)=>s+v,0) }))
+      .sort((a,b)=>b.total-a.total).slice(0,15);
+
+    const maxHPP = Math.max(...stats.map(s=>s.keluarHPP), 1);
+
+    // Analysis text
+    const analysis = (() => {
+      if (stats.length < 2) return '<div style="color:var(--text-3)">Minimal 2 bulan data diperlukan.</div>';
+      const prev = stats[stats.length-2], curr = stats[stats.length-1];
+      const hppDiff = curr.keluarHPP - prev.keluarHPP;
+      const hppPct  = prev.keluarHPP > 0 ? ((hppDiff/prev.keluarHPP)*100).toFixed(1) : 0;
+      const buyDiff = curr.masukVal - prev.masukVal;
+      const buyPct  = prev.masukVal > 0 ? ((buyDiff/prev.masukVal)*100).toFixed(1) : 0;
+      const retDiff = curr.returVal - prev.returVal;
+      return `
+        <div style="padding:var(--s3);background:var(--surface2);border-radius:var(--r-md)">
+          <div style="font-weight:600;margin-bottom:6px">HPP ${curr.label} vs ${prev.label}</div>
+          <div style="font-size:18px;font-weight:700;font-family:var(--font-mono);color:${hppDiff>0?'var(--danger)':'var(--success)'}">
+            ${hppDiff>0?'+':''}${Utils.formatRupiah(hppDiff)}
+            <span style="font-size:13px">(${hppDiff>0?'+':''}${hppPct}%)</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:4px">${hppDiff>0?'HPP meningkat — perlu evaluasi efisiensi':'HPP menurun — efisiensi membaik'}</div>
+        </div>
+        <div style="padding:var(--s3);background:var(--surface2);border-radius:var(--r-md)">
+          <div style="font-weight:600;margin-bottom:6px">Pembelian ${curr.label} vs ${prev.label}</div>
+          <div style="font-size:18px;font-weight:700;font-family:var(--font-mono);color:${buyDiff>0?'var(--warning)':'var(--success)'}">
+            ${buyDiff>0?'+':''}${Utils.formatRupiah(buyDiff)}
+            <span style="font-size:13px">(${buyDiff>0?'+':''}${buyPct}%)</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:4px">${buyDiff>0?'Pembelian meningkat':'Pembelian lebih efisien'}</div>
+        </div>
+        ${retDiff!==0?`
+        <div style="padding:var(--s3);background:var(--surface2);border-radius:var(--r-md)">
+          <div style="font-weight:600;margin-bottom:6px">Rusak/Retur ${curr.label} vs ${prev.label}</div>
+          <div style="font-size:18px;font-weight:700;font-family:var(--font-mono);color:${retDiff>0?'var(--danger)':'var(--success)'}">
+            ${retDiff>0?'+':''}${Utils.formatRupiah(retDiff)}
+          </div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:4px">${retDiff>0?'Kerugian meningkat':'Kerugian berkurang'}</div>
+        </div>`:''}
+        ${topItems.length?`
+        <div style="padding:var(--s3);background:var(--surface2);border-radius:var(--r-md)">
+          <div style="font-weight:600;margin-bottom:8px">Top 5 Produk HPP (${curr.label})</div>
+          ${topItems.slice(0,5).map((it,i)=>`
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px">
+              <span>${i+1}. ${it.nama}</span>
+              <span style="font-family:var(--font-mono);color:var(--danger)">${Utils.formatRupiah(it.months[curr.m]||0)}</span>
+            </div>`).join('')}
+        </div>`:''}
+      `;
+    })();
+
+    el.innerHTML = `
+      <div style="padding-top:var(--s4)">
+        <div style="font-size:16px;font-weight:700;color:var(--heading);margin-bottom:var(--s5)">
+          📈 Summary Inventory — Perbandingan ${last3.length} Bulan
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(${last3.length},1fr);gap:var(--s4);margin-bottom:var(--s5)">
+          ${stats.map(ms=>`
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+              <div style="padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface2);text-align:center">
+                <div style="font-size:15px;font-weight:700;color:var(--heading)">${ms.label}</div>
+              </div>
+              <div style="padding:var(--s4)">
+                ${[
+                  {l:'Nilai Stock In',    v:Utils.formatRupiah(ms.masukVal),  c:'var(--success)'},
+                  {l:'HPP Stock Out',     v:Utils.formatRupiah(ms.keluarHPP), c:'var(--danger)'},
+                  {l:'Nilai Rusak/Retur', v:Utils.formatRupiah(ms.returVal),  c:'var(--warning)'},
+                  {l:'Transaksi Masuk',   v:ms.masukCnt+' baris',             c:'var(--text-2)'},
+                  {l:'Transaksi Keluar',  v:ms.keluarCnt+' baris',            c:'var(--text-2)'},
+                ].map(r=>`
+                  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+                    <span style="font-size:11px;color:var(--text-3)">${r.l}</span>
+                    <span style="font-size:12px;font-weight:600;color:${r.c};font-family:var(--font-mono)">${r.v}</span>
+                  </div>`).join('')}
+                <div style="margin-top:var(--s3)">
+                  <div style="font-size:10px;color:var(--text-3);margin-bottom:4px">HPP (relatif)</div>
+                  <div style="background:var(--surface2);border-radius:4px;height:8px">
+                    <div style="height:8px;width:${(ms.keluarHPP/maxHPP*100).toFixed(1)}%;background:var(--danger);border-radius:4px"></div>
+                  </div>
+                </div>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:var(--s5)">
+          <div style="padding:12px 18px;border-bottom:1px solid var(--border);font-size:14px;font-weight:700;color:var(--heading)">
+            Top 15 Produk — HPP per Bulan
+          </div>
+          <div class="table-scroll">
+            <table class="table" style="font-size:12px">
+              <thead><tr>
+                <th>#</th><th>Nama Produk</th>
+                ${last3.map(m=>`<th class="num">${_bl(m)}</th>`).join('')}
+                <th class="num" style="color:var(--danger)">Total HPP</th>
+              </tr></thead>
+              <tbody>
+                ${topItems.length ? topItems.map((it,i)=>`<tr>
+                  <td class="text-muted">${i+1}</td>
+                  <td style="font-weight:500">${it.nama}</td>
+                  ${last3.map(m=>`<td class="num" style="font-family:var(--font-mono);color:var(--text-2)">${it.months[m]?Utils.formatRupiah(it.months[m]):'-'}</td>`).join('')}
+                  <td class="num" style="font-family:var(--font-mono);font-weight:700;color:var(--danger)">${Utils.formatRupiah(it.total)}</td>
+                </tr>`).join('')
+                : `<tr><td colspan="${3+last3.length}" style="text-align:center;padding:24px;color:var(--text-3)">Belum ada data keluar</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5)">
+          <div style="font-size:14px;font-weight:700;color:var(--heading);margin-bottom:var(--s4)">💡 Analisa</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);font-size:13px">
+            ${analysis}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   // Force-save current edit to DB (pre-save to localStorage) without validation.
   // Called by app.js navigate() before page switch so in-progress data is not lost.
   function flushPendingEdit() {
@@ -1721,6 +2015,7 @@ const InventoryModule = (() => {
     switchTab,
     setKatFilter,
     setSearch,
+    setLaporanBulan,
     openItemModal,
     _submitItem,
     openTransaksiModal,
@@ -1752,6 +2047,8 @@ const InventoryModule = (() => {
     hppAIStats,
     hppAIReset,
     _showHPPAIInfo,
+    renderLaporanBulanan,
+    renderSummary,
   };
 
 })();
