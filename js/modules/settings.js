@@ -8,6 +8,10 @@ const SettingsModule = (() => {
   // Cache merged user list for openUserModal (avoids re-fetching from DB)
   let _usersCache = [];
 
+  // Pending import items for AI kategori review modal
+  let _pendingImportItems = null;
+  let _pendingImportFile  = null;
+
   // ROLES - default + custom yang ditambah user
   const _DEFAULT_ROLES = ['superadmin','admin','operator','viewer'];
   function _getRoles() {
@@ -1397,6 +1401,22 @@ const SettingsModule = (() => {
     });
   }
 
+  // Rule-based AI kategori suggester for items with empty kategori
+  function _suggestKategori(nama) {
+    const n = nama.toLowerCase();
+    if (/ayam|daging|ikan|telur|sapi|babi|kambing|seafood|udang|cumi|kepiting|lobster|kerang|tongkol|salmon|lele|gurame|nila|sawi|kangkung|bayam|tomat|wortel|kentang|buncis|kacang panjang|buah|pisang|apel|jeruk|mangga|pepaya|sayur/.test(n)) return 'Fresh';
+    if (/beras|tepung|terigu|gula|minyak|garam|kedelai|jagung|susu bubuk|santan|sagu|maizena|tapioka|kecap manis|cuka/.test(n)) return 'Sembako';
+    if (/kecap|saus|saos|sambal|saus tiram|terasi|petis|tauco|royco|masako|penyedap|kaldu|lada|merica|kunyit|jahe|lengkuas|serai|kemiri|jintan|ketumbar|bumbu|rempah|msg|vetsin/.test(n)) return 'Bumbu';
+    if (/air mineral|air galon|jus|sirup|soda|minuman|teh|kopi|susu cair|yakult|pocari|isotonic|drink|sprite|fanta|cola/.test(n)) return 'Minuman';
+    if (/plastik|kantong|kresek|styrofoam|box karton|dus|wadah|gelas plastik|cup|sedotan|sendok plastik|garpu plastik|tissue|serbet|aluminium foil|wrap|bungkus|kemasan|toples|botol|label|stiker/.test(n)) return 'Kemasan';
+    if (/pisau|wajan|teflon|panci|spatula|sutil|talenan|kompor|blender|mixer|parutan|saringan|baskom|ember|gayung|lap|serbet kain|timbangan|dispenser|rice cooker|alat|peralatan|mesin/.test(n)) return 'Peralatan';
+    if (/bahan baku/.test(n)) return 'Bahan Baku';
+    return 'Lain-lain';
+  }
+
+  // Kategori options list (mirrors InventoryModule KATEGORIS)
+  const _IMPORT_KATEGORIS = ['Bahan Baku','Bumbu','Minuman','Kemasan','Peralatan','Sembako','Fresh','Lain-lain'];
+
   async function _doImportInventoryExcel(mid) {
     const inp = Object.assign(document.createElement('input'), { type:'file', accept:'.xlsx,.xls', style:'display:none' });
     document.body.appendChild(inp);
@@ -1448,32 +1468,44 @@ const SettingsModule = (() => {
         return map;
       };
 
+      const _normName = s => String(s).toLowerCase().replace(/\s+/g,' ').trim();
+
       const items = [];
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
         if (rows.length < 2) continue;
 
-        // Cari baris header
+        // DAFTAR BARANG sheet: nama selalu di kolom K (index 10), data mulai baris 11 (index 10)
+        const isDaftarBarang = /daftar.?barang/i.test(sheetName);
+
+        // Cari baris header untuk mapping kolom lain (harga, satuan, dll)
         let hdrIdx = -1, colIdx = {};
         for (let ri = 0; ri < Math.min(rows.length, 15); ri++) {
           const map = _mapHeader(rows[ri]);
-          if (map.nama !== undefined) { hdrIdx = ri; colIdx = map; break; }
+          if (map.nama !== undefined || (isDaftarBarang && rows[ri].some(c=>String(c).toLowerCase().includes('nama')))) {
+            hdrIdx = ri; colIdx = map; break;
+          }
         }
-        if (hdrIdx < 0) continue;
 
-        for (let ri = hdrIdx + 1; ri < rows.length; ri++) {
+        // Untuk Daftar Barang: nama di kolom K (index 10), data mulai index 10 (baris 11)
+        const namaIdx   = isDaftarBarang ? 10 : (colIdx.nama !== undefined ? colIdx.nama : 10);
+        const dataStart = isDaftarBarang ? Math.max(hdrIdx >= 0 ? hdrIdx + 1 : 0, 10) : (hdrIdx >= 0 ? hdrIdx + 1 : -1);
+        if (dataStart < 0) continue;
+
+        for (let ri = dataStart; ri < rows.length; ri++) {
           const row = rows[ri];
           if (row.every(c => c === '' || c === null || c === undefined)) continue;
-          const nama = String(row[colIdx.nama] ?? '').trim();
-          if (!nama) continue;
+          const nama = String(row[namaIdx] ?? '').trim();
+          if (!nama) continue;  // skip baris dengan kolom K kosong
 
-          const harga   = parseFloat(String(row[colIdx.harga]??'0').replace(/[^\d.]/g,'')) || 0;
-          const satuan  = String(row[colIdx.satuan]??'').trim() || 'Pcs';
-          const stokMin = parseFloat(String(row[colIdx.stokMin]??'0').replace(/[^\d.]/g,'')) || 0;
-          const status  = String(row[colIdx.status]??'').trim() || 'AKTIF';
-          const kategori= String(row[colIdx.kategori]??'').trim();
-          const ket     = String(row[colIdx.ket]??'').trim();
+          const _col = (k) => colIdx[k] !== undefined ? row[colIdx[k]] : undefined;
+          const harga   = parseFloat(String(_col('harga') ?? _col('hargaSatuan') ?? '0').replace(/[^\d.]/g,'')) || 0;
+          const satuan  = String(_col('satuan') ?? '').trim() || 'Pcs';
+          const stokMin = parseFloat(String(_col('stokMin') ?? '0').replace(/[^\d.]/g,'')) || 0;
+          const status  = String(_col('status') ?? '').trim() || 'AKTIF';
+          const kategori= String(_col('kategori') ?? '').trim();
+          const ket     = String(_col('ket') ?? '').trim();
 
           items.push({ id:Utils.uid(), nama, satuan, hargaSatuan:harga, stokMin, status, kategori, keterangan:ket, _stok:0, balance:0 });
         }
@@ -1484,17 +1516,112 @@ const SettingsModule = (() => {
         return;
       }
 
-      Notify.info(`Menyimpan ${items.length} produk...`);
-      let saved = 0;
-      for (const item of items) {
-        try { await DB.saveInventoryItem(item); saved++; } catch {}
+      // Apply AI kategori suggestions for items with empty kategori
+      let aiCount = 0;
+      for (const it of items) {
+        if (!it.kategori) {
+          it.kategori    = _suggestKategori(it.nama);
+          it._aiSuggested = true;
+          aiCount++;
+        }
       }
 
-      Notify.success(`Import selesai: ${saved} produk berhasil disimpan`);
-      DB.logActivity({ type:'import_inventory', detail:`Import Excel inventory: ${saved} produk dari ${file.name}` });
-      renderData();
+      if (aiCount > 0) {
+        // Show review modal for AI-suggested items
+        _pendingImportItems = items;
+        _pendingImportFile  = file.name;
+        const revId = Utils.uid();
+        const aiItems = items.filter(it => it._aiSuggested);
+        Modal.open({
+          id: revId,
+          title: `🤖 Review Kategori AI`,
+          body: `
+            <div style="margin-bottom:var(--s3);font-size:13px;color:var(--text-muted);line-height:1.5">
+              <strong>${items.length} produk</strong> siap diimpor dari <em>${file.name}</em>.<br>
+              <strong style="color:var(--warning-color)">${aiCount} item</strong> tidak memiliki kategori di Excel — AI telah menyarankan kategori berdasarkan nama produk.<br>
+              Periksa dan sesuaikan jika diperlukan, lalu klik <strong>Simpan Semua</strong>.
+            </div>
+            <div style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">
+              <table class="table" style="margin:0">
+                <thead>
+                  <tr>
+                    <th style="width:50%">Nama Produk</th>
+                    <th style="width:20%">Harga</th>
+                    <th>Kategori <span style="color:var(--warning-color);font-size:11px">✦ = saran AI</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${aiItems.map((it, idx) => {
+                    const gIdx = items.indexOf(it);
+                    return `<tr>
+                      <td style="font-size:13px">
+                        <span style="color:var(--warning-color);margin-right:4px">✦</span>${it.nama}
+                      </td>
+                      <td style="font-size:13px">${it.hargaSatuan ? 'Rp ' + Number(it.hargaSatuan).toLocaleString('id-ID') : '-'}</td>
+                      <td>
+                        <select data-gidx="${gIdx}" class="form-control" style="font-size:12px;padding:4px 6px;height:auto">
+                          ${_IMPORT_KATEGORIS.map(k => `<option value="${k}" ${it.kategori===k?'selected':''}>${k}</option>`).join('')}
+                        </select>
+                      </td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          `,
+          footer: `
+            <button class="btn btn-secondary" onclick="Modal.close('${revId}')">Batal</button>
+            <button class="btn btn-primary" onclick="SettingsModule._confirmKategoriReview('${revId}')">
+              Simpan Semua (${items.length})
+            </button>
+          `
+        });
+      } else {
+        // No AI suggestions — save directly
+        await _saveImportedItems(items, file.name);
+      }
     };
     inp.click();
+  }
+
+  async function _saveImportedItems(items, fileName) {
+    Notify.info(`Menyimpan ${items.length} produk...`);
+    // Load existing to avoid duplicate-nama 409 (inv_products_nama_key unique constraint)
+    const _normN = s => String(s).toLowerCase().replace(/\s+/g,' ').trim();
+    let existingMap = new Map();
+    try {
+      const existing = await DB.getInventoryItems();
+      existing.forEach(e => existingMap.set(_normN(e.nama), e));
+    } catch {}
+    let saved = 0;
+    for (const item of items) {
+      const { _aiSuggested, ...clean } = item;
+      // If a product with the same name already exists, reuse its ID → upsert updates instead of insert
+      const match = existingMap.get(_normN(clean.nama));
+      if (match) clean.id = match.id;
+      try { await DB.saveInventoryItem(clean); saved++; } catch {}
+    }
+    Notify.success(`Import selesai: ${saved} produk berhasil disimpan`);
+    DB.logActivity({ type:'import_inventory', detail:`Import Excel inventory: ${saved} produk dari ${fileName}` });
+    renderData();
+  }
+
+  async function _confirmKategoriReview(revId) {
+    if (!_pendingImportItems) { Modal.close(revId); return; }
+    // Read user-edited kategori from selects
+    const selects = document.querySelectorAll(`#modal-${revId} select[data-gidx]`);
+    selects.forEach(sel => {
+      const idx = parseInt(sel.dataset.gidx, 10);
+      if (!isNaN(idx) && _pendingImportItems[idx]) {
+        _pendingImportItems[idx].kategori = sel.value;
+      }
+    });
+    const items    = _pendingImportItems;
+    const fileName = _pendingImportFile || 'Excel';
+    _pendingImportItems = null;
+    _pendingImportFile  = null;
+    Modal.close(revId);
+    await _saveImportedItems(items, fileName);
   }
 
   async function clearData() {
@@ -1812,6 +1939,7 @@ const SettingsModule = (() => {
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData,
     clearInventoryData, clearOpnameData, importInventoryExcel, _doImportInventoryExcel,
+    _saveImportedItems, _confirmKategoriReview,
     importActivityExcel, _doImportActivityExcel,
     _syncAuthJs, _downloadAuthJs, _saveGithubToken
   };

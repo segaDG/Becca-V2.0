@@ -10,7 +10,7 @@
        jumlah, stokAkhir, harga, supplier, catatan, createdBy }
 ============================================ */
 
-console.log('[BECCA] InventoryModule v20260327g loaded ✓');
+console.log('[BECCA] InventoryModule v20260327j loaded ✓');
 const InventoryModule = (() => {
 
   let _items      = [];   // master barang
@@ -22,7 +22,7 @@ const InventoryModule = (() => {
   let _search      = '';
   let _laporanBulan = null; // selected month for laporan tab
 
-  const KATEGORIS = ['Bahan Baku','Bumbu','Minuman','Kemasan','Peralatan','Lain-lain'];
+  const KATEGORIS = ['Bahan Baku','Bumbu','Minuman','Kemasan','Peralatan','Sembako','Fresh','Lain-lain'];
   const SATUANS   = ['kg','gr','liter','ml','pcs','pack','karton','lusin','botol','sachet'];
 
   /* ===================== INIT ===================== */
@@ -348,12 +348,21 @@ const InventoryModule = (() => {
                       </span>
                     </td>
                     ${Auth.can('inventory','edit') ? `
-                      <td class="actions">
+                      <td class="actions" style="white-space:nowrap">
                         <button class="btn-icon" title="Edit Barang"
                                 onclick="InventoryModule.openItemModal('${item.id}')">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                             <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
+                        <button class="btn-icon" title="Hapus Barang"
+                                style="color:var(--danger)"
+                                onclick="InventoryModule.deleteItem('${item.id}')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3,6 5,6 21,6"/>
+                            <path d="M19 6l-1 14H6L5 6"/>
+                            <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
                           </svg>
                         </button>
                       </td>
@@ -1069,6 +1078,25 @@ const InventoryModule = (() => {
     } catch(err) { Notify.error('Gagal', err.message); }
   }
 
+  async function deleteItem(id) {
+    const item = _itemLookup.get(String(id)) || _items.find(i => String(i.id) === String(id));
+    const ok = await Modal.confirm({
+      title: 'Hapus Barang',
+      message: `Hapus <strong>${item?.nama || 'barang ini'}</strong> secara permanen?<br><span style="font-size:12px;color:var(--text-muted)">Seluruh riwayat transaksi terkait juga akan tetap ada.</span>`,
+      danger: true,
+      confirmText: 'Hapus'
+    });
+    if (!ok) return;
+    try {
+      await DB.deleteInventoryItem(id);
+      _items = _items.filter(i => String(i.id) !== String(id));
+      _recalcStok();
+      renderStok();
+      Notify.success('Barang dihapus');
+      DB.logActivity({ type:'delete_item', detail:'Hapus barang: '+(item?.nama||id) });
+    } catch(err) { Notify.error('Gagal', err.message); }
+  }
+
   /* ===================== MODAL: TRANSAKSI STOK ===================== */
   function openTransaksiModal(preItemId = null, preJenis = '') {
     const itemOpts = _items.map(it =>
@@ -1708,7 +1736,7 @@ const InventoryModule = (() => {
   function setSearch(val) {
     const inp = document.getElementById('inv-stok-search');
     const pos = inp ? inp.selectionStart : val.length;
-    _search = (val||'').toLowerCase().trim();
+    _search = (val||'').toLowerCase();
     _stokPage = 1;
     renderStok();
     requestAnimationFrame(()=>{
@@ -2018,6 +2046,7 @@ const InventoryModule = (() => {
     setLaporanBulan,
     openItemModal,
     _submitItem,
+    deleteItem,
     openTransaksiModal,
     _onItemChange,
     _submitTransaksi,
