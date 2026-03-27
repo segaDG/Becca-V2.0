@@ -1204,23 +1204,36 @@ const SettingsModule = (() => {
       }
       if (hdrIdx < 0) { Notify.error('Header "KODE AKTIFITAS" tidak ditemukan'); return; }
 
-      // Build column map
+      // Build column map — flexible matching
       const hdr = rows[hdrIdx];
       const col = {};
       hdr.forEach((h, i) => {
         const k = String(h||'').toUpperCase().trim();
         if (k === 'TANGGAL') col.tgl = i;
-        else if (k === 'NAMA PRODUK') col.nama = i;
-        else if (k === 'STOCK IN') col.stockIn = i;
-        else if (k === 'STOCK OUT') col.stockOut = i;
-        else if (k === 'PENGAMBIL BARANG') col.pengambil = i;
-        else if (k === 'PENANGGUNG JAWAB') col.pj = i;
-        else if (k === 'KODE AKTIFITAS') col.kode = i;
+        else if (k === 'NAMA PRODUK' || k === 'NAMA BARANG' || k === 'PRODUK') col.nama = i;
+        else if (k === 'STOCK IN'  || k === 'STOK IN')  col.stockIn  = i;
+        else if (k === 'STOCK OUT' || k === 'STOK OUT') col.stockOut = i;
+        else if (k.includes('PENGAMBIL')) col.pengambil = i;
+        else if (k.includes('PENANGGUNG') || k === 'PJ') col.pj = i;
+        else if (k.includes('KODE') && (k.includes('AKTIFITAS') || k.includes('AKTIVITAS'))) col.kode = i;
         else if (k === 'CATATAN') col.catatan = i;
-        else if (k.includes('HARGA SATUAN') && k.includes('SYSTEM')) col.harga = i;
-        else if (k.includes('HARGA SATUAN') && !col.harga) col.harga = i;
+        else if (k.includes('HARGA') && k.includes('SYSTEM')) col.harga = i;      // prioritas: Harga System
+        else if (k.includes('HARGA') && !col.harga) col.harga = i;               // fallback: Harga Manual
         else if (k === 'HPP') col.hpp = i;
       });
+
+      // Fixed-column fallbacks (F=5 G=6 H=7 I=8 N=13 O=14 P=15 Q=16 R=17 T=19)
+      // Dipakai jika dynamic detection gagal menemukan kolom tertentu
+      if (col.tgl       === undefined) col.tgl       = 5;
+      if (col.nama      === undefined) col.nama      = 6;
+      if (col.stockIn   === undefined) col.stockIn   = 7;
+      if (col.stockOut  === undefined) col.stockOut  = 8;
+      if (col.pengambil === undefined) col.pengambil = 13;
+      if (col.pj        === undefined) col.pj        = 14;
+      if (col.kode      === undefined) col.kode      = 15;
+      if (col.catatan   === undefined) col.catatan   = 16;
+      if (col.hpp       === undefined) col.hpp       = 17;
+      if (col.harga     === undefined) col.harga     = 19; // Harga System (col T)
 
       // Load all inventory items for name matching
       Notify.info('Memuat daftar produk...');
