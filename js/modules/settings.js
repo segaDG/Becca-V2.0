@@ -1056,6 +1056,21 @@ const SettingsModule = (() => {
               </div>
             </div>
 
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s4)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:4px">🛒 Order Catering</div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:var(--s3)">
+                Semua data order dan invoice catering.
+              </div>
+              <button class="btn btn-sm w-full" style="margin-bottom:var(--s2);background:rgba(239,68,68,.08);color:var(--danger);border:1px solid rgba(239,68,68,.25)"
+                onclick="SettingsModule.clearOrdersData()">
+                🗑️ Hapus Semua Order
+              </button>
+              <button class="btn btn-sm w-full" style="background:rgba(239,68,68,.08);color:var(--danger);border:1px solid rgba(239,68,68,.25)"
+                onclick="SettingsModule.clearInvoicesData()">
+                🗑️ Hapus Semua Invoice
+              </button>
+            </div>
+
           </div>
           <div style="margin-top:var(--s3);font-size:11px;color:var(--text-3)">
             ⚠️ Hapus akan menghapus permanen dari Supabase. Tidak bisa dikembalikan.
@@ -1130,6 +1145,53 @@ const SettingsModule = (() => {
     } catch(e) {
       Notify.error('Gagal menghapus', e.message);
     }
+  }
+
+  /* ============ ORDER & INVOICE: HAPUS DATA ============ */
+  async function clearOrdersData() {
+    if (!Auth.isSuperAdmin()) return;
+    const ok1 = await Modal.confirm({
+      title: '⚠️ Hapus Semua Order',
+      message: 'Semua data order catering akan dihapus permanen dari server.\n\nTidak bisa dikembalikan. Lanjutkan?',
+      danger: true, confirmText: 'Ya, Lanjutkan'
+    });
+    if (!ok1) return;
+    const ok2 = await Modal.confirm({
+      title: '🔴 Konfirmasi Akhir',
+      message: 'YAKIN ingin menghapus SEMUA data order catering sekarang?',
+      danger: true, confirmText: '🗑️ Hapus Sekarang'
+    });
+    if (!ok2) return;
+    try {
+      Notify.info('Menghapus data order...');
+      await DB.clearTableData('orders');
+      Notify.success('Semua data order berhasil dihapus ✓');
+      DB.logActivity({ type:'clear_orders', detail:'Hapus semua data order catering' });
+      renderData();
+    } catch(e) { Notify.error('Gagal menghapus', e.message); }
+  }
+
+  async function clearInvoicesData() {
+    if (!Auth.isSuperAdmin()) return;
+    const ok1 = await Modal.confirm({
+      title: '⚠️ Hapus Semua Invoice',
+      message: 'Semua data invoice akan dihapus permanen dari server.\n\nTidak bisa dikembalikan. Lanjutkan?',
+      danger: true, confirmText: 'Ya, Lanjutkan'
+    });
+    if (!ok1) return;
+    const ok2 = await Modal.confirm({
+      title: '🔴 Konfirmasi Akhir',
+      message: 'YAKIN ingin menghapus SEMUA data invoice sekarang?',
+      danger: true, confirmText: '🗑️ Hapus Sekarang'
+    });
+    if (!ok2) return;
+    try {
+      Notify.info('Menghapus data invoice...');
+      await DB.clearTableData('invoices');
+      Notify.success('Semua data invoice berhasil dihapus ✓');
+      DB.logActivity({ type:'clear_invoices', detail:'Hapus semua data invoice' });
+      renderData();
+    } catch(e) { Notify.error('Gagal menghapus', e.message); }
   }
 
   /* ============ ACTIVITY LINE: IMPORT EXCEL ============ */
@@ -1918,7 +1980,8 @@ const SettingsModule = (() => {
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData,
-    clearInventoryData, clearOpnameData, importInventoryExcel, _doImportInventoryExcel,
+    clearInventoryData, clearOpnameData, clearOrdersData, clearInvoicesData,
+    importInventoryExcel, _doImportInventoryExcel,
     _saveImportedItems, _confirmKategoriReview,
     importActivityExcel, _doImportActivityExcel,
     _syncAuthJs, _downloadAuthJs, _saveGithubToken
