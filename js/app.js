@@ -8,7 +8,7 @@ const App = {
 
   _MODULE_MAP: {
     dashboard : 'js/modules/dashboard.js?v=20260327g',
-    order     : 'js/modules/order.js?v=20260327a',
+    order     : 'js/modules/order.js?v=20260327b',
     invoice   : 'js/modules/invoice.js?v=20260327a',
     customer  : 'js/modules/customer.js?v=20260327f',
     kas       : 'js/modules/kas.js?v=20260327f',
@@ -17,7 +17,7 @@ const App = {
     ap        : 'js/modules/ap.js?v=20260326l',
     task      : 'js/modules/task.js?v=20260327b',
     report    : 'js/modules/report.js?v=20260326r',
-    settings  : 'js/modules/settings.js?v=20260327r',
+    settings  : 'js/modules/settings.js?v=20260327s',
   },
 
   _loadScript(src) {

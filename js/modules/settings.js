@@ -670,6 +670,9 @@ const SettingsModule = (() => {
     } catch {}
     customRoles.push(name);
     localStorage.setItem('becca_custom_roles', JSON.stringify(customRoles));
+    // Sync ke Supabase agar berlaku di semua device
+    const allPrivs = JSON.parse(localStorage.getItem('becca_privileges') || '{}');
+    DB.saveSettings({ _customRoles: customRoles, _privileges: allPrivs }).catch(() => {});
     Modal.close(mid);
     Notify.success('Role "'+name+'" ditambahkan!');
     renderPrivilege();
@@ -685,11 +688,14 @@ const SettingsModule = (() => {
         const _p = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]');
         if (Array.isArray(_p)) custom = _p;
       } catch {}
-      localStorage.setItem('becca_custom_roles', JSON.stringify(custom.filter(r=>r!==roleName)));
+      const updatedRoles = custom.filter(r=>r!==roleName);
+      localStorage.setItem('becca_custom_roles', JSON.stringify(updatedRoles));
       let privs = {};
       try { privs = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
       delete privs[roleName];
       localStorage.setItem('becca_privileges', JSON.stringify(privs));
+      // Sync ke Supabase agar berlaku di semua device
+      DB.saveSettings({ _customRoles: updatedRoles, _privileges: privs }).catch(() => {});
       Notify.success('Role "'+roleName+'" dihapus');
       renderPrivilege();
     });

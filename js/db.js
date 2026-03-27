@@ -522,9 +522,12 @@ const DB = (() => {
           const keys = Object.keys(parsed);
           const isCorrupted = keys.length > 0 && keys.every(k => !isNaN(k));
           if (!isCorrupted) {
-            // Sync privileges ke localStorage agar Auth bisa baca antar device
+            // Sync privileges + customRoles ke localStorage agar Auth bisa baca antar device
             if (parsed._privileges) {
               try { localStorage.setItem('becca_privileges', JSON.stringify(parsed._privileges)); } catch {}
+            }
+            if (parsed._customRoles && Array.isArray(parsed._customRoles)) {
+              try { localStorage.setItem('becca_custom_roles', JSON.stringify(parsed._customRoles)); } catch {}
             }
             return { ...parsed, id: 'main' };
           }

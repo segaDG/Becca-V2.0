@@ -111,14 +111,31 @@ const OrderModule = (() => {
     const page = document.getElementById('page-order');
     if (!page) return;
     try {
-      const s = localStorage.getItem('becca_orders');
-      _data = s ? JSON.parse(s) : [];
+      // Columns & invoice-refs are UI config — always from localStorage (device-specific)
       const sc = localStorage.getItem('becca_order_columns');
       _cols = sc ? JSON.parse(sc) : JSON.parse(JSON.stringify(_defaultCols));
+      if (!_cols.length) _cols = JSON.parse(JSON.stringify(_defaultCols));
       const si = localStorage.getItem('becca_order_invoices');
       _invRecs = si ? JSON.parse(si) : [];
-      if (!_cols.length) _cols = JSON.parse(JSON.stringify(_defaultCols));
+
+      // Orders: prefer Supabase (cross-device) → fall back to localStorage
+      const dbOrders = await DB.getOrders();
+      if (dbOrders.length > 0) {
+        _data = dbOrders;
+        localStorage.setItem('becca_orders', JSON.stringify(_data));
+      } else {
+        const s = localStorage.getItem('becca_orders');
+        _data = s ? JSON.parse(s) : [];
+      }
+
+      // Pre-cache customers so order form dropdown works on any device
+      DB.getCustomers().then(custs => {
+        if (custs.length) localStorage.setItem('becca_customers', JSON.stringify(custs));
+      }).catch(() => {});
     } catch(e) {
+      console.warn('[Order] init error:', e);
+      const s = localStorage.getItem('becca_orders');
+      _data = s ? JSON.parse(s) : [];
       _cols = JSON.parse(JSON.stringify(_defaultCols));
       _invRecs = [];
     }
@@ -334,6 +351,7 @@ const OrderModule = (() => {
       if (col && col.custom) { if(!ord._custom) ord._custom={}; ord._custom[key]=v; }
       else { ord[key] = v; }
       _save();
+      DB.saveOrder({...ord}).catch(e => console.warn('[Order] saveOrder edit:', e));
       cell.innerHTML = isNum ? _c(v) : (v||'-');
       cell.ondblclick = () => startEdit(ordId, key, cell);
     };
@@ -542,13 +560,20 @@ const OrderModule = (() => {
   }
 
   /* ─── DELETE ─── */
-  function deleteOrder(id) {
+  async function deleteOrder(id) {
     const o = _data.find(x=>x.id===id);
     if (!o) return;
     if (o.invoiced) { Notify.warning('Order sudah di-invoice, tidak bisa dihapus'); return; }
-    if (!confirm(`Hapus order ${o.namaPerusahaan} (${o.tglOrder})?`)) return;
+    const ok = await Modal.confirm({
+      title: 'Hapus Order',
+      message: `Hapus order <strong>${o.namaPerusahaan}</strong> (${o.tglOrder})?`,
+      confirmText: 'Hapus',
+      danger: true,
+    });
+    if (!ok) return;
     _data = _data.filter(x=>x.id!==id);
     _save();
+    DB.deleteOrder(id).catch(e => console.warn('[Order] deleteOrder:', e));
     _renderTbody();
     Notify.success('Order dihapus');
   }
@@ -610,7 +635,7 @@ const OrderModule = (() => {
     const now = new Date();
     const ts  = now.toISOString().slice(0,10)+' '+now.toTimeString().slice(0,8);
     const user = (typeof Auth!=='undefined'&&Auth.user)?(Auth.user.name||Auth.user.username||''):'';
-    _data.push({
+    const newOrder = {
       id:'ord_'+Date.now(), timestamp:ts,
       pelapor:g('of-pelapor')||user, tglOrder:tgl, namaPerusahaan:cust,
       catatan:g('of-jenis'),
@@ -619,8 +644,10 @@ const OrderModule = (() => {
       shift2:n('of-s2'), spare2:n('of-sp2'), ot2:n('of-ot2'), snack2:n('of-snk2'),
       shift3:n('of-s3'), spare3:n('of-sp3'), ot3:n('of-ot3'), snack3:n('of-snk3'),
       snackBerat:n('of-snkb'),
-    });
+    };
+    _data.push(newOrder);
     _save();
+    DB.saveOrder({...newOrder}).catch(e => console.warn('[Order] saveOrder:', e));
     Modal.close();
     Notify.success('Order berhasil ditambahkan');
     _renderFull();
@@ -827,6 +854,10 @@ const OrderModule = (() => {
       if (ids.includes(o.id)) { o.invoiced=true; o.invoiceRef=nomor; o.invoiceDate=invDate; }
     });
     _save();
+    // Sync invoiced orders ke Supabase agar device lain tahu order sudah di-invoice
+    _data.filter(o => ids.includes(o.id)).forEach(o => {
+      DB.saveOrder({...o}).catch(e => console.warn('[Order] sync invoiced:', e));
+    });
 
     const tots = {};
     _cols.forEach(c => { tots[c.key] = list.reduce((s,o)=>s+(Number(o[c.key])||0),0); });
