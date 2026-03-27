@@ -10,7 +10,7 @@
        jumlah, stokAkhir, harga, supplier, catatan, createdBy }
 ============================================ */
 
-console.log('[BECCA] InventoryModule v20260327d loaded ✓');
+console.log('[BECCA] InventoryModule v20260327e loaded ✓');
 const InventoryModule = (() => {
 
   let _items      = [];   // master barang
@@ -335,21 +335,13 @@ const InventoryModule = (() => {
                     </td>
                     ${Auth.can('inventory','edit') ? `
                       <td class="actions">
-                        <div style="display:flex;gap:4px">
-                          <button class="btn-icon" title="Edit Barang"
-                                  onclick="InventoryModule.openItemModal('${item.id}')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                            </svg>
-                          </button>
-                          <button class="btn-icon" title="Tambah Transaksi" style="color:var(--primary-h)"
-                                  onclick="InventoryModule.openTransaksiModal('${item.id}')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <path d="M12 5v14M5 12h14"/>
-                            </svg>
-                          </button>
-                        </div>
+                        <button class="btn-icon" title="Edit Barang"
+                                onclick="InventoryModule.openItemModal('${item.id}')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
                       </td>
                     ` : ''}
                   </tr>
@@ -981,8 +973,16 @@ const InventoryModule = (() => {
 
 
   /* ===================== MODAL: BARANG ===================== */
-  function openItemModal(editId = null) {
-    const existing = editId ? _items.find(i => i.id === editId) : null;
+  async function openItemModal(editId = null) {
+    let existing = editId ? _items.find(i => i.id === editId) : null;
+    // Fallback: if not in _items cache, fetch from DB
+    if (editId && !existing) {
+      try {
+        const all = await DB.getInventoryItems();
+        existing = all.find(i => i.id === editId) || null;
+        if (existing) { _items = all; _recalcStok(); }
+      } catch {}
+    }
     const d = existing || {};
     const isEdit = !!editId;
     const mid = Utils.uid();
@@ -1016,11 +1016,11 @@ const InventoryModule = (() => {
           </div>
           <div class="form-group">
             <label class="form-label">Harga Satuan (Rp)</label>
-            <input name="hargaSatuan" type="number" min="0" class="form-control" value="${d.hargaSatuan||0}">
+            <input name="hargaSatuan" type="number" min="0" class="form-control" value="${d.hargaSatuan||d.harga||0}">
           </div>
           <div class="form-group">
             <label class="form-label">Keterangan</label>
-            <input name="keterangan" class="form-control" value="${d.keterangan||''}" placeholder="Opsional">
+            <input name="keterangan" class="form-control" value="${d.keterangan||d.ket||''}" placeholder="Opsional">
           </div>
         </form>`,
       footer: `

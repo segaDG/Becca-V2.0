@@ -1261,7 +1261,7 @@ const SettingsModule = (() => {
           const kategori= String(row[colIdx.kategori]??'').trim();
           const ket     = String(row[colIdx.ket]??'').trim();
 
-          items.push({ id:Utils.uid(), nama, satuan, harga, stokMin, status, kategori, ket, _stok:0, balance:0 });
+          items.push({ id:Utils.uid(), nama, satuan, hargaSatuan:harga, stokMin, status, kategori, keterangan:ket, _stok:0, balance:0 });
         }
       }
 
