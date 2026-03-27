@@ -91,6 +91,8 @@ const CustomerModule = (() => {
             hargaOT3:       cp.ot3        || c.hargaOT3        || 0,
             hargaSnack3:    cp.snack3     || c.hargaSnack3     || 0,
             hargaSnackBerat:cp.snakBerat  || c.hargaSnackBerat || 0,
+            pb1:   c.pb1  ?? false,
+            pph23: c.pph23 ?? false,
           };
         });
       } else {
@@ -104,6 +106,58 @@ const CustomerModule = (() => {
       const saved = localStorage.getItem('becca_customers');
       _data = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(_defaultData));
     }
+
+    // Migrate: set pb1/pph23 for known customers if not yet set
+    const _TAX_BY_NAME = {
+      'SODEXO INDONESIA':                    { pb1:true,  pph23:false },
+      'PT. NUGRAHA INDAH CITARASA INDONESIA':{ pb1:true,  pph23:true  },
+      'SUPER STEEL KARAWANG':                { pb1:false, pph23:true  },
+      'PT. Shinto Kogyo Indonesia':          { pb1:false, pph23:true  },
+      'PT. DAIKI ALMUNIUM INDUSTRI IND':     { pb1:true,  pph23:true  },
+      'PT. RESONAC MATERIALS INDONESIA':     { pb1:true,  pph23:true  },
+      'PT. NBC INDONESIA':                   { pb1:false, pph23:true  },
+      'PT. Akashi Wahana Indonesia':         { pb1:false, pph23:true  },
+      'PT. NICI':    { pb1:true,  pph23:true  },
+      'PT. MINDA':   { pb1:false, pph23:true  },
+      'PT. Murotech':{ pb1:false, pph23:true  },
+      'PT. ATOZ':    { pb1:false, pph23:true  },
+      'PT. DCI':     { pb1:false, pph23:true  },
+      'RS PERMATA':  { pb1:false, pph23:true  },
+      'PT. Shinetsu':{ pb1:false, pph23:true  },
+      'PT. DAIKI':   { pb1:true,  pph23:true  },
+      'PT. Etex':    { pb1:false, pph23:true  },
+      'PT. AWI':     { pb1:false, pph23:true  },
+      'PT. DDMI':    { pb1:true,  pph23:true  },
+      'PT. NBC':     { pb1:false, pph23:true  },
+      'PT. DIC':     { pb1:false, pph23:false },
+      'PT. ASTRA':   { pb1:false, pph23:true  },
+      'PT. RESONAC': { pb1:true,  pph23:true  },
+    };
+    const _TAX_BY_ID = {
+      '10':{ pb1:true,  pph23:true  },'20':{ pb1:false, pph23:true  },
+      '27':{ pb1:false, pph23:true  },'30':{ pb1:false, pph23:true  },
+      '51':{ pb1:true,  pph23:false },'53':{ pb1:false, pph23:true  },
+      '55':{ pb1:false, pph23:true  },'56':{ pb1:false, pph23:true  },
+      '59':{ pb1:false, pph23:true  },'60':{ pb1:false, pph23:true  },
+      '62':{ pb1:true,  pph23:true  },'63':{ pb1:false, pph23:true  },
+      '64':{ pb1:false, pph23:true  },'66':{ pb1:true,  pph23:true  },
+      '67':{ pb1:false, pph23:true  },'68':{ pb1:false, pph23:false },
+      '69':{ pb1:false, pph23:true  },'71':{ pb1:true,  pph23:true  },
+    };
+    let _migrated = false;
+    _data.forEach(c => {
+      if (c.pb1 === undefined || c.pb1 === null || c.pph23 === undefined || c.pph23 === null) {
+        const tax = _TAX_BY_NAME[c.nama] || _TAX_BY_ID[String(c.customerId||'')] || { pb1:false, pph23:false };
+        c.pb1   = tax.pb1;
+        c.pph23 = tax.pph23;
+        _migrated = true;
+      }
+    });
+    localStorage.setItem('becca_customers', JSON.stringify(_data));
+    if (_migrated) {
+      _data.forEach(c => DB.saveCustomer({...c}).catch(()=>{}));
+    }
+
     _render(page);
   }
 
@@ -237,12 +291,14 @@ const CustomerModule = (() => {
               ${_th('Kota','','','90px')}
               ${_thS('status','Status','75px','center')}
               ${_th('Catatan','','','160px')}
+              ${_thS('pb1','PB1','65px','center')}
+              ${_thS('pph23','PPH23','65px','center')}
               ${canEdit ? _th('','','center','60px') : ''}
             </tr>
           </thead>
 
           <tbody>
-          ${!list.length ? `<tr><td colspan="29" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data customer.</td></tr>` :
+          ${!list.length ? `<tr><td colspan="31" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data customer.</td></tr>` :
             list.map((c, i) => {
               const ak = (c.status||'AKTIF')==='AKTIF';
               // Solid backgrounds for sticky columns (no transparent!)
@@ -307,6 +363,12 @@ const CustomerModule = (() => {
                   <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;${sc}">${c.status||'AKTIF'}</span>
                 </td>
                 <td style="padding:8px 10px;font-size:11px;color:var(--text-3);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.catatan||'-'}</td>
+                <td style="padding:8px 10px;text-align:center">
+                  ${c.pb1 ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)">Ada</span>` : `<span style="font-size:10px;color:var(--text-3)">–</span>`}
+                </td>
+                <td style="padding:8px 10px;text-align:center">
+                  ${c.pph23 ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(99,102,241,.15);color:#6366f1;border:1px solid rgba(99,102,241,.3)">Ada</span>` : `<span style="font-size:10px;color:var(--text-3)">–</span>`}
+                </td>
                 ${canEdit ? `<td style="padding:6px 8px;text-align:center">
                   <div style="display:flex;gap:4px;justify-content:center">
                     <button onclick="CustomerModule.openModal('${c.id}')" title="Edit"
@@ -553,6 +615,24 @@ const CustomerModule = (() => {
         <div class="cf-section">Catatan</div>
         <div class="form-group">
           <input class="form-control" id="cf-catatan" value="${fv('catatan')}" placeholder="Catatan tambahan...">
+        </div>
+
+        <div class="cf-section">Pajak</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)">
+          <div class="form-group">
+            <label class="form-label" style="color:#f59e0b;font-weight:700">PB1 (10%)</label>
+            <select class="form-control" id="cf-pb1">
+              <option value="false" ${!c?.pb1 ? 'selected' : ''}>Tidak Ada</option>
+              <option value="true"  ${c?.pb1  ? 'selected' : ''}>Ada</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="color:#6366f1;font-weight:700">PPH 23 (2%)</label>
+            <select class="form-control" id="cf-pph23">
+              <option value="false" ${!c?.pph23 ? 'selected' : ''}>Tidak Ada</option>
+              <option value="true"  ${c?.pph23  ? 'selected' : ''}>Ada</option>
+            </select>
+          </div>
         </div>`,
       footer: `
         <button class="btn btn-ghost" onclick="Modal.close(window._beccaCustModalId)">Batal</button>
@@ -585,6 +665,8 @@ const CustomerModule = (() => {
       hargaShift3: n('cf-hargaShift3'), hargaSpare3: n('cf-hargaSpare3'),
       hargaOT3: n('cf-hargaOT3'), hargaSnack3: n('cf-hargaSnack3'),
       hargaSnackBerat: n('cf-hargaSnackBerat'),
+      pb1:  document.getElementById('cf-pb1')?.value === 'true',
+      pph23: document.getElementById('cf-pph23')?.value === 'true',
     };
 
     if (id) {
@@ -593,8 +675,9 @@ const CustomerModule = (() => {
     } else {
       _data.push(obj);
     }
-    // Save ke Supabase
+    // Save ke Supabase + localStorage
     DB.saveCustomer(obj).catch(e => console.warn('saveCustomer:', e));
+    localStorage.setItem('becca_customers', JSON.stringify(_data));
     Modal.close(window._beccaCustModalId);
     Notify.success(id?'Customer diperbarui':'Customer berhasil ditambahkan');
     _render();

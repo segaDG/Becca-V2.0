@@ -852,7 +852,9 @@ const OrderModule = (() => {
           return map[k] ?? 17500;
         };
         const subtotal = _cols.reduce((s,col) => s + (tots[col.key]||0) * gh(col.key), 0);
-        const grand    = subtotal + Math.round(subtotal*0.10) - Math.round(subtotal*0.02);
+        const grand    = subtotal
+          + (c.pb1   ? Math.round(subtotal*0.10) : 0)
+          - (c.pph23 ? Math.round(subtotal*0.02) : 0);
         DB.saveInvoice({
           id:            'ord_' + nomor,
           customerId:    c.customerId || '',
@@ -1206,8 +1208,10 @@ const OrderModule = (() => {
     const subtotal  = activeCols.reduce((s,c)=>s+(mainTots[c.key]+(includeAdd?addTots[c.key]:0))*_gh(c.key),0);
     const pb1Rate   = 0.10;
     const pph23Rate = 0.02;
-    const pb1Tax    = subtotal * pb1Rate;
-    const pphTax    = subtotal * pph23Rate;
+    const hasPb1    = !!custObj.pb1;
+    const hasPph23  = !!custObj.pph23;
+    const pb1Tax    = hasPb1   ? Math.round(subtotal * pb1Rate)   : 0;
+    const pphTax    = hasPph23 ? Math.round(subtotal * pph23Rate) : 0;
     const grandTotal = subtotal + pb1Tax - pphTax;
 
     /* ─── COMPANY HEADER (shared) ─── */
@@ -1318,10 +1322,11 @@ const OrderModule = (() => {
           <!-- KANAN: Totals box -->
           <div style="min-width:290px;border:1px solid #dde3f0;border-radius:6px;overflow:hidden;flex-shrink:0">
             <div style="display:flex;justify-content:space-between;padding:5px 12px;
-              border-bottom:2px solid ${C.NAVY};background:#fafbff">
+              border-bottom:${hasPb1||hasPph23?'1px solid #eee':'2px solid '+C.NAVY};background:#fafbff">
               <span style="font-weight:700;font-size:10px;color:${C.NAVY_D}">Subtotal</span>
               <span style="font-weight:700;font-size:11px;color:${C.NAVY_D};font-family:Arial">${rp(subtotal)}</span>
             </div>
+            ${hasPb1 ? `
             <div style="display:flex;justify-content:space-between;padding:4px 12px;
               border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
               <span style="color:#555">Pb1</span>
@@ -1331,17 +1336,18 @@ const OrderModule = (() => {
               border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
               <span style="color:#555">Tax due (Pb1)</span>
               <span style="font-weight:600">${rp(pb1Tax)}</span>
-            </div>
+            </div>` : ''}
+            ${hasPph23 ? `
             <div style="display:flex;justify-content:space-between;padding:4px 12px;
               border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
               <span style="color:#555">PPh 23</span>
               <span style="font-weight:600">${(pph23Rate*100).toFixed(0)}%</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:4px 12px;
-              border-bottom:1px solid ${C.NAVY};font-size:9px;background:#fafbff">
+              border-bottom:2px solid ${C.NAVY};font-size:9px;background:#fafbff">
               <span style="color:#555">Tax due (PPh 23)</span>
               <span style="font-weight:600;color:${C.RED}">- ${rp(pphTax)}</span>
-            </div>
+            </div>` : (hasPb1 ? `<div style="border-bottom:2px solid ${C.NAVY}"></div>` : '')}
             <div style="display:flex;justify-content:space-between;padding:7px 12px;
               background:${C.NAVY};color:#fff">
               <span style="font-weight:700;font-size:12px;letter-spacing:.04em">TOTAL</span>

@@ -43,13 +43,23 @@ const InvoiceModule = (() => {
     const NAMES = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
     const months = NAMES.map((b, i) => ({ no:i+1, bulan:b, omzetInvoice:0, totalInvoice:0, totalClient:0, overdue:0, unpaid:0, pb1:0 }));
     const clientsByMonth = {};
+    // Build customer tax lookup from localStorage
+    const _custTaxMap = {};
+    try {
+      const custs = JSON.parse(localStorage.getItem('becca_customers')||'[]');
+      custs.forEach(c => {
+        _custTaxMap[c.nama] = c;
+        if (c.customerId) _custTaxMap[String(c.customerId)] = c;
+      });
+    } catch(e) {}
     _invoices.forEach(inv => {
       if (!inv.tglInvoice) return;
       const m = parseInt(inv.tglInvoice.slice(5,7), 10) - 1;
       if (m < 0 || m > 11) return;
       months[m].omzetInvoice += inv.total || 0;
       months[m].totalInvoice += 1;
-      months[m].pb1 += Math.round((inv.total || 0) * 0.1);
+      const custData = _custTaxMap[String(inv.customerId||'')] || _custTaxMap[inv.customer||''] || {};
+      if (custData.pb1) months[m].pb1 += Math.round((inv.total || 0) * 0.1);
       if (inv.status !== 'Paid') months[m].unpaid += inv.sisa || 0;
       if (!clientsByMonth[m]) clientsByMonth[m] = new Set();
       if (inv.customerId || inv.customer) clientsByMonth[m].add(inv.customerId || inv.customer);
@@ -1132,28 +1142,31 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         .map(k => ({ key: k, label: ALL_COLS_LABEL[k] || k }));
     }
 
-    // Lookup harga per kolom dari becca_customers
-    const _custHargaMap = (() => {
+    // Lookup harga + pajak per customer dari becca_customers
+    const _custData = (() => {
       try {
         const custs = JSON.parse(localStorage.getItem('becca_customers')||'[]');
-        const c = custs.find(x => x.nama === inv.customer);
-        if (!c) return null;
-        return {
-          breakfast:c.hargaBreakfast||17500, shift1:c.hargaShift1||17500,
-          spare1:c.hargaSpare1||17500,       ot1:c.hargaOT1||17500,
-          snack1:c.hargaSnack1||17500,       shift2:c.hargaShift2||17500,
-          spare2:c.hargaSpare2||17500,       ot2:c.hargaOT2||17500,
-          snack2:c.hargaSnack2||17500,       shift3:c.hargaShift3||17500,
-          spare3:c.hargaSpare3||17500,       ot3:c.hargaOT3||17500,
-          snack3:c.hargaSnack3||17500,       snackBerat:c.hargaSnackBerat||17500,
-        };
+        return custs.find(x => x.nama === inv.customer)
+            || custs.find(x => x.customerId && String(x.customerId) === String(inv.customerId||''))
+            || null;
       } catch(e){ return null; }
     })();
+    const _custHargaMap = _custData ? {
+      breakfast:_custData.hargaBreakfast||17500, shift1:_custData.hargaShift1||17500,
+      spare1:_custData.hargaSpare1||17500,       ot1:_custData.hargaOT1||17500,
+      snack1:_custData.hargaSnack1||17500,       shift2:_custData.hargaShift2||17500,
+      spare2:_custData.hargaSpare2||17500,       ot2:_custData.hargaOT2||17500,
+      snack2:_custData.hargaSnack2||17500,       shift3:_custData.hargaShift3||17500,
+      spare3:_custData.hargaSpare3||17500,       ot3:_custData.hargaOT3||17500,
+      snack3:_custData.hargaSnack3||17500,       snackBerat:_custData.hargaSnackBerat||17500,
+    } : null;
     const _getHarga = key => _custHargaMap?.[key] ?? 17500;
-    const pb1Rate = 0.10, pph23Rate = 0.02;
-    const subtotal = inv.total || 0;
-    const pb1Tax   = Math.round(subtotal * pb1Rate);
-    const pphTax   = Math.round(subtotal * pph23Rate);
+    const hasPb1    = !!_custData?.pb1;
+    const hasPph23  = !!_custData?.pph23;
+    const pb1Rate   = 0.10, pph23Rate = 0.02;
+    const subtotal  = inv.total || 0;
+    const pb1Tax    = hasPb1   ? Math.round(subtotal * pb1Rate)   : 0;
+    const pphTax    = hasPph23 ? Math.round(subtotal * pph23Rate) : 0;
     const grandTotal = subtotal + pb1Tax - pphTax;
 
     const coHeader = (docTitle, docNum) => `
@@ -1352,23 +1365,25 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
       <div>5. NPWPD : 03.0012478.03.005</div>
     </div>
     <div style="min-width:290px;border:1px solid #dde3f0;border-radius:6px;overflow:hidden;flex-shrink:0">
-      <div style="display:flex;justify-content:space-between;padding:5px 12px;border-bottom:2px solid ${C.NAVY};background:#fafbff">
+      <div style="display:flex;justify-content:space-between;padding:5px 12px;border-bottom:${hasPb1||hasPph23?'1px':'2px'} solid ${hasPb1||hasPph23?'#eee':C.NAVY};background:#fafbff">
         <span style="font-weight:700;font-size:10px;color:${C.NAVY_D}">Subtotal</span>
         <span style="font-weight:700;font-size:11px;color:${C.NAVY_D}">${rp(subtotal)}</span>
       </div>
+      ${hasPb1 ? `
       <div style="display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
         <span style="color:#555">Pb1</span><span style="font-weight:600">${(pb1Rate*100).toFixed(0)}%</span>
       </div>
       <div style="display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
         <span style="color:#555">Tax due (Pb1)</span><span style="font-weight:600">${rp(pb1Tax)}</span>
-      </div>
+      </div>` : ''}
+      ${hasPph23 ? `
       <div style="display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #eee;font-size:9px;background:#fafbff">
         <span style="color:#555">PPh 23</span><span style="font-weight:600">${(pph23Rate*100).toFixed(0)}%</span>
       </div>
       <div style="display:flex;justify-content:space-between;padding:4px 12px;border-bottom:2px solid ${C.NAVY};font-size:9px;background:#fafbff">
         <span style="color:#555">Tax due (PPh 23)</span>
         <span style="font-weight:600;color:${C.RED}">- ${rp(pphTax)}</span>
-      </div>
+      </div>` : (hasPb1 ? `<div style="border-bottom:2px solid ${C.NAVY}"></div>` : '')}
       <div style="display:flex;justify-content:space-between;padding:7px 12px;background:${C.NAVY};color:#fff">
         <span style="font-weight:700;font-size:12px">TOTAL</span>
         <span style="font-weight:900;font-size:13px">${rp(grandTotal)}</span>
