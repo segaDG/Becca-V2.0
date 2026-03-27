@@ -252,13 +252,20 @@ const DB = (() => {
     }
 
     // Untuk NO_CACHE tables: merge item localStorage yang belum tersync ke Supabase.
-    // Mencegah data hilang ketika Supabase save gagal (RLS/jaringan) tapi sudah
-    // tersimpan di localStorage sebagai fallback — terutama untuk tasks, ap, dst.
+    // Hanya merge item yang punya _ls_saved_at dalam 24 jam terakhir —
+    // mencegah item lama (yang sudah dihapus di device lain) muncul kembali.
     if (NO_CACHE.includes(table)) {
       try {
-        const lsData = JSON.parse(localStorage.getItem('becca_' + table) || '[]');
+        const lsData  = JSON.parse(localStorage.getItem('becca_' + table) || '[]');
         const supaIds = new Set(result.map(r => r.id));
-        const pending = lsData.filter(r => r.id && !supaIds.has(r.id));
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        const pending = lsData.filter(r => {
+          if (!r.id || supaIds.has(r.id)) return false;
+          // Hanya include item yang baru disimpan (< 24 jam) — item lama/tanpa
+          // timestamp dianggap stale/deleted dan dibuang dari merge
+          const age = r._ls_saved_at ? (Date.now() - r._ls_saved_at) : Infinity;
+          return age < ONE_DAY;
+        });
         if (pending.length) result = [...pending, ...result];
       } catch {}
     }
@@ -290,6 +297,8 @@ const DB = (() => {
     // Pre-save ke localStorage + invalidate cache SEBELUM Supabase call
     // agar data tidak hilang jika user navigasi saat request masih in-flight
     _invalidateCache(table);
+    // Tag waktu pre-save untuk NO_CACHE tables — dipakai di merge expiry (_get)
+    if (NO_CACHE.includes(table) && !obj._ls_saved_at) obj._ls_saved_at = Date.now();
     _lsSave(table, obj);
 
     // Selalu pakai minimal upsert: hanya id + data JSON + timestamps

@@ -13,8 +13,9 @@
 const TaskModule = (() => {
   'use strict';
 
-  let _tasks  = [];
-  let _filter = 'board';
+  let _tasks      = [];
+  let _filter     = 'board';
+  let _submitting = false;  // guard against double-submit
 
   /* ── Init ── */
   async function init() {
@@ -867,9 +868,11 @@ const TaskModule = (() => {
 
   /* ── Submit ── */
   async function _submit(modalId, editId='') {
+    if (_submitting) return;
+    _submitting = true;
     const fd   = new FormData(document.getElementById('task-form'));
     const data = Object.fromEntries(fd.entries());
-    if (!data.judul) { Notify.warning('Judul wajib diisi'); return; }
+    if (!data.judul) { _submitting = false; Notify.warning('Judul wajib diisi'); return; }
 
     // Kumpulkan assignees dari checkboxes
     const checked = [...document.querySelectorAll('#assignee-list input[type=checkbox]:checked')];
@@ -898,13 +901,18 @@ const TaskModule = (() => {
         if (editId) {
           const i = _tasks.findIndex(t=>t.id===editId);
           if (i>=0) _tasks[i]=saved; else _tasks.push(saved);
-        } else { _tasks.push(saved); }
+        } else {
+          // Dedup guard: only push if this ID isn't already in _tasks
+          // (prevents double-card if init() ran while save was in-flight)
+          if (!_tasks.find(t => t.id === saved.id)) _tasks.push(saved);
+        }
       }
       Notify.success(editId?'Task berhasil diperbarui!':'Task baru ditambahkan!');
       DB.logActivity({type:editId?'edit_task':'add_task', detail:'Task: '+data.judul});
       Modal.close(modalId);
       _renderTabs(); render();
     } catch(err) { Notify.error('Gagal', err.message); }
+    finally { _submitting = false; }
   }
 
   /* ── WhatsApp Share ── */
