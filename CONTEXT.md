@@ -138,8 +138,12 @@ const XModule = (() => {
   let _currentPage = 1;
 
   // Private functions
-  async function _render() { /* update DOM */ }
-  async function _load() { _data = await DB.getXxx(); }
+  function _render() { /* update DOM */ }
+
+  // Load SELALU dari DB — bukan localStorage langsung
+  async function _load() {
+    _data = await DB.getXxx();  // DB sudah handle cache + LS fallback
+  }
 
   // Public init — dipanggil oleh App.navigate()
   async function init() {
@@ -147,8 +151,27 @@ const XModule = (() => {
     _render();
   }
 
+  // Save SELALU ke DB
+  async function _submit() {
+    const data = { ...formValues, id: existingId || Utils.uid() };
+    const saved = await DB.saveXxx(data);  // DB handle LS pre-save + Supabase upsert
+    _data = await DB.getXxx();
+    _render();
+    Notify.success('Tersimpan');
+  }
+
+  // Delete SELALU ke DB
+  async function _delete(id) {
+    const ok = await Modal.confirm({ title:'Hapus?', danger:true, confirmText:'Hapus' });
+    if (!ok) return;
+    await DB.deleteXxx(id);
+    _data = _data.filter(x => x.id !== id);
+    _render();
+    Notify.success('Dihapus');
+  }
+
   // Public API
-  return { init };
+  return { init, _submit, _delete };
 })();
 
 window.XModule = XModule;
@@ -503,14 +526,44 @@ async function deleteItem(id) {
 
 ## Catatan Penting & Gotchas
 
+### ⚠️ WAJIB: Data Harus Selalu Masuk ke DB (Supabase)
+
+**Aturan utama untuk semua modul, sekarang dan ke depan:**
+
+1. **Load data → selalu dari Supabase** via `DB.getXxx()`, bukan dari `localStorage.getItem()` langsung.
+   - `DB.getXxx()` sudah punya 5-menit memory cache + localStorage fallback secara otomatis.
+   - Jangan bypass DB layer untuk baca data bisnis.
+
+2. **Simpan data → selalu panggil `DB.saveXxx()`** setelah operasi form/edit/delete.
+   - `DB._save()` internal sudah handle: pre-save ke LS dulu, lalu upsert ke Supabase.
+   - JANGAN hanya tulis `localStorage.setItem('becca_xxx', ...)` untuk data bisnis tanpa diikuti `DB.saveXxx()`.
+
+3. **Hapus data → selalu panggil `DB.deleteXxx()`**.
+   - Jangan hanya hapus dari array in-memory + localStorage tanpa DB call.
+
+4. **Preferensi UI (bukan data bisnis) boleh localStorage-only**, contoh:
+   - Pagination size (`becca_kas_perPage`, `becca_ord_perPage`)
+   - Widget config dashboard
+   - Lock state / row edit state
+
+5. **localStorage hanya untuk:**
+   - Cache dari DB (diisi otomatis oleh `DB.getXxx()`)
+   - UI state (pagination, filter preference)
+   - Fallback saat Supabase offline
+
+**Jika tidak mengikuti aturan ini, data hanya ada di device yang input dan tidak bisa dilihat di device lain.**
+
+---
+
 ### Supabase & Data
 
 - **Jangan gunakan Firebase** — backend adalah Supabase
 - **Semua DB calls adalah async** — selalu `await DB.getXxx()`
 - **`DB.getXxx()` selalu return array** — tidak perlu null check
+- **Memory cache 5 menit** — `DB.getXxx()` sudah punya memory cache, aman dipanggil berkali-kali tanpa extra network request
 - **Supabase RLS** — anon key terekspos di client (normal untuk Supabase). Untuk production, pastikan RLS policy sudah dikonfigurasi. File `supabase_rls_fix.sql` tersedia di repo
-- **`DB.migrateFromLocalStorage()`** — tersedia untuk one-time migration data localStorage → Supabase. Diproteksi flag `becca_migrated_v2` di localStorage
-- **Cross-device data** — data hanya sinkron antar device lewat Supabase. Jika Supabase write gagal (misal RLS block), data hanya tersimpan di localStorage device tersebut
+- **`DB.migrateFromLocalStorage()`** — tersedia untuk one-time migration data localStorage → Supabase. Diproteksi flag `becca_migrated_v6` di localStorage
+- **Cross-device data** — data sinkron antar device lewat Supabase. localStorage hanya sebagai cache/fallback
 
 ### Script & Module Loading
 

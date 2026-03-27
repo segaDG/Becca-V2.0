@@ -333,24 +333,34 @@ const KasModule = (() => {
     const bulanOpts  = MONTHS.map(m=>`<option value="${m}" ${r.bulan===m?'selected':''}>${m}</option>`).join('');
     return `<tr class="ks-editing" id="ks-row-${r.id}" data-id="${r.id}" onclick="event.stopPropagation()">
       <td><div class="ks-cell" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
-      <td><input class="ks-inp" type="date" value="${r.tgl||''}" id="ks-tgl-${r.id}"></td>
+      <td><input class="ks-inp" type="date" value="${r.tgl||''}" id="ks-tgl-${r.id}"
+            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
       <td><input class="ks-inp" type="text" value="${(r.nama||'').replace(/"/g,'&quot;')}" placeholder="Nama/keterangan"
             id="ks-nama-${r.id}"
             oninput="KasModule._onNamaInput('${r.id}',this.value)"
             onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
-      <td><select class="ks-sel" id="ks-type-${r.id}">${typeOpts}</select></td>
-      <td><input class="ks-inp" type="text" value="${(r.vendor||'').replace(/"/g,'&quot;')}" placeholder="Vendor" id="ks-vendor-${r.id}"></td>
+      <td><select class="ks-sel" id="ks-type-${r.id}"
+            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')">${typeOpts}</select></td>
+      <td><input class="ks-inp" type="text" value="${(r.vendor||'').replace(/"/g,'&quot;')}" placeholder="Vendor"
+            id="ks-vendor-${r.id}"
+            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
       <td class="ks-num"><input class="ks-inp" type="number" min="0" step="0.01" value="${r.qty||0}"
-            id="ks-qty-${r.id}" oninput="KasModule._calcTotal('${r.id}')" style="text-align:right"></td>
-      <td><input class="ks-inp" type="text" value="${r.satuan||''}" list="ks-sat-lst" id="ks-sat-${r.id}">
+            id="ks-qty-${r.id}" oninput="KasModule._calcTotal('${r.id}')" style="text-align:right"
+            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
+      <td><input class="ks-inp" type="text" value="${r.satuan||''}" list="ks-sat-lst" id="ks-sat-${r.id}"
+            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')">
           <datalist id="ks-sat-lst">${SATUANS.map(s=>`<option value="${s}">`).join('')}</datalist></td>
       <td class="ks-num"><input class="ks-inp" type="number" min="0" value="${r.hargaSatuan||0}"
-            id="ks-harga-${r.id}" oninput="KasModule._calcTotal('${r.id}')" style="text-align:right"></td>
+            id="ks-harga-${r.id}" oninput="KasModule._calcTotal('${r.id}')" style="text-align:right"
+            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
       <td class="ks-num"><input class="ks-inp" type="number" min="0" value="${r.jumlah||0}"
             id="ks-jumlah-${r.id}" style="text-align:right;font-weight:700"
             onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
-      <td><input class="ks-inp" type="text" value="${(r.penerima||'').replace(/"/g,'&quot;')}" placeholder="Penerima" id="ks-penerima-${r.id}"></td>
-      <td><select class="ks-sel" id="ks-status-${r.id}">${statusOpts}</select></td>
+      <td><input class="ks-inp" type="text" value="${(r.penerima||'').replace(/"/g,'&quot;')}" placeholder="Penerima"
+            id="ks-penerima-${r.id}"
+            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
+      <td><select class="ks-sel" id="ks-status-${r.id}"
+            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')">${statusOpts}</select></td>
       ${canEdit?`<td><button class="ks-del-btn" style="color:var(--success);border:1px solid var(--success)"
           onclick="event.stopPropagation();KasModule.commitEdit('${r.id}')" title="Simpan">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
@@ -380,6 +390,8 @@ const KasModule = (() => {
   // FIX: use a single named function for outside click so removeEventListener works
   function _handleOutsideClick(e) {
     if (!_editingId) return;
+    // Jika popup validasi sedang tampil, biarkan popup yang handle — jangan commit ulang
+    if (document.getElementById('_val-popup')) return;
     const editingRow = document.getElementById('ks-row-'+_editingId);
     if (editingRow && !editingRow.contains(e.target)) {
       const id = _editingId;

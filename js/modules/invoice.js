@@ -825,10 +825,15 @@ const InvoiceModule = (() => {
     const inputs = document.querySelectorAll('#rekap-edit-tbody input[data-order-id]');
     if (!inputs.length) return;
 
-    // Load orders dari localStorage
+    // Load orders dari DB (memory-cached 5 menit) agar cross-device konsisten
     let allOrders;
-    try { allOrders = JSON.parse(localStorage.getItem('becca_orders')||'[]'); }
-    catch(e) { Notify.error('Gagal baca data order'); return; }
+    try { allOrders = await DB.getOrders(); }
+    catch(e) {
+      // Fallback ke localStorage jika DB tidak tersedia
+      try { allOrders = JSON.parse(localStorage.getItem('becca_orders')||'[]'); }
+      catch { Notify.error('Gagal baca data order'); return; }
+    }
+    if (!allOrders.length) { Notify.warning('Data order tidak ditemukan'); return; }
 
     // Kumpulkan perubahan per order id
     const changes = {};

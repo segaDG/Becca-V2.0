@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/segadharmawan/Desktop/WORKS/Claude/Becca/Becca-V2.0 && git diff --quiet && git diff --cached --quiet || (git add -A && git commit -m \"Auto-commit: $(date '+%Y-%m-%d %H:%M')\" && git push origin main)",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
