@@ -1445,69 +1445,36 @@ const SettingsModule = (() => {
         wb = XLSX.read(buf, { type:'array', cellDates:false });
       } catch(err) { Notify.error('File tidak bisa dibaca', err.message); return; }
 
-      // Mapping kolom
-      const COL_MAP = {
-        nama:'nama', name:'nama', 'nama barang':'nama', 'nama produk':'nama', nama_barang:'nama', namabarang:'nama', item:'nama',
-        satuan:'satuan', unit:'satuan', uom:'satuan',
-        harga:'harga', price:'harga', harga_satuan:'harga', hargasatuan:'harga', 'harga satuan':'harga',
-        stok_min:'stokMin', stokmin:'stokMin', 'stok min':'stokMin', min_stock:'stokMin', minstock:'stokMin', minimum:'stokMin',
-        'min stock':'stokMin',
-        status:'status', 'status barang':'status',
-        kategori:'kategori', category:'kategori', jenis:'kategori', type:'kategori',
-        keterangan:'ket', keterangan_tambahan:'ket', ket:'ket', notes:'ket',
-      };
-
-      const _mapHeader = (row) => {
-        const map = {};
-        row.forEach((cell, ci) => {
-          const k = String(cell).toLowerCase().trim().replace(/\s+/g,' ');
-          const k2 = k.replace(/\s/g,'_');
-          const field = COL_MAP[k] || COL_MAP[k2];
-          if (field && !(field in map)) map[field] = ci;
-        });
-        return map;
-      };
-
       const _normName = s => String(s).toLowerCase().replace(/\s+/g,' ').trim();
+
+      // Kolom tetap untuk sheet DAFTAR BARANG:
+      //   K (index 10) = Nama Produk
+      //   L (index 11) = Kategori
+      //   T (index 19) = Harga
+      // Data mulai baris 11 (index 10)
+      const COL_NAMA     = 10;
+      const COL_KATEGORI = 11;
+      const COL_HARGA    = 19;
+      const DATA_START   = 10; // baris 11, 0-indexed
 
       const items = [];
       for (const sheetName of wb.SheetNames) {
-        const ws = wb.Sheets[sheetName];
+        // Hanya proses sheet "DAFTAR BARANG"
+        if (!/daftar.?barang/i.test(sheetName)) continue;
+
+        const ws   = wb.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
-        if (rows.length < 2) continue;
+        if (rows.length <= DATA_START) continue;
 
-        // DAFTAR BARANG sheet: nama selalu di kolom K (index 10), data mulai baris 11 (index 10)
-        const isDaftarBarang = /daftar.?barang/i.test(sheetName);
+        for (let ri = DATA_START; ri < rows.length; ri++) {
+          const row  = rows[ri];
+          const nama = String(row[COL_NAMA] ?? '').trim();
+          if (!nama) continue; // kolom K kosong → skip
 
-        // Cari baris header untuk mapping kolom lain (harga, satuan, dll)
-        let hdrIdx = -1, colIdx = {};
-        for (let ri = 0; ri < Math.min(rows.length, 15); ri++) {
-          const map = _mapHeader(rows[ri]);
-          if (map.nama !== undefined || (isDaftarBarang && rows[ri].some(c=>String(c).toLowerCase().includes('nama')))) {
-            hdrIdx = ri; colIdx = map; break;
-          }
-        }
+          const kategori = String(row[COL_KATEGORI] ?? '').trim();
+          const harga    = parseFloat(String(row[COL_HARGA]  ?? '0').replace(/[^\d.]/g,'')) || 0;
 
-        // Untuk Daftar Barang: nama di kolom K (index 10), data mulai index 10 (baris 11)
-        const namaIdx   = isDaftarBarang ? 10 : (colIdx.nama !== undefined ? colIdx.nama : 10);
-        const dataStart = isDaftarBarang ? Math.max(hdrIdx >= 0 ? hdrIdx + 1 : 0, 10) : (hdrIdx >= 0 ? hdrIdx + 1 : -1);
-        if (dataStart < 0) continue;
-
-        for (let ri = dataStart; ri < rows.length; ri++) {
-          const row = rows[ri];
-          if (row.every(c => c === '' || c === null || c === undefined)) continue;
-          const nama = String(row[namaIdx] ?? '').trim();
-          if (!nama) continue;  // skip baris dengan kolom K kosong
-
-          const _col = (k) => colIdx[k] !== undefined ? row[colIdx[k]] : undefined;
-          const harga   = parseFloat(String(_col('harga') ?? _col('hargaSatuan') ?? '0').replace(/[^\d.]/g,'')) || 0;
-          const satuan  = String(_col('satuan') ?? '').trim() || 'Pcs';
-          const stokMin = parseFloat(String(_col('stokMin') ?? '0').replace(/[^\d.]/g,'')) || 0;
-          const status  = String(_col('status') ?? '').trim() || 'AKTIF';
-          const kategori= String(_col('kategori') ?? '').trim();
-          const ket     = String(_col('ket') ?? '').trim();
-
-          items.push({ id:Utils.uid(), nama, satuan, hargaSatuan:harga, stokMin, status, kategori, keterangan:ket, _stok:0, balance:0 });
+          items.push({ id:Utils.uid(), nama, satuan:'Pcs', hargaSatuan:harga, stokMin:0, status:'AKTIF', kategori, keterangan:'', _stok:0, balance:0 });
         }
       }
 
