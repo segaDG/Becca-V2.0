@@ -91,8 +91,8 @@ const CustomerModule = (() => {
             hargaOT3:       cp.ot3        || c.hargaOT3        || 0,
             hargaSnack3:    cp.snack3     || c.hargaSnack3     || 0,
             hargaSnackBerat:cp.snakBerat  || c.hargaSnackBerat || 0,
-            pb1:   c.pb1  ?? false,
-            pph23: c.pph23 ?? false,
+            pb1:   c.pb1  ?? null,
+            pph23: c.pph23 ?? null,
           };
         });
       } else {
@@ -147,10 +147,13 @@ const CustomerModule = (() => {
     let _migrated = false;
     _data.forEach(c => {
       if (c.pb1 === undefined || c.pb1 === null || c.pph23 === undefined || c.pph23 === null) {
-        const tax = _TAX_BY_NAME[c.nama] || _TAX_BY_ID[String(c.customerId||'')] || { pb1:false, pph23:false };
-        c.pb1   = tax.pb1;
-        c.pph23 = tax.pph23;
-        _migrated = true;
+        const tax = _TAX_BY_NAME[c.nama] || _TAX_BY_ID[String(c.customerId||'')];
+        if (tax) {
+          c.pb1   = tax.pb1;
+          c.pph23 = tax.pph23;
+          _migrated = true;
+        }
+        // else: leave pb1/pph23 as null (belum ada data pajak)
       }
     });
     localStorage.setItem('becca_customers', JSON.stringify(_data));
@@ -364,10 +367,14 @@ const CustomerModule = (() => {
                 </td>
                 <td style="padding:8px 10px;font-size:11px;color:var(--text-3);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.catatan||'-'}</td>
                 <td style="padding:8px 10px;text-align:center">
-                  ${c.pb1 ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)">Ada</span>` : `<span style="font-size:10px;color:var(--text-3)">–</span>`}
+                  ${c.pb1 === true  ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)">Ada</span>`
+                  : c.pb1 === false ? `<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:rgba(100,116,139,.1);color:var(--text-3);border:1px solid rgba(100,116,139,.2)">Tidak Ada</span>`
+                  : `<span style="font-size:10px;color:var(--text-3)">-</span>`}
                 </td>
                 <td style="padding:8px 10px;text-align:center">
-                  ${c.pph23 ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(99,102,241,.15);color:#6366f1;border:1px solid rgba(99,102,241,.3)">Ada</span>` : `<span style="font-size:10px;color:var(--text-3)">–</span>`}
+                  ${c.pph23 === true  ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(99,102,241,.15);color:#6366f1;border:1px solid rgba(99,102,241,.3)">Ada</span>`
+                  : c.pph23 === false ? `<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:rgba(100,116,139,.1);color:var(--text-3);border:1px solid rgba(100,116,139,.2)">Tidak Ada</span>`
+                  : `<span style="font-size:10px;color:var(--text-3)">-</span>`}
                 </td>
                 ${canEdit ? `<td style="padding:6px 8px;text-align:center">
                   <div style="display:flex;gap:4px;justify-content:center">
