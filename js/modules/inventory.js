@@ -10,10 +10,11 @@
        jumlah, stokAkhir, harga, supplier, catatan, createdBy }
 ============================================ */
 
-console.log('[BECCA] InventoryModule v20260327e loaded ✓');
+console.log('[BECCA] InventoryModule v20260327f loaded ✓');
 const InventoryModule = (() => {
 
   let _items      = [];   // master barang
+  let _itemLookup = new Map(); // id→item (String keys), always in sync with _items
   let _logs       = [];   // activity line (MASUK/KELUAR only)
   let _opnameLogs = [];   // stok opname (terpisah)
   let _activeTab = 'stok';
@@ -174,6 +175,8 @@ const InventoryModule = (() => {
         item.hargaSatuan = item._weightedAvgPrice;
       }
     });
+    // Rebuild lookup map so openItemModal can find items by String(id) regardless of type
+    _itemLookup = new Map(_items.map(it => [String(it.id), it]));
   }
 
   /* ===================== TAB SWITCH ===================== */
@@ -974,12 +977,16 @@ const InventoryModule = (() => {
 
   /* ===================== MODAL: BARANG ===================== */
   async function openItemModal(editId = null) {
-    let existing = editId ? _items.find(i => i.id === editId) : null;
-    // Fallback: if not in _items cache, fetch from DB
+    // Use lookup map (String keys) to handle any numeric/string type mismatch
+    let existing = editId ? (_itemLookup.get(String(editId)) || null) : null;
+    // Fallback: if not in lookup, try _items with String comparison then fetch from DB
+    if (editId && !existing) {
+      existing = _items.find(i => String(i.id) === String(editId)) || null;
+    }
     if (editId && !existing) {
       try {
         const all = await DB.getInventoryItems();
-        existing = all.find(i => i.id === editId) || null;
+        existing = all.find(i => String(i.id) === String(editId)) || null;
         if (existing) { _items = all; _recalcStok(); }
       } catch {}
     }
@@ -1041,7 +1048,7 @@ const InventoryModule = (() => {
     if (editId) data.id = editId;
     try {
       const saved = await DB.saveInventoryItem(data);
-      const idx   = _items.findIndex(i => i.id === saved.id);
+      const idx   = _items.findIndex(i => String(i.id) === String(saved.id));
       if (idx >= 0) _items[idx] = saved; else _items.push(saved);
       _recalcStok();
       renderStok();
