@@ -222,8 +222,9 @@ const CustomerModule = (() => {
     if (!page) return;
     const canEdit = Auth.can('customer','edit');
 
-    let list = _search
-      ? _data.filter(c => (c.nama||'').toLowerCase().includes(_search) || (c.jenisPelayanan||'').toLowerCase().includes(_search) || (c.kota||'').toLowerCase().includes(_search))
+    const q = _search.trim();
+    let list = q
+      ? _data.filter(c => (c.nama||'').toLowerCase().includes(q) || (c.jenisPelayanan||'').toLowerCase().includes(q) || (c.kota||'').toLowerCase().includes(q))
       : [..._data];
 
     if (_sortCol) {
@@ -573,7 +574,7 @@ const CustomerModule = (() => {
 
   /* ── CONTROLS ── */
   function setSearch(val) {
-    _search = (val||'').toLowerCase().trim();
+    _search = (val||'').toLowerCase();  // no trim — preserves spaces while typing
     _render();
   }
   function sortBy(col) {
