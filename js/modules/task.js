@@ -84,16 +84,17 @@ const TaskModule = (() => {
     return sorted;
   }
 
-  /* ── Stats ── */
+  /* ── Stats — hanya task yang relevan untuk user saat ini ── */
   function _stats() {
     const today = new Date().toISOString().split('T')[0];
+    const mine  = _tasks.filter(_canSee); // SA = semua, lainnya = pembuat + assignee
     return {
-      todo:       _tasks.filter(t => t.status==='todo' || !t.status).length,
-      inprogress: _tasks.filter(t => t.status==='inprogress').length,
-      review:     _tasks.filter(t => t.status==='review').length,
-      done:       _tasks.filter(t => t.status==='done').length,
-      arsip:      _tasks.filter(t => t.status==='arsip').length,
-      late:       _tasks.filter(t => !['done','arsip'].includes(t.status) && t.deadline && t.deadline < today).length,
+      todo:       mine.filter(t => t.status==='todo' || !t.status).length,
+      inprogress: mine.filter(t => t.status==='inprogress').length,
+      review:     mine.filter(t => t.status==='review').length,
+      done:       mine.filter(t => t.status==='done').length,
+      arsip:      mine.filter(t => t.status==='arsip').length,
+      late:       mine.filter(t => !['done','arsip'].includes(t.status) && t.deadline && t.deadline < today).length,
     };
   }
 

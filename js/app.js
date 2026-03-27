@@ -15,7 +15,7 @@ const App = {
     inventory : 'js/modules/inventory.js?v=20260327j',
     employee  : 'js/modules/employee.js?v=20260327h',
     ap        : 'js/modules/ap.js?v=20260326l',
-    task      : 'js/modules/task.js?v=20260326l',
+    task      : 'js/modules/task.js?v=20260327a',
     report    : 'js/modules/report.js?v=20260326r',
     settings  : 'js/modules/settings.js?v=20260327p',
   },
