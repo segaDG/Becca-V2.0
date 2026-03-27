@@ -124,19 +124,26 @@ const CustomerModule = (() => {
       'PT. MINDA':'20','PT. Murotech':'53','PT. ATOZ':'55','PT. DCI':'56',
       'RS PERMATA':'59','PT. Shinetsu':'60','PT. Etex':'63','PT. DIC':'68','PT. ASTRA':'69',
     };
-    const _renamedIds = [];
+    // Canonical names (from invoices) — used to normalise casing on keep
+    const _CANONICAL = {};
+    Object.values(_RENAME_MAP).forEach(n => { _CANONICAL[n.trim().toLowerCase()] = n; });
+    Object.keys(_ID_MAP).forEach(n => { _CANONICAL[n.trim().toLowerCase()] = n; });
+
     _data.forEach(c => {
       if (_RENAME_MAP[c.nama]) { c.nama = _RENAME_MAP[c.nama]; }
+      // Case-insensitive canonical name normalisation
+      const canon = _CANONICAL[c.nama.trim().toLowerCase()];
+      if (canon) c.nama = canon;
       if (!c.customerId && _ID_MAP[c.nama]) c.customerId = _ID_MAP[c.nama];
     });
-    // De-duplicate: keep entry with most data (preferring the one with customerId)
+    // De-duplicate case-insensitively: keep the entry with customerId (or canonical casing)
     const _seen = {};
     const _toDelete = [];
     _data = _data.filter(c => {
-      const key = c.nama;
+      const key = c.nama.trim().toLowerCase();
       if (!_seen[key]) { _seen[key] = c; return true; }
-      // Duplicate found — keep the one with customerId, or the earlier one
       const existing = _seen[key];
+      // Keep whichever has customerId; if tie, keep existing
       if (!existing.customerId && c.customerId) {
         _toDelete.push(existing.id);
         _seen[key] = c;
