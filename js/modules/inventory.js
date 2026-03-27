@@ -10,7 +10,7 @@
        jumlah, stokAkhir, harga, supplier, catatan, createdBy }
 ============================================ */
 
-console.log('[BECCA] InventoryModule v20260327j loaded ✓');
+console.log('[BECCA] InventoryModule v20260327k loaded ✓');
 const InventoryModule = (() => {
 
   let _items      = [];   // master barang
@@ -91,6 +91,10 @@ const InventoryModule = (() => {
       _items      = freshItems;
       _logs       = freshLogs;
       _opnameLogs = freshOpname;
+
+      // Auto-dedup: jika ada nama barang ganda (dari double-migration), bersihkan otomatis
+      _checkAndDedup();
+
       // Hitung stok setiap item dari logs + auto-update hargaSatuan
       _recalcStok();
       _items.forEach(item => {
@@ -112,6 +116,38 @@ const InventoryModule = (() => {
         }
       });
     }
+  }
+
+  /* ===================== AUTO DEDUP ====================== */
+  // Deteksi duplikat nama → jalankan DB.deduplicateInventoryProducts() sekali
+  const _DEDUP_FLAG = 'becca_inv_deduped_v1';
+  function _checkAndDedup() {
+    if (localStorage.getItem(_DEDUP_FLAG)) return;  // sudah pernah dijalankan
+    const seen = new Set();
+    const hasDupe = _items.some(item => {
+      const key = (item.nama || '').trim().toLowerCase();
+      if (!key) return false;
+      if (seen.has(key)) return true;
+      seen.add(key);
+      return false;
+    });
+    if (!hasDupe) {
+      localStorage.setItem(_DEDUP_FLAG, '1'); // tidak ada duplikat, tandai selesai
+      return;
+    }
+    Notify.warning('Mendeteksi duplikat barang inventory — membersihkan otomatis...');
+    DB.deduplicateInventoryProducts().then(async n => {
+      if (n > 0) {
+        _items = await DB.getInventoryItems();
+        _logs  = await DB.getInventory();
+        _recalcStok();
+        renderStok();
+        Notify.success('Duplikat dibersihkan: ' + n + ' item dihapus dari database ✓');
+      }
+      localStorage.setItem(_DEDUP_FLAG, '1');
+    }).catch(err => {
+      console.warn('[Inventory] Dedup error:', err);
+    });
   }
 
   /* ===================== HITUNG STOK ===================== */

@@ -774,6 +774,85 @@ const DB = (() => {
     return (error || !data) ? null : data;
   }
 
+  // ── DEDUP: hapus duplikat inv_products berdasarkan nama ────
+  async function deduplicateInventoryProducts() {
+    const sb = await _initClient();
+    if (!sb) return 0;
+
+    // Ambil semua produk & aktivitas sekaligus
+    const [allItems, allActs] = await Promise.all([
+      _fetchAll(sb, 'inv_products'),
+      _fetchAll(sb, 'inv_activities'),
+    ]);
+
+    // Parse data JSON dari setiap row
+    function _parseData(row) {
+      try { return typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {}); }
+      catch { return {}; }
+    }
+
+    // Hitung jumlah aktivitas per itemId
+    const actCount = {};
+    const actsByItemId = {};
+    allActs.forEach(row => {
+      const d = _parseData(row);
+      const iid = d.itemId;
+      if (!iid) return;
+      actCount[iid] = (actCount[iid] || 0) + 1;
+      if (!actsByItemId[iid]) actsByItemId[iid] = [];
+      actsByItemId[iid].push({ rowId: row.id, data: d });
+    });
+
+    // Group produk by nama (case-insensitive)
+    const groups = {};
+    allItems.forEach(row => {
+      const d = _parseData(row);
+      const key = (d.nama || row.nama || '').trim().toLowerCase();
+      if (!key) return;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push({ id: row.id, created_at: row.created_at, data: d });
+    });
+
+    let deleted = 0;
+    for (const items of Object.values(groups)) {
+      if (items.length <= 1) continue;
+
+      // Prioritas survivor: paling banyak aktivitas → paling lama created_at
+      items.sort((a, b) => {
+        const ca = actCount[a.id] || 0;
+        const cb = actCount[b.id] || 0;
+        if (cb !== ca) return cb - ca;
+        return (a.created_at || '').localeCompare(b.created_at || '');
+      });
+
+      const [keep, ...dupes] = items;
+      for (const dupe of dupes) {
+        // Re-link activity logs dari dupe ke survivor
+        const dupeActs = actsByItemId[dupe.id] || [];
+        for (const { rowId, data } of dupeActs) {
+          const updated = { ...data, itemId: keep.id, itemNama: keep.data.nama || data.itemNama };
+          await sb.from('inv_activities')
+            .update({ data: JSON.stringify(updated) })
+            .eq('id', rowId);
+        }
+        // Hapus duplikat
+        await sb.from('inv_products').delete().eq('id', dupe.id);
+        deleted++;
+      }
+    }
+
+    if (deleted > 0) {
+      _invalidateCache('inv_products');
+      _invalidateCache('inv_activities');
+      try {
+        localStorage.removeItem('becca_inv_products');
+        localStorage.removeItem('becca_inv_activities');
+      } catch {}
+      console.log('[DB] deduplicateInventoryProducts: ' + deleted + ' duplikat dihapus');
+    }
+    return deleted;
+  }
+
   // ── Public API ─────────────────────────────────────────────
   return {
     init,
@@ -816,6 +895,7 @@ const DB = (() => {
     getTasksSummary, getInvoicesSummary, getAPSummary,
     // Bulk operations
     clearTableData,
+    deduplicateInventoryProducts,
   };
 })();
 
