@@ -480,7 +480,6 @@ const InventoryModule = (() => {
 
   function renderTransaksi() {
     const canEdit = Auth.can('inventory','edit');
-    // Activity Line: hanya MASUK dan KELUAR, filter OPNAME dan baris kosong/corrupted
     const sorted  = [..._logs]
       .filter(l => l.jenis !== 'OPNAME')
       .filter(l => l.itemNama || l.tgl)
@@ -515,18 +514,50 @@ const InventoryModule = (() => {
       document.head.appendChild(st);
     }
 
-    document.getElementById('inv-tab-transaksi').innerHTML = `
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-        <input type="text" placeholder="Cari nama barang…" value="${_logFilterNama}"
+    const tab = document.getElementById('inv-tab-transaksi');
+    if (!tab) return;
+
+    // ── Filter bar: only inject once so typing doesn't lose focus ──
+    if (!document.getElementById('inv-log-filter')) {
+      const bar = document.createElement('div');
+      bar.id = 'inv-log-filter';
+      bar.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px';
+      bar.innerHTML = `
+        <input id="inv-log-search" type="text" placeholder="Cari nama barang…"
           oninput="InventoryModule.setLogFilterNama(this.value)"
           style="padding:7px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px;width:200px">
-        <input type="date" value="${_logFilterTgl}"
+        <input id="inv-log-date" type="date"
           onchange="InventoryModule.setLogFilterTgl(this.value)"
           style="padding:7px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px">
-        ${(_logFilterNama||_logFilterTgl) ? `<button onclick="InventoryModule.clearLogFilter()"
-          style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:12px;cursor:pointer">✕ Reset</button>` : ''}
-        <span style="font-size:11px;color:var(--text-3);margin-left:auto">${sorted.length} baris</span>
-      </div>
+        <button id="inv-log-reset" onclick="InventoryModule.clearLogFilter()"
+          style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:12px;cursor:pointer;display:none">✕ Reset</button>
+        <span id="inv-log-count" style="font-size:11px;color:var(--text-3);margin-left:auto"></span>
+      `;
+      tab.insertBefore(bar, tab.firstChild);
+    }
+    // Sync filter bar state without touching focused element
+    const focused = document.activeElement?.id;
+    if (focused !== 'inv-log-search') {
+      const s = document.getElementById('inv-log-search');
+      if (s) s.value = _logFilterNama;
+    }
+    if (focused !== 'inv-log-date') {
+      const d = document.getElementById('inv-log-date');
+      if (d) d.value = _logFilterTgl;
+    }
+    const resetBtn = document.getElementById('inv-log-reset');
+    if (resetBtn) resetBtn.style.display = (_logFilterNama || _logFilterTgl) ? '' : 'none';
+    const countEl = document.getElementById('inv-log-count');
+    if (countEl) countEl.textContent = sorted.length + ' baris';
+
+    // ── Table: always re-render ──
+    let tableDiv = document.getElementById('inv-log-table');
+    if (!tableDiv) {
+      tableDiv = document.createElement('div');
+      tableDiv.id = 'inv-log-table';
+      tab.appendChild(tableDiv);
+    }
+    tableDiv.innerHTML = `
       ${canEdit ? '<div style="margin-bottom:8px"><span style="font-size:11px;color:var(--text-3);font-style:italic">Klik baris untuk edit · Enter untuk simpan · + untuk tambah baris baru</span></div>' : ''}
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-lg)">
         <table class="iv-tbl" id="inv-grid">
@@ -551,10 +582,10 @@ const InventoryModule = (() => {
             <th style="width:75px" class="iv-num">Jumlah</th>
             <th style="width:100px" class="iv-num">Harga (Rp)</th>
             <th style="width:110px">Kode Aktivitas</th>
-            <th style="width:80px;text-align:center" id="hpp-ai-header">HPP <span 
-  style="font-size:9px;background:rgba(99,102,241,.2);color:var(--primary-h);border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;font-weight:700;cursor:pointer"
-  onclick="InventoryModule._showHPPAIInfo()"
-  title="Klik untuk lihat statistik AI HPP">AI</span></th>
+            <th style="width:80px;text-align:center" id="hpp-ai-header">HPP <span
+              style="font-size:9px;background:rgba(99,102,241,.2);color:var(--primary-h);border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;font-weight:700;cursor:pointer"
+              onclick="InventoryModule._showHPPAIInfo()"
+              title="Klik untuk lihat statistik AI HPP">AI</span></th>
             <th style="width:110px">Pengambil</th>
             <th style="width:130px">Penanggung Jawab</th>
             <th style="min-width:140px">Catatan</th>
