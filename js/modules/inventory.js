@@ -441,6 +441,8 @@ const InventoryModule = (() => {
   let _stokPerPage   = parseInt(localStorage.getItem('becca_inv_stok_perPage') || '50');
   let _invLogPage    = 1;
   let _invLogPerPage = parseInt(localStorage.getItem('becca_inv_log_perPage') || '50');
+  let _logFilterNama = '';
+  let _logFilterTgl  = '';
   let _invLocked   = new Set();
   const _INV_LOCK_KEY = 'becca_inv_locked_ids';
 
@@ -472,12 +474,18 @@ const InventoryModule = (() => {
   function setStokPerPage(n)    { _stokPerPage = n; localStorage.setItem('becca_inv_stok_perPage', n); _stokPage = 1; renderStok(); }
   function setInvLogPerPage(n)  { _invLogPerPage = n; localStorage.setItem('becca_inv_log_perPage', n); _invLogPage = 1; renderTransaksi(); }
 
+  function setLogFilterNama(v) { _logFilterNama = v.trim().toLowerCase(); _invLogPage = 1; renderTransaksi(); }
+  function setLogFilterTgl(v)  { _logFilterTgl  = v; _invLogPage = 1; renderTransaksi(); }
+  function clearLogFilter()    { _logFilterNama = ''; _logFilterTgl = ''; _invLogPage = 1; renderTransaksi(); }
+
   function renderTransaksi() {
     const canEdit = Auth.can('inventory','edit');
     // Activity Line: hanya MASUK dan KELUAR, filter OPNAME dan baris kosong/corrupted
     const sorted  = [..._logs]
       .filter(l => l.jenis !== 'OPNAME')
-      .filter(l => l.itemNama || l.tgl)   // buang baris tanpa nama & tanggal
+      .filter(l => l.itemNama || l.tgl)
+      .filter(l => !_logFilterNama || (l.itemNama||'').toLowerCase().includes(_logFilterNama))
+      .filter(l => !_logFilterTgl  || (l.tgl||'') === _logFilterTgl)
       .sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
 
     const totalPages = Math.max(1, Math.ceil(sorted.length / _invLogPerPage));
@@ -508,6 +516,17 @@ const InventoryModule = (() => {
     }
 
     document.getElementById('inv-tab-transaksi').innerHTML = `
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <input type="text" placeholder="Cari nama barang…" value="${_logFilterNama}"
+          oninput="InventoryModule.setLogFilterNama(this.value)"
+          style="padding:7px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px;width:200px">
+        <input type="date" value="${_logFilterTgl}"
+          onchange="InventoryModule.setLogFilterTgl(this.value)"
+          style="padding:7px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px">
+        ${(_logFilterNama||_logFilterTgl) ? `<button onclick="InventoryModule.clearLogFilter()"
+          style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:12px;cursor:pointer">✕ Reset</button>` : ''}
+        <span style="font-size:11px;color:var(--text-3);margin-left:auto">${sorted.length} baris</span>
+      </div>
       ${canEdit ? '<div style="margin-bottom:8px"><span style="font-size:11px;color:var(--text-3);font-style:italic">Klik baris untuk edit · Enter untuk simpan · + untuk tambah baris baru</span></div>' : ''}
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-lg)">
         <table class="iv-tbl" id="inv-grid">
@@ -2114,6 +2133,7 @@ const InventoryModule = (() => {
     _showHPPAIInfo,
     renderLaporanBulanan,
     renderSummary,
+    setLogFilterNama, setLogFilterTgl, clearLogFilter,
   };
 
 })();
