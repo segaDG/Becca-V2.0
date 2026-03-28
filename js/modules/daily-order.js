@@ -695,7 +695,7 @@ const DailyOrderModule = (() => {
           <input id="di-estqty" class="form-control" style="${inp('text-align:right;width:60px')}"
             type="number" step="0.01" min="0" placeholder="0" value="${estQ0||''}"
             oninput="DailyOrderModule._liveCompute()"
-            onkeydown="DailyOrderModule._editKeyDown(event,'di-harga')">
+            onkeydown="DailyOrderModule._estQtyKeyDown(event)">
         </td>
         <td style="padding:4px 3px">
           <select id="di-sat" class="form-control" style="${inp('width:65px')}">
@@ -761,10 +761,26 @@ const DailyOrderModule = (() => {
     const satEl   = document.getElementById('di-sat');
     const hargaEl = document.getElementById('di-harga');
     const stokEl  = document.getElementById('di-stok');
-    if (satEl   && inv.satuan)     satEl.value   = inv.satuan;
-    if (hargaEl && !parseFloat(hargaEl.value||0)) hargaEl.value = inv.hargaSatuan||0;
+    if (satEl && inv.satuan) {
+      // Case-insensitive match against _SATS options
+      const satLower = inv.satuan.toLowerCase();
+      const matched  = _SATS.find(s => s.toLowerCase() === satLower);
+      satEl.value = matched || _SATS[0];
+    }
+    if (hargaEl) hargaEl.value = inv.hargaSatuan || 0;
     if (stokEl)  stokEl.value = inv._stok||0;
     _liveCompute();
+  }
+
+  /* Enter on EST QTY: if ITEM filled → save row; else move to HARGA */
+  function _estQtyKeyDown(e) {
+    if (e.key === 'Escape') { e.preventDefault(); _cancelEdit(); return; }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const item = document.getElementById('di-item')?.value.trim();
+      if (item) _saveEditRow();
+      else      document.getElementById('di-harga')?.focus();
+    }
   }
 
   /* Tab/Enter key navigation between inline inputs */
@@ -950,7 +966,7 @@ const DailyOrderModule = (() => {
     createForm, toggleStatus, deleteForm, updateFormMeta,
     openBudget, _saveBudget,
     startAddItem, startEditItem,
-    _saveEditRow, _cancelEdit, _editKeyDown, _liveCompute, _autoFillFromInventory,
+    _saveEditRow, _cancelEdit, _editKeyDown, _estQtyKeyDown, _liveCompute, _autoFillFromInventory,
     deleteItem, goToDate,
   };
 })();
