@@ -128,10 +128,6 @@ const DailyOrderModule = (() => {
     const items        = form ? (form.items || []) : [];
     const totalEst     = items.reduce((s,it) => s + _n(it.estTotal), 0);
     const totalAkt     = items.reduce((s,it) => s + _n(it.aktTotal), 0);
-    const totalDanaBelanja = items.reduce((s,it) => {
-      const aktQ = _n(it.aktQty), stok = _n(it.stokGudang), harga = _n(it.hargaSatuan);
-      return s + (it.sumber==='PASAR' ? Math.max(0, aktQ - stok) * harga : 0);
-    }, 0);
     const budgetOk     = !form?.budgetBelanja || totalEst <= _n(form.budgetBelanja);
 
     return `
@@ -204,7 +200,6 @@ const DailyOrderModule = (() => {
             <span>Est: <strong style="color:var(--text)">${_fmtRp(totalEst)}</strong></span>
             <span>Budget: <strong style="color:var(--text)">${_fmtRp(form.budgetBelanja)}</strong></span>
             <span>${(_n(totalEst)/_n(form.budgetBelanja)*100).toFixed(1)}%</span>
-            <span>Belanja Pasar: <strong style="color:#ef4444">${_fmtRp(totalDanaBelanja)}</strong></span>
           </div>
         </div>
       ` : ''}
@@ -239,21 +234,17 @@ const DailyOrderModule = (() => {
                <div style="font-size:12px">Klik "+ Buat Form Produksi" untuk memulai</div>
              </div>`
           : `<div style="overflow-x:auto">
-              <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:1200px">
+              <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:700px">
                 <thead>
                   <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600;width:30px">#</th>
-                    <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600;min-width:130px">ITEM / BAHAN</th>
-                    <th style="padding:7px 5px;text-align:right;color:#8b5cf6;font-weight:600;white-space:nowrap">STOK AWAL<br>GUDANG</th>
+                    <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600;min-width:140px">ITEM / BAHAN</th>
                     <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">EST QTY</th>
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600">SAT</th>
                     <th style="padding:7px 5px;text-align:right;color:var(--text-3);font-weight:600;white-space:nowrap">HARGA @</th>
                     <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600;white-space:nowrap">EST TOTAL</th>
                     <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">AKT QTY</th>
                     <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600;white-space:nowrap">AKT TOTAL</th>
-                    <th style="padding:7px 5px;text-align:right;color:#f59e0b;font-weight:600;white-space:nowrap">SELISIH<br>STOK</th>
-                    <th style="padding:7px 5px;text-align:right;color:#ef4444;font-weight:600;white-space:nowrap">TOTAL DANA<br>BELANJA</th>
-                    <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600;white-space:nowrap">SISA<br>STOK</th>
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600">SUMBER</th>
                     <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600">CATATAN</th>
                     <th style="padding:7px 5px;width:50px"></th>
@@ -261,7 +252,7 @@ const DailyOrderModule = (() => {
                 </thead>
                 <tbody>
                   ${items.length===0 && _editingItemId !== 'new'
-                    ? `<tr><td colspan="15" style="padding:28px;text-align:center;color:var(--text-3)">
+                    ? `<tr><td colspan="11" style="padding:28px;text-align:center;color:var(--text-3)">
                         <span style="font-size:20px">📦</span>
                         <div style="margin-top:8px;font-size:13px;font-weight:600">Belum ada bahan ditambahkan</div>
                         <div style="font-size:11px;margin-top:2px">Klik "+ Tambah Bahan" untuk menambah bahan produksi</div>
@@ -273,16 +264,11 @@ const DailyOrderModule = (() => {
                 ${items.length > 0 ? `
                 <tfoot>
                   <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:700">
-                    <td colspan="6" style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px;letter-spacing:.03em">TOTAL ESTIMASI</td>
+                    <td colspan="5" style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px;letter-spacing:.03em">TOTAL ESTIMASI</td>
                     <td style="padding:9px 5px;text-align:right;color:#6366f1">${totalEst.toLocaleString('id-ID')}</td>
                     <td style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px">AKTUAL</td>
                     <td style="padding:9px 5px;text-align:right;color:#10b981">${totalAkt.toLocaleString('id-ID')}</td>
-                    <td colspan="2" style="padding:9px 5px;text-align:right;color:#ef4444">
-                      ${totalDanaBelanja ? totalDanaBelanja.toLocaleString('id-ID') : '-'}
-                    </td>
-                    <td colspan="4" style="padding:9px 5px;color:var(--text-3);font-size:10px">
-                      Belanja Pasar: <strong style="color:#ef4444">${_fmtRp(totalDanaBelanja)}</strong>
-                    </td>
+                    <td colspan="3" style="padding:9px 5px"></td>
                   </tr>
                 </tfoot>` : ''}
               </table>
@@ -589,37 +575,24 @@ const DailyOrderModule = (() => {
 
   /* ─── ROW RENDERERS ─── */
   function _htmlItemRow(it, i) {
-    const aktQ = _n(it.aktQty), stok = _n(it.stokGudang), harga = _n(it.hargaSatuan);
-    const selisihStok = stok - aktQ;
-    const sisaStok    = Math.max(0, stok - aktQ);
-    const danaBelanja = it.sumber==='PASAR' ? Math.max(0, aktQ - stok) * harga : 0;
-    const selColor    = selisihStok >= 0 ? '#10b981' : '#ef4444';
+    const aktQ = _n(it.aktQty), harga = _n(it.hargaSatuan);
+    const sumber = it.sumber || 'STOK';
     return `
       <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''}">
         <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${i+1}</td>
         <td style="padding:7px 5px;font-weight:600">${it.item}</td>
-        <td style="padding:7px 5px;text-align:right;color:#8b5cf6;font-weight:600">${stok||'-'}</td>
         <td style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
         <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
         <td style="padding:7px 5px;text-align:right;color:var(--text-3)">${harga?harga.toLocaleString('id-ID'):'-'}</td>
         <td style="padding:7px 5px;text-align:right;color:#6366f1">${_n(it.estTotal)?_n(it.estTotal).toLocaleString('id-ID'):'-'}</td>
         <td style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">${aktQ||'-'}</td>
         <td style="padding:7px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?_n(it.aktTotal).toLocaleString('id-ID'):'-'}</td>
-        <td style="padding:7px 5px;text-align:right;font-weight:600;color:${selColor}">
-          ${stok||aktQ ? (selisihStok>0?'+':'')+selisihStok.toLocaleString('id-ID',{maximumFractionDigits:2}) : '-'}
-        </td>
-        <td style="padding:7px 5px;text-align:right;color:#ef4444;font-weight:600">
-          ${danaBelanja ? danaBelanja.toLocaleString('id-ID') : '-'}
-        </td>
-        <td style="padding:7px 5px;text-align:right;color:#10b981">
-          ${stok||aktQ ? sisaStok.toLocaleString('id-ID',{maximumFractionDigits:2}) : '-'}
-        </td>
         <td style="padding:7px 5px;text-align:center">
           <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;
-            background:${it.sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'};
-            color:${it.sumber==='PASAR'?'#ef4444':'#10b981'}">${it.sumber||'STOK'}</span>
+            background:${sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'};
+            color:${sumber==='PASAR'?'#ef4444':'#10b981'}">${sumber}</span>
         </td>
-        <td style="padding:7px 5px;color:var(--text-3);font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${it.catatan||''}</td>
+        <td style="padding:7px 5px;color:var(--text-3);font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis">${it.catatan||''}</td>
         <td style="padding:7px 5px;text-align:center;white-space:nowrap">
           <button onclick="DailyOrderModule.startEditItem('${it.id}')" title="Edit"
             style="width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:11px">✎</button>
@@ -631,73 +604,60 @@ const DailyOrderModule = (() => {
 
   function _htmlEditRow(it, idx) {
     const isNew = !it;
-    // inventory datalist
+    // Build deduplicated datalist from inventory
     const dlId = 'di-inv-list';
-    const dlHtml = _inventory.length
-      ? `<datalist id="${dlId}">${_inventory.map(inv=>`<option value="${Utils.esc?Utils.esc(inv.nama):inv.nama}">`).join('')}</datalist>`
+    const uniqueNames = _inventory.length
+      ? [...new Set(_inventory.map(i=>i.nama).filter(Boolean))].sort()
+      : [];
+    const dlHtml = uniqueNames.length
+      ? `<datalist id="${dlId}">${uniqueNames.map(n=>`<option value="${n}">`).join('')}</datalist>`
       : '';
-    // pre-compute computed displays for edit mode (existing item)
-    const stok0  = _n(it?.stokGudang), aktQ0 = _n(it?.aktQty), harga0 = _n(it?.hargaSatuan);
-    const sel0   = stok0 - aktQ0;
-    const sumb0  = aktQ0 > stok0 ? 'PASAR' : 'STOK';
-    const dana0  = sumb0==='PASAR' ? Math.max(0,aktQ0-stok0)*harga0 : 0;
-    const sisa0  = Math.max(0, stok0-aktQ0);
+    // Pre-compute for existing item display
+    const harga0 = _n(it?.hargaSatuan);
+    const estQ0  = _n(it?.estQty),  aktQ0 = _n(it?.aktQty);
+    const stok0  = _n(it?.stokGudang);
+    const sumb0  = aktQ0 > stok0 && (stok0 > 0) ? 'PASAR' : 'STOK';
     const inp    = (p) => `padding:3px 5px;font-size:11px;${p}`;
     return `
       <tr style="border-bottom:1px solid var(--border);background:rgba(99,102,241,.04)">
         <td style="padding:4px 3px;text-align:center;color:var(--primary);font-size:11px;font-weight:700">${isNew?'✦':idx+1}</td>
-        <td style="padding:4px 3px;min-width:130px">
+        <td style="padding:4px 3px;min-width:140px">
           ${dlHtml}
-          <input id="di-item" list="${dlId}" class="form-control" style="${inp('min-width:110px')}"
+          <input type="hidden" id="di-stok" value="${stok0||0}">
+          <input id="di-item" list="${dlId}" class="form-control" style="${inp('min-width:120px')}"
             placeholder="Nama bahan..." value="${it?.item||''}"
             onchange="DailyOrderModule._autoFillFromInventory()"
-            oninput="DailyOrderModule._liveCompute()"
-            onkeydown="DailyOrderModule._editKeyDown(event,'di-stok')">
-        </td>
-        <td style="padding:4px 3px">
-          <input id="di-stok" class="form-control" style="${inp('text-align:right;width:65px')}"
-            type="number" step="0.01" min="0" placeholder="0" value="${it?.stokGudang||''}"
             oninput="DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._editKeyDown(event,'di-estqty')">
         </td>
         <td style="padding:4px 3px">
           <input id="di-estqty" class="form-control" style="${inp('text-align:right;width:60px')}"
-            type="number" step="0.01" min="0" placeholder="0" value="${it?.estQty||''}"
+            type="number" step="0.01" min="0" placeholder="0" value="${estQ0||''}"
             oninput="DailyOrderModule._liveCompute()"
-            onkeydown="DailyOrderModule._editKeyDown(event,'di-sat')">
+            onkeydown="DailyOrderModule._editKeyDown(event,'di-harga')">
         </td>
         <td style="padding:4px 3px">
-          <select id="di-sat" class="form-control" style="${inp('width:65px')}"
-            onkeydown="DailyOrderModule._editKeyDown(event,'di-harga')">
+          <select id="di-sat" class="form-control" style="${inp('width:65px')}">
             ${_SATS.map(s=>`<option value="${s}" ${(it?.satuan||'Kg')===s?'selected':''}>${s}</option>`).join('')}
           </select>
         </td>
         <td style="padding:4px 3px">
-          <input id="di-harga" class="form-control" style="${inp('text-align:right;width:75px')}"
-            type="number" step="100" min="0" placeholder="0" value="${it?.hargaSatuan||''}"
+          <input id="di-harga" class="form-control" style="${inp('text-align:right;width:80px')}"
+            type="number" step="100" min="0" placeholder="0" value="${harga0||''}"
             oninput="DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._editKeyDown(event,'di-aktqty')">
         </td>
         <td id="di-esttot-d" style="padding:4px 6px;text-align:right;color:#6366f1;font-size:11px;white-space:nowrap">
-          ${_n(it?.estTotal)?_n(it.estTotal).toLocaleString('id-ID'):'-'}
+          ${estQ0&&harga0?(estQ0*harga0).toLocaleString('id-ID'):'-'}
         </td>
         <td style="padding:4px 3px">
           <input id="di-aktqty" class="form-control" style="${inp('text-align:right;width:60px')}"
-            type="number" step="0.01" min="0" placeholder="0" value="${it?.aktQty||''}"
+            type="number" step="0.01" min="0" placeholder="0" value="${aktQ0||''}"
             oninput="DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._editKeyDown(event,'di-catatan')">
         </td>
         <td id="di-akttot-d" style="padding:4px 6px;text-align:right;color:#10b981;font-size:11px;white-space:nowrap">
-          ${_n(it?.aktTotal)?_n(it.aktTotal).toLocaleString('id-ID'):'-'}
-        </td>
-        <td id="di-sel-d" style="padding:4px 6px;text-align:right;font-size:11px;font-weight:600;white-space:nowrap;color:${sel0>=0?'#10b981':'#ef4444'}">
-          ${stok0||aktQ0?(sel0>0?'+':'')+sel0.toLocaleString('id-ID',{maximumFractionDigits:2}):'-'}
-        </td>
-        <td id="di-dana-d" style="padding:4px 6px;text-align:right;color:#ef4444;font-size:11px;font-weight:600;white-space:nowrap">
-          ${dana0?dana0.toLocaleString('id-ID'):'-'}
-        </td>
-        <td id="di-sisa-d" style="padding:4px 6px;text-align:right;color:#10b981;font-size:11px;white-space:nowrap">
-          ${stok0||aktQ0?sisa0.toLocaleString('id-ID',{maximumFractionDigits:2}):'-'}
+          ${aktQ0&&harga0?(aktQ0*harga0).toLocaleString('id-ID'):'-'}
         </td>
         <td style="padding:4px 6px;text-align:center">
           <span id="di-sumb-d" style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;
@@ -718,28 +678,20 @@ const DailyOrderModule = (() => {
       </tr>`;
   }
 
-  /* Live-compute computed columns while typing */
+  /* Live-compute EST TOTAL, AKT TOTAL, SUMBER while typing */
   function _liveCompute() {
     const estQty = parseFloat(document.getElementById('di-estqty')?.value||0)||0;
     const aktQty = parseFloat(document.getElementById('di-aktqty')?.value||0)||0;
     const stok   = parseFloat(document.getElementById('di-stok')?.value||0)  ||0;
     const harga  = parseFloat(document.getElementById('di-harga')?.value||0) ||0;
-    const sumber = aktQty > stok ? 'PASAR' : 'STOK';
-    const estTot = estQty * harga;
-    const aktTot = aktQty * harga;
-    const sel    = stok - aktQty;
-    const sisa   = Math.max(0, stok - aktQty);
-    const dana   = sumber==='PASAR' ? Math.max(0, aktQty-stok) * harga : 0;
+    const sumber = (stok > 0 && aktQty > stok) ? 'PASAR' : 'STOK';
     const $ = (id) => document.getElementById(id);
-    if ($('di-esttot-d')) $('di-esttot-d').textContent = estTot ? estTot.toLocaleString('id-ID') : '-';
-    if ($('di-akttot-d')) $('di-akttot-d').textContent = aktTot ? aktTot.toLocaleString('id-ID') : '-';
-    if ($('di-sel-d'))    { $('di-sel-d').textContent = (stok||aktQty)?(sel>0?'+':'')+sel.toLocaleString('id-ID',{maximumFractionDigits:2}):'-'; $('di-sel-d').style.color=sel>=0?'#10b981':'#ef4444'; }
-    if ($('di-dana-d'))   $('di-dana-d').textContent = dana ? dana.toLocaleString('id-ID') : '-';
-    if ($('di-sisa-d'))   $('di-sisa-d').textContent = (stok||aktQty) ? sisa.toLocaleString('id-ID',{maximumFractionDigits:2}) : '-';
+    if ($('di-esttot-d')) $('di-esttot-d').textContent = estQty&&harga ? (estQty*harga).toLocaleString('id-ID') : '-';
+    if ($('di-akttot-d')) $('di-akttot-d').textContent = aktQty&&harga ? (aktQty*harga).toLocaleString('id-ID') : '-';
     if ($('di-sumb-d'))   { $('di-sumb-d').textContent = sumber; $('di-sumb-d').style.background=sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'; $('di-sumb-d').style.color=sumber==='PASAR'?'#ef4444':'#10b981'; }
   }
 
-  /* Auto-fill satuan/harga/stok when item selected from inventory datalist */
+  /* Auto-fill satuan/harga from inventory when item selected */
   function _autoFillFromInventory() {
     if (!_inventory.length) return;
     const val = document.getElementById('di-item')?.value.trim().toLowerCase();
@@ -749,8 +701,8 @@ const DailyOrderModule = (() => {
     const hargaEl = document.getElementById('di-harga');
     const stokEl  = document.getElementById('di-stok');
     if (satEl   && inv.satuan) satEl.value = inv.satuan;
-    if (hargaEl && !parseFloat(hargaEl.value||0) && (inv.harga||inv.hargaBeli)) hargaEl.value = inv.harga||inv.hargaBeli||0;
-    if (stokEl  && !parseFloat(stokEl.value||0)  && (inv.stok ||inv.qty||inv.jumlah))         stokEl.value  = inv.stok ||inv.qty||inv.jumlah||0;
+    if (hargaEl && !parseFloat(hargaEl.value||0)) hargaEl.value = inv.harga||inv.hargaBeli||0;
+    if (stokEl)  stokEl.value = inv.stok||inv.qty||inv.jumlah||0;
     _liveCompute();
   }
 
@@ -778,9 +730,9 @@ const DailyOrderModule = (() => {
     const aktQty   = parseFloat(document.getElementById('di-aktqty')?.value||0)||0;
     const stokGud  = parseFloat(document.getElementById('di-stok')?.value||0)  ||0;
     const catatan  = document.getElementById('di-catatan')?.value.trim()||'';
-    const sumber   = aktQty > stokGud ? 'PASAR' : 'STOK';
+    const sumber   = (stokGud > 0 && aktQty > stokGud) ? 'PASAR' : 'STOK';
     const data = { item, estQty, satuan, hargaSatuan:harga, aktQty, stokGudang:stokGud, sumber, catatan,
-      estTotal: estQty*harga, aktTotal: aktQty*harga, selisih: stokGud-aktQty };
+      estTotal: estQty*harga, aktTotal: aktQty*harga };
     const wasNew = _editingItemId === 'new';
     if (wasNew) {
       form.items.push({ id:'item_'+Date.now(), ...data });
@@ -790,10 +742,10 @@ const DailyOrderModule = (() => {
     }
     form.updatedAt = new Date().toISOString();
     await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] saveRow:', e));
-    _editingItemId = wasNew ? 'new' : null; // keep 'new' mode for fast entry
+    _editingItemId = 'new'; // always enter 'new' row mode after saving (fast entry)
     _renderContent();
     if (!wasNew) Notify.success('Bahan diperbarui');
-    if (wasNew) setTimeout(() => document.getElementById('di-item')?.focus(), 60);
+    setTimeout(() => document.getElementById('di-item')?.focus(), 60);
   }
 
   function _cancelEdit() { _editingItemId = null; _renderContent(); }
