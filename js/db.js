@@ -509,6 +509,11 @@ const DB = (() => {
   const saveTask   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('tasks', data); };
   const deleteTask = (id)   => _delete('tasks', id);
 
+  // ── DAILY ORDER FORMS ─────────────────────────────────────
+  const getDailyOrderForms   = ()     => _get('daily_order_forms');
+  const saveDailyOrderForm   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('daily_order_forms', data); };
+  const deleteDailyOrderForm = (id)   => _delete('daily_order_forms', id);
+
   // ── SETTINGS ──────────────────────────────────────────────
   const getSettings  = async () => {
     const sb = await _initClient();
@@ -937,6 +942,8 @@ const DB = (() => {
     getAP, saveAP, deleteAP, getSuppliers, saveSupplier, deleteSupplier,
     // Tasks
     getTasks, saveTask, deleteTask,
+    // Daily Order Forms
+    getDailyOrderForms, saveDailyOrderForm, deleteDailyOrderForm,
     // Settings
     getSettings, saveSettings,
     // Logs
