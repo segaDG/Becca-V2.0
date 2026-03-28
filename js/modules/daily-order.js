@@ -8,7 +8,8 @@ const DailyOrderModule = (() => {
   let _orders= [];
   let _date  = new Date().toISOString().slice(0,10);
   let _shift = 'S1';
-  let _summaryMonth = new Date().toISOString().slice(0,7); // YYYY-MM
+  let _formMonth    = new Date().toISOString().slice(0,7); // YYYY-MM for Form Produksi
+  let _summaryMonth = new Date().toISOString().slice(0,7); // YYYY-MM for Summary tab
   let _editingItemId = null; // null | 'new' | existing item id
   let _inventory     = [];
   let _customers     = [];
@@ -55,6 +56,21 @@ const DailyOrderModule = (() => {
 
   function _totalPortions(date, shift) {
     return _getOrderSummary(date, shift).reduce((s,c) => s + c.total, 0);
+  }
+
+  /* ─── MONTH HELPERS ─── */
+  function _monthLabel(ym) {
+    const [y,m] = ym.split('-').map(Number);
+    return new Date(y,m-1,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+  }
+  function _daysInMonth(ym) {
+    const [y,m] = ym.split('-').map(Number);
+    return new Date(y,m,0).getDate();
+  }
+  function _adjMonth(ym, delta) {
+    const [y,m] = ym.split('-').map(Number);
+    const d = new Date(y,m-1+delta,1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   }
 
   /* Hitung total omset dari order × harga customer untuk date+shift */
@@ -113,6 +129,7 @@ const DailyOrderModule = (() => {
       _forms = []; _orders = [];
     }
     _date = _today();
+    _formMonth = _date.slice(0,7);
     _renderFull(page);
   }
 
@@ -177,14 +194,51 @@ const DailyOrderModule = (() => {
     const budgetSet  = revenue > 0;
     const budgetOkAuto = !budgetSet || totalEst <= autoBudget;
 
+    // ── Mini date cards ──
+    const days      = _daysInMonth(_formMonth);
+    const miniCards = Array.from({length:days},(_,i)=>{
+      const d       = i+1;
+      const dateStr = `${_formMonth}-${String(d).padStart(2,'0')}`;
+      const hasS1   = _forms.some(f=>f.tanggal===dateStr&&f.shift==='S1');
+      const hasS2   = _forms.some(f=>f.tanggal===dateStr&&f.shift==='S2');
+      const sel     = _date===dateStr;
+      const today   = dateStr===_today();
+      let bg='var(--surface2)',col='var(--text-3)';
+      if (hasS1&&hasS2){bg='#6366f1';col='#fff';}
+      else if(hasS1){bg='#f59e0b';col='#fff';}
+      else if(hasS2){bg='#f97316';col='#fff';}
+      const dow = new Date(dateStr+'T00:00:00').getDay();
+      const isSun = dow===0;
+      return `<button onclick="DailyOrderModule.setDate('${dateStr}')"
+        title="${dateStr}" style="width:26px;height:26px;border-radius:5px;border:2px solid ${sel?'var(--text)':'transparent'};
+        background:${bg};color:${col};font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;
+        ${today?'box-shadow:0 0 0 2px var(--primary)':''}
+        ${isSun&&!hasS1&&!hasS2?'color:#ef4444;':''}">${d}</button>`;
+    }).join('');
+
     return `
-      <!-- Selector tanggal & shift -->
-      <div style="display:flex;gap:var(--s3);align-items:flex-end;flex-wrap:wrap;margin-bottom:var(--s4)">
-        <div>
-          <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">TANGGAL</label>
-          <input type="date" value="${_date}" onchange="DailyOrderModule.setDate(this.value)"
-            style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">
+      <!-- Month nav + mini date cards -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:var(--s4)">
+        <!-- Month nav -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <button onclick="DailyOrderModule.prevFormMonth()"
+            style="width:28px;height:28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center">‹</button>
+          <input type="month" value="${_formMonth}" onchange="DailyOrderModule.setFormMonth(this.value)"
+            style="padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);font-size:13px;font-weight:700;cursor:pointer">
+          <button onclick="DailyOrderModule.nextFormMonth()"
+            style="width:28px;height:28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center">›</button>
+          <div style="margin-left:6px;display:flex;gap:10px;font-size:10px;color:var(--text-3)">
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#6366f1;margin-right:3px;vertical-align:middle"></span>S1+S2</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f59e0b;margin-right:3px;vertical-align:middle"></span>S1</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f97316;margin-right:3px;vertical-align:middle"></span>S2</span>
+          </div>
         </div>
+        <!-- Mini date cards -->
+        <div style="display:flex;gap:3px;flex-wrap:wrap">${miniCards}</div>
+      </div>
+
+      <!-- Selector shift -->
+      <div style="display:flex;gap:var(--s3);align-items:flex-end;flex-wrap:wrap;margin-bottom:var(--s4)">
         <div>
           <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">SHIFT</label>
           <div style="display:flex;gap:4px">
@@ -832,7 +886,15 @@ const DailyOrderModule = (() => {
     if (page) _renderFull(page);
   }
 
-  function setDate(d) { _date = d; _renderContent(); }
+  function setDate(d) { _date = d; _formMonth = d.slice(0,7); _renderContent(); }
+  function setFormMonth(m) {
+    _formMonth = m;
+    // Keep _date if it's within the new month, otherwise jump to day 1
+    if (!_date.startsWith(m)) _date = m + '-01';
+    _renderContent();
+  }
+  function prevFormMonth() { setFormMonth(_adjMonth(_formMonth,-1)); }
+  function nextFormMonth() { setFormMonth(_adjMonth(_formMonth,+1)); }
   function setShift(s) { _shift = s; _renderContent(); }
   function setMonth(m) { _summaryMonth = m; _renderContent(); }
 
@@ -961,6 +1023,7 @@ const DailyOrderModule = (() => {
   /* ─── PUBLIC ─── */
   return {
     init, setView, setDate, setShift, setMonth,
+    setFormMonth, prevFormMonth, nextFormMonth,
     createForm, toggleStatus, deleteForm, updateFormMeta,
     openBudget, _saveBudget,
     startAddItem, startEditItem,
