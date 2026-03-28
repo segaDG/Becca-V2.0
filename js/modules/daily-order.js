@@ -315,46 +315,30 @@ const DailyOrderModule = (() => {
         ` : ''}
 
         ${hasDayData ? `
-        <div style="margin-left:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;min-width:210px">
+        <div style="margin-left:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;min-width:200px">
           <div style="font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.05em;margin-bottom:8px">TOTAL BUDGET HARI INI</div>
-          <div style="display:flex;gap:14px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
             <div>
-              <div style="font-size:9px;color:var(--text-3);margin-bottom:1px">S1</div>
-              <div style="font-size:12px;font-weight:700;color:var(--text)">${budS1 > 0 ? _fmtRp(budS1) : '—'}</div>
+              <div style="font-size:9px;color:var(--text-3)">TERPAKAI</div>
+              <div style="font-size:15px;font-weight:700;color:var(--text)">${_fmtRp(totSpent)}</div>
             </div>
-            <div>
-              <div style="font-size:9px;color:var(--text-3);margin-bottom:1px">S2&amp;3</div>
-              <div style="font-size:12px;font-weight:700;color:var(--text)">${budS2 > 0 ? _fmtRp(budS2) : '—'}</div>
-            </div>
-            <div>
-              <div style="font-size:9px;color:var(--primary);font-weight:700;margin-bottom:1px">TOTAL</div>
-              <div style="font-size:12px;font-weight:700;color:var(--primary)">${_fmtRp(totBudget)}</div>
+            <div style="text-align:right">
+              <div style="font-size:9px;color:var(--text-3)">SELISIH</div>
+              <div style="font-size:15px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
+                ${totSelisih>=0?'+':''}${_fmtRp(Math.abs(totSelisih))}
+              </div>
             </div>
           </div>
-          <div style="border-top:1px solid var(--border);padding-top:8px">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
-              <div>
-                <div style="font-size:9px;color:var(--text-3)">TERPAKAI</div>
-                <div style="font-size:15px;font-weight:700;color:var(--text)">${_fmtRp(totSpent)}</div>
-              </div>
-              <div style="text-align:right">
-                <div style="font-size:9px;color:var(--text-3)">SELISIH</div>
-                <div style="font-size:15px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
-                  ${totSelisih>=0?'+':''}${_fmtRp(Math.abs(totSelisih))}
-                </div>
-              </div>
-            </div>
-            <div style="background:var(--surface2);height:5px;border-radius:3px;overflow:hidden">
-              <div style="height:100%;width:${Math.min(100,totPct).toFixed(1)}%;background:${totSelisih>=0?'#10b981':'#ef4444'};border-radius:3px;transition:width .3s"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-top:4px">
-              <span style="font-size:10px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
-                ${totSelisih>=0?'▲ Surplus':'▼ Defisit'}
-              </span>
-              <span style="font-size:11px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
-                ${totPct.toFixed(1)}%
-              </span>
-            </div>
+          <div style="background:var(--surface2);height:5px;border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${Math.min(100,totPct).toFixed(1)}%;background:${totSelisih>=0?'#10b981':'#ef4444'};border-radius:3px;transition:width .3s"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px">
+            <span style="font-size:10px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
+              ${totSelisih>=0?'▲ Surplus':'▼ Defisit'}
+            </span>
+            <span style="font-size:11px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
+              ${totPct.toFixed(1)}%
+            </span>
           </div>
         </div>` : ''}
       </div>
@@ -457,16 +441,33 @@ const DailyOrderModule = (() => {
                       (_editingItemId === 'new' ? _htmlEditRow(null, items.length) : '')
                   }
                 </tbody>
-                ${items.length > 0 ? `
-                <tfoot>
-                  <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:700">
-                    <td colspan="5" style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px;letter-spacing:.03em">TOTAL ESTIMASI</td>
-                    <td style="padding:9px 5px;text-align:right;color:#6366f1">${totalEst.toLocaleString('id-ID')}</td>
-                    <td style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px">AKTUAL</td>
-                    <td style="padding:9px 5px;text-align:right;color:#10b981">${totalAkt.toLocaleString('id-ID')}</td>
-                    <td colspan="3" style="padding:9px 5px"></td>
-                  </tr>
-                </tfoot>` : ''}
+                ${items.length > 0 ? (() => {
+                  const _sumEst = f => (f?.items||[]).reduce((s,it) => s + _n(it.estTotal), 0);
+                  const _sumAkt = f => (f?.items||[]).reduce((s,it) => s + _n(it.aktTotal), 0);
+                  const totEstAll = _sumEst(formS1) + _sumEst(formS2);
+                  const totAktAll = _sumAkt(formS1) + _sumAkt(formS2);
+                  const selEst = totBudget > 0 ? totBudget - totEstAll : null;
+                  const selAkt = totBudget > 0 ? totBudget - totAktAll : null;
+                  const _selCell = (v, label) => v === null ? `<td style="padding:9px 5px"></td>` : `
+                    <td style="padding:9px 5px;text-align:right;white-space:nowrap">
+                      <div style="font-size:9px;color:var(--text-3);font-weight:600">${label}</div>
+                      <div style="font-size:11px;font-weight:700;color:${v>=0?'#10b981':'#ef4444'}">
+                        ${v>=0?'+':''}${v.toLocaleString('id-ID')}
+                      </div>
+                    </td>`;
+                  return `
+                  <tfoot>
+                    <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:700">
+                      <td colspan="5" style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px;letter-spacing:.03em">TOTAL ESTIMASI</td>
+                      <td style="padding:9px 5px;text-align:right;color:#6366f1">${totalEst.toLocaleString('id-ID')}</td>
+                      <td style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px">AKTUAL</td>
+                      <td style="padding:9px 5px;text-align:right;color:#10b981">${totalAkt.toLocaleString('id-ID')}</td>
+                      <td style="padding:9px 5px"></td>
+                      ${_selCell(selEst, 'SISA EST')}
+                      ${_selCell(selAkt, 'SISA AKT')}
+                    </tr>
+                  </tfoot>`;
+                })() : ''}
               </table>
             </div>`
         }
