@@ -11,6 +11,7 @@ const DailyOrderModule = (() => {
   let _summaryMonth = new Date().toISOString().slice(0,7); // YYYY-MM
   let _editingItemId = null; // null | 'new' | existing item id
   let _inventory     = [];
+  let _customers     = [];
 
   const _SATS = ['Kg','Pcs','Liter','Pack','Bal','Ikat','Bks','Lusin','Karton','Gram','ML'];
 
@@ -56,19 +57,58 @@ const DailyOrderModule = (() => {
     return _getOrderSummary(date, shift).reduce((s,c) => s + c.total, 0);
   }
 
+  /* Hitung total omset dari order × harga customer untuk date+shift */
+  function _calcRevenue(date, shift) {
+    const dayOrds = _orders.filter(o => o.tglOrder === date);
+    let total = 0;
+    dayOrds.forEach(o => {
+      // Cari customer data berdasarkan nama
+      const c = _customers.find(x => (x.nama||x.namaPerusahaan||'').toLowerCase() === (o.namaPerusahaan||'').toLowerCase()) || {};
+      if (shift === 'S1') {
+        total += _n(o.breakfast) * _n(c.hargaBreakfast || c.hargaShift1);
+        total += _n(o.shift1)    * _n(c.hargaShift1);
+        total += _n(o.spare1)    * _n(c.hargaSpare1 || c.hargaShift1);
+        total += _n(o.ot1)       * _n(c.hargaOT1    || c.hargaShift1);
+        total += _n(o.snack1)    * _n(c.hargaSnack1);
+      } else {
+        total += _n(o.shift2)    * _n(c.hargaShift2);
+        total += _n(o.spare2)    * _n(c.hargaSpare2 || c.hargaShift2);
+        total += _n(o.ot2)       * _n(c.hargaOT2    || c.hargaShift2);
+        total += _n(o.snack2)    * _n(c.hargaSnack2);
+        total += _n(o.shift3)    * _n(c.hargaShift3);
+        total += _n(o.spare3)    * _n(c.hargaSpare3 || c.hargaShift3);
+        total += _n(o.ot3)       * _n(c.hargaOT3    || c.hargaShift3);
+        total += _n(o.snack3)    * _n(c.hargaSnack3);
+      }
+    });
+    return total;
+  }
+
   /* ─── INIT ─── */
   async function init() {
     const page = document.getElementById('page-daily-order');
     if (!page) return;
     try {
-      const [forms, orders, inv] = await Promise.all([
+      const [forms, orders, invItems, invLogs, custs] = await Promise.all([
         DB.getDailyOrderForms().catch(() => []),
         DB.getOrders().catch(() => []),
+        DB.getInventoryItems().catch(() => []),
         DB.getInventory().catch(() => []),
+        DB.getCustomers().catch(() => []),
       ]);
-      _forms     = Array.isArray(forms)  ? forms  : [];
-      _orders    = Array.isArray(orders) ? orders : [];
-      _inventory = Array.isArray(inv)    ? inv    : [];
+      _forms     = Array.isArray(forms)    ? forms    : [];
+      _orders    = Array.isArray(orders)   ? orders   : [];
+      _customers = Array.isArray(custs)    ? custs    : [];
+      // Compute _stok per item from activities (MASUK - KELUAR)
+      const items = Array.isArray(invItems) ? invItems : [];
+      const logs  = Array.isArray(invLogs)  ? invLogs  : [];
+      const logsByItem = {};
+      logs.forEach(l => { if (l.itemId) { (logsByItem[l.itemId] = logsByItem[l.itemId]||[]).push(l); } });
+      items.forEach(it => {
+        const ls = logsByItem[it.id] || [];
+        it._stok = ls.reduce((a,l) => l.jenis==='MASUK' ? a+(l.jumlah||0) : l.jenis==='KELUAR' ? a-(l.jumlah||0) : a, 0);
+      });
+      _inventory = items;
     } catch {
       _forms = []; _orders = [];
     }
@@ -130,11 +170,11 @@ const DailyOrderModule = (() => {
     const totalAkt     = items.reduce((s,it) => s + _n(it.aktTotal), 0);
     const budgetOk     = !form?.budgetBelanja || totalEst <= _n(form.budgetBelanja);
 
-    // Auto-budget computation
-    const _hpp    = _n(form?.hargaPerPorsi);
-    const _fcp    = _n(form?.foodCostPct) || 54;
-    const autoBudget = totalPortions * _hpp * _fcp / 100;
-    const budgetSet  = form && (_hpp > 0);
+    // Auto-budget: dari omset order × harga customer × foodCostPct
+    const _fcp       = _n(form?.foodCostPct) || 54;
+    const revenue    = _calcRevenue(_date, _shift);
+    const autoBudget = revenue * _fcp / 100;
+    const budgetSet  = revenue > 0;
     const budgetOkAuto = !budgetSet || totalEst <= autoBudget;
 
     return `
@@ -161,13 +201,6 @@ const DailyOrderModule = (() => {
         </div>
         ${form ? `
           <div>
-            <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">HARGA/PORSI (Rp)</label>
-            <input type="number" min="0" step="500" placeholder="0"
-              value="${form.hargaPerPorsi||''}"
-              onblur="DailyOrderModule.updateFormMeta('hargaPerPorsi', +this.value)"
-              style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;width:120px;text-align:right">
-          </div>
-          <div>
             <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">FOOD COST (%)</label>
             <input type="number" min="0" max="100" step="0.5" placeholder="54"
               value="${form.foodCostPct!=null?form.foodCostPct:54}"
@@ -176,7 +209,7 @@ const DailyOrderModule = (() => {
           </div>
           ${budgetSet ? `
           <div style="align-self:flex-end">
-            <div style="font-size:10px;color:var(--text-3);font-weight:600;margin-bottom:4px">BUDGET AUTO</div>
+            <div style="font-size:10px;color:var(--text-3);font-weight:600;margin-bottom:4px">BUDGET (${_fcp}% × ${_fmtRp(revenue)})</div>
             <div style="padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;
               background:${budgetOkAuto?'rgba(16,185,129,.1)':'rgba(239,68,68,.1)'};
               color:${budgetOkAuto?'#10b981':'#ef4444'};white-space:nowrap">
@@ -203,7 +236,7 @@ const DailyOrderModule = (() => {
           </div>
           ${budgetSet && totalPortions > 0 ? `
             <div style="font-size:11px;color:var(--text-3)">
-              ${totalPortions.toLocaleString('id-ID')} porsi × ${_fmtRp(_hpp)} × ${_fcp}%
+              Omset: ${_fmtRp(revenue)} × ${_fcp}%
               = <strong style="color:${budgetOkAuto?'#10b981':'#ef4444'}">${_fmtRp(autoBudget)}</strong>
               &nbsp;|&nbsp; Est HPP: <strong style="color:var(--text)">${_fmtRp(totalEst)}</strong>
             </div>
@@ -654,8 +687,8 @@ const DailyOrderModule = (() => {
           <input type="hidden" id="di-stok" value="${stok0||0}">
           <input id="di-item" list="${dlId}" class="form-control" style="${inp('min-width:120px')}"
             placeholder="Nama bahan..." value="${it?.item||''}"
-            onchange="DailyOrderModule._autoFillFromInventory()"
-            oninput="DailyOrderModule._liveCompute()"
+            oninput="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
+            onchange="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._editKeyDown(event,'di-estqty')">
         </td>
         <td style="padding:4px 3px">
@@ -795,7 +828,6 @@ const DailyOrderModule = (() => {
       tanggal      : _date,
       shift        : _shift,
       budgetBelanja: 0,
-      hargaPerPorsi: 0,
       foodCostPct  : 54,
       items        : [],
       status       : 'draft',
