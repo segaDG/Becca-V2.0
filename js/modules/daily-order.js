@@ -305,28 +305,21 @@ const DailyOrderModule = (() => {
                 : `<span style="font-weight:400;font-size:11px">Perlu data order</span>`}
             </div>
           </div>
-          <div style="align-self:center">
-            <span style="font-size:11px;padding:4px 12px;border-radius:20px;font-weight:700;
-              background:${form.status==='final'?'rgba(16,185,129,.12)':'rgba(245,158,11,.12)'};
-              color:${form.status==='final'?'#10b981':'#f59e0b'}">
-              ${form.status==='final'?'✓ Final':'● Draft'}
-            </span>
-          </div>
         ` : ''}
 
         ${hasDayData ? (() => {
           const _bc = totSelisih>=0 ? '#10b981' : '#ef4444';
           const _bl = totSelisih>=0 ? '▲ Surplus' : '▼ Defisit';
           return `
-        <div style="margin-left:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;min-width:176px">
+        <div style="margin-left:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;min-width:220px">
           <div style="font-size:9px;font-weight:700;color:var(--text-3);letter-spacing:.05em;margin-bottom:5px">TOTAL BUDGET HARI INI</div>
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:5px">
             <div>
-              <div style="font-size:8px;color:var(--text-3)">TERPAKAI</div>
+              <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">TERPAKAI</div>
               <div style="font-size:12px;font-weight:700;color:var(--text)">${_fmtRp(totSpent)}</div>
             </div>
             <div style="text-align:right">
-              <div style="font-size:8px;color:var(--text-3)">SELISIH</div>
+              <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">SELISIH</div>
               <div style="font-size:14px;font-weight:700;color:${_bc}">${totSelisih>=0?'+':''}${_fmtRp(Math.abs(totSelisih))}</div>
             </div>
           </div>
@@ -344,8 +337,15 @@ const DailyOrderModule = (() => {
       <!-- Ringkasan orderan -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4);margin-bottom:var(--s4)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-          <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.05em">
-            RINGKASAN ORDER — ${_fmtDate(_date)} / ${_shift==='S1'?'Shift 1':'Shift 2&amp;3'}
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.05em">
+              RINGKASAN ORDER — ${_fmtDate(_date)} / ${_shift==='S1'?'Shift 1':'Shift 2&amp;3'}
+            </div>
+            ${form ? `<span style="font-size:10px;padding:3px 9px;border-radius:20px;font-weight:700;
+              background:${form.status==='final'?'rgba(16,185,129,.12)':'rgba(245,158,11,.12)'};
+              color:${form.status==='final'?'#10b981':'#f59e0b'}">
+              ${form.status==='final'?'✓ Final':'● Draft'}
+            </span>` : ''}
           </div>
           ${revenue > 0 && totalPortions > 0 ? `
             <div style="font-size:11px;color:var(--text-3)">
