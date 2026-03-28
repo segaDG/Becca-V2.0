@@ -130,6 +130,13 @@ const DailyOrderModule = (() => {
     const totalAkt     = items.reduce((s,it) => s + _n(it.aktTotal), 0);
     const budgetOk     = !form?.budgetBelanja || totalEst <= _n(form.budgetBelanja);
 
+    // Auto-budget computation
+    const _hpp    = _n(form?.hargaPerPorsi);
+    const _fcp    = _n(form?.foodCostPct) || 54;
+    const autoBudget = totalPortions * _hpp * _fcp / 100;
+    const budgetSet  = form && (_hpp > 0);
+    const budgetOkAuto = !budgetSet || totalEst <= autoBudget;
+
     return `
       <!-- Selector tanggal & shift -->
       <div style="display:flex;gap:var(--s3);align-items:flex-end;flex-wrap:wrap;margin-bottom:var(--s4)">
@@ -153,6 +160,31 @@ const DailyOrderModule = (() => {
           </div>
         </div>
         ${form ? `
+          <div>
+            <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">HARGA/PORSI (Rp)</label>
+            <input type="number" min="0" step="500" placeholder="0"
+              value="${form.hargaPerPorsi||''}"
+              onblur="DailyOrderModule.updateFormMeta('hargaPerPorsi', +this.value)"
+              style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;width:120px;text-align:right">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">FOOD COST (%)</label>
+            <input type="number" min="0" max="100" step="0.5" placeholder="54"
+              value="${form.foodCostPct!=null?form.foodCostPct:54}"
+              onblur="DailyOrderModule.updateFormMeta('foodCostPct', +this.value)"
+              style="padding:8px 10px;border:1px solid var(--primary);border-radius:8px;background:rgba(99,102,241,.06);color:var(--primary);font-size:13px;width:80px;text-align:right;font-weight:700">
+          </div>
+          ${budgetSet ? `
+          <div style="align-self:flex-end">
+            <div style="font-size:10px;color:var(--text-3);font-weight:600;margin-bottom:4px">BUDGET AUTO</div>
+            <div style="padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;
+              background:${budgetOkAuto?'rgba(16,185,129,.1)':'rgba(239,68,68,.1)'};
+              color:${budgetOkAuto?'#10b981':'#ef4444'};white-space:nowrap">
+              ${_fmtRp(autoBudget)}
+              <span style="font-size:10px;font-weight:400;margin-left:4px">${budgetOkAuto?'✓ Aman':'⚠ Over'}</span>
+            </div>
+          </div>
+          ` : ''}
           <div style="margin-left:auto;align-self:center">
             <span style="font-size:11px;padding:4px 12px;border-radius:20px;font-weight:700;
               background:${form.status==='final'?'rgba(16,185,129,.12)':'rgba(245,158,11,.12)'};
@@ -165,8 +197,17 @@ const DailyOrderModule = (() => {
 
       <!-- Ringkasan orderan -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4);margin-bottom:var(--s4)">
-        <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.05em;margin-bottom:10px">
-          RINGKASAN ORDER — ${_fmtDate(_date)} / ${_shift==='S1'?'Shift 1':'Shift 2&amp;3'}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.05em">
+            RINGKASAN ORDER — ${_fmtDate(_date)} / ${_shift==='S1'?'Shift 1':'Shift 2&amp;3'}
+          </div>
+          ${budgetSet && totalPortions > 0 ? `
+            <div style="font-size:11px;color:var(--text-3)">
+              ${totalPortions.toLocaleString('id-ID')} porsi × ${_fmtRp(_hpp)} × ${_fcp}%
+              = <strong style="color:${budgetOkAuto?'#10b981':'#ef4444'}">${_fmtRp(autoBudget)}</strong>
+              &nbsp;|&nbsp; Est HPP: <strong style="color:var(--text)">${_fmtRp(totalEst)}</strong>
+            </div>
+          ` : ''}
         </div>
         ${summary.length===0
           ? `<div style="text-align:center;padding:16px;color:var(--text-3);font-size:13px">Tidak ada order untuk tanggal ini</div>`
@@ -181,28 +222,16 @@ const DailyOrderModule = (() => {
             </div>
             <div style="font-weight:700;color:var(--primary);font-size:14px">Total: ${totalPortions.toLocaleString('id-ID')} porsi</div>`
         }
+        ${budgetSet && totalEst > 0 ? `
+          <div style="margin-top:10px;background:var(--surface2);height:6px;border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${Math.min(100,(totalEst/autoBudget*100)).toFixed(1)}%;
+              background:${budgetOkAuto?'#10b981':'#ef4444'};border-radius:3px;transition:width .3s"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:4px;text-align:right">
+            ${(totalEst/autoBudget*100).toFixed(1)}% dari budget
+          </div>
+        ` : ''}
       </div>
-
-      <!-- Budget bar -->
-      ${form && _n(form.budgetBelanja) ? `
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4);margin-bottom:var(--s4)">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <span style="font-size:11px;font-weight:700;color:var(--text-3)">BUDGET HARIAN</span>
-            <span style="font-size:12px;font-weight:700;color:${budgetOk?'#10b981':'#ef4444'}">
-              ${budgetOk?'✓ Aman':'⚠ Over Budget'}
-            </span>
-          </div>
-          <div style="background:var(--surface2);height:6px;border-radius:3px;overflow:hidden;margin-bottom:8px">
-            <div style="height:100%;width:${Math.min(100,(totalEst/_n(form.budgetBelanja)*100)).toFixed(1)}%;
-              background:${budgetOk?'#10b981':'#ef4444'};border-radius:3px;transition:width .3s"></div>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-3)">
-            <span>Est: <strong style="color:var(--text)">${_fmtRp(totalEst)}</strong></span>
-            <span>Budget: <strong style="color:var(--text)">${_fmtRp(form.budgetBelanja)}</strong></span>
-            <span>${(_n(totalEst)/_n(form.budgetBelanja)*100).toFixed(1)}%</span>
-          </div>
-        </div>
-      ` : ''}
 
       <!-- Form produksi table -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
@@ -214,7 +243,6 @@ const DailyOrderModule = (() => {
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             ${form ? `
               <button onclick="DailyOrderModule.startAddItem()" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;font-weight:600">+ Tambah Bahan</button>
-              <button onclick="DailyOrderModule.openBudget()" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">💰 Budget</button>
               <button onclick="DailyOrderModule.toggleStatus()" style="padding:6px 12px;border:1px solid ${form.status==='final'?'rgba(245,158,11,.4)':'rgba(16,185,129,.4)'};border-radius:7px;
                 background:${form.status==='final'?'rgba(245,158,11,.08)':'rgba(16,185,129,.08)'};
                 color:${form.status==='final'?'#f59e0b':'#10b981'};font-size:12px;cursor:pointer;font-weight:600">
@@ -700,9 +728,9 @@ const DailyOrderModule = (() => {
     const satEl   = document.getElementById('di-sat');
     const hargaEl = document.getElementById('di-harga');
     const stokEl  = document.getElementById('di-stok');
-    if (satEl   && inv.satuan) satEl.value = inv.satuan;
-    if (hargaEl && !parseFloat(hargaEl.value||0)) hargaEl.value = inv.harga||inv.hargaBeli||0;
-    if (stokEl)  stokEl.value = inv.stok||inv.qty||inv.jumlah||0;
+    if (satEl   && inv.satuan)     satEl.value   = inv.satuan;
+    if (hargaEl && !parseFloat(hargaEl.value||0)) hargaEl.value = inv.hargaSatuan||0;
+    if (stokEl)  stokEl.value = inv._stok||0;
     _liveCompute();
   }
 
@@ -763,14 +791,16 @@ const DailyOrderModule = (() => {
 
   async function createForm() {
     const form = {
-      id       : 'do_' + _date.replace(/-/g,'') + '_' + _shift,
-      tanggal  : _date,
-      shift    : _shift,
+      id           : 'do_' + _date.replace(/-/g,'') + '_' + _shift,
+      tanggal      : _date,
+      shift        : _shift,
       budgetBelanja: 0,
-      items    : [],
-      status   : 'draft',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      hargaPerPorsi: 0,
+      foodCostPct  : 54,
+      items        : [],
+      status       : 'draft',
+      createdAt    : new Date().toISOString(),
+      updatedAt    : new Date().toISOString(),
     };
     _forms.push(form);
     await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] createForm:', e));
@@ -866,6 +896,15 @@ const DailyOrderModule = (() => {
     Notify.success('Bahan dihapus');
   }
 
+  async function updateFormMeta(field, value) {
+    const form = _currentForm();
+    if (!form) return;
+    form[field]    = value;
+    form.updatedAt = new Date().toISOString();
+    await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] updateFormMeta:', e));
+    _renderContent();
+  }
+
   function goToDate(date) {
     _date = date;
     _view = 'form';
@@ -876,7 +915,7 @@ const DailyOrderModule = (() => {
   /* ─── PUBLIC ─── */
   return {
     init, setView, setDate, setShift, setMonth,
-    createForm, toggleStatus, deleteForm,
+    createForm, toggleStatus, deleteForm, updateFormMeta,
     openBudget, _saveBudget,
     startAddItem, startEditItem,
     _saveEditRow, _cancelEdit, _editKeyDown, _liveCompute, _autoFillFromInventory,
