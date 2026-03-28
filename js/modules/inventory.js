@@ -363,12 +363,12 @@ const InventoryModule = (() => {
                       ${item.keterangan ? `<div class="text-small text-muted">${item.keterangan}</div>` : ''}
                     </td>
                     <td><span class="badge badge-neutral">${item.kategori||'-'}</span></td>
-                    <td class="num text-small" style="color:var(--success)">${stockIn} ${item.satuan||''}</td>
-                    <td class="num text-small" style="color:var(--danger)">${stockOut} ${item.satuan||''}</td>
+                    <td class="num text-small" style="color:var(--success)">${+stockIn.toFixed(2)} ${item.satuan||''}</td>
+                    <td class="num text-small" style="color:var(--danger)">${+stockOut.toFixed(2)} ${item.satuan||''}</td>
                     <td class="num font-semibold" style="color:${isEmpty?'var(--danger)':isLow?'var(--warning)':'var(--success)'}">
-                      ${stok} ${item.satuan||''}
+                      ${+stok.toFixed(2)} ${item.satuan||''}
                     </td>
-                    <td class="num text-muted text-small">${min} ${item.satuan||''}</td>
+                    <td class="num text-muted text-small">${+min.toFixed(2)} ${item.satuan||''}</td>
                     <td class="num text-small" title="${(() => {
                       const masuk = _logs.filter(l=>l.itemId===item.id && l.jenis==='MASUK' && l.harga>0).sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||''));
                       if (!masuk.length) return 'Belum ada data harga';
