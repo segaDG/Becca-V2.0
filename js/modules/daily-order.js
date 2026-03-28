@@ -199,10 +199,6 @@ const DailyOrderModule = (() => {
     const days     = _daysInMonth(_formMonth);
     const firstDow = new Date(`${_formMonth}-01T00:00:00`).getDay(); // 0=Sun
     const cellW    = 'width:28px;height:36px;flex-shrink:0;';
-    // Spacers before 1st
-    const spacers = Array.from({length:firstDow},()=>
-      `<div style="${cellW}"></div>`
-    ).join('');
     // Date cards (day label inside card, above number)
     const cards = Array.from({length:days},(_,i)=>{
       const d       = i+1;
@@ -246,7 +242,7 @@ const DailyOrderModule = (() => {
           </div>
         </div>
         <!-- Mini date cards -->
-        <div style="display:flex;gap:3px;flex-wrap:wrap">${spacers}${cards}</div>
+        <div style="display:flex;gap:3px;flex-wrap:wrap">${cards}</div>
       </div>
 
       <!-- Selector shift -->
