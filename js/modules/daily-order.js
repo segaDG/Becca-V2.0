@@ -225,7 +225,6 @@ const DailyOrderModule = (() => {
     // ── Mini date cards ──
     const days     = _daysInMonth(_formMonth);
     const firstDow = new Date(`${_formMonth}-01T00:00:00`).getDay();
-    const cellW    = 'width:28px;height:36px;flex-shrink:0;';
     const cards    = Array.from({length:days},(_,i) => {
       const d       = i + 1;
       const dateStr = `${_formMonth}-${String(d).padStart(2,'0')}`;
@@ -235,18 +234,24 @@ const DailyOrderModule = (() => {
       const today   = dateStr === _today();
       const dow     = (firstDow + i) % 7;
       const isSun   = dow === 0;
+      // Selected card: slightly taller, grows upward (parent is align-items:flex-end)
+      const cW = sel ? 33 : 28;
+      const cH = sel ? 44 : 36;
+      const dayFs = sel ? '9px' : '8px';
+      const numFs = sel ? '13px' : '11px';
       let bg = 'var(--surface2)', col = 'var(--text-3)', dayCol = 'var(--text-3)';
       if      (hasS1 && hasS2) { bg='#6366f1'; col='#fff'; dayCol='rgba(255,255,255,.7)'; }
       else if (hasS1)          { bg='#f59e0b'; col='#fff'; dayCol='rgba(255,255,255,.7)'; }
       else if (hasS2)          { bg='#f97316'; col='#fff'; dayCol='rgba(255,255,255,.7)'; }
       if (isSun && !hasS1 && !hasS2) { col='#ef4444'; dayCol='#ef4444'; }
       return `<button onclick="DailyOrderModule.setDate('${dateStr}')"
-        title="${dateStr}" style="${cellW}border-radius:6px;border:2px solid ${sel?'#374151':'transparent'};
+        title="${dateStr}" style="width:${cW}px;height:${cH}px;flex-shrink:0;border-radius:6px;
+        border:2px solid ${sel?'#374151':'transparent'};
         background:${bg};cursor:pointer;display:flex;flex-direction:column;
         align-items:center;justify-content:center;gap:1px;padding:0;
         ${today?'box-shadow:0 0 0 2px var(--primary);':''}">
-        <span style="font-size:8px;font-weight:600;color:${dayCol};line-height:1">${_DAY_LABELS[dow]}</span>
-        <span style="font-size:11px;font-weight:700;color:${col};line-height:1">${d}</span>
+        <span style="font-size:${dayFs};font-weight:600;color:${dayCol};line-height:1">${_DAY_LABELS[dow]}</span>
+        <span style="font-size:${numFs};font-weight:700;color:${col};line-height:1">${d}</span>
       </button>`;
     }).join('');
 
@@ -266,7 +271,7 @@ const DailyOrderModule = (() => {
             <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f97316;margin-right:3px;vertical-align:middle"></span>S2</span>
           </div>
         </div>
-        <div style="display:flex;gap:3px;flex-wrap:wrap">${cards}</div>
+        <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:flex-end">${cards}</div>
       </div>
 
       <!-- Shift + meta -->
