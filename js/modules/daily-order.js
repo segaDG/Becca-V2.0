@@ -194,13 +194,33 @@ const DailyOrderModule = (() => {
     const totalEst     = items.reduce((s,it) => s + _n(it.estTotal), 0);
     const totalAkt     = items.reduce((s,it) => s + _n(it.aktTotal), 0);
 
-    // Auto-budget: dari omset order × harga customer × foodCostPct
+    // Per-shift budget
     const fcp        = _n(form?.foodCostPct) || _DEFAULT_FCP;
     const revenue    = _calcRevenue(_date, _shift);
-    const autoBudget = revenue * fcp / 100;
-    const budgetSet  = revenue > 0 || _n(form?.budgetBelanja) > 0;
-    const budgetVal  = revenue > 0 ? autoBudget : _n(form?.budgetBelanja);
-    const budgetOk   = !budgetSet || totalEst <= budgetVal;
+    const budgetVal  = revenue > 0 ? revenue * fcp / 100 : _n(form?.budgetBelanja);
+    const budgetOk   = budgetVal <= 0 || totalEst <= budgetVal;
+
+    // Total daily budget card — S1 + S2 combined for selected date
+    const formS1     = _forms.find(f => f.tanggal === _date && f.shift === 'S1');
+    const formS2     = _forms.find(f => f.tanggal === _date && f.shift === 'S2');
+    const revS1      = _calcRevenue(_date, 'S1');
+    const revS2      = _calcRevenue(_date, 'S2');
+    const fcpS1      = _n(formS1?.foodCostPct) || _DEFAULT_FCP;
+    const fcpS2      = _n(formS2?.foodCostPct) || _DEFAULT_FCP;
+    const budS1      = revS1 > 0 ? revS1 * fcpS1 / 100 : _n(formS1?.budgetBelanja);
+    const budS2      = revS2 > 0 ? revS2 * fcpS2 / 100 : _n(formS2?.budgetBelanja);
+    const totBudget  = budS1 + budS2;
+    const _spentOf   = f => (f?.items||[]).reduce((s,it) => {
+      const v = (it.aktTotal !== null && it.aktTotal !== undefined && it.aktTotal !== '')
+        ? _n(it.aktTotal) : _n(it.estTotal);
+      return s + v;
+    }, 0);
+    const spentS1    = _spentOf(formS1);
+    const spentS2    = _spentOf(formS2);
+    const totSpent   = spentS1 + spentS2;
+    const totSelisih = totBudget - totSpent;          // positive = surplus
+    const totPct     = totBudget > 0 ? totSpent / totBudget * 100 : 0;
+    const hasDayData = (formS1 || formS2) && totBudget > 0;
 
     // ── Mini date cards ──
     const days     = _daysInMonth(_formMonth);
@@ -273,19 +293,19 @@ const DailyOrderModule = (() => {
               onblur="DailyOrderModule.updateFormMeta('foodCostPct', +this.value)"
               style="padding:8px 10px;border:1px solid var(--primary);border-radius:8px;background:rgba(99,102,241,.06);color:var(--primary);font-size:13px;width:80px;text-align:right;font-weight:700">
           </div>
-          ${budgetSet ? `
           <div style="align-self:flex-end">
             <div style="font-size:10px;color:var(--text-3);font-weight:600;margin-bottom:4px">
-              BUDGET (${fcp}% × ${_fmtRp(revenue)})
+              BUDGET (${fcp}% × ${revenue > 0 ? _fmtRp(revenue) : '—'})
             </div>
-            <div style="padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;
-              background:${budgetOk?'rgba(16,185,129,.1)':'rgba(239,68,68,.1)'};
-              color:${budgetOk?'#10b981':'#ef4444'};white-space:nowrap">
-              ${_fmtRp(budgetVal)}
-              <span style="font-size:10px;font-weight:400;margin-left:4px">${budgetOk?'✓ Aman':'⚠ Over'}</span>
+            <div style="padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;white-space:nowrap;
+              background:${revenue > 0 ? (budgetOk?'rgba(16,185,129,.1)':'rgba(239,68,68,.1)') : 'var(--surface2)'};
+              color:${revenue > 0 ? (budgetOk?'#10b981':'#ef4444') : 'var(--text-3)'}">
+              ${revenue > 0
+                ? `${_fmtRp(budgetVal)}<span style="font-size:10px;font-weight:400;margin-left:4px">${budgetOk?'✓ Aman':'⚠ Over'}</span>`
+                : `<span style="font-weight:400;font-size:11px">Perlu data order</span>`}
             </div>
-          </div>` : ''}
-          <div style="margin-left:auto;align-self:center">
+          </div>
+          <div style="align-self:center">
             <span style="font-size:11px;padding:4px 12px;border-radius:20px;font-weight:700;
               background:${form.status==='final'?'rgba(16,185,129,.12)':'rgba(245,158,11,.12)'};
               color:${form.status==='final'?'#10b981':'#f59e0b'}">
@@ -293,6 +313,50 @@ const DailyOrderModule = (() => {
             </span>
           </div>
         ` : ''}
+
+        ${hasDayData ? `
+        <div style="margin-left:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;min-width:210px">
+          <div style="font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.05em;margin-bottom:8px">TOTAL BUDGET HARI INI</div>
+          <div style="display:flex;gap:14px;margin-bottom:8px">
+            <div>
+              <div style="font-size:9px;color:var(--text-3);margin-bottom:1px">S1</div>
+              <div style="font-size:12px;font-weight:700;color:var(--text)">${budS1 > 0 ? _fmtRp(budS1) : '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:9px;color:var(--text-3);margin-bottom:1px">S2&amp;3</div>
+              <div style="font-size:12px;font-weight:700;color:var(--text)">${budS2 > 0 ? _fmtRp(budS2) : '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:9px;color:var(--primary);font-weight:700;margin-bottom:1px">TOTAL</div>
+              <div style="font-size:12px;font-weight:700;color:var(--primary)">${_fmtRp(totBudget)}</div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:8px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+              <div>
+                <div style="font-size:9px;color:var(--text-3)">TERPAKAI</div>
+                <div style="font-size:15px;font-weight:700;color:var(--text)">${_fmtRp(totSpent)}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:9px;color:var(--text-3)">SELISIH</div>
+                <div style="font-size:15px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
+                  ${totSelisih>=0?'+':''}${_fmtRp(Math.abs(totSelisih))}
+                </div>
+              </div>
+            </div>
+            <div style="background:var(--surface2);height:5px;border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(100,totPct).toFixed(1)}%;background:${totSelisih>=0?'#10b981':'#ef4444'};border-radius:3px;transition:width .3s"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px">
+              <span style="font-size:10px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
+                ${totSelisih>=0?'▲ Surplus':'▼ Defisit'}
+              </span>
+              <span style="font-size:11px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
+                ${totPct.toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        </div>` : ''}
       </div>
 
       <!-- Ringkasan orderan -->
@@ -301,7 +365,7 @@ const DailyOrderModule = (() => {
           <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.05em">
             RINGKASAN ORDER — ${_fmtDate(_date)} / ${_shift==='S1'?'Shift 1':'Shift 2&amp;3'}
           </div>
-          ${budgetSet && totalPortions > 0 ? `
+          ${revenue > 0 && totalPortions > 0 ? `
             <div style="font-size:11px;color:var(--text-3)">
               Omset: ${_fmtRp(revenue)} × ${fcp}%
               = <strong style="color:${budgetOk?'#10b981':'#ef4444'}">${_fmtRp(budgetVal)}</strong>
@@ -322,7 +386,7 @@ const DailyOrderModule = (() => {
             </div>
             <div style="font-weight:700;color:var(--primary);font-size:14px">Total: ${totalPortions.toLocaleString('id-ID')} porsi</div>`
         }
-        ${budgetSet && totalEst > 0 && budgetVal > 0 ? `
+        ${budgetVal > 0 && totalEst > 0 ? `
           <div style="margin-top:10px;background:var(--surface2);height:6px;border-radius:3px;overflow:hidden">
             <div style="height:100%;width:${Math.min(100,(totalEst/budgetVal*100)).toFixed(1)}%;
               background:${budgetOk?'#10b981':'#ef4444'};border-radius:3px;transition:width .3s"></div>
