@@ -697,10 +697,9 @@ const DailyOrderModule = (() => {
             oninput="DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._estQtyKeyDown(event)">
         </td>
-        <td style="padding:4px 3px">
-          <select id="di-sat" class="form-control" style="${inp('width:65px')}">
-            ${_SATS.map(s=>`<option value="${s}" ${(it?.satuan||'Kg')===s?'selected':''}>${s}</option>`).join('')}
-          </select>
+        <td style="padding:4px 6px;text-align:center">
+          <input type="hidden" id="di-sat" value="${it?.satuan||''}">
+          <span id="di-sat-d" style="font-size:11px;color:var(--text-3)">${it?.satuan||'-'}</span>
         </td>
         <td style="padding:4px 3px">
           <input id="di-harga" class="form-control" style="${inp('text-align:right;width:80px')}"
@@ -758,14 +757,13 @@ const DailyOrderModule = (() => {
     const val = document.getElementById('di-item')?.value.trim().toLowerCase();
     const inv = _inventory.find(i => (i.nama||'').toLowerCase() === val);
     if (!inv) return;
-    const satEl   = document.getElementById('di-sat');
-    const hargaEl = document.getElementById('di-harga');
-    const stokEl  = document.getElementById('di-stok');
-    if (satEl && inv.satuan) {
-      // Case-insensitive match against _SATS options
-      const satLower = inv.satuan.toLowerCase();
-      const matched  = _SATS.find(s => s.toLowerCase() === satLower);
-      satEl.value = matched || _SATS[0];
+    const hargaEl   = document.getElementById('di-harga');
+    const stokEl    = document.getElementById('di-stok');
+    const satHidden = document.getElementById('di-sat');
+    const satDisplay= document.getElementById('di-sat-d');
+    if (inv.satuan) {
+      if (satHidden)  satHidden.value     = inv.satuan;
+      if (satDisplay) satDisplay.textContent = inv.satuan;
     }
     if (hargaEl) hargaEl.value = inv.hargaSatuan || 0;
     if (stokEl)  stokEl.value = inv._stok||0;
