@@ -195,25 +195,36 @@ const DailyOrderModule = (() => {
     const budgetOkAuto = !budgetSet || totalEst <= autoBudget;
 
     // ── Mini date cards ──
+    const _DAY_LABELS = ['Mg','Sn','Sl','Rb','Km','Jm','Sb'];
     const days      = _daysInMonth(_formMonth);
-    const miniCards = Array.from({length:days},(_,i)=>{
+    const firstDow  = new Date(`${_formMonth}-01T00:00:00`).getDay(); // 0=Sun
+    const cellW     = 'width:26px;height:26px;flex-shrink:0;';
+    // Day header row
+    const dayHeaders = _DAY_LABELS.map((lb,i)=>
+      `<div style="${cellW}text-align:center;font-size:9px;font-weight:700;color:${i===0?'#ef4444':'var(--text-3)'};display:flex;align-items:center;justify-content:center">${lb}</div>`
+    ).join('');
+    // Spacers before 1st
+    const spacers = Array.from({length:firstDow},()=>
+      `<div style="${cellW}"></div>`
+    ).join('');
+    // Date cards
+    const cards = Array.from({length:days},(_,i)=>{
       const d       = i+1;
       const dateStr = `${_formMonth}-${String(d).padStart(2,'0')}`;
       const hasS1   = _forms.some(f=>f.tanggal===dateStr&&f.shift==='S1');
       const hasS2   = _forms.some(f=>f.tanggal===dateStr&&f.shift==='S2');
       const sel     = _date===dateStr;
       const today   = dateStr===_today();
+      const isSun   = (firstDow + i) % 7 === 0;
       let bg='var(--surface2)',col='var(--text-3)';
       if (hasS1&&hasS2){bg='#6366f1';col='#fff';}
-      else if(hasS1){bg='#f59e0b';col='#fff';}
-      else if(hasS2){bg='#f97316';col='#fff';}
-      const dow = new Date(dateStr+'T00:00:00').getDay();
-      const isSun = dow===0;
+      else if(hasS1)   {bg='#f59e0b';col='#fff';}
+      else if(hasS2)   {bg='#f97316';col='#fff';}
       return `<button onclick="DailyOrderModule.setDate('${dateStr}')"
-        title="${dateStr}" style="width:26px;height:26px;border-radius:5px;border:2px solid ${sel?'var(--text)':'transparent'};
-        background:${bg};color:${col};font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;
-        ${today?'box-shadow:0 0 0 2px var(--primary)':''}
-        ${isSun&&!hasS1&&!hasS2?'color:#ef4444;':''}">${d}</button>`;
+        title="${dateStr}" style="${cellW}border-radius:5px;border:2px solid ${sel?'#1f2937':'transparent'};
+        background:${bg};color:${isSun&&!hasS1&&!hasS2?'#ef4444':col};
+        font-size:10px;font-weight:700;cursor:pointer;
+        ${today?'box-shadow:0 0 0 2px var(--primary);':''}">${d}</button>`;
     }).join('');
 
     return `
@@ -233,8 +244,9 @@ const DailyOrderModule = (() => {
             <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f97316;margin-right:3px;vertical-align:middle"></span>S2</span>
           </div>
         </div>
-        <!-- Mini date cards -->
-        <div style="display:flex;gap:3px;flex-wrap:wrap">${miniCards}</div>
+        <!-- Day headers + mini date cards in 7-col grid -->
+        <div style="display:flex;gap:3px;flex-wrap:wrap">${dayHeaders}</div>
+        <div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${spacers}${cards}</div>
       </div>
 
       <!-- Selector shift -->
