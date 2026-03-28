@@ -314,33 +314,31 @@ const DailyOrderModule = (() => {
           </div>
         ` : ''}
 
-        ${hasDayData ? `
-        <div style="margin-left:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;min-width:200px">
-          <div style="font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.05em;margin-bottom:8px">TOTAL BUDGET HARI INI</div>
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        ${hasDayData ? (() => {
+          const _bc = totSelisih>=0 ? '#10b981' : '#ef4444';
+          const _bl = totSelisih>=0 ? '▲ Surplus' : '▼ Defisit';
+          return `
+        <div style="margin-left:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;min-width:176px">
+          <div style="font-size:9px;font-weight:700;color:var(--text-3);letter-spacing:.05em;margin-bottom:5px">TOTAL BUDGET HARI INI</div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
             <div>
-              <div style="font-size:9px;color:var(--text-3)">TERPAKAI</div>
-              <div style="font-size:15px;font-weight:700;color:var(--text)">${_fmtRp(totSpent)}</div>
+              <div style="font-size:8px;color:var(--text-3)">TERPAKAI</div>
+              <div style="font-size:12px;font-weight:700;color:var(--text)">${_fmtRp(totSpent)}</div>
             </div>
             <div style="text-align:right">
-              <div style="font-size:9px;color:var(--text-3)">SELISIH</div>
-              <div style="font-size:15px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
-                ${totSelisih>=0?'+':''}${_fmtRp(Math.abs(totSelisih))}
-              </div>
+              <div style="font-size:8px;color:var(--text-3)">SELISIH</div>
+              <div style="font-size:14px;font-weight:700;color:${_bc}">${totSelisih>=0?'+':''}${_fmtRp(Math.abs(totSelisih))}</div>
             </div>
           </div>
-          <div style="background:var(--surface2);height:5px;border-radius:3px;overflow:hidden">
-            <div style="height:100%;width:${Math.min(100,totPct).toFixed(1)}%;background:${totSelisih>=0?'#10b981':'#ef4444'};border-radius:3px;transition:width .3s"></div>
+          <div style="position:relative;background:var(--surface2);height:18px;border-radius:4px;overflow:hidden">
+            <div style="position:absolute;inset:0 auto 0 0;width:${Math.min(100,totPct).toFixed(1)}%;background:${_bc};border-radius:4px;transition:width .3s"></div>
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 7px;pointer-events:none">
+              <span style="font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)">${_bl}</span>
+              <span style="font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)">${totPct.toFixed(1)}%</span>
+            </div>
           </div>
-          <div style="display:flex;justify-content:space-between;margin-top:4px">
-            <span style="font-size:10px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
-              ${totSelisih>=0?'▲ Surplus':'▼ Defisit'}
-            </span>
-            <span style="font-size:11px;font-weight:700;color:${totSelisih>=0?'#10b981':'#ef4444'}">
-              ${totPct.toFixed(1)}%
-            </span>
-          </div>
-        </div>` : ''}
+        </div>`;
+        })() : ''}
       </div>
 
       <!-- Ringkasan orderan -->
