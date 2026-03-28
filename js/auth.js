@@ -16,9 +16,9 @@ const Auth = {
 
   _defaultPrivileges: {
     superadmin: { all: true },
-    admin:    { dashboard:'view', order:'all', invoice:'all', customer:'all', employee:'all', emp_finance:'all', inventory:'all', kas:'all', ap:'all', task:'all', report:'view', settings:'all' },
+    admin:    { dashboard:'view', order:'all', invoice:'all', customer:'all', employee:'all', emp_finance:'all', inventory:'all', kas:'all', ap:'all', task:'all', 'daily-order':'all', report:'view', settings:'all' },
     finance:  { dashboard:'view', kas:'all', employee:'view', emp_finance:'all', report:'view' },
-    operator: { dashboard:'view', order:'all', invoice:'view', customer:'view', inventory:'all', kas:'view', task:'all', report:'view' },
+    operator: { dashboard:'view', order:'all', invoice:'view', customer:'view', inventory:'all', kas:'view', task:'all', 'daily-order':'all', report:'view' },
     viewer:   { dashboard:'view', order:'view', invoice:'view', customer:'view', report:'view' },
   },
 

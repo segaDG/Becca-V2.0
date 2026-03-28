@@ -334,33 +334,33 @@ const KasModule = (() => {
     return `<tr class="ks-editing" id="ks-row-${r.id}" data-id="${r.id}" onclick="event.stopPropagation()">
       <td><div class="ks-cell" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
       <td><input class="ks-inp" type="date" value="${r.tgl||''}" id="ks-tgl-${r.id}"
-            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
+            onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
       <td><input class="ks-inp" type="text" value="${(r.nama||'').replace(/"/g,'&quot;')}" placeholder="Nama/keterangan"
             id="ks-nama-${r.id}"
             oninput="KasModule._onNamaInput('${r.id}',this.value)"
-            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
+            onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
       <td><select class="ks-sel" id="ks-type-${r.id}"
-            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')">${typeOpts}</select></td>
+            onkeydown="KasModule._rowKeyDown(event,'${r.id}')">${typeOpts}</select></td>
       <td><input class="ks-inp" type="text" value="${(r.vendor||'').replace(/"/g,'&quot;')}" placeholder="Vendor"
             id="ks-vendor-${r.id}"
-            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
+            onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
       <td class="ks-num"><input class="ks-inp" type="number" min="0" step="0.01" value="${r.qty||0}"
             id="ks-qty-${r.id}" oninput="KasModule._calcTotal('${r.id}')" style="text-align:right"
-            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
+            onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
       <td><input class="ks-inp" type="text" value="${r.satuan||''}" list="ks-sat-lst" id="ks-sat-${r.id}"
-            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')">
+            onkeydown="KasModule._rowKeyDown(event,'${r.id}')">
           <datalist id="ks-sat-lst">${SATUANS.map(s=>`<option value="${s}">`).join('')}</datalist></td>
       <td class="ks-num"><input class="ks-inp" type="number" min="0" value="${r.hargaSatuan||0}"
             id="ks-harga-${r.id}" oninput="KasModule._calcTotal('${r.id}')" style="text-align:right"
-            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
+            onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
       <td class="ks-num"><input class="ks-inp" type="number" min="0" value="${r.jumlah||0}"
             id="ks-jumlah-${r.id}" style="text-align:right;font-weight:700"
-            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
+            onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
       <td><input class="ks-inp" type="text" value="${(r.penerima||'').replace(/"/g,'&quot;')}" placeholder="Penerima"
             id="ks-penerima-${r.id}"
-            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')"></td>
+            onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
       <td><select class="ks-sel" id="ks-status-${r.id}"
-            onkeydown="if(event.key==='Enter')KasModule.commitEdit('${r.id}')">${statusOpts}</select></td>
+            onkeydown="KasModule._rowKeyDown(event,'${r.id}')">${statusOpts}</select></td>
       ${canEdit?`<td><button class="ks-del-btn" style="color:var(--success);border:1px solid var(--success)"
           onclick="event.stopPropagation();KasModule.commitEdit('${r.id}')" title="Simpan">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
@@ -508,6 +508,37 @@ const KasModule = (() => {
     const ok = _doCommit(id);
     if (ok) _editingId = null;
     // if !ok: _editingId stays, listener re-attached in _doCommit
+  }
+
+  // Enter: save current row + open new row immediately
+  function commitAndAddRow(id) {
+    if (_editingId !== id) return;
+    document.removeEventListener('click', _handleOutsideClick);
+    const ok = _doCommit(id);
+    if (ok) { _editingId = null; addRow(); }
+  }
+
+  // Esc: discard changes + close edit (no new row)
+  function cancelEdit(id) {
+    if (_editingId !== id) return;
+    document.removeEventListener('click', _handleOutsideClick);
+    const row = _kas.find(r => r.id === id);
+    if (row?._original) {
+      try { Object.assign(row, JSON.parse(row._original)); } catch {}
+    }
+    _editingId = null;
+    const trEl = document.getElementById('ks-row-'+id);
+    if (trEl) {
+      const tbody   = document.getElementById('kas-tbody');
+      const allRows = Array.from(tbody.querySelectorAll('tr'));
+      const rowNum  = allRows.indexOf(trEl) + 1 + (_page-1)*_perPage;
+      trEl.outerHTML = _rowView(row, rowNum, true);
+    }
+  }
+
+  function _rowKeyDown(e, id) {
+    if (e.key === 'Enter')       { e.preventDefault(); commitAndAddRow(id); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(id); }
   }
 
   /* ===================== ADD / DELETE ===================== */
@@ -1352,6 +1383,6 @@ const KasModule = (() => {
     _doCommit(id, true); // skipValidation = true
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
+  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
 })();
 window.KasModule = KasModule;

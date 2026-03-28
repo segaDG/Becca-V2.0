@@ -660,15 +660,15 @@ const InventoryModule = (() => {
     const jenisOpts = ['MASUK','KELUAR'].map(j=>`<option value="${j}" ${r.jenis===j?'selected':''}>${j}</option>`).join('');
     return `<tr class="iv-editing" id="iv-row-${r.id}" data-id="${r.id}" onclick="event.stopPropagation()">
       <td><div class="ivc" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
-      <td><input class="iv-inp" type="date" value="${r.tgl||''}" id="ivf-tgl-${r.id}" onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
+      <td><input class="iv-inp" type="date" value="${r.tgl||''}" id="ivf-tgl-${r.id}" onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"></td>
       <td><select class="iv-sel" id="ivf-item-${r.id}" onchange="InventoryModule._ivOnItemSelect('${r.id}',this.value,this.options[this.selectedIndex].text)"><option value="">Pilih barang...</option>${itemOpts}</select></td>
       <td><select class="iv-sel" id="ivf-jenis-${r.id}" 
             onchange="InventoryModule._onJenisChange('${r.id}')"
             ${!r.itemId ? 'disabled style="opacity:.4;cursor:not-allowed" title=\"Pilih barang dulu\"' : ''}>${jenisOpts}</select></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.jumlah||0}" id="ivf-jumlah-${r.id}" style="text-align:right"
         oninput="InventoryModule._onQtyChange('${r.id}',this.value)"
-        onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
-      <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.harga||0}" id="ivf-harga-${r.id}" style="text-align:right" onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
+        onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"></td>
+      <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.harga||0}" id="ivf-harga-${r.id}" style="text-align:right" onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"></td>
       <td><select class="iv-sel" id="ivf-kode-${r.id}"
             onchange="InventoryModule._onKodeChange('${r.id}')">
           ${['','SHIFT 1','SHIFT 2','SHIFT 3','RETUR / RUSAK','PENJUALAN','EVENT','STOCK IN','OPNAME'].map(k=>'<option value="'+k+'" '+(r.kodeAktivitas===k?'selected':'')+'>'+( k||'— Pilih —')+'</option>').join('')}
@@ -681,10 +681,10 @@ const InventoryModule = (() => {
           <option value="tidak" ${r.hpp===false||r.hpp==='tidak'?'selected':''}>Tidak</option>
         </select>
       </td>
-      <td><input class="iv-inp" type="text" value="${(r.pengambil||'').replace(/"/g,'&quot;')}" id="ivf-sup-${r.id}" placeholder="Pengambil" onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
-      <td><input class="iv-inp" type="text" value="${(r.penanggungJawab||'').replace(/"/g,'&quot;')}" id="ivf-pj-${r.id}" placeholder="Penanggung Jawab" onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
+      <td><input class="iv-inp" type="text" value="${(r.pengambil||'').replace(/"/g,'&quot;')}" id="ivf-sup-${r.id}" placeholder="Pengambil" onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"></td>
+      <td><input class="iv-inp" type="text" value="${(r.penanggungJawab||'').replace(/"/g,'&quot;')}" id="ivf-pj-${r.id}" placeholder="Penanggung Jawab" onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"></td>
       <td><input class="iv-inp" type="text" value="${(r.catatan||'').replace(/"/g,'&quot;')}" id="ivf-cat-${r.id}" placeholder="Catatan"
-        onkeydown="if(event.key==='Enter')InventoryModule.commitLogEdit('${r.id}')"></td>
+        onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"></td>
       ${canEdit?`<td><button class="iv-del" style="color:var(--success)" onclick="event.stopPropagation();InventoryModule.commitLogEdit('${r.id}')" title="Simpan">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="20,6 9,17 4,12"/></svg>
       </button></td>`:''}
@@ -1030,6 +1030,37 @@ const InventoryModule = (() => {
     const ok = _invCommit(id);
     if (ok) _invEditId = null;
     // if !ok: _invEditId stays, listener re-attached in _invCommit
+  }
+
+  // Enter: save current row + open new row immediately
+  function commitAndAddLogRow(id) {
+    if (_invEditId !== id) return;
+    document.removeEventListener('click', _ivOutsideClick);
+    const ok = _invCommit(id);
+    if (ok) { _invEditId = null; addLogRow(); }
+  }
+
+  // Esc: discard changes + close edit (no new row)
+  function cancelLogEdit(id) {
+    if (_invEditId !== id) return;
+    document.removeEventListener('click', _ivOutsideClick);
+    const row = _logs.find(r => r.id === id);
+    if (row?._original) {
+      try { Object.assign(row, JSON.parse(row._original)); } catch {}
+    }
+    _invEditId = null;
+    const trEl = document.getElementById('iv-row-'+id);
+    if (trEl) {
+      const tbody   = document.getElementById('inv-tbody');
+      const allRows = Array.from(tbody.querySelectorAll('tr'));
+      const rowNum  = allRows.indexOf(trEl) + 1;
+      trEl.outerHTML = _ivRowView(row, rowNum, true);
+    }
+  }
+
+  function _logRowKeyDown(e, id) {
+    if (e.key === 'Enter')       { e.preventDefault(); commitAndAddLogRow(id); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelLogEdit(id); }
   }
 
   function unlockInvRow(id) {
@@ -2138,6 +2169,9 @@ const InventoryModule = (() => {
     _submitTransaksi,
     startLogEdit,
     commitLogEdit,
+    commitAndAddLogRow,
+    cancelLogEdit,
+    _logRowKeyDown,
     unlockInvRow,
     addLogRow,
     deleteLogRow,
