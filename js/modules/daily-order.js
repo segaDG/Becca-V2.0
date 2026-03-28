@@ -8,6 +8,7 @@ const DailyOrderModule = (() => {
   let _orders= [];
   let _date  = new Date().toISOString().slice(0,10);
   let _shift = 'S1';
+  let _summaryMonth = new Date().toISOString().slice(0,7); // YYYY-MM
 
   /* ─── HELPERS ─── */
   function _today() { return new Date().toISOString().slice(0,10); }
@@ -121,7 +122,10 @@ const DailyOrderModule = (() => {
     const items        = form ? (form.items || []) : [];
     const totalEst     = items.reduce((s,it) => s + _n(it.estTotal), 0);
     const totalAkt     = items.reduce((s,it) => s + _n(it.aktTotal), 0);
-    const totalPasar   = items.filter(it => it.sumber==='PASAR').reduce((s,it) => s + (_n(it.aktTotal)||_n(it.estTotal)), 0);
+    const totalDanaBelanja = items.reduce((s,it) => {
+      const aktQ = _n(it.aktQty), stok = _n(it.stokGudang), harga = _n(it.hargaSatuan);
+      return s + (it.sumber==='PASAR' ? Math.max(0, aktQ - stok) * harga : 0);
+    }, 0);
     const budgetOk     = !form?.budgetBelanja || totalEst <= _n(form.budgetBelanja);
 
     return `
@@ -194,6 +198,7 @@ const DailyOrderModule = (() => {
             <span>Est: <strong style="color:var(--text)">${_fmtRp(totalEst)}</strong></span>
             <span>Budget: <strong style="color:var(--text)">${_fmtRp(form.budgetBelanja)}</strong></span>
             <span>${(_n(totalEst)/_n(form.budgetBelanja)*100).toFixed(1)}%</span>
+            <span>Belanja Pasar: <strong style="color:#ef4444">${_fmtRp(totalDanaBelanja)}</strong></span>
           </div>
         </div>
       ` : ''}
@@ -227,68 +232,95 @@ const DailyOrderModule = (() => {
                <div style="font-size:14px;font-weight:600;margin-bottom:4px">Belum ada form produksi</div>
                <div style="font-size:12px">Klik "+ Buat Form Produksi" untuk memulai</div>
              </div>`
-          : items.length===0
-          ? `<div style="padding:48px;text-align:center;color:var(--text-3)">
-               <div style="font-size:36px;margin-bottom:10px">📦</div>
-               <div style="font-size:14px;font-weight:600;margin-bottom:4px">Belum ada bahan ditambahkan</div>
-               <div style="font-size:12px">Klik "+ Tambah Bahan" untuk menambah bahan produksi</div>
-             </div>`
           : `<div style="overflow-x:auto">
-              <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:900px">
+              <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:1200px">
                 <thead>
                   <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
-                    <th style="padding:8px 6px;text-align:center;color:var(--text-3);font-weight:600;width:36px">#</th>
-                    <th style="padding:8px 6px;text-align:left;color:var(--text-3);font-weight:600;min-width:140px">ITEM / BAHAN</th>
-                    <th style="padding:8px 6px;text-align:right;color:#6366f1;font-weight:600">EST QTY</th>
-                    <th style="padding:8px 6px;text-align:center;color:var(--text-3);font-weight:600">SAT</th>
-                    <th style="padding:8px 6px;text-align:right;color:var(--text-3);font-weight:600;white-space:nowrap">HARGA/SAT</th>
-                    <th style="padding:8px 6px;text-align:right;color:#6366f1;font-weight:600;white-space:nowrap">EST TOTAL</th>
-                    <th style="padding:8px 6px;text-align:right;color:#10b981;font-weight:600">AKT QTY</th>
-                    <th style="padding:8px 6px;text-align:right;color:#10b981;font-weight:600;white-space:nowrap">AKT TOTAL</th>
-                    <th style="padding:8px 6px;text-align:center;color:var(--text-3);font-weight:600">SUMBER</th>
-                    <th style="padding:8px 6px;text-align:left;color:var(--text-3);font-weight:600">CATATAN</th>
-                    <th style="padding:8px 6px;width:56px"></th>
+                    <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600;width:30px">#</th>
+                    <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600;min-width:130px">ITEM / BAHAN</th>
+                    <th style="padding:7px 5px;text-align:right;color:#8b5cf6;font-weight:600;white-space:nowrap">STOK AWAL<br>GUDANG</th>
+                    <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">EST QTY</th>
+                    <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600">SAT</th>
+                    <th style="padding:7px 5px;text-align:right;color:var(--text-3);font-weight:600;white-space:nowrap">HARGA @</th>
+                    <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600;white-space:nowrap">EST TOTAL</th>
+                    <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">AKT QTY</th>
+                    <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600;white-space:nowrap">AKT TOTAL</th>
+                    <th style="padding:7px 5px;text-align:right;color:#f59e0b;font-weight:600;white-space:nowrap">SELISIH<br>STOK</th>
+                    <th style="padding:7px 5px;text-align:right;color:#ef4444;font-weight:600;white-space:nowrap">TOTAL DANA<br>BELANJA</th>
+                    <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600;white-space:nowrap">SISA<br>STOK</th>
+                    <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600">SUMBER</th>
+                    <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600">CATATAN</th>
+                    <th style="padding:7px 5px;width:50px"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${items.map((it,i) => `
-                    <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''}">
-                      <td style="padding:8px 6px;text-align:center;color:var(--text-3)">${i+1}</td>
-                      <td style="padding:8px 6px;font-weight:600">${it.item}</td>
-                      <td style="padding:8px 6px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
-                      <td style="padding:8px 6px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
-                      <td style="padding:8px 6px;text-align:right;color:var(--text-3)">${it.hargaSatuan?_n(it.hargaSatuan).toLocaleString('id-ID'):'-'}</td>
-                      <td style="padding:8px 6px;text-align:right;color:#6366f1">${it.estTotal?_n(it.estTotal).toLocaleString('id-ID'):'-'}</td>
-                      <td style="padding:8px 6px;text-align:right;color:#10b981;font-weight:600">${it.aktQty||'-'}</td>
-                      <td style="padding:8px 6px;text-align:right;color:#10b981">${it.aktTotal?_n(it.aktTotal).toLocaleString('id-ID'):'-'}</td>
-                      <td style="padding:8px 6px;text-align:center">
-                        <span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;
-                          background:${it.sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'};
-                          color:${it.sumber==='PASAR'?'#ef4444':'#10b981'}">
-                          ${it.sumber||'STOK'}
-                        </span>
-                      </td>
-                      <td style="padding:8px 6px;color:var(--text-3);font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis">${it.catatan||''}</td>
-                      <td style="padding:8px 6px;text-align:center;white-space:nowrap">
-                        <button onclick="DailyOrderModule.editItem('${it.id}')" title="Edit"
-                          style="width:24px;height:24px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:11px">✎</button>
-                        <button onclick="DailyOrderModule.deleteItem('${it.id}')" title="Hapus"
-                          style="width:24px;height:24px;border-radius:4px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);cursor:pointer;color:#ef4444;font-size:11px;margin-left:2px">✕</button>
-                      </td>
-                    </tr>
-                  `).join('')}
+                  ${items.length===0
+                    ? `<tr><td colspan="15" style="padding:32px;text-align:center;color:var(--text-3)">
+                        <span style="font-size:20px">📦</span>
+                        <div style="margin-top:8px;font-size:13px;font-weight:600">Belum ada bahan ditambahkan</div>
+                        <div style="font-size:11px;margin-top:2px">Klik "+ Tambah Bahan" untuk menambah bahan produksi</div>
+                       </td></tr>`
+                    : items.map((it,i) => {
+                        const aktQ  = _n(it.aktQty);
+                        const stok  = _n(it.stokGudang);
+                        const harga = _n(it.hargaSatuan);
+                        const selisihStok   = stok - aktQ;
+                        const sisaStok      = Math.max(0, stok - aktQ);
+                        const danaBelanja   = it.sumber==='PASAR' ? Math.max(0, aktQ - stok) * harga : 0;
+                        const selColor      = selisihStok >= 0 ? '#10b981' : '#ef4444';
+                        return `
+                        <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''}">
+                          <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${i+1}</td>
+                          <td style="padding:7px 5px;font-weight:600">${it.item}</td>
+                          <td style="padding:7px 5px;text-align:right;color:#8b5cf6;font-weight:600">${stok||'-'}</td>
+                          <td style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
+                          <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
+                          <td style="padding:7px 5px;text-align:right;color:var(--text-3)">${harga?harga.toLocaleString('id-ID'):'-'}</td>
+                          <td style="padding:7px 5px;text-align:right;color:#6366f1">${_n(it.estTotal)?_n(it.estTotal).toLocaleString('id-ID'):'-'}</td>
+                          <td style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">${aktQ||'-'}</td>
+                          <td style="padding:7px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?_n(it.aktTotal).toLocaleString('id-ID'):'-'}</td>
+                          <td style="padding:7px 5px;text-align:right;font-weight:600;color:${selColor}">
+                            ${stok||aktQ ? (selisihStok>0?'+':'')+selisihStok.toLocaleString('id-ID',{maximumFractionDigits:2}) : '-'}
+                          </td>
+                          <td style="padding:7px 5px;text-align:right;color:#ef4444;font-weight:600">
+                            ${danaBelanja ? danaBelanja.toLocaleString('id-ID') : '-'}
+                          </td>
+                          <td style="padding:7px 5px;text-align:right;color:#10b981">
+                            ${stok||aktQ ? sisaStok.toLocaleString('id-ID',{maximumFractionDigits:2}) : '-'}
+                          </td>
+                          <td style="padding:7px 5px;text-align:center">
+                            <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;
+                              background:${it.sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'};
+                              color:${it.sumber==='PASAR'?'#ef4444':'#10b981'}">
+                              ${it.sumber||'STOK'}
+                            </span>
+                          </td>
+                          <td style="padding:7px 5px;color:var(--text-3);font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${it.catatan||''}</td>
+                          <td style="padding:7px 5px;text-align:center;white-space:nowrap">
+                            <button onclick="DailyOrderModule.editItem('${it.id}')" title="Edit"
+                              style="width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:11px">✎</button>
+                            <button onclick="DailyOrderModule.deleteItem('${it.id}')" title="Hapus"
+                              style="width:22px;height:22px;border-radius:4px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);cursor:pointer;color:#ef4444;font-size:11px;margin-left:2px">✕</button>
+                          </td>
+                        </tr>`;
+                      }).join('')
+                  }
                 </tbody>
+                ${items.length > 0 ? `
                 <tfoot>
                   <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:700">
-                    <td colspan="5" style="padding:10px 6px;text-align:right;color:var(--text-3);font-size:11px">TOTAL ESTIMASI</td>
-                    <td style="padding:10px 6px;text-align:right;color:#6366f1">${totalEst.toLocaleString('id-ID')}</td>
-                    <td style="padding:10px 6px;text-align:right;color:var(--text-3);font-size:11px">AKTUAL</td>
-                    <td style="padding:10px 6px;text-align:right;color:#10b981">${totalAkt.toLocaleString('id-ID')}</td>
-                    <td colspan="3" style="padding:10px 6px;color:var(--text-3);font-size:11px">
-                      Belanja Pasar: <strong style="color:#ef4444">${_fmtRp(totalPasar)}</strong>
+                    <td colspan="6" style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px;letter-spacing:.03em">TOTAL ESTIMASI</td>
+                    <td style="padding:9px 5px;text-align:right;color:#6366f1">${totalEst.toLocaleString('id-ID')}</td>
+                    <td style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px">AKTUAL</td>
+                    <td style="padding:9px 5px;text-align:right;color:#10b981">${totalAkt.toLocaleString('id-ID')}</td>
+                    <td colspan="2" style="padding:9px 5px;text-align:right;color:#ef4444">
+                      ${totalDanaBelanja ? totalDanaBelanja.toLocaleString('id-ID') : '-'}
+                    </td>
+                    <td colspan="4" style="padding:9px 5px;color:var(--text-3);font-size:10px">
+                      Belanja Pasar: <strong style="color:#ef4444">${_fmtRp(totalDanaBelanja)}</strong>
                     </td>
                   </tr>
-                </tfoot>
+                </tfoot>` : ''}
               </table>
             </div>`
         }
@@ -456,103 +488,138 @@ const DailyOrderModule = (() => {
 
   /* ─── SUMMARY ─── */
   function _htmlSummary() {
-    const dayMap = {};
-    _forms.forEach(f => {
-      if (!dayMap[f.tanggal]) dayMap[f.tanggal] = {tanggal:f.tanggal, portions:0, totalEst:0, totalAkt:0, forms:[]};
-      const d = dayMap[f.tanggal];
-      d.portions  += _getOrderSummary(f.tanggal, f.shift).reduce((s,c) => s+c.total, 0);
-      d.totalEst  += (f.items||[]).reduce((s,it) => s+_n(it.estTotal), 0);
-      d.totalAkt  += (f.items||[]).reduce((s,it) => s+_n(it.aktTotal), 0);
-      d.forms.push(f);
-    });
-    const days     = Object.values(dayMap).sort((a,b) => a.tanggal.localeCompare(b.tanggal));
-    const totPort  = days.reduce((s,d) => s+d.portions, 0);
-    const totEst   = days.reduce((s,d) => s+d.totalEst, 0);
-    const totAkt   = days.reduce((s,d) => s+d.totalAkt, 0);
+    // ── Month helpers ──
+    const [yr, mo] = _summaryMonth.split('-').map(Number);
+    const monthLabel = new Date(yr, mo-1, 1).toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+    const daysInMonth = new Date(yr, mo, 0).getDate();
+    const prevM = mo===1 ? `${yr-1}-12` : `${yr}-${String(mo-1).padStart(2,'0')}`;
+    const nextM = mo===12? `${yr+1}-01` : `${yr}-${String(mo+1).padStart(2,'0')}`;
 
-    return `
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--s3);margin-bottom:var(--s4)">
+    // ── Filter orders for this month ──
+    const monthOrds = _orders.filter(o => o.tglOrder && o.tglOrder.slice(0,7) === _summaryMonth);
+
+    // ── Compute meals + snacks helper ──
+    function _ordMeals(o)  { return _n(o.breakfast)+_n(o.shift1)+_n(o.spare1)+_n(o.ot1)+_n(o.shift2)+_n(o.spare2)+_n(o.ot2)+_n(o.shift3)+_n(o.spare3)+_n(o.ot3); }
+    function _ordSnacks(o) { return _n(o.snack1)+_n(o.snack2)+_n(o.snack3)+_n(o.snackBerat); }
+
+    // ── Collect customers sorted by monthly volume ──
+    const custVol = {};
+    monthOrds.forEach(o => {
+      custVol[o.namaPerusahaan] = (custVol[o.namaPerusahaan]||0) + _ordMeals(o) + _ordSnacks(o);
+    });
+    const customers = Object.keys(custVol).sort((a,b) => custVol[b]-custVol[a]);
+
+    // ── Build cross-tab rows (all days in month) ──
+    const rows = [];
+    for (let d=1; d<=daysInMonth; d++) {
+      const dateStr = `${_summaryMonth}-${String(d).padStart(2,'0')}`;
+      const dayOrds = monthOrds.filter(o => o.tglOrder === dateStr);
+      const cells = {};
+      let totMeals=0, totSnacks=0;
+      dayOrds.forEach(o => {
+        const m = _ordMeals(o), s = _ordSnacks(o);
+        cells[o.namaPerusahaan] = (cells[o.namaPerusahaan]||0) + m + s;
+        totMeals += m; totSnacks += s;
+      });
+      rows.push({dateStr, d, cells, totMeals, totSnacks, hasData: dayOrds.length>0});
+    }
+
+    // ── Column totals ──
+    const custTotals = {};
+    let grandMeals=0, grandSnacks=0;
+    rows.forEach(r => {
+      customers.forEach(c => { custTotals[c] = (custTotals[c]||0) + (r.cells[c]||0); });
+      grandMeals += r.totMeals; grandSnacks += r.totSnacks;
+    });
+    const activeDays = rows.filter(r=>r.hasData).length;
+
+    // ── Stats cards ──
+    const statsHtml = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s3);margin-bottom:var(--s4)">
         ${[
-          {label:'Hari Aktif',      value:days.length,          unit:'hari',  color:'#6366f1'},
-          {label:'Total Porsi',     value:totPort.toLocaleString('id-ID'), unit:'porsi', color:'#10b981'},
-          {label:'Total Est HPP',   value:_fmtRp(totEst),       unit:'',      color:'#f59e0b'},
-          {label:'Total Aktual HPP',value:_fmtRp(totAkt),       unit:'',      color:'#ec4899'},
+          {label:'Hari Aktif',         value:activeDays,                                      unit:'hari',  color:'#6366f1'},
+          {label:'Total Porsi',        value:(grandMeals+grandSnacks).toLocaleString('id-ID'), unit:'porsi', color:'#10b981'},
+          {label:'Total Makanan',      value:grandMeals.toLocaleString('id-ID'),               unit:'porsi', color:'#8b5cf6'},
+          {label:'Total Snack',        value:grandSnacks.toLocaleString('id-ID'),              unit:'porsi', color:'#f59e0b'},
         ].map(s=>`
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4)">
             <div style="font-size:11px;color:var(--text-3);font-weight:600">${s.label}</div>
-            <div style="font-size:18px;font-weight:700;color:${s.color};margin-top:4px">${s.value}</div>
+            <div style="font-size:20px;font-weight:700;color:${s.color};margin-top:4px">${s.value}</div>
             ${s.unit?`<div style="font-size:11px;color:var(--text-3)">${s.unit}</div>`:''}
           </div>
         `).join('')}
-      </div>
+      </div>`;
 
+    if (customers.length === 0) return statsHtml + `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:48px;text-align:center;color:var(--text-3)">
+        <div style="font-size:32px;margin-bottom:10px">📅</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Tidak ada order untuk bulan ini</div>
+        <div style="font-size:12px">Import order terlebih dahulu</div>
+      </div>`;
+
+    // ── Cell renderer ──
+    const cell = (v) => v ? `<td style="padding:6px 5px;text-align:right;font-weight:600">${v.toLocaleString('id-ID')}</td>`
+                          : `<td style="padding:6px 5px;text-align:center;color:var(--border)">-</td>`;
+
+    return statsHtml + `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-        <div style="padding:var(--s4);border-bottom:1px solid var(--border)">
-          <span style="font-size:13px;font-weight:700">Daily Order Summary</span>
-          <span style="font-size:11px;color:var(--text-3);margin-left:8px">${days.length} hari</span>
+        <!-- Header: month nav -->
+        <div style="padding:var(--s3) var(--s4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="font-size:13px;font-weight:700">Daily Order Summary</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button onclick="DailyOrderModule.setMonth('${prevM}')"
+              style="padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">‹ Prev</button>
+            <span style="font-size:13px;font-weight:700;min-width:140px;text-align:center">${monthLabel}</span>
+            <button onclick="DailyOrderModule.setMonth('${nextM}')"
+              style="padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">Next ›</button>
+          </div>
+          <span style="font-size:11px;color:var(--text-3)">${activeDays} hari aktif / ${customers.length} customer</span>
         </div>
-        ${days.length===0
-          ? `<div style="padding:48px;text-align:center;color:var(--text-3)">Belum ada data form produksi</div>`
-          : `<div style="overflow-x:auto">
-              <table style="width:100%;border-collapse:collapse;font-size:12px">
-                <thead>
-                  <tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
-                    <th style="padding:8px;text-align:left;color:var(--text-3)">TANGGAL</th>
-                    <th style="padding:8px;text-align:center;color:var(--text-3)">FORM</th>
-                    <th style="padding:8px;text-align:right;color:var(--text-3)">PORSI</th>
-                    <th style="padding:8px;text-align:right;color:#6366f1">EST HPP</th>
-                    <th style="padding:8px;text-align:right;color:#10b981">AKT HPP</th>
-                    <th style="padding:8px;text-align:right;color:var(--text-3)">SELISIH</th>
-                    <th style="padding:8px;text-align:center;color:var(--text-3)">STATUS</th>
-                    <th style="padding:8px;width:60px"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${days.map((d,i) => {
-                    const sel    = d.totalAkt - d.totalEst;
-                    const isToday= d.tanggal === _today();
-                    const allFinal = d.forms.every(f => f.status==='final');
-                    return `
-                    <tr style="border-bottom:1px solid var(--border);${isToday?'background:rgba(99,102,241,.05);':i%2?'background:rgba(0,0,0,.018)':''}">
-                      <td style="padding:8px;font-weight:${isToday?'700':'600'}">
-                        ${_fmtDate(d.tanggal)}
-                        ${isToday?`<span style="font-size:9px;background:rgba(99,102,241,.15);color:var(--primary);padding:1px 6px;border-radius:10px;margin-left:4px;font-weight:700">HARI INI</span>`:''}
-                      </td>
-                      <td style="padding:8px;text-align:center;color:var(--text-3)">${d.forms.length}</td>
-                      <td style="padding:8px;text-align:right;font-weight:600">${d.portions.toLocaleString('id-ID')}</td>
-                      <td style="padding:8px;text-align:right;color:#6366f1">${d.totalEst?d.totalEst.toLocaleString('id-ID'):'-'}</td>
-                      <td style="padding:8px;text-align:right;color:#10b981">${d.totalAkt?d.totalAkt.toLocaleString('id-ID'):'-'}</td>
-                      <td style="padding:8px;text-align:right;font-weight:600;color:${sel>0?'#ef4444':sel<0?'#6366f1':'var(--text-3)'}">
-                        ${sel?((sel>0?'+':'')+sel.toLocaleString('id-ID')):'-'}
-                      </td>
-                      <td style="padding:8px;text-align:center">
-                        <span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;
-                          background:${allFinal?'rgba(16,185,129,.1)':'rgba(245,158,11,.1)'};
-                          color:${allFinal?'#10b981':'#f59e0b'}">
-                          ${allFinal?'✓ Final':'● Draft'}
-                        </span>
-                      </td>
-                      <td style="padding:8px;text-align:center">
-                        <button onclick="DailyOrderModule.goToDate('${d.tanggal}')"
-                          style="padding:3px 10px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer">
-                          Buka
-                        </button>
-                      </td>
-                    </tr>`;
-                  }).join('')}
-                </tbody>
-                <tfoot>
-                  <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:700">
-                    <td colspan="2" style="padding:10px 8px;color:var(--text-3);font-size:11px">TOTAL</td>
-                    <td style="padding:10px 8px;text-align:right">${totPort.toLocaleString('id-ID')}</td>
-                    <td style="padding:10px 8px;text-align:right;color:#6366f1">${totEst?totEst.toLocaleString('id-ID'):'-'}</td>
-                    <td style="padding:10px 8px;text-align:right;color:#10b981">${totAkt?totAkt.toLocaleString('id-ID'):'-'}</td>
-                    <td colspan="3"></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>`
-        }
+
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead>
+              <!-- Customer name row -->
+              <tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
+                <th style="padding:7px 8px;text-align:left;color:var(--text-3);font-weight:700;white-space:nowrap;border-right:1px solid var(--border)">TANGGAL</th>
+                ${customers.map(c=>`
+                  <th style="padding:7px 5px;text-align:right;color:var(--primary);font-weight:600;white-space:nowrap;font-size:10px">${c}</th>
+                `).join('')}
+                <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:700;white-space:nowrap;border-left:1px solid var(--border)">JUMLAH<br><span style="font-size:9px;font-weight:400">(Makan+Snack)</span></th>
+                <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:700;white-space:nowrap">JUMLAH<br><span style="font-size:9px;font-weight:400">(Makanan)</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r,i) => {
+                const isToday = r.dateStr === _today();
+                const dow = new Date(r.dateStr+'T00:00:00').toLocaleDateString('id-ID',{weekday:'short'});
+                const isSun = new Date(r.dateStr+'T00:00:00').getDay()===0;
+                return `
+                <tr style="border-bottom:1px solid var(--border);
+                  ${isToday?'background:rgba(99,102,241,.06);font-weight:700;':isSun?'background:rgba(239,68,68,.03);':i%2?'background:rgba(0,0,0,.015)':''}">
+                  <td style="padding:6px 8px;font-size:11px;white-space:nowrap;border-right:1px solid var(--border);color:${isSun?'#ef4444':'var(--text)'}">
+                    <strong style="color:${isToday?'var(--primary)':'inherit'}">${String(r.d).padStart(2,'0')}</strong>
+                    <span style="color:var(--text-3);margin-left:4px;font-size:10px">${dow}</span>
+                    ${isToday?`<span style="font-size:9px;background:rgba(99,102,241,.15);color:var(--primary);padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700">HARI INI</span>`:''}
+                  </td>
+                  ${customers.map(c => cell(r.cells[c]||0)).join('')}
+                  <td style="padding:6px 5px;text-align:right;font-weight:700;border-left:1px solid var(--border);color:${r.hasData?'#10b981':'var(--border)'}">${r.hasData?(r.totMeals+r.totSnacks).toLocaleString('id-ID'):'-'}</td>
+                  <td style="padding:6px 5px;text-align:right;font-weight:700;color:${r.hasData?'#6366f1':'var(--border)'}">${r.hasData?r.totMeals.toLocaleString('id-ID'):'-'}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:700">
+                <td style="padding:8px;color:var(--text-3);font-size:11px;border-right:1px solid var(--border)">TOTAL</td>
+                ${customers.map(c=>`
+                  <td style="padding:8px 5px;text-align:right;color:var(--primary)">${custTotals[c]?custTotals[c].toLocaleString('id-ID'):'-'}</td>
+                `).join('')}
+                <td style="padding:8px 5px;text-align:right;color:#10b981;border-left:1px solid var(--border)">${(grandMeals+grandSnacks).toLocaleString('id-ID')}</td>
+                <td style="padding:8px 5px;text-align:right;color:#6366f1">${grandMeals.toLocaleString('id-ID')}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>`;
   }
 
@@ -623,6 +690,7 @@ const DailyOrderModule = (() => {
 
   function setDate(d) { _date = d; _renderContent(); }
   function setShift(s) { _shift = s; _renderContent(); }
+  function setMonth(m) { _summaryMonth = m; _renderContent(); }
 
   async function createForm() {
     const form = {
@@ -758,7 +826,7 @@ const DailyOrderModule = (() => {
 
   /* ─── PUBLIC ─── */
   return {
-    init, setView, setDate, setShift,
+    init, setView, setDate, setShift, setMonth,
     createForm, toggleStatus, deleteForm, openBudget,
     openAddItem, editItem, deleteItem, goToDate,
   };
