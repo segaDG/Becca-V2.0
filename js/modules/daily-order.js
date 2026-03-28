@@ -737,44 +737,60 @@ const DailyOrderModule = (() => {
   function openBudget() {
     const form = _currentForm();
     if (!form) return;
+    const mid = Utils.uid();
     Modal.open({
-      title:'Set Budget Belanja Harian',
-      content:`
+      id: mid,
+      title: 'Set Budget Belanja Harian',
+      body: `
         <div class="form-group">
           <label class="form-label">Budget Belanja (Rp)</label>
           <input class="form-control" id="do-budget" type="number" min="0" placeholder="0" value="${form.budgetBelanja||''}">
         </div>`,
-      onConfirm: async () => {
-        const val = parseFloat(document.getElementById('do-budget')?.value||0) || 0;
-        form.budgetBelanja = val;
-        form.updatedAt = new Date().toISOString();
-        await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] setBudget:', e));
-        _renderContent();
-        Notify.success('Budget disimpan');
-      },
-      confirmText:'Simpan',
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="DailyOrderModule._saveBudget('${mid}')">Simpan</button>`,
     });
     setTimeout(() => document.getElementById('do-budget')?.focus(), 100);
+  }
+
+  async function _saveBudget(mid) {
+    const form = _currentForm();
+    if (!form) return;
+    const val = parseFloat(document.getElementById('do-budget')?.value||0) || 0;
+    form.budgetBelanja = val;
+    form.updatedAt = new Date().toISOString();
+    await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] setBudget:', e));
+    Modal.close(mid);
+    _renderContent();
+    Notify.success('Budget disimpan');
   }
 
   function openAddItem() {
     const form = _currentForm();
     if (!form) { Notify.warning('Buat form produksi dulu'); return; }
+    const mid = Utils.uid();
     Modal.open({
-      title:'Tambah Bahan Produksi',
-      content: _itemModalContent(null),
-      onConfirm: async () => {
-        const data = _readItemForm();
-        if (!data.item) { Notify.warning('Nama bahan wajib diisi'); return false; }
-        form.items.push({ id:'item_'+Date.now(), ...data });
-        form.updatedAt = new Date().toISOString();
-        await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] addItem:', e));
-        _renderContent();
-        Notify.success('Bahan ditambahkan');
-      },
-      confirmText:'Tambah',
+      id: mid,
+      title: 'Tambah Bahan Produksi',
+      body: _itemModalContent(null),
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="DailyOrderModule._confirmAddItem('${mid}')">Tambah</button>`,
     });
     setTimeout(() => document.getElementById('di-item')?.focus(), 100);
+  }
+
+  async function _confirmAddItem(mid) {
+    const form = _currentForm();
+    if (!form) return;
+    const data = _readItemForm();
+    if (!data.item) { Notify.warning('Nama bahan wajib diisi'); return; }
+    form.items.push({ id:'item_'+Date.now(), ...data });
+    form.updatedAt = new Date().toISOString();
+    await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] addItem:', e));
+    Modal.close(mid);
+    _renderContent();
+    Notify.success('Bahan ditambahkan');
   }
 
   function editItem(itemId) {
@@ -782,21 +798,31 @@ const DailyOrderModule = (() => {
     if (!form) return;
     const it = (form.items||[]).find(i => i.id === itemId);
     if (!it) return;
+    const mid = Utils.uid();
     Modal.open({
-      title:'Edit Bahan',
-      content: _itemModalContent(it),
-      onConfirm: async () => {
-        const data = _readItemForm();
-        if (!data.item) { Notify.warning('Nama bahan wajib diisi'); return false; }
-        Object.assign(it, data);
-        form.updatedAt = new Date().toISOString();
-        await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] editItem:', e));
-        _renderContent();
-        Notify.success('Bahan diperbarui');
-      },
-      confirmText:'Simpan',
+      id: mid,
+      title: 'Edit Bahan',
+      body: _itemModalContent(it),
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="DailyOrderModule._confirmEditItem('${itemId}','${mid}')">Simpan</button>`,
     });
     setTimeout(() => document.getElementById('di-item')?.focus(), 100);
+  }
+
+  async function _confirmEditItem(itemId, mid) {
+    const form = _currentForm();
+    if (!form) return;
+    const it = (form.items||[]).find(i => i.id === itemId);
+    if (!it) return;
+    const data = _readItemForm();
+    if (!data.item) { Notify.warning('Nama bahan wajib diisi'); return; }
+    Object.assign(it, data);
+    form.updatedAt = new Date().toISOString();
+    await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] editItem:', e));
+    Modal.close(mid);
+    _renderContent();
+    Notify.success('Bahan diperbarui');
   }
 
   async function deleteItem(itemId) {
@@ -827,8 +853,11 @@ const DailyOrderModule = (() => {
   /* ─── PUBLIC ─── */
   return {
     init, setView, setDate, setShift, setMonth,
-    createForm, toggleStatus, deleteForm, openBudget,
-    openAddItem, editItem, deleteItem, goToDate,
+    createForm, toggleStatus, deleteForm,
+    openBudget, _saveBudget,
+    openAddItem, _confirmAddItem,
+    editItem, _confirmEditItem,
+    deleteItem, goToDate,
   };
 })();
 
