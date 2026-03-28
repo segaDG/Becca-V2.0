@@ -357,16 +357,20 @@ const DailyOrderModule = (() => {
         </div>
         ${summary.length === 0
           ? `<div style="text-align:center;padding:16px;color:var(--text-3);font-size:13px">Tidak ada order untuk tanggal ini</div>`
-          : `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-              ${summary.map(c => `
-                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;min-width:90px">
-                  <div style="font-size:10px;color:var(--text-3);font-weight:600;white-space:nowrap">${c.nama}</div>
-                  <div style="font-size:16px;font-weight:700;color:var(--text)">${c.total.toLocaleString('id-ID')}</div>
-                  <div style="font-size:10px;color:var(--text-3)">${c.meals?c.meals+' meal':''} ${c.snacks?c.snacks+' snack':''}</div>
-                </div>
-              `).join('')}
+          : `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">
+              ${summary.map(c => {
+                const sub = (c.meals > 0 && c.snacks > 0)
+                  ? `${c.meals} pax ${c.snacks} snack`
+                  : c.snacks > 0 ? `${c.snacks} snack` : 'pax';
+                return `
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 9px;min-width:60px">
+                  <div style="font-size:9px;color:var(--text-3);font-weight:600;white-space:nowrap">${c.nama}</div>
+                  <div style="font-size:13px;font-weight:700;color:var(--text);line-height:1.3">${c.total.toLocaleString('id-ID')}</div>
+                  <div style="font-size:9px;color:var(--text-3)">${sub}</div>
+                </div>`;
+              }).join('')}
             </div>
-            <div style="font-weight:700;color:var(--primary);font-size:14px">Total: ${totalPortions.toLocaleString('id-ID')} porsi</div>`
+            <div style="font-weight:700;color:var(--primary);font-size:13px">Total: ${totalPortions.toLocaleString('id-ID')} pax</div>`
         }
         ${budgetVal > 0 && totalEst > 0 ? `
           <div style="margin-top:10px;background:var(--surface2);height:6px;border-radius:3px;overflow:hidden">
