@@ -9,6 +9,10 @@ const DailyOrderModule = (() => {
   let _date  = new Date().toISOString().slice(0,10);
   let _shift = 'S1';
   let _summaryMonth = new Date().toISOString().slice(0,7); // YYYY-MM
+  let _editingItemId = null; // null | 'new' | existing item id
+  let _inventory     = [];
+
+  const _SATS = ['Kg','Pcs','Liter','Pack','Bal','Ikat','Bks','Lusin','Karton','Gram','ML'];
 
   /* ─── HELPERS ─── */
   function _today() { return new Date().toISOString().slice(0,10); }
@@ -57,12 +61,14 @@ const DailyOrderModule = (() => {
     const page = document.getElementById('page-daily-order');
     if (!page) return;
     try {
-      const [forms, orders] = await Promise.all([
+      const [forms, orders, inv] = await Promise.all([
         DB.getDailyOrderForms().catch(() => []),
         DB.getOrders().catch(() => []),
+        DB.getInventory().catch(() => []),
       ]);
-      _forms  = Array.isArray(forms)  ? forms  : [];
-      _orders = Array.isArray(orders) ? orders : [];
+      _forms     = Array.isArray(forms)  ? forms  : [];
+      _orders    = Array.isArray(orders) ? orders : [];
+      _inventory = Array.isArray(inv)    ? inv    : [];
     } catch {
       _forms = []; _orders = [];
     }
@@ -212,7 +218,7 @@ const DailyOrderModule = (() => {
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             ${form ? `
-              <button onclick="DailyOrderModule.openAddItem()" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;font-weight:600">+ Tambah Bahan</button>
+              <button onclick="DailyOrderModule.startAddItem()" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;font-weight:600">+ Tambah Bahan</button>
               <button onclick="DailyOrderModule.openBudget()" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">💰 Budget</button>
               <button onclick="DailyOrderModule.toggleStatus()" style="padding:6px 12px;border:1px solid ${form.status==='final'?'rgba(245,158,11,.4)':'rgba(16,185,129,.4)'};border-radius:7px;
                 background:${form.status==='final'?'rgba(245,158,11,.08)':'rgba(16,185,129,.08)'};
@@ -254,56 +260,14 @@ const DailyOrderModule = (() => {
                   </tr>
                 </thead>
                 <tbody>
-                  ${items.length===0
-                    ? `<tr><td colspan="15" style="padding:32px;text-align:center;color:var(--text-3)">
+                  ${items.length===0 && _editingItemId !== 'new'
+                    ? `<tr><td colspan="15" style="padding:28px;text-align:center;color:var(--text-3)">
                         <span style="font-size:20px">📦</span>
                         <div style="margin-top:8px;font-size:13px;font-weight:600">Belum ada bahan ditambahkan</div>
                         <div style="font-size:11px;margin-top:2px">Klik "+ Tambah Bahan" untuk menambah bahan produksi</div>
                        </td></tr>`
-                    : items.map((it,i) => {
-                        const aktQ  = _n(it.aktQty);
-                        const stok  = _n(it.stokGudang);
-                        const harga = _n(it.hargaSatuan);
-                        const selisihStok   = stok - aktQ;
-                        const sisaStok      = Math.max(0, stok - aktQ);
-                        const danaBelanja   = it.sumber==='PASAR' ? Math.max(0, aktQ - stok) * harga : 0;
-                        const selColor      = selisihStok >= 0 ? '#10b981' : '#ef4444';
-                        return `
-                        <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''}">
-                          <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${i+1}</td>
-                          <td style="padding:7px 5px;font-weight:600">${it.item}</td>
-                          <td style="padding:7px 5px;text-align:right;color:#8b5cf6;font-weight:600">${stok||'-'}</td>
-                          <td style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
-                          <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
-                          <td style="padding:7px 5px;text-align:right;color:var(--text-3)">${harga?harga.toLocaleString('id-ID'):'-'}</td>
-                          <td style="padding:7px 5px;text-align:right;color:#6366f1">${_n(it.estTotal)?_n(it.estTotal).toLocaleString('id-ID'):'-'}</td>
-                          <td style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">${aktQ||'-'}</td>
-                          <td style="padding:7px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?_n(it.aktTotal).toLocaleString('id-ID'):'-'}</td>
-                          <td style="padding:7px 5px;text-align:right;font-weight:600;color:${selColor}">
-                            ${stok||aktQ ? (selisihStok>0?'+':'')+selisihStok.toLocaleString('id-ID',{maximumFractionDigits:2}) : '-'}
-                          </td>
-                          <td style="padding:7px 5px;text-align:right;color:#ef4444;font-weight:600">
-                            ${danaBelanja ? danaBelanja.toLocaleString('id-ID') : '-'}
-                          </td>
-                          <td style="padding:7px 5px;text-align:right;color:#10b981">
-                            ${stok||aktQ ? sisaStok.toLocaleString('id-ID',{maximumFractionDigits:2}) : '-'}
-                          </td>
-                          <td style="padding:7px 5px;text-align:center">
-                            <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;
-                              background:${it.sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'};
-                              color:${it.sumber==='PASAR'?'#ef4444':'#10b981'}">
-                              ${it.sumber||'STOK'}
-                            </span>
-                          </td>
-                          <td style="padding:7px 5px;color:var(--text-3);font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${it.catatan||''}</td>
-                          <td style="padding:7px 5px;text-align:center;white-space:nowrap">
-                            <button onclick="DailyOrderModule.editItem('${it.id}')" title="Edit"
-                              style="width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:11px">✎</button>
-                            <button onclick="DailyOrderModule.deleteItem('${it.id}')" title="Hapus"
-                              style="width:22px;height:22px;border-radius:4px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);cursor:pointer;color:#ef4444;font-size:11px;margin-left:2px">✕</button>
-                          </td>
-                        </tr>`;
-                      }).join('')
+                    : items.map((it,i) => it.id === _editingItemId ? _htmlEditRow(it,i) : _htmlItemRow(it,i)).join('') +
+                      (_editingItemId === 'new' ? _htmlEditRow(null, items.length) : '')
                   }
                 </tbody>
                 ${items.length > 0 ? `
@@ -623,63 +587,216 @@ const DailyOrderModule = (() => {
       </div>`;
   }
 
-  /* ─── ITEM MODAL HELPER ─── */
-  function _itemModalContent(it) {
-    const SATS = ['Kg','Pcs','Liter','Pack','Bal','Ikat','Bks','Lusin','Karton'];
+  /* ─── ROW RENDERERS ─── */
+  function _htmlItemRow(it, i) {
+    const aktQ = _n(it.aktQty), stok = _n(it.stokGudang), harga = _n(it.hargaSatuan);
+    const selisihStok = stok - aktQ;
+    const sisaStok    = Math.max(0, stok - aktQ);
+    const danaBelanja = it.sumber==='PASAR' ? Math.max(0, aktQ - stok) * harga : 0;
+    const selColor    = selisihStok >= 0 ? '#10b981' : '#ef4444';
     return `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="form-group" style="grid-column:1/-1">
-          <label class="form-label">Nama Bahan / Item *</label>
-          <input class="form-control" id="di-item" placeholder="cth: Ayam Potong" value="${it?.item||''}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Estimasi QTY</label>
-          <input class="form-control" id="di-estqty" type="number" min="0" step="0.01" placeholder="0" value="${it?.estQty||''}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Satuan</label>
-          <select class="form-control" id="di-sat">
-            ${SATS.map(s=>`<option value="${s}" ${it?.satuan===s?'selected':''}>${s}</option>`).join('')}
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Harga / Satuan (Rp)</label>
-          <input class="form-control" id="di-harga" type="number" min="0" placeholder="0" value="${it?.hargaSatuan||''}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Aktual QTY</label>
-          <input class="form-control" id="di-aktqty" type="number" min="0" step="0.01" placeholder="0" value="${it?.aktQty||''}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Stok Awal Gudang</label>
-          <input class="form-control" id="di-stok" type="number" min="0" step="0.01" placeholder="0" value="${it?.stokGudang||''}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Sumber</label>
-          <select class="form-control" id="di-sumber">
-            <option value="STOK" ${(!it||it.sumber==='STOK')?'selected':''}>STOK (Ambil dari Gudang)</option>
-            <option value="PASAR" ${it?.sumber==='PASAR'?'selected':''}>PASAR (Beli di Pasar)</option>
-          </select>
-        </div>
-        <div class="form-group" style="grid-column:1/-1">
-          <label class="form-label">Catatan</label>
-          <input class="form-control" id="di-catatan" placeholder="Opsional" value="${it?.catatan||''}">
-        </div>
-      </div>`;
+      <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''}">
+        <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${i+1}</td>
+        <td style="padding:7px 5px;font-weight:600">${it.item}</td>
+        <td style="padding:7px 5px;text-align:right;color:#8b5cf6;font-weight:600">${stok||'-'}</td>
+        <td style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
+        <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
+        <td style="padding:7px 5px;text-align:right;color:var(--text-3)">${harga?harga.toLocaleString('id-ID'):'-'}</td>
+        <td style="padding:7px 5px;text-align:right;color:#6366f1">${_n(it.estTotal)?_n(it.estTotal).toLocaleString('id-ID'):'-'}</td>
+        <td style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">${aktQ||'-'}</td>
+        <td style="padding:7px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?_n(it.aktTotal).toLocaleString('id-ID'):'-'}</td>
+        <td style="padding:7px 5px;text-align:right;font-weight:600;color:${selColor}">
+          ${stok||aktQ ? (selisihStok>0?'+':'')+selisihStok.toLocaleString('id-ID',{maximumFractionDigits:2}) : '-'}
+        </td>
+        <td style="padding:7px 5px;text-align:right;color:#ef4444;font-weight:600">
+          ${danaBelanja ? danaBelanja.toLocaleString('id-ID') : '-'}
+        </td>
+        <td style="padding:7px 5px;text-align:right;color:#10b981">
+          ${stok||aktQ ? sisaStok.toLocaleString('id-ID',{maximumFractionDigits:2}) : '-'}
+        </td>
+        <td style="padding:7px 5px;text-align:center">
+          <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;
+            background:${it.sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'};
+            color:${it.sumber==='PASAR'?'#ef4444':'#10b981'}">${it.sumber||'STOK'}</span>
+        </td>
+        <td style="padding:7px 5px;color:var(--text-3);font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${it.catatan||''}</td>
+        <td style="padding:7px 5px;text-align:center;white-space:nowrap">
+          <button onclick="DailyOrderModule.startEditItem('${it.id}')" title="Edit"
+            style="width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:11px">✎</button>
+          <button onclick="DailyOrderModule.deleteItem('${it.id}')" title="Hapus"
+            style="width:22px;height:22px;border-radius:4px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);cursor:pointer;color:#ef4444;font-size:11px;margin-left:2px">✕</button>
+        </td>
+      </tr>`;
   }
 
-  function _readItemForm() {
-    const item       = document.getElementById('di-item')?.value.trim();
-    const estQty     = parseFloat(document.getElementById('di-estqty')?.value||0) || 0;
-    const satuan     = document.getElementById('di-sat')?.value || 'Kg';
-    const hargaSatuan= parseFloat(document.getElementById('di-harga')?.value||0)  || 0;
-    const aktQty     = parseFloat(document.getElementById('di-aktqty')?.value||0) || 0;
-    const stokGudang = parseFloat(document.getElementById('di-stok')?.value||0)   || 0;
-    const sumber     = document.getElementById('di-sumber')?.value || 'STOK';
-    const catatan    = document.getElementById('di-catatan')?.value.trim() || '';
-    return {item, estQty, satuan, hargaSatuan, aktQty, stokGudang, sumber, catatan,
-      estTotal: estQty * hargaSatuan, aktTotal: aktQty * hargaSatuan, selisih: stokGudang - aktQty};
+  function _htmlEditRow(it, idx) {
+    const isNew = !it;
+    // inventory datalist
+    const dlId = 'di-inv-list';
+    const dlHtml = _inventory.length
+      ? `<datalist id="${dlId}">${_inventory.map(inv=>`<option value="${Utils.esc?Utils.esc(inv.nama):inv.nama}">`).join('')}</datalist>`
+      : '';
+    // pre-compute computed displays for edit mode (existing item)
+    const stok0  = _n(it?.stokGudang), aktQ0 = _n(it?.aktQty), harga0 = _n(it?.hargaSatuan);
+    const sel0   = stok0 - aktQ0;
+    const sumb0  = aktQ0 > stok0 ? 'PASAR' : 'STOK';
+    const dana0  = sumb0==='PASAR' ? Math.max(0,aktQ0-stok0)*harga0 : 0;
+    const sisa0  = Math.max(0, stok0-aktQ0);
+    const inp    = (p) => `padding:3px 5px;font-size:11px;${p}`;
+    return `
+      <tr style="border-bottom:1px solid var(--border);background:rgba(99,102,241,.04)">
+        <td style="padding:4px 3px;text-align:center;color:var(--primary);font-size:11px;font-weight:700">${isNew?'✦':idx+1}</td>
+        <td style="padding:4px 3px;min-width:130px">
+          ${dlHtml}
+          <input id="di-item" list="${dlId}" class="form-control" style="${inp('min-width:110px')}"
+            placeholder="Nama bahan..." value="${it?.item||''}"
+            onchange="DailyOrderModule._autoFillFromInventory()"
+            oninput="DailyOrderModule._liveCompute()"
+            onkeydown="DailyOrderModule._editKeyDown(event,'di-stok')">
+        </td>
+        <td style="padding:4px 3px">
+          <input id="di-stok" class="form-control" style="${inp('text-align:right;width:65px')}"
+            type="number" step="0.01" min="0" placeholder="0" value="${it?.stokGudang||''}"
+            oninput="DailyOrderModule._liveCompute()"
+            onkeydown="DailyOrderModule._editKeyDown(event,'di-estqty')">
+        </td>
+        <td style="padding:4px 3px">
+          <input id="di-estqty" class="form-control" style="${inp('text-align:right;width:60px')}"
+            type="number" step="0.01" min="0" placeholder="0" value="${it?.estQty||''}"
+            oninput="DailyOrderModule._liveCompute()"
+            onkeydown="DailyOrderModule._editKeyDown(event,'di-sat')">
+        </td>
+        <td style="padding:4px 3px">
+          <select id="di-sat" class="form-control" style="${inp('width:65px')}"
+            onkeydown="DailyOrderModule._editKeyDown(event,'di-harga')">
+            ${_SATS.map(s=>`<option value="${s}" ${(it?.satuan||'Kg')===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </td>
+        <td style="padding:4px 3px">
+          <input id="di-harga" class="form-control" style="${inp('text-align:right;width:75px')}"
+            type="number" step="100" min="0" placeholder="0" value="${it?.hargaSatuan||''}"
+            oninput="DailyOrderModule._liveCompute()"
+            onkeydown="DailyOrderModule._editKeyDown(event,'di-aktqty')">
+        </td>
+        <td id="di-esttot-d" style="padding:4px 6px;text-align:right;color:#6366f1;font-size:11px;white-space:nowrap">
+          ${_n(it?.estTotal)?_n(it.estTotal).toLocaleString('id-ID'):'-'}
+        </td>
+        <td style="padding:4px 3px">
+          <input id="di-aktqty" class="form-control" style="${inp('text-align:right;width:60px')}"
+            type="number" step="0.01" min="0" placeholder="0" value="${it?.aktQty||''}"
+            oninput="DailyOrderModule._liveCompute()"
+            onkeydown="DailyOrderModule._editKeyDown(event,'di-catatan')">
+        </td>
+        <td id="di-akttot-d" style="padding:4px 6px;text-align:right;color:#10b981;font-size:11px;white-space:nowrap">
+          ${_n(it?.aktTotal)?_n(it.aktTotal).toLocaleString('id-ID'):'-'}
+        </td>
+        <td id="di-sel-d" style="padding:4px 6px;text-align:right;font-size:11px;font-weight:600;white-space:nowrap;color:${sel0>=0?'#10b981':'#ef4444'}">
+          ${stok0||aktQ0?(sel0>0?'+':'')+sel0.toLocaleString('id-ID',{maximumFractionDigits:2}):'-'}
+        </td>
+        <td id="di-dana-d" style="padding:4px 6px;text-align:right;color:#ef4444;font-size:11px;font-weight:600;white-space:nowrap">
+          ${dana0?dana0.toLocaleString('id-ID'):'-'}
+        </td>
+        <td id="di-sisa-d" style="padding:4px 6px;text-align:right;color:#10b981;font-size:11px;white-space:nowrap">
+          ${stok0||aktQ0?sisa0.toLocaleString('id-ID',{maximumFractionDigits:2}):'-'}
+        </td>
+        <td style="padding:4px 6px;text-align:center">
+          <span id="di-sumb-d" style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;
+            background:${sumb0==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'};
+            color:${sumb0==='PASAR'?'#ef4444':'#10b981'}">${sumb0}</span>
+        </td>
+        <td style="padding:4px 3px;min-width:90px">
+          <input id="di-catatan" class="form-control" style="${inp('')}"
+            placeholder="Catatan..." value="${it?.catatan||''}"
+            onkeydown="DailyOrderModule._editKeyDown(event,null)">
+        </td>
+        <td style="padding:4px 3px;text-align:center;white-space:nowrap">
+          <button onclick="DailyOrderModule._saveEditRow()" title="Simpan [Enter]"
+            style="width:24px;height:24px;border-radius:4px;border:none;background:#10b981;cursor:pointer;color:#fff;font-size:14px;font-weight:700;line-height:1">✓</button>
+          <button onclick="DailyOrderModule._cancelEdit()" title="Batal [Esc]"
+            style="width:24px;height:24px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:12px;margin-left:2px;line-height:1">✕</button>
+        </td>
+      </tr>`;
   }
+
+  /* Live-compute computed columns while typing */
+  function _liveCompute() {
+    const estQty = parseFloat(document.getElementById('di-estqty')?.value||0)||0;
+    const aktQty = parseFloat(document.getElementById('di-aktqty')?.value||0)||0;
+    const stok   = parseFloat(document.getElementById('di-stok')?.value||0)  ||0;
+    const harga  = parseFloat(document.getElementById('di-harga')?.value||0) ||0;
+    const sumber = aktQty > stok ? 'PASAR' : 'STOK';
+    const estTot = estQty * harga;
+    const aktTot = aktQty * harga;
+    const sel    = stok - aktQty;
+    const sisa   = Math.max(0, stok - aktQty);
+    const dana   = sumber==='PASAR' ? Math.max(0, aktQty-stok) * harga : 0;
+    const $ = (id) => document.getElementById(id);
+    if ($('di-esttot-d')) $('di-esttot-d').textContent = estTot ? estTot.toLocaleString('id-ID') : '-';
+    if ($('di-akttot-d')) $('di-akttot-d').textContent = aktTot ? aktTot.toLocaleString('id-ID') : '-';
+    if ($('di-sel-d'))    { $('di-sel-d').textContent = (stok||aktQty)?(sel>0?'+':'')+sel.toLocaleString('id-ID',{maximumFractionDigits:2}):'-'; $('di-sel-d').style.color=sel>=0?'#10b981':'#ef4444'; }
+    if ($('di-dana-d'))   $('di-dana-d').textContent = dana ? dana.toLocaleString('id-ID') : '-';
+    if ($('di-sisa-d'))   $('di-sisa-d').textContent = (stok||aktQty) ? sisa.toLocaleString('id-ID',{maximumFractionDigits:2}) : '-';
+    if ($('di-sumb-d'))   { $('di-sumb-d').textContent = sumber; $('di-sumb-d').style.background=sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'; $('di-sumb-d').style.color=sumber==='PASAR'?'#ef4444':'#10b981'; }
+  }
+
+  /* Auto-fill satuan/harga/stok when item selected from inventory datalist */
+  function _autoFillFromInventory() {
+    if (!_inventory.length) return;
+    const val = document.getElementById('di-item')?.value.trim().toLowerCase();
+    const inv = _inventory.find(i => (i.nama||'').toLowerCase() === val);
+    if (!inv) return;
+    const satEl   = document.getElementById('di-sat');
+    const hargaEl = document.getElementById('di-harga');
+    const stokEl  = document.getElementById('di-stok');
+    if (satEl   && inv.satuan) satEl.value = inv.satuan;
+    if (hargaEl && !parseFloat(hargaEl.value||0) && (inv.harga||inv.hargaBeli)) hargaEl.value = inv.harga||inv.hargaBeli||0;
+    if (stokEl  && !parseFloat(stokEl.value||0)  && (inv.stok ||inv.qty||inv.jumlah))         stokEl.value  = inv.stok ||inv.qty||inv.jumlah||0;
+    _liveCompute();
+  }
+
+  /* Tab/Enter key navigation between inline inputs */
+  function _editKeyDown(e, nextId) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (nextId) document.getElementById(nextId)?.focus();
+      else _saveEditRow();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      _cancelEdit();
+    }
+  }
+
+  /* Save inline edit row */
+  async function _saveEditRow() {
+    const form = _currentForm();
+    if (!form) return;
+    const item     = document.getElementById('di-item')?.value.trim();
+    if (!item) { Notify.warning('Nama bahan wajib diisi'); document.getElementById('di-item')?.focus(); return; }
+    const estQty   = parseFloat(document.getElementById('di-estqty')?.value||0)||0;
+    const satuan   = document.getElementById('di-sat')?.value||'Kg';
+    const harga    = parseFloat(document.getElementById('di-harga')?.value||0)||0;
+    const aktQty   = parseFloat(document.getElementById('di-aktqty')?.value||0)||0;
+    const stokGud  = parseFloat(document.getElementById('di-stok')?.value||0)  ||0;
+    const catatan  = document.getElementById('di-catatan')?.value.trim()||'';
+    const sumber   = aktQty > stokGud ? 'PASAR' : 'STOK';
+    const data = { item, estQty, satuan, hargaSatuan:harga, aktQty, stokGudang:stokGud, sumber, catatan,
+      estTotal: estQty*harga, aktTotal: aktQty*harga, selisih: stokGud-aktQty };
+    const wasNew = _editingItemId === 'new';
+    if (wasNew) {
+      form.items.push({ id:'item_'+Date.now(), ...data });
+    } else {
+      const it = (form.items||[]).find(i => i.id === _editingItemId);
+      if (it) Object.assign(it, data);
+    }
+    form.updatedAt = new Date().toISOString();
+    await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] saveRow:', e));
+    _editingItemId = wasNew ? 'new' : null; // keep 'new' mode for fast entry
+    _renderContent();
+    if (!wasNew) Notify.success('Bahan diperbarui');
+    if (wasNew) setTimeout(() => document.getElementById('di-item')?.focus(), 60);
+  }
+
+  function _cancelEdit() { _editingItemId = null; _renderContent(); }
 
   /* ─── ACTIONS ─── */
   function setView(v) {
@@ -765,64 +882,18 @@ const DailyOrderModule = (() => {
     Notify.success('Budget disimpan');
   }
 
-  function openAddItem() {
+  function startAddItem() {
     const form = _currentForm();
     if (!form) { Notify.warning('Buat form produksi dulu'); return; }
-    const mid = Utils.uid();
-    Modal.open({
-      id: mid,
-      title: 'Tambah Bahan Produksi',
-      body: _itemModalContent(null),
-      footer: `
-        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        <button class="btn btn-primary" onclick="DailyOrderModule._confirmAddItem('${mid}')">Tambah</button>`,
-    });
-    setTimeout(() => document.getElementById('di-item')?.focus(), 100);
-  }
-
-  async function _confirmAddItem(mid) {
-    const form = _currentForm();
-    if (!form) return;
-    const data = _readItemForm();
-    if (!data.item) { Notify.warning('Nama bahan wajib diisi'); return; }
-    form.items.push({ id:'item_'+Date.now(), ...data });
-    form.updatedAt = new Date().toISOString();
-    await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] addItem:', e));
-    Modal.close(mid);
+    _editingItemId = 'new';
     _renderContent();
-    Notify.success('Bahan ditambahkan');
+    setTimeout(() => document.getElementById('di-item')?.focus(), 60);
   }
 
-  function editItem(itemId) {
-    const form = _currentForm();
-    if (!form) return;
-    const it = (form.items||[]).find(i => i.id === itemId);
-    if (!it) return;
-    const mid = Utils.uid();
-    Modal.open({
-      id: mid,
-      title: 'Edit Bahan',
-      body: _itemModalContent(it),
-      footer: `
-        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        <button class="btn btn-primary" onclick="DailyOrderModule._confirmEditItem('${itemId}','${mid}')">Simpan</button>`,
-    });
-    setTimeout(() => document.getElementById('di-item')?.focus(), 100);
-  }
-
-  async function _confirmEditItem(itemId, mid) {
-    const form = _currentForm();
-    if (!form) return;
-    const it = (form.items||[]).find(i => i.id === itemId);
-    if (!it) return;
-    const data = _readItemForm();
-    if (!data.item) { Notify.warning('Nama bahan wajib diisi'); return; }
-    Object.assign(it, data);
-    form.updatedAt = new Date().toISOString();
-    await DB.saveDailyOrderForm(form).catch(e => console.warn('[DO] editItem:', e));
-    Modal.close(mid);
+  function startEditItem(itemId) {
+    _editingItemId = itemId;
     _renderContent();
-    Notify.success('Bahan diperbarui');
+    setTimeout(() => document.getElementById('di-item')?.focus(), 60);
   }
 
   async function deleteItem(itemId) {
@@ -855,8 +926,8 @@ const DailyOrderModule = (() => {
     init, setView, setDate, setShift, setMonth,
     createForm, toggleStatus, deleteForm,
     openBudget, _saveBudget,
-    openAddItem, _confirmAddItem,
-    editItem, _confirmEditItem,
+    startAddItem, startEditItem,
+    _saveEditRow, _cancelEdit, _editKeyDown, _liveCompute, _autoFillFromInventory,
     deleteItem, goToDate,
   };
 })();
