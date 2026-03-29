@@ -1434,6 +1434,10 @@ const EmployeeModule = (() => {
             <div>
               <div style="font-weight:600">${emp.nama||''}</div>
               ${emp.noHp ? `<div class="text-small text-muted">${emp.noHp}</div>` : ''}
+              <div style="display:flex;gap:3px;margin-top:3px;flex-wrap:wrap">
+                ${emp.faceDescriptors?.length ? `<span title="Wajah terdaftar" style="font-size:10px;padding:1px 6px;border-radius:10px;background:rgba(34,197,94,.12);color:#16a34a;border:1px solid rgba(34,197,94,.3);line-height:1.6">👤 Wajah</span>` : ''}
+                ${emp.ktpUrl ? `<span title="KTP terupload" style="font-size:10px;padding:1px 6px;border-radius:10px;background:rgba(99,102,241,.1);color:var(--primary-h);border:1px solid rgba(99,102,241,.25);line-height:1.6">🪪 KTP</span>` : ''}
+              </div>
             </div>
           </div>
         </td>

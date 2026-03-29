@@ -466,6 +466,7 @@ const FaceAttendanceModule = (() => {
 
     try {
       await _loadModels();
+      if (!_matcher) _buildMatcher(); // build after models ready (init() runs before models load)
       if (!_matcher) {
         _showOverlayError(document.getElementById('kiosk-loader'), 'Belum ada karyawan yang mendaftarkan wajah');
         return;
