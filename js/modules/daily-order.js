@@ -971,7 +971,7 @@ const DailyOrderModule = (() => {
       _editingItemId = wasNew ? 'new' : null;
       _renderContent();
       if (!wasNew) Notify.success('Bahan diperbarui');
-      if (wasNew) setTimeout(() => document.getElementById('di-item')?.focus(), 60);
+      if (wasNew) setTimeout(() => { _initItemCombo(); document.getElementById('di-item')?.focus(); }, 60);
     } catch(e) {
       console.error('[DO] saveRow:', e);
       Notify.error('Gagal menyimpan bahan, coba lagi');

@@ -1086,6 +1086,17 @@ const SettingsModule = (() => {
               </button>
             </div>
 
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s4)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:4px">👤 Absensi</div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:var(--s3)">
+                Data absensi karyawan hari ini.
+              </div>
+              <button class="btn btn-sm w-full" style="background:rgba(239,68,68,.08);color:var(--danger);border:1px solid rgba(239,68,68,.25)"
+                onclick="FaceAttendanceModule?.resetTodayAbsensi()">
+                ⟳ Reset Absensi Hari Ini
+              </button>
+            </div>
+
           </div>
           <div style="margin-top:var(--s3);font-size:11px;color:var(--text-3)">
             ⚠️ Hapus akan menghapus permanen dari Supabase. Tidak bisa dikembalikan.

@@ -12,13 +12,13 @@ const App = {
     invoice   : 'js/modules/invoice.js?v=20260329e',
     customer  : 'js/modules/customer.js?v=20260329g',
     kas       : 'js/modules/kas.js?v=20260329e',
-    'daily-order': 'js/modules/daily-order.js?v=20260330b',
+    'daily-order': 'js/modules/daily-order.js?v=20260330c',
     inventory : 'js/modules/inventory.js?v=20260330b',
-    employee  : 'js/modules/employee.js?v=20260330c',
+    employee  : 'js/modules/employee.js?v=20260330d',
     ap        : 'js/modules/ap.js?v=20260329e',
     task      : 'js/modules/task.js?v=20260329f',
     report    : 'js/modules/report.js?v=20260326r',
-    settings  : 'js/modules/settings.js?v=20260328a',
+    settings  : 'js/modules/settings.js?v=20260330a',
   },
 
   _loadScript(src) {

@@ -1764,8 +1764,7 @@ const EmployeeModule = (() => {
           ${FaceAttendanceModule?.isEnabled() ? `
             <button class="btn btn-primary btn-sm" onclick="FaceAttendanceModule.openKioskFullscreen()" title="Mode layar penuh untuk tablet absensi">⛶ Scan</button>
           ` : ''}
-          ${canEdit ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="FaceAttendanceModule?.resetTodayAbsensi()" title="Reset data absensi hari ini (semua device)">⟳ Reset</button>
-          <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._bulkAbsensi('H')" title="Tandai semua Hadir hari ini">✅ Hadir Semua</button>
+          ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="EmployeeModule._bulkAbsensi('H')" title="Tandai semua Hadir hari ini">✅ Hadir Semua</button>
           <button class="btn btn-primary btn-sm" onclick="EmployeeModule.openAbsensiModal()">+ Input</button>` : ''}
         </div>
       </div>
