@@ -425,6 +425,8 @@ const FaceAttendanceModule = (() => {
       _buildMatcher();
       if (_regMid) Modal.close(_regMid);
       Notify.success(`Wajah ${emp.nama} terdaftar ✓ (${_regSamples.length} sampel tersimpan)`);
+      // Refresh employee table so face badge appears immediately
+      if (window.EmployeeModule?.renderData) EmployeeModule.renderData();
     } catch(e) { Notify.error('Gagal menyimpan', e.message); }
     _regSamples = []; _regThumbs = []; _regMid = null;
   }
