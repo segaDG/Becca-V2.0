@@ -15,7 +15,7 @@ const App = {
     'daily-order': 'js/modules/daily-order.js?v=20260330f',
     inventory : 'js/modules/inventory.js?v=20260330d',
     employee  : 'js/modules/employee.js?v=20260330d',
-    ap        : 'js/modules/ap.js?v=20260329e',
+    ap        : 'js/modules/ap.js?v=20260330a',
     task      : 'js/modules/task.js?v=20260329f',
     report    : 'js/modules/report.js?v=20260326r',
     settings  : 'js/modules/settings.js?v=20260330a',
@@ -216,7 +216,7 @@ const App = {
 
     // Load non-critical scripts async — tidak block render awal
     this._loadScript('js/notifications.js?v=20260330a').catch(() => {});
-    this._loadScript('js/search-fix.js?v=20260326l').catch(() => {});
+    this._loadScript('js/search-fix.js?v=20260330a').catch(() => {});
     setTimeout(() => { if (typeof NotifCenter !== 'undefined') NotifCenter.refresh(); }, 800);
   },
 
@@ -678,7 +678,7 @@ const App = {
                </div>
              </form>`,
       footer: `<button class="btn btn-primary w-full" onclick="App._submitForcePassword('${mid}')">Simpan Password</button>`,
-      hideClose: true,
+      closable: false,
     });
   },
 

@@ -598,9 +598,48 @@ async function deleteItem(id) {
 
 ### Supplier & AP
 
-- **Supplier No. Rekening** — field disimpan sebagai `noRek` di form, tapi render perlu fallback: `s.data?.no_rekening || s.noRekening || s.noRek`
+- **Supplier No. Rekening** — field disimpan sebagai `noRek` di form, render fallback: `s.data?.no_rekening || s.noRekening || s.noRek`
+- **`APModule._addSupplierFull(mid)`** — handler untuk "Tambah Supplier" di `openSupplierModal()`. Membaca form `#sup-add-form`, simpan via `DB.saveSupplier()`
+- **`APModule._saveEditSupplier(mid, editId)`** — handler untuk "Simpan" saat edit supplier di `openSupplierModal(editSuppId)`. Membaca form `#sup-edit-form`, update via `DB.saveSupplier()`
+
+### Double-click Edit Mode
+
+- **KasModule**, **InventoryModule**, **DailyOrderModule** mendukung double-click pada tabel untuk langsung masuk edit mode
+- `ondblclick` membaca `event.target.closest('td')?.dataset?.field` → dikirim sebagai `focusField` ke `startEdit(id, focusField)` / `startLogEdit(id, focusField)` / `startEditItem(itemId, focusField)`
+- `focusField` = ID dari input yang sesuai dengan kolom yang diklik → otomatis fokus ke field tersebut saat edit row muncul
+- Setiap `<td>` di view-row harus punya `data-field="id-input-yang-sesuai"`
+
+### Daily Order — AKT QTY Enter
+
+- Tekan **Enter** di kolom AKT QTY → simpan baris saat ini → otomatis buka edit mode baris berikutnya dengan fokus di AKT QTY
+- Handler: `DailyOrderModule._aktQtyKeyDown(event)` — dipanggil via `onkeydown` di input `#di-aktqty`
+- `_saveEditRow(jumpToField)` — setelah save, cari item berikutnya di `form.items`, panggil `startEditItem(nextItem.id, jumpToField)`
+
+### Combobox (`Utils.initCombo`)
+
+- Membuat floating dropdown `position:fixed` di `document.body` — HARUS dicleanup agar tidak leak
+- **Auto-cleanup**: setiap panggilan `initCombo` cek `inputEl._comboHandle` → destroy dulu jika ada
+- Handle tersimpan di `inputEl._comboHandle` → call `.destroy()` manual jika ingin hapus sebelum element diremove dari DOM
+
+### Search Fix (`search-fix.js`)
+
+- Di-patch ke: `CustomerModule`, `APModule`, `EmployeeModule`, `TaskModule`, `ReportModule`, `InventoryModule`, `OrderModule`, `InvoiceModule`
+- Modul yang tidak punya `setSearch()` tidak perlu didaftarkan
+- Guard `mod.__searchPatched` mencegah double-patch
 
 ### Keamanan (Known Issues — Internal App)
 
-- Beberapa tempat di modul menggunakan `innerHTML` untuk render data user — potensi XSS jika data diinject. Untuk app internal ini acceptable, tapi perlu sanitasi jika exposed ke public
+- `Utils.esc()` meng-escape `& < > " '` — selalu gunakan untuk data yang dimasukkan ke HTML attribute
+- Beberapa modul menggunakan `innerHTML` untuk render data user — potensi XSS, acceptable untuk internal app
 - Demo credentials hardcoded di `auth.js` — hanya untuk development/demo
+
+### Realtime Subscriptions
+
+- `DB.subscribe(table, callback)` — internal dedup via `_realtimeChannels Set`, channel yang sama tidak akan dibuat dua kali
+- `DB.unsubscribeAll()` — bersihkan semua channel + reset Set
+- `DBExtensions.init()` memanggil `DB.subscribeAll()` — sudah ada `_initialized` guard di `DBExtensions`, aman jika dipanggil ulang
+
+### Modal
+
+- `Modal.open({ ..., closable: false })` — modal tidak bisa ditutup dengan × atau Escape. Pakai ini untuk alur wajib (contoh: force change password)
+- `hideClose: true` TIDAK dikenali Modal — gunakan `closable: false`

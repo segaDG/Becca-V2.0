@@ -11,6 +11,7 @@ const DB = (() => {
   let _ready       = false;
   let _initPromise = null;   // singleton — prevents concurrent SDK loads
   let _realtimeSubs = [];
+  let _realtimeChannels = new Set(); // track active channel names to prevent duplicates
 
   // ── Supabase config (otomatis semua device) ──
   // URL & key di-embed langsung agar tidak perlu setup manual
@@ -71,10 +72,13 @@ const DB = (() => {
 
   // ── REALTIME subscription ─────────────────────────────────
   function subscribe(table, callback) {
+    const chName = 'becca_' + table;
+    if (_realtimeChannels.has(chName)) return; // prevent duplicate subscriptions
+    _realtimeChannels.add(chName);
     _initClient().then(sb => {
-      if (!sb) return;
+      if (!sb) { _realtimeChannels.delete(chName); return; }
       const sub = sb
-        .channel('becca_' + table)
+        .channel(chName)
         .on('postgres_changes',
           { event: '*', schema: 'public', table },
           payload => callback(payload)
@@ -88,6 +92,7 @@ const DB = (() => {
     if (!_sb) return;
     _realtimeSubs.forEach(s => _sb.removeChannel(s));
     _realtimeSubs = [];
+    _realtimeChannels.clear();
   }
 
   // ── HELPERS ────────────────────────────────────────────────

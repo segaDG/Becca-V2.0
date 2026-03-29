@@ -6,7 +6,7 @@
 Object.assign(Utils, {
 
   MONTHS_SHORT: ['Jan','Feb','Mar','Apr','Mei','Jun',
-                 'Jul','Agu','Sep','Okt','Nov','Des'],
+                 'Jul','Ags','Sep','Okt','Nov','Des'],
 
   formatDateInput(d) {
     return Utils.formatDate(d, 'yyyy-mm-dd');
@@ -68,10 +68,6 @@ Object.assign(Utils, {
     return parseInt(String(str).replace(/\D/g, '')) || 0;
   },
 
-  formatNumber(n) {
-    return (parseFloat(n) || 0).toLocaleString('id-ID');
-  },
-
   /* ── Searchable combobox ──────────────────────────────────
      initCombo(inputEl, items, { onSelect, frequency })
      items     : string[] | {label, value, ...extra}[]
@@ -79,6 +75,9 @@ Object.assign(Utils, {
      Returns { destroy() }
   ─────────────────────────────────────────────────────────── */
   initCombo(inputEl, items, { onSelect, frequency } = {}) {
+    // Destroy previous combo on same input to prevent DOM leak
+    if (inputEl._comboHandle) { inputEl._comboHandle.destroy(); inputEl._comboHandle = null; }
+
     const norm    = arr => arr.map(i => typeof i === 'string' ? { label: i, value: i } : i);
     const entries = norm(items);
     const freq    = frequency || {};
@@ -195,14 +194,17 @@ Object.assign(Utils, {
     inputEl.addEventListener('blur',    _onBlur);
     inputEl.addEventListener('keydown', _onKeyDown);
 
-    return {
+    const handle = {
       destroy() {
         inputEl.removeEventListener('input',   _onInput);
         inputEl.removeEventListener('focus',   _onFocus);
         inputEl.removeEventListener('blur',    _onBlur);
         inputEl.removeEventListener('keydown', _onKeyDown);
         drop.remove();
+        if (inputEl._comboHandle === handle) inputEl._comboHandle = null;
       }
     };
+    inputEl._comboHandle = handle;
+    return handle;
   },
 });

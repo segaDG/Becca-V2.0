@@ -485,6 +485,40 @@ const APModule = (() => {
   }
 
 
+  async function _addSupplierFull(mid) {
+    const form = document.getElementById('sup-add-form');
+    const fd   = new FormData(form);
+    const data = Object.fromEntries(fd.entries());
+    if (!data.nama?.trim()) { Notify.warning('Nama supplier wajib diisi'); return; }
+    try {
+      const saved = await DB.saveSupplier({ ...data, nama: data.nama.trim() });
+      _suppliers.push(saved);
+      render();
+      Modal.close(mid);
+      Notify.success('Supplier ditambahkan: ' + saved.nama);
+      DB.logActivity({ type: 'add_supplier', detail: 'Supplier baru: ' + saved.nama });
+    } catch(err) { Notify.error('Gagal', err.message); }
+  }
+
+  async function _saveEditSupplier(mid, editId) {
+    const form = document.getElementById('sup-edit-form');
+    const fd   = new FormData(form);
+    const data = Object.fromEntries(fd.entries());
+    if (!data.nama?.trim()) { Notify.warning('Nama supplier wajib diisi'); return; }
+    try {
+      const existing = _suppliers.find(s => s.id === editId);
+      if (!existing) { Notify.error('Supplier tidak ditemukan'); return; }
+      const updated  = { ...existing, ...data, nama: data.nama.trim() };
+      await DB.saveSupplier(updated);
+      const idx = _suppliers.findIndex(s => s.id === editId);
+      if (idx >= 0) _suppliers[idx] = updated;
+      render();
+      Modal.close(mid);
+      Notify.success('Supplier diperbarui: ' + updated.nama);
+      DB.logActivity({ type: 'edit_supplier', detail: 'Edit supplier: ' + updated.nama });
+    } catch(err) { Notify.error('Gagal', err.message); }
+  }
+
   async function _addSupplier() {
     const nama = document.getElementById('new-sup-name').value.trim();
     if (!nama) return;
@@ -1457,6 +1491,6 @@ const APModule = (() => {
   }
 
 
-  return { init, render, filterBelum, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, apStartEdit, _apCommit, _apCancel, apAddRow, _apKey };
+  return { init, render, filterBelum, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCancel, apAddRow, _apKey };
 })();
 window.APModule = APModule;

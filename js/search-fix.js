@@ -18,7 +18,9 @@
     'EmployeeModule',
     'TaskModule',
     'ReportModule',
-    'KasKecilModule',
+    'InventoryModule',
+    'OrderModule',
+    'InvoiceModule',
   ];
 
   function _patchModule(mod) {
