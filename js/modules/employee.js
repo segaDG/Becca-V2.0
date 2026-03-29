@@ -776,7 +776,7 @@ const EmployeeModule = (() => {
     const emp = editId ? _employees.find(e=>e.id===editId) : {};
     const d   = emp || {};
     const mid = Utils.uid();
-    Modal.open({ id: mid,
+    Modal.open({ id: mid, lazy: true,
       title: editId ? 'Edit Karyawan' : 'Tambah Karyawan',
       size: 'modal-lg',
       body: `<form id="emp-form">
@@ -897,35 +897,38 @@ const EmployeeModule = (() => {
     if (!data.grupGajian) { Notify.warning('Grup Gajian belum diisi untuk ' + data.nama + ' — karyawan bisa tertinggal saat payroll'); }
     data.gajiPokok = parseInt(data.gajiPokok)||0;
     if (editId) data.id = editId;
-    // Handle foto upload
-    if (_tempFotoUrl && _tempFotoUrl !== '__remove__') {
-      data.fotoUrl = _tempFotoUrl;
-    } else if (_tempFotoUrl === '__remove__') {
-      data.fotoUrl = '';
-    } else if (editId) {
-      const existing = _employees.find(e=>e.id===editId);
-      if (existing?.fotoUrl) data.fotoUrl = existing.fotoUrl;
-    }
+
+    // Satu lookup untuk foto + KTP (bukan dua kali)
+    const existing = editId ? _employees.find(e => e.id === editId) : null;
+
+    if (_tempFotoUrl && _tempFotoUrl !== '__remove__')      data.fotoUrl = _tempFotoUrl;
+    else if (_tempFotoUrl === '__remove__')                 data.fotoUrl = '';
+    else if (existing?.fotoUrl)                            data.fotoUrl = existing.fotoUrl;
     _tempFotoUrl = null;
-    // Handle KTP foto upload
-    if (_tempKtpUrl && _tempKtpUrl !== '__remove__') {
-      data.ktpUrl = _tempKtpUrl;
-    } else if (_tempKtpUrl === '__remove__') {
-      data.ktpUrl = '';
-    } else if (editId) {
-      const existing2 = _employees.find(e=>e.id===editId);
-      if (existing2?.ktpUrl) data.ktpUrl = existing2.ktpUrl;
-    }
+
+    if (_tempKtpUrl && _tempKtpUrl !== '__remove__')       data.ktpUrl = _tempKtpUrl;
+    else if (_tempKtpUrl === '__remove__')                 data.ktpUrl = '';
+    else if (existing?.ktpUrl)                             data.ktpUrl = existing.ktpUrl;
     _tempKtpUrl = null;
+
+    // Feedback instan: disable tombol Simpan agar tidak double-submit
+    const btn = document.querySelector(`#modal-${mid} .btn-primary`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+
     try {
       const saved = await DB.saveEmployee(data);
-      const idx   = _employees.findIndex(e=>e.id===saved.id);
-      if (idx>=0) _employees[idx]=saved; else _employees.push(saved);
-      renderData();
+      const idx   = _employees.findIndex(e => e.id === saved.id);
+      if (idx >= 0) _employees[idx] = saved; else _employees.push(saved);
+
+      // Tutup modal DULU — user tidak perlu nunggu re-render tabel
       Modal.close(mid);
-      Notify.success(editId?'Data diperbarui':'Karyawan ditambahkan');
-      DB.logActivity({type:'employee', detail:(editId?'Edit: ':'Tambah: ')+data.nama});
-    } catch(e) { Notify.error('Gagal', e.message); }
+      Notify.success(editId ? 'Data diperbarui' : 'Karyawan ditambahkan');
+      renderData();
+      DB.logActivity({ type: 'employee', detail: (editId ? 'Edit: ' : 'Tambah: ') + data.nama });
+    } catch(e) {
+      if (btn) { btn.disabled = false; btn.textContent = editId ? 'Simpan' : 'Tambah'; }
+      Notify.error('Gagal', e.message);
+    }
   }
 
   /* ===================== MODAL: LOG ===================== */

@@ -26,15 +26,20 @@ const Modal = {
     backdrop.id = `modal-backdrop-${id}`;
     if (closable) backdrop.onclick = (e) => { if (e.target === backdrop) Modal.close(id); };
 
+    // Jika lazy:true — render body di frame berikutnya agar tombol footer
+    // muncul SEGERA tanpa menunggu parse puluhan form field
+    const lazy = opts.lazy === true;
+    const bodyHtml = lazy
+      ? '<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px">Memuat...</div>'
+      : (opts.body || '');
+
     backdrop.innerHTML = `
       <div class="modal ${opts.size || ''}" id="modal-${id}" role="dialog">
         <div class="modal-header">
           <div class="modal-title">${opts.title || ''}</div>
           ${closable ? `<button class="modal-close" onclick="Modal.close('${id}')" title="Tutup">×</button>` : ''}
         </div>
-        <div class="modal-body">
-          ${opts.body || ''}
-        </div>
+        <div class="modal-body" id="modal-body-${id}">${bodyHtml}</div>
         ${opts.footer !== undefined ? `<div class="modal-footer">${opts.footer}</div>` : ''}
       </div>
     `;
@@ -42,15 +47,21 @@ const Modal = {
     document.getElementById('modal-root').appendChild(backdrop);
     this._stack.push(id);
 
-    // Per-modal escape handler — tidak overwrite handler lain
     if (closable) {
       const handler = (e) => { if (e.key === 'Escape') Modal.close(id); };
       this._handlers[id] = handler;
       document.addEventListener('keydown', handler);
     }
 
-    if (opts.onOpen) {
-      opts.onOpen(document.getElementById(`modal-${id}`));
+    if (lazy && opts.body) {
+      // Isi body setelah browser sempat render modal shell + tombol footer
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const bodyEl = document.getElementById(`modal-body-${id}`);
+        if (bodyEl) bodyEl.innerHTML = opts.body;
+        if (opts.onOpen) opts.onOpen(document.getElementById(`modal-${id}`));
+      }));
+    } else {
+      if (opts.onOpen) opts.onOpen(document.getElementById(`modal-${id}`));
     }
 
     return id;

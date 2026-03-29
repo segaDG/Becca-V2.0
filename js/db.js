@@ -302,19 +302,33 @@ const DB = (() => {
     _lsSave(table, obj);
 
     // Guard khusus employees: jika save tidak membawa foto (fotoUrl/ktpUrl),
-    // ambil dari Supabase dulu dan merge — mencegah foto terhapus oleh save parsial.
+    // merge dari sumber tercepat yang tersedia — mencegah foto terhapus oleh save parsial.
     if (table === 'employees' && obj.id) {
       const hasFoto = obj.fotoUrl && String(obj.fotoUrl).startsWith('data:');
       const hasKtp  = obj.ktpUrl  && String(obj.ktpUrl).startsWith('data:');
       if (!hasFoto || !hasKtp) {
+        // 1. Coba localStorage dulu (sync, 0ms network)
         try {
-          const { data: existRow } = await sb.from('employees').select('data').eq('id', obj.id).maybeSingle();
-          if (existRow) {
-            const exist = typeof existRow.data === 'string' ? JSON.parse(existRow.data) : (existRow.data || {});
-            if (!hasFoto && exist.fotoUrl?.startsWith('data:')) obj.fotoUrl = exist.fotoUrl;
-            if (!hasKtp  && exist.ktpUrl?.startsWith('data:'))  obj.ktpUrl  = exist.ktpUrl;
+          const lsArr = JSON.parse(localStorage.getItem('becca_employees') || '[]');
+          const lsEmp = Array.isArray(lsArr) ? lsArr.find(e => e.id === obj.id) : null;
+          if (lsEmp) {
+            if (!hasFoto && lsEmp.fotoUrl?.startsWith('data:')) obj.fotoUrl = lsEmp.fotoUrl;
+            if (!hasKtp  && lsEmp.ktpUrl?.startsWith('data:'))  obj.ktpUrl  = lsEmp.ktpUrl;
           }
         } catch {}
+        // 2. Hanya hit Supabase jika LS juga tidak punya foto (misal device baru)
+        const stillNoFoto = !obj.fotoUrl?.startsWith('data:');
+        const stillNoKtp  = !obj.ktpUrl?.startsWith('data:');
+        if (stillNoFoto || stillNoKtp) {
+          try {
+            const { data: existRow } = await sb.from('employees').select('data').eq('id', obj.id).maybeSingle();
+            if (existRow) {
+              const exist = typeof existRow.data === 'string' ? JSON.parse(existRow.data) : (existRow.data || {});
+              if (stillNoFoto && exist.fotoUrl?.startsWith('data:')) obj.fotoUrl = exist.fotoUrl;
+              if (stillNoKtp  && exist.ktpUrl?.startsWith('data:'))  obj.ktpUrl  = exist.ktpUrl;
+            }
+          } catch {}
+        }
       }
     }
 
