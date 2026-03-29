@@ -84,7 +84,11 @@ self.addEventListener('fetch', e => {
     e.respondWith(
       caches.match(e.request).then(cached => {
         const networkFetch = fetch(e.request).then(res => {
-          if (res.ok) caches.open(CACHE_NAME).then(c => c.put(e.request, res.clone()));
+          // Clone SEBELUM caches.open (sync) agar body belum dikonsumsi browser
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          }
           return res;
         });
         return cached || networkFetch;
