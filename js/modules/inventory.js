@@ -618,7 +618,7 @@ const InventoryModule = (() => {
   function _ivRowView(r, rowNum, canEdit) {
     const jColor = r.jenis==='MASUK'?'var(--success)':r.jenis==='KELUAR'?'var(--danger)':'var(--warning)';
     return `<tr class="iv-view" id="iv-row-${r.id}" data-id="${r.id}"
-              ${canEdit && !_invLocked.has(r.id) ? `onclick="InventoryModule.startLogEdit('${r.id}')"` : ''}>
+              ${canEdit && !_invLocked.has(r.id) ? `ondblclick="InventoryModule.startLogEdit('${r.id}')"` : ''}>
       <td onclick="event.stopPropagation();${_invLocked.has(r.id)?`InventoryModule.unlockInvRow('${r.id}')`:'void(0)'}"
           title="${_invLocked.has(r.id)?'Klik untuk buka kunci':''}"
           style="cursor:${_invLocked.has(r.id)?'pointer':'default'}">

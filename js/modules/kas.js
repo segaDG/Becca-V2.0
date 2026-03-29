@@ -291,8 +291,8 @@ const KasModule = (() => {
   function _rowView(r, rowNum, canEdit) {
     const sc = r.status==='DONE'?'badge-success':r.status==='TBC'?'badge-warning':'badge-neutral';
     const rowColorClass = r.type==='Kas' ? 'ks-row-kas' : r.status==='DONE' ? 'ks-row-done' : r.status==='TBC' ? 'ks-row-tbc' : '';
-    const ksOnClick = _kasLocked.has(r.id) ? 'void(0)' : 'KasModule.startEdit(\'' + r.id + '\''+')';
-    return `<tr class="ks-view ${rowColorClass}" id="ks-row-${r.id}" data-id="${r.id}" style="${_kasLocked.has(r.id)?'opacity:.75':''}" onclick="${ksOnClick}">
+    const ksOnDbl = _kasLocked.has(r.id) ? 'void(0)' : 'KasModule.startEdit(\'' + r.id + '\''+')';
+    return `<tr class="ks-view ${rowColorClass}" id="ks-row-${r.id}" data-id="${r.id}" style="${_kasLocked.has(r.id)?'opacity:.75':''}" ondblclick="${ksOnDbl}">
       <td style="width:28px">
         <div class="ks-cell" style="justify-content:center;font-size:11px;color:var(--text-3)">
           ${_kasLocked.has(r.id)?'<span style="opacity:.4">'+rowNum+'</span>':rowNum}

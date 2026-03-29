@@ -777,7 +777,7 @@ const DailyOrderModule = (() => {
   function _htmlItemRow(it, i) {
     const sumber = it.sumber || _calcSumber(_n(it.stokGudang), _n(it.aktQty));
     return `
-      <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''}">
+      <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''};cursor:pointer" ondblclick="DailyOrderModule.startEditItem('${it.id}')" title="Double-klik untuk edit">
         <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${i+1}</td>
         <td style="padding:7px 5px;font-weight:600">${it.item}</td>
         <td style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
