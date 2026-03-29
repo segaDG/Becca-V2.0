@@ -248,8 +248,10 @@ const DailyOrderModule = (() => {
         title="${dateStr}" style="width:${cW}px;height:${cH}px;flex-shrink:0;border-radius:6px;
         border:2px solid ${sel?'#374151':'transparent'};
         background:${bg};cursor:pointer;display:flex;flex-direction:column;
-        align-items:center;justify-content:center;gap:1px;padding:0;
-        ${today?'box-shadow:inset 0 0 0 2px var(--primary);':''}">
+        align-items:center;justify-content:center;gap:1px;padding:0;position:relative">
+        ${today?`<span style="position:absolute;top:2px;left:50%;transform:translateX(-50%);
+          width:5px;height:5px;border-radius:50%;background:#39ff14;
+          box-shadow:0 0 4px #39ff14;display:block"></span>`:''}
         <span style="font-size:${dayFs};font-weight:600;color:${dayCol};line-height:1">${_DAY_LABELS[dow]}</span>
         <span style="font-size:${numFs};font-weight:700;color:${col};line-height:1">${d}</span>
       </button>`;
