@@ -847,6 +847,27 @@ const DB = (() => {
     return (error || !data) ? null : data;
   }
 
+  // ── PUSH TOKENS ───────────────────────────────────────────
+  const savePushToken = async (data) => {
+    const sb = await _initClient();
+    if (!sb) return;
+    await sb.from('push_tokens').upsert(data, { onConflict: 'token' });
+  };
+
+  const getPushTokens = async (filter = {}) => {
+    const sb = await _initClient();
+    if (!sb) return [];
+    let q = sb.from('push_tokens').select('token,user_id,username,nama,role,divisi,jabatan');
+    if (filter.user_id)  q = q.eq('user_id', filter.user_id);
+    if (filter.username) q = q.eq('username', filter.username);
+    if (filter.nama)     q = q.eq('nama', filter.nama);
+    if (filter.divisi)   q = q.eq('divisi', filter.divisi);
+    if (filter.jabatan)  q = q.eq('jabatan', filter.jabatan);
+    if (filter.role)     q = q.eq('role', filter.role);
+    const { data } = await q;
+    return data || [];
+  };
+
   // ── DEDUP: hapus duplikat inv_products berdasarkan nama ────
   async function deduplicateInventoryProducts() {
     const sb = await _initClient();
@@ -974,6 +995,8 @@ const DB = (() => {
     // Bulk operations
     clearTableData,
     deduplicateInventoryProducts,
+    // Push tokens
+    savePushToken, getPushTokens,
   };
 })();
 

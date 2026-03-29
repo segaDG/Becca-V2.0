@@ -77,6 +77,12 @@ const Auth = {
     }
 
     try { await DB.logActivity({ type: 'login', detail: 'Login berhasil' }); } catch {}
+
+    // Daftarkan push token di background (tidak block login)
+    if (window.PushModule) {
+      setTimeout(() => PushModule.requestAndRegister(this._user).catch(() => {}), 2000);
+    }
+
     return this._user;
   },
 

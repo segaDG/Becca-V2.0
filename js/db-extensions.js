@@ -162,6 +162,17 @@ const DBExtensions = (() => {
     if (isMe && typeof Notify !== 'undefined') {
       Notify.warning('🎯 Task baru ditugaskan ke kamu: ' + (row.judul || ''));
     }
+
+    // Push notification ke semua assignee
+    if (eventType === 'INSERT' && typeof PushModule !== 'undefined') {
+      assignees.forEach(name => {
+        PushModule.sendToUser(name, {
+          title: '🎯 Task Baru',
+          body:  row.judul || row.title || 'Ada task baru untukmu',
+          data:  { taskId: row.id || '', type: 'task_new' },
+        }).catch(() => {});
+      });
+    }
   }
 
   /* ── Stop presence ketika logout / halaman ditutup ──────── */
