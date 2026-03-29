@@ -84,6 +84,22 @@ const App = {
           })
           .catch(() => {});
       }
+      // Normalisasi nama customer di order — sekali jalan (case-insensitive match)
+      if (DB.isReady() && !localStorage.getItem('becca_orders_norm_v1')) {
+        localStorage.setItem('becca_orders_norm_v1', '1');
+        Promise.all([DB.getCustomers(), DB.getOrders()]).then(async ([custs, orders]) => {
+          const custNames = (custs||[]).map(c => c.nama).filter(Boolean);
+          if (!custNames.length) return;
+          let fixed = 0;
+          for (const order of (orders||[])) {
+            const raw = (order.namaPerusahaan||'').trim();
+            if (!raw || custNames.includes(raw)) continue;
+            const match = custNames.find(n => n.toLowerCase() === raw.toLowerCase());
+            if (match) { order.namaPerusahaan = match; await DB.saveOrder(order); fixed++; }
+          }
+          if (fixed > 0) Notify.success(fixed + ' order diperbarui nama customer ✓');
+        }).catch(() => {});
+      }
       // Selalu sync users ke Supabase settings saat boot (cross-device login)
       if (DB.isReady()) {
         await this._loadModule('settings').catch(() => {});

@@ -512,22 +512,7 @@ const FaceAttendanceModule = (() => {
             const now = Date.now();
             if (!_kioskCooldown[empId] || now - _kioskCooldown[empId] > 15000) {
               _kioskCooldown[empId] = now;
-              const overlay = document.getElementById('kiosk-overlay');
-              const st = document.getElementById('kiosk-status');
-              if (st) st.innerHTML = `🎯 <strong>${empNama}</strong> — kedipkan mata...`;
-              const lived = await _runChallenge(video, overlay, _CHALLENGES[0], 2500);
-              if (overlay) overlay.style.display = 'none';
-              if (lived) {
-                await _recordKioskAbsensi(empId, empNama, resultEl);
-              } else {
-                _kioskCooldown[empId] = 0;
-                if (st) st.innerHTML = '🟢 Sistem aktif — tatap kamera untuk absen';
-                if (resultEl) {
-                  resultEl.style.display = 'block';
-                  resultEl.innerHTML = `<div style="font-size:14px;color:#fca5a5">❌ ${empNama} — liveness gagal, coba lagi</div>`;
-                  setTimeout(() => { if (resultEl) resultEl.style.display = 'none'; }, 3000);
-                }
-              }
+              await _recordKioskAbsensi(empId, empNama, resultEl);
             }
           }
         } else if (!r) {
@@ -559,7 +544,7 @@ const FaceAttendanceModule = (() => {
       return;
     }
 
-    const rec = { empId, empNama, tgl: today, status: 'H', ket: 'Face+Liveness ' + timeStr, createdAt: new Date().toISOString() };
+    const rec = { empId, empNama, tgl: today, status: 'H', ket: 'Face ' + timeStr, createdAt: new Date().toISOString() };
     const saved = await DB.saveEmpAbsensi(rec).catch(() => rec);
     if (!saved.id) saved.id = Utils.uid();
     _absensi.push(saved);
@@ -568,7 +553,7 @@ const FaceAttendanceModule = (() => {
     if (resultEl) {
       resultEl.style.display = 'block';
       resultEl.innerHTML = `<div style="font-size:22px;font-weight:700;color:#4ade80">✅ Selamat datang, ${empNama}!</div>
-        <div style="font-size:13px;opacity:.8">${timeStr} · Hadir · Liveness ✓</div>`;
+        <div style="font-size:13px;opacity:.8">${timeStr} · Hadir · Wajah ✓</div>`;
       setTimeout(() => { if (resultEl) resultEl.style.display = 'none'; }, 4500);
     }
     const logEl = document.getElementById('kiosk-log');
@@ -579,7 +564,7 @@ const FaceAttendanceModule = (() => {
       logEl.prepend(el);
     }
     if (st) st.innerHTML = '🟢 Sistem aktif — tatap kamera untuk absen';
-    Notify.success(empNama + ' absen — face+liveness ✓');
+    Notify.success(empNama + ' absen ✓');
   }
 
   function _stopKiosk() { _stopStream(); _kioskCooldown = {}; }
