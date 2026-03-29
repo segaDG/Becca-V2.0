@@ -93,6 +93,11 @@ const Utils = {
   clone(obj) {
     return JSON.parse(JSON.stringify(obj));
   },
+
+  // HTML escape
+  esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  },
 };
 
 window.Utils = Utils;

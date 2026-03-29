@@ -618,38 +618,46 @@ const FaceAttendanceModule = (() => {
     fs.style.cssText = 'position:fixed;inset:0;z-index:9998;background:#0a0d14;display:flex;flex-direction:column;font-family:sans-serif';
     fs.innerHTML = `
       <style>
-        @keyframes ks-fadein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes ks-flash{0%,100%{opacity:1}50%{opacity:.3}}
+        @keyframes ks-fadein  {from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes ks-scan    {0%{top:2%}50%{top:94%}100%{top:2%}}
+        @keyframes ks-pulse   {0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.4}}
+        @keyframes ks-bracket {0%,100%{opacity:.6}50%{opacity:1}}
         #kiosk-fs{display:flex;flex-direction:column}
-        #ks-header{display:flex;align-items:center;padding:10px 16px;background:#0f1320;border-bottom:1px solid #1e2540;flex-shrink:0}
+        #ks-header{display:flex;align-items:center;padding:10px 20px;background:rgba(10,13,20,.95);border-bottom:1px solid rgba(99,102,241,.2);flex-shrink:0;backdrop-filter:blur(8px)}
         #ks-body{flex:1;position:relative;background:#000;overflow:hidden;min-height:0}
         #ks-video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
         #ks-canvas{position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none}
+        .ks-corner{position:absolute;width:24px;height:24px;animation:ks-bracket 2s ease-in-out infinite}
+        #ks-scan{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(99,102,241,.9),transparent);box-shadow:0 0 8px rgba(99,102,241,.6);animation:ks-scan 2.8s ease-in-out infinite;pointer-events:none}
         @media (orientation:portrait){
-          #ks-clock{font-size:20px!important}
-          #ks-result-name{font-size:24px!important}
-          #ks-result-icon{font-size:48px!important}
-          #ks-status{font-size:13px!important}
+          #ks-clock{font-size:18px!important}
+          #ks-result-name{font-size:22px!important}
+          #ks-status{font-size:12px!important}
+          #ks-guide-box{width:55vw!important;height:65vw!important}
         }
         @media (orientation:landscape){
-          #ks-clock{font-size:28px!important}
-          #ks-result-name{font-size:32px!important}
+          #ks-clock{font-size:26px!important}
+          #ks-result-name{font-size:30px!important}
+          #ks-guide-box{width:26vh!important;height:34vh!important}
         }
       </style>
 
       <!-- Header -->
       <div id="ks-header">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div style="width:30px;height:30px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#fff;flex-shrink:0">B</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <img src="/img/Logo%20BPS%20White%20Stroke%20copy.png" style="height:34px;object-fit:contain"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div style="display:none;width:34px;height:34px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;flex-shrink:0">B</div>
           <div>
-            <div style="font-size:12px;font-weight:700;color:#f0f0f0;letter-spacing:.04em">BPS Face Recognition</div>
-            <div style="font-size:10px;color:#6b7280" id="ks-date"></div>
+            <div style="font-size:13px;font-weight:700;color:#f0f0f0;letter-spacing:.06em">BPS Face Recognition</div>
+            <div style="font-size:10px;color:#6366f1;letter-spacing:.04em" id="ks-date"></div>
           </div>
         </div>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
-          <div id="ks-clock" style="font-weight:700;color:#f0f0f0;font-variant-numeric:tabular-nums;letter-spacing:.04em"></div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:16px">
+          <div id="ks-clock" style="font-weight:700;color:#f0f0f0;font-variant-numeric:tabular-nums;letter-spacing:.06em;text-shadow:0 0 20px rgba(99,102,241,.4)"></div>
           <button onclick="FaceAttendanceModule.closeFullscreenKiosk()"
-            style="padding:6px 12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#9ca3af;font-size:12px;cursor:pointer">
+            style="padding:6px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#9ca3af;font-size:12px;cursor:pointer;transition:background .2s"
+            onmouseover="this.style.background='rgba(255,255,255,.12)'" onmouseout="this.style.background='rgba(255,255,255,.06)'">
             ✕ Tutup
           </button>
         </div>
@@ -660,29 +668,48 @@ const FaceAttendanceModule = (() => {
         <video id="ks-video" autoplay muted playsinline></video>
         <canvas id="ks-canvas"></canvas>
 
+        <!-- Face guide brackets -->
+        <div style="position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center">
+          <div id="ks-guide-box" style="position:relative;width:28vh;height:36vh">
+            <div class="ks-corner" style="top:0;left:0;border-top:3px solid rgba(99,102,241,.85);border-left:3px solid rgba(99,102,241,.85);border-top-left-radius:3px"></div>
+            <div class="ks-corner" style="top:0;right:0;border-top:3px solid rgba(99,102,241,.85);border-right:3px solid rgba(99,102,241,.85);border-top-right-radius:3px"></div>
+            <div class="ks-corner" style="bottom:0;left:0;border-bottom:3px solid rgba(99,102,241,.85);border-left:3px solid rgba(99,102,241,.85);border-bottom-left-radius:3px"></div>
+            <div class="ks-corner" style="bottom:0;right:0;border-bottom:3px solid rgba(99,102,241,.85);border-right:3px solid rgba(99,102,241,.85);border-bottom-right-radius:3px"></div>
+            <div id="ks-scan"></div>
+          </div>
+        </div>
+
+        <!-- Today attendance badge -->
+        <div style="position:absolute;top:16px;right:16px;background:rgba(10,13,20,.8);border:1px solid rgba(99,102,241,.3);border-radius:12px;padding:10px 16px;text-align:center;backdrop-filter:blur(8px)">
+          <div id="ks-count" style="font-size:26px;font-weight:800;color:#6366f1;line-height:1;font-variant-numeric:tabular-nums">0</div>
+          <div style="font-size:10px;color:#6b7280;margin-top:3px;letter-spacing:.04em">HADIR HARI INI</div>
+        </div>
+
         <!-- Loader -->
-        <div id="ks-loader" style="position:absolute;inset:0;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:14px">
-          <div style="font-size:18px;font-weight:700">Memuat AI Model...</div>
-          <div style="font-size:13px;opacity:.5">Pertama kali ±15 detik</div>
-          <div style="width:120px;height:3px;background:#1f2937;border-radius:2px;overflow:hidden;margin-top:4px">
+        <div id="ks-loader" style="position:absolute;inset:0;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:16px">
+          <div style="font-size:16px;font-weight:600;letter-spacing:.06em;opacity:.85">MEMUAT AI MODEL</div>
+          <div style="font-size:12px;opacity:.4;letter-spacing:.04em">Pertama kali ±15 detik</div>
+          <div style="width:140px;height:2px;background:#1f2937;border-radius:2px;overflow:hidden;margin-top:4px">
             <div style="height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:2px;animation:becca-load 1.4s ease-in-out infinite"></div>
           </div>
         </div>
 
         <!-- Welcome result overlay -->
-        <div id="ks-result" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,.72);flex-direction:column;gap:12px">
-          <div id="ks-result-icon" style="font-size:64px"></div>
-          <div id="ks-result-name" style="font-weight:800;color:#fff;text-align:center;text-shadow:0 2px 12px rgba(0,0,0,.5)"></div>
-          <div id="ks-result-sub" style="font-size:16px;color:rgba(255,255,255,.75);text-align:center"></div>
+        <div id="ks-result" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,.78);flex-direction:column;gap:14px;animation:ks-fadein .3s ease">
+          <div id="ks-result-icon" style="font-size:60px"></div>
+          <div id="ks-result-name" style="font-weight:800;color:#fff;text-align:center;text-shadow:0 2px 20px rgba(99,102,241,.6);letter-spacing:.02em"></div>
+          <div id="ks-result-sub" style="font-size:15px;color:rgba(255,255,255,.65);text-align:center;letter-spacing:.04em"></div>
         </div>
 
         <!-- Status bar -->
-        <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 16px;background:linear-gradient(transparent,rgba(0,0,0,.8))">
-          <div id="ks-status" style="font-weight:600;color:#f0f0f0;text-align:center">Memuat sistem...</div>
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:12px 20px;background:linear-gradient(transparent,rgba(0,0,0,.85))">
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+            <span id="ks-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#6b7280;flex-shrink:0"></span>
+            <span id="ks-status" style="font-size:14px;font-weight:600;color:#f0f0f0;letter-spacing:.03em">Memuat sistem...</span>
+          </div>
         </div>
       </div>
 
-      <div id="ks-count" style="display:none">0</div>
       <div id="ks-log" style="display:none"></div>`;
 
     document.body.appendChild(fs);
@@ -733,7 +760,7 @@ const FaceAttendanceModule = (() => {
       video.srcObject = _stream;
       await new Promise(res => { video.onloadedmetadata = res; });
       document.getElementById('ks-loader')?.remove();
-      _setFsStatus('🟢 Tatap kamera untuk absen', '#4ade80');
+      _setFsStatus('Tatap kamera untuk absen', '#4ade80');
       _kioskCooldown = {};
       _startFsLoop();
     } catch(e) {
@@ -743,8 +770,14 @@ const FaceAttendanceModule = (() => {
   }
 
   function _setFsStatus(msg, color) {
-    const el = document.getElementById('ks-status');
-    if (el) { el.textContent = msg; el.style.color = color || '#f0f0f0'; }
+    const el  = document.getElementById('ks-status');
+    const dot = document.getElementById('ks-dot');
+    if (el)  { el.textContent = msg; el.style.color = color || '#f0f0f0'; }
+    if (dot) {
+      dot.style.background = color || '#6b7280';
+      dot.style.animation  = color ? 'ks-pulse 1.4s ease-in-out infinite' : 'none';
+      dot.style.boxShadow  = color ? `0 0 6px ${color}` : 'none';
+    }
   }
 
   function _fsAddLog(nama, ket) {
@@ -819,8 +852,8 @@ const FaceAttendanceModule = (() => {
         if (iconEl) iconEl.textContent = '👋';
         if (nameEl) nameEl.textContent = empNama;
         if (subEl)  subEl.textContent  = `Sudah absen hari ini · ${timeStr}`;
-        _setFsStatus('👋 ' + empNama + ' sudah absen hari ini', '#fbbf24');
-        setTimeout(() => { if (resultEl) resultEl.style.display = 'none'; _setFsStatus('🟢 Tatap kamera untuk absen', '#4ade80'); }, 3000);
+        _setFsStatus(empNama + ' sudah absen hari ini', '#fbbf24');
+        setTimeout(() => { if (resultEl) resultEl.style.display = 'none'; _setFsStatus('Tatap kamera untuk absen', '#4ade80'); }, 3000);
       }
       return;
     }
@@ -840,8 +873,8 @@ const FaceAttendanceModule = (() => {
       if (iconEl) iconEl.textContent = '✅';
       if (nameEl) { nameEl.textContent = empNama; nameEl.style.color = '#4ade80'; }
       if (subEl)  subEl.textContent = timeStr + ' · Hadir · Wajah ✓';
-      _setFsStatus('✅ Selamat datang, ' + empNama + '!', '#4ade80');
-      setTimeout(() => { if (resultEl) resultEl.style.display = 'none'; _setFsStatus('🟢 Tatap kamera untuk absen', '#4ade80'); }, 4000);
+      _setFsStatus('Selamat datang, ' + empNama, '#4ade80');
+      setTimeout(() => { if (resultEl) resultEl.style.display = 'none'; _setFsStatus('Tatap kamera untuk absen', '#4ade80'); }, 4000);
     }
 
     _fsAddLog(empNama, timeStr);
