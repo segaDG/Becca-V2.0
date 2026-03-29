@@ -15,6 +15,7 @@ const EmployeeModule = (() => {
   const _LB_LOCK_KEY = 'becca_lb_locked_ids';
   let _filterStatus = '';
   let _filterDept   = '';
+  let _filterGrup   = '';   // '' | '5' | '12' | '19' | '26' | '__none__'
   let _selectedEmpId = null;  // for card view
 
   // Absensi state
@@ -135,10 +136,14 @@ const EmployeeModule = (() => {
     const canEdit    = Auth.can('employee','edit');
     const canFinance = Auth.can('emp_finance','view');
 
+    const missingGrup = active.filter(e => !e.grupGajian).length;
+
     // Apply filter
     let filtered = active;
     if (_filterStatus) filtered = filtered.filter(e=>e.status===_filterStatus);
     if (_filterDept)   filtered = filtered.filter(e=>(e.divisi||e.departemen)===_filterDept);
+    if (_filterGrup === '__none__') filtered = filtered.filter(e => !e.grupGajian);
+    else if (_filterGrup) filtered = filtered.filter(e => e.grupGajian === _filterGrup);
     if (_searchQ) {
       const q = _searchQ.toLowerCase();
       filtered = filtered.filter(e =>
@@ -210,6 +215,13 @@ const EmployeeModule = (() => {
         <div style="font-size:28px;opacity:.3">💰</div>
       </div>` : ''}
 
+<!-- Missing Grup Gajian warning -->
+      ${missingGrup > 0 ? `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.35);border-radius:8px;margin-bottom:var(--s3)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2" width="16" height="16" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span style="font-size:13px;color:#c2410c;font-weight:500">${missingGrup} karyawan belum memiliki Grup Gajian</span>
+        ${canEdit ? `<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:#c2410c;border-color:rgba(249,115,22,.4)" onclick="EmployeeModule.setFilter('grup','__none__')">Lihat</button>` : ''}
+      </div>` : ''}
+
 <!-- Filter & Sort -->
       <div class="filter-bar" style="margin-bottom:var(--s3)">
         <input type="text" class="form-control" id="emp-search-bar" style="width:200px"
@@ -219,6 +231,11 @@ const EmployeeModule = (() => {
         <select class="form-control" style="width:160px" onchange="EmployeeModule.setFilter('dept',this.value)">
           <option value="">Semua Departemen</option>
           ${depts.map(d=>`<option value="${d}" ${_filterDept===d?'selected':''}>${d}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:130px" onchange="EmployeeModule.setFilter('grup',this.value)">
+          <option value="">Semua Grup</option>
+          ${['5','12','19','26'].map(g=>`<option value="${g}" ${_filterGrup===g?'selected':''}>Tgl ${g}</option>`).join('')}
+          <option value="__none__" ${_filterGrup==='__none__'?'selected':''}>⚠ Belum diisi</option>
         </select>
         <button class="btn btn-ghost btn-sm" onclick="EmployeeModule.setFilter('reset')" title="Reset filter">↺</button>
         <span class="text-muted text-small" style="margin-left:auto">${filtered.length} karyawan</span>
@@ -235,6 +252,7 @@ const EmployeeModule = (() => {
               <th onclick="EmployeeModule.sortBy('jabatan')" style="cursor:pointer">Jabatan${sortIcon('jabatan')}</th>
               <th onclick="EmployeeModule.sortBy('divisi')" style="cursor:pointer">Divisi${sortIcon('divisi')}</th>
               <th onclick="EmployeeModule.sortBy('status')" style="cursor:pointer">Status${sortIcon('status')}</th>
+              <th onclick="EmployeeModule.sortBy('grupGajian')" style="cursor:pointer">Grup Gajian${sortIcon('grupGajian')}</th>
               <th onclick="EmployeeModule.sortBy('tglJoin')" style="cursor:pointer">Tgl Join${sortIcon('tglJoin')}</th>
               ${canFinance ? `<th onclick="EmployeeModule.sortBy('gaji')" style="cursor:pointer">Gaji${sortIcon('gaji')}</th>` : ''}
               ${canFinance ? `<th onclick="EmployeeModule.sortBy('sisaHutang')" style="cursor:pointer">Hutang${sortIcon('sisaHutang')}</th>` : ''}
@@ -268,6 +286,10 @@ const EmployeeModule = (() => {
                   <td>${emp.jabatan||'-'}</td>
                   <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
                   <td onclick="event.stopPropagation()">${_statusDropdown(emp)}</td>
+                  <td onclick="event.stopPropagation()">${emp.grupGajian
+                    ? `<span style="padding:2px 8px;border-radius:4px;background:rgba(99,102,241,.12);color:var(--primary-h);border:1px solid rgba(99,102,241,.3);font-size:11px;font-weight:700">Tgl ${emp.grupGajian}</span>`
+                    : `<button class="btn btn-ghost btn-sm" style="color:#c2410c;border-color:rgba(249,115,22,.4);font-size:11px;padding:2px 8px" onclick="EmployeeModule.openEmpModal('${emp.id}')">⚠ Isi</button>`}
+                  </td>
                   <td class="text-small text-muted">${_fmtTgl(emp.tglJoin||emp.tgl_join||emp.tglMasuk)}</td>
                   ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,false):'-'}</td>` : ''}
                   ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,false):'-'}</td>` : ''}
@@ -283,7 +305,7 @@ const EmployeeModule = (() => {
                     </div>
                   </td>` : ''}
                 </tr>`;
-              }).join('') : `<tr><td colspan="${7+(canFinance?2:0)+(canEdit?1:0)}" style="text-align:center;padding:40px;color:var(--text-3)">
+              }).join('') : `<tr><td colspan="${8+(canFinance?2:0)+(canEdit?1:0)}" style="text-align:center;padding:40px;color:var(--text-3)">
                 Belum ada data karyawan
               </td></tr>`}
             </tbody>
@@ -302,7 +324,8 @@ const EmployeeModule = (() => {
   function setFilter(key, val) {
     if (key==='status') _filterStatus = val;
     else if (key==='dept') _filterDept = val;
-    else if (key==='reset') { _filterStatus=''; _filterDept=''; }
+    else if (key==='grup') _filterGrup = val;
+    else if (key==='reset') { _filterStatus=''; _filterDept=''; _filterGrup=''; }
     renderData();
   }
 
@@ -814,19 +837,29 @@ const EmployeeModule = (() => {
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Tgl Masuk</label>
-            <input type="date" name="tglMasuk" class="form-control" value="${d.tglMasuk||''}">
+            <label class="form-label">Grup Gajian <span class="req">*</span></label>
+            <select name="grupGajian" class="form-control" style="${!d.grupGajian?'border-color:rgba(249,115,22,.6)':''}">
+              <option value="">— Pilih Tanggal Gajian —</option>
+              ${['5','12','19','26'].map(g=>`<option value="${g}" ${d.grupGajian===g?'selected':''}>Tanggal ${g}</option>`).join('')}
+            </select>
+            ${!d.grupGajian ? `<div style="font-size:11px;color:#c2410c;margin-top:3px">⚠ Wajib diisi agar tidak tertinggal saat payroll</div>` : ''}
           </div>
           <div class="form-group">
-            <label class="form-label">Gaji Pokok</label>
-            <input type="number" name="gajiPokok" class="form-control" value="${d.gajiPokok||0}">
+            <label class="form-label">Tgl Masuk</label>
+            <input type="date" name="tglMasuk" class="form-control" value="${d.tglMasuk||''}">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
+            <label class="form-label">Gaji Pokok</label>
+            <input type="number" name="gajiPokok" class="form-control" value="${d.gajiPokok||0}">
+          </div>
+          <div class="form-group">
             <label class="form-label">No. Rekening</label>
             <input name="noRek" class="form-control" value="${d.noRek||''}">
           </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
             <label class="form-label">Tgl Keluar</label>
             <input type="date" name="tglKeluar" class="form-control" value="${d.tglKeluar||''}">
@@ -848,6 +881,7 @@ const EmployeeModule = (() => {
     const fd   = new FormData(document.getElementById('emp-form'));
     const data = Object.fromEntries(fd.entries());
     if (!data.nama) { Notify.warning('Nama wajib diisi'); return; }
+    if (!data.grupGajian) { Notify.warning('Grup Gajian belum diisi untuk ' + data.nama + ' — karyawan bisa tertinggal saat payroll'); }
     data.gajiPokok = parseInt(data.gajiPokok)||0;
     if (editId) data.id = editId;
     // Handle foto upload
@@ -1321,6 +1355,8 @@ const EmployeeModule = (() => {
     let filtered = active;
     if (_filterStatus) filtered = filtered.filter(e=>e.status===_filterStatus);
     if (_filterDept)   filtered = filtered.filter(e=>(e.divisi||e.departemen)===_filterDept);
+    if (_filterGrup === '__none__') filtered = filtered.filter(e => !e.grupGajian);
+    else if (_filterGrup) filtered = filtered.filter(e => e.grupGajian === _filterGrup);
     if (_searchQ) {
       const q = _searchQ.toLowerCase();
       filtered = filtered.filter(e =>
@@ -1360,7 +1396,7 @@ const EmployeeModule = (() => {
     if (!tbody) { renderData(); return; }
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="${7+(canFinance?2:0)+(canEdit?1:0)}" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada data yang cocok</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${8+(canFinance?2:0)+(canEdit?1:0)}" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada data yang cocok</td></tr>`;
       return;
     }
 
@@ -1389,6 +1425,10 @@ const EmployeeModule = (() => {
         <td>${emp.jabatan||'-'}</td>
         <td><span class="badge badge-neutral">${emp.divisi||emp.departemen||'-'}</span></td>
         <td onclick="event.stopPropagation()">${_statusDropdown(emp)}</td>
+        <td onclick="event.stopPropagation()">${emp.grupGajian
+          ? `<span style="padding:2px 8px;border-radius:4px;background:rgba(99,102,241,.12);color:var(--primary-h);border:1px solid rgba(99,102,241,.3);font-size:11px;font-weight:700">Tgl ${emp.grupGajian}</span>`
+          : `<button class="btn btn-ghost btn-sm" style="color:#c2410c;border-color:rgba(249,115,22,.4);font-size:11px;padding:2px 8px" onclick="EmployeeModule.openEmpModal('${emp.id}')">⚠ Isi</button>`}
+        </td>
         <td class="text-small text-muted">${_fmtTgl(emp.tglJoin||emp.tgl_join||emp.tglMasuk)}</td>
         ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono)">${emp.gaji?Utils.formatRupiah(emp.gaji,false):'-'}</td>` : ''}
         ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,false):'-'}</td>` : ''}
@@ -2103,9 +2143,13 @@ const EmployeeModule = (() => {
   async function _markPayrollLunas(payId) {
     const p = _payroll.find(x => x.id === payId);
     if (!p) return;
+    const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const bulanNama  = MONTH_NAMES[(p.bulan||1)-1];
+    const potHutang  = p.potonganHutang || 0;
     const ok = await Modal.confirm({
       title: 'Tandai Lunas?',
-      message: `Gaji <strong>${p.empNama}</strong> sebesar <strong>${Utils.formatRupiah(p.totalGaji,false)}</strong> sudah dibayarkan?`,
+      message: `Gaji <strong>${p.empNama}</strong> sebesar <strong>${Utils.formatRupiah(p.totalGaji,false)}</strong> sudah dibayarkan?`
+        + (potHutang > 0 ? `<br><span style="font-size:12px;color:var(--warning)">⚠ Potongan hutang ${Utils.formatRupiah(potHutang,false)} akan otomatis dicatat di logbook.</span>` : ''),
       confirmText: 'Ya, Lunas',
     });
     if (!ok) return;
@@ -2115,8 +2159,35 @@ const EmployeeModule = (() => {
       const saved = await DB.saveEmpPayroll(p);
       const i = _payroll.findIndex(x => x.id === payId);
       if (i >= 0) _payroll[i] = saved;
+
+      // Auto-catat bayar hutang ke logbook jika ada potongan hutang
+      if (potHutang > 0) {
+        const logEntry = {
+          employeeId:  p.empId,
+          nama:        p.empNama,
+          tgl:         p.tglDibayar,
+          bulan:       p.bulan,
+          hutang:      0,
+          bayar:       potHutang,
+          ket:         'Potongan gaji ' + bulanNama + ' ' + p.tahun,
+          pj:          'Payroll',
+          konfirmasi:  'CONFIRMED',
+        };
+        const savedLog = await DB.saveEmployeeLog(logEntry).catch(() => null);
+        if (savedLog) {
+          _logs.push(savedLog);
+          _lbLocked.add(savedLog.id);
+          _lbSaveLocks();
+          _recalcHutang(p.empNama);
+          Notify.success('Gaji ' + p.empNama + ' lunas ✓ · Bayar hutang ' + Utils.formatRupiah(potHutang,false) + ' dicatat di logbook');
+        } else {
+          Notify.success('Gaji ' + p.empNama + ' ditandai lunas ✓');
+        }
+      } else {
+        Notify.success('Gaji ' + p.empNama + ' ditandai lunas ✓');
+      }
+
       renderPayroll();
-      Notify.success('Gaji ' + p.empNama + ' ditandai lunas ✓');
     } catch(e) { Notify.error('Gagal', e.message); }
   }
 
