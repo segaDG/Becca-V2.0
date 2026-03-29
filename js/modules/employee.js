@@ -17,6 +17,20 @@ const EmployeeModule = (() => {
   let _filterDept   = '';
   let _selectedEmpId = null;  // for card view
 
+  // Absensi state
+  let _absensi  = [];
+  let _absMonth = new Date().getMonth() + 1;
+  let _absYear  = new Date().getFullYear();
+
+  // Payroll state
+  let _payroll  = [];
+  let _payMonth = new Date().getMonth() + 1;
+  let _payYear  = new Date().getFullYear();
+
+  // Jadwal Shift state
+  let _jadwal          = [];
+  let _jadwalWeekStart = null; // computed lazily via _getMonday()
+
   const _EMP_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6'];
   function _empColor(nama) {
     let h = 0;
@@ -56,11 +70,17 @@ const EmployeeModule = (() => {
         <button class="tab-btn active" id="emp-tab-btn-data"    data-tab="data"    onclick="EmployeeModule.switchTab('data')">👥 Data Karyawan</button>
         <button class="tab-btn"        id="emp-tab-btn-card"    data-tab="card"    onclick="EmployeeModule.switchTab('card')">🪪 Employee Card</button>
         ${Auth.can('emp_finance','view') ? `<button class="tab-btn" id="emp-tab-btn-logbook" data-tab="logbook" onclick="EmployeeModule.switchTab('logbook')">📋 Logbook</button>` : ''}
+        <button class="tab-btn"        id="emp-tab-btn-absensi" data-tab="absensi" onclick="EmployeeModule.switchTab('absensi')">📅 Absensi</button>
+        ${Auth.can('emp_finance','view') ? `<button class="tab-btn" id="emp-tab-btn-payroll" data-tab="payroll" onclick="EmployeeModule.switchTab('payroll')">💰 Payroll</button>` : ''}
+        <button class="tab-btn"        id="emp-tab-btn-jadwal"  data-tab="jadwal"  onclick="EmployeeModule.switchTab('jadwal')">🗓 Jadwal Shift</button>
         <button class="tab-btn"        id="emp-tab-btn-arsip"   data-tab="arsip"   onclick="EmployeeModule.switchTab('arsip')">📁 Arsip</button>
       </div>
       <div id="emp-tab-data"></div>
       <div id="emp-tab-card"    class="hidden"></div>
       <div id="emp-tab-logbook" class="hidden"></div>
+      <div id="emp-tab-absensi" class="hidden"></div>
+      <div id="emp-tab-payroll" class="hidden"></div>
+      <div id="emp-tab-jadwal"  class="hidden"></div>
       <div id="emp-tab-arsip"   class="hidden"></div>
     `;
 
@@ -72,9 +92,12 @@ const EmployeeModule = (() => {
     const _skelEl = document.getElementById('emp-tab-data');
     if (_skelEl && !_employees.length) _skelEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="animation:spin 1s linear infinite;opacity:.4"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div style="margin-top:12px;font-size:13px">Memuat data karyawan...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
 
-    [_employees, _logs] = await Promise.all([
+    [_employees, _logs, _absensi, _payroll, _jadwal] = await Promise.all([
       DB.getEmployees().catch(()=>[]),
       DB.getEmployeeLogs().catch(()=>[]),
+      DB.getEmpAbsensi().catch(()=>[]),
+      DB.getEmpPayroll().catch(()=>[]),
+      DB.getEmpJadwal().catch(()=>[]),
     ]);
     _lbLoadLocks();
     // Auto-lock semua rows yang sudah ada saat init (setelah reload)
@@ -88,7 +111,7 @@ const EmployeeModule = (() => {
   /* ===================== TAB SWITCH ===================== */
   function switchTab(tab) {
     _activeTab = tab;
-    ['data','card','logbook','arsip'].forEach(t => {
+    ['data','card','logbook','absensi','payroll','jadwal','arsip'].forEach(t => {
       const el = document.getElementById('emp-tab-'+t);
       if (el) el.classList.toggle('hidden', t !== tab);
       const btn = document.getElementById('emp-tab-btn-'+t);
@@ -97,6 +120,9 @@ const EmployeeModule = (() => {
     if (tab === 'data')    renderData();
     if (tab === 'card')    renderCard(_selectedEmpId);
     if (tab === 'logbook') renderLogbook();
+    if (tab === 'absensi') renderAbsensi();
+    if (tab === 'payroll') renderPayroll();
+    if (tab === 'jadwal')  renderJadwal();
     if (tab === 'arsip')   renderArsip();
   }
 
@@ -1591,12 +1617,668 @@ const EmployeeModule = (() => {
     return m ? m[3]+'-'+m[2]+'-'+m[1] : String(d);
   }
 
+  /* ============================================================
+     ABSENSI HARIAN
+  ============================================================ */
+  const _ABS_STATUS = ['H','S','I','A','C'];
+  const _ABS_LABEL  = {H:'Hadir', S:'Sakit', I:'Izin', A:'Alpha', C:'Cuti'};
+  const _ABS_COLOR  = {
+    H:'background:rgba(34,197,94,.15);color:#16a34a;border:1px solid rgba(34,197,94,.4)',
+    S:'background:rgba(234,179,8,.15);color:#b45309;border:1px solid rgba(234,179,8,.4)',
+    I:'background:rgba(59,130,246,.15);color:#2563eb;border:1px solid rgba(59,130,246,.4)',
+    A:'background:rgba(239,68,68,.18);color:#dc2626;border:1px solid rgba(239,68,68,.4)',
+    C:'background:rgba(139,92,246,.15);color:#7c3aed;border:1px solid rgba(139,92,246,.4)',
+  };
+
+  function renderAbsensi() {
+    const el = document.getElementById('emp-tab-absensi');
+    if (!el) return;
+    const ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const emps   = _employees.filter(e => ACTIVE.includes(e.status));
+    if (!emps.length) {
+      el.innerHTML = '<div class="empty-state"><p>Belum ada karyawan aktif</p></div>';
+      return;
+    }
+    const year  = _absYear;
+    const month = _absMonth;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const days  = Array.from({length: daysInMonth}, (_,i) => i+1);
+    const DAY_SH = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
+    const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+    // Lookup: (empId or empNama) + '_' + tgl → absensi record
+    const absMap = {};
+    _absensi.forEach(a => {
+      if (!a.tgl) return;
+      const d = new Date(a.tgl + 'T00:00:00');
+      if (d.getFullYear() === year && d.getMonth() + 1 === month) {
+        absMap[(a.empId || a.empNama) + '_' + a.tgl] = a;
+      }
+    });
+
+    const canEdit = Auth.can('employee','edit');
+
+    el.innerHTML = `
+      <div class="filter-bar" style="margin-bottom:var(--s4)">
+        <select class="form-control" style="width:140px" onchange="EmployeeModule._absSetMonth(this.value,'month')">
+          ${MONTH_NAMES.map((m,i)=>`<option value="${i+1}" ${(i+1)===month?'selected':''}>${m}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:90px" onchange="EmployeeModule._absSetMonth(this.value,'year')">
+          ${[year-1,year,year+1].map(y=>`<option value="${y}" ${y===year?'selected':''}>${y}</option>`).join('')}
+        </select>
+        <div style="margin-left:auto;display:flex;gap:var(--s2)">
+          ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="EmployeeModule._bulkAbsensi('H')" title="Tandai semua Hadir hari ini">✅ Hadir Semua</button>
+          <button class="btn btn-primary btn-sm" onclick="EmployeeModule.openAbsensiModal()">+ Input</button>` : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--s3);font-size:12px">
+        ${Object.entries(_ABS_LABEL).map(([k,v])=>`<span style="padding:2px 8px;border-radius:4px;${_ABS_COLOR[k]}">${k} = ${v}</span>`).join('')}
+        ${canEdit ? '<span style="padding:2px 8px;border-radius:4px;border:1px dashed var(--border);color:var(--text-3);font-size:11px">· = kosong (klik untuk isi)</span>' : ''}
+      </div>
+      <div class="table-wrapper"><div class="table-scroll" style="-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
+        <table class="table" style="font-size:12px;min-width:${160+daysInMonth*30}px">
+          <thead><tr>
+            <th style="min-width:130px;position:sticky;left:0;background:var(--surface);z-index:2">Karyawan</th>
+            ${days.map(d=>{
+              const dow = new Date(year,month-1,d).getDay();
+              return `<th style="width:30px;text-align:center;padding:4px 2px;${dow===0?'color:var(--danger)':dow===6?'color:var(--primary-h)':''}">
+                <div style="font-size:11px">${d}</div><div style="font-size:9px;font-weight:400">${DAY_SH[dow]}</div>
+              </th>`;
+            }).join('')}
+            <th style="text-align:center;color:var(--success);white-space:nowrap">H</th>
+            <th style="text-align:center;color:var(--warning)">S</th>
+            <th style="text-align:center;color:var(--primary-h)">I</th>
+            <th style="text-align:center;color:var(--danger)">A</th>
+            <th style="text-align:center;color:#7c3aed">C</th>
+          </tr></thead>
+          <tbody>
+            ${emps.map(emp=>{
+              const empKey = emp.id || emp.nama;
+              let cH=0,cS=0,cI=0,cA=0,cC=0;
+              const cells = days.map(d=>{
+                const tgl = year+'-'+String(month).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+                const rec = absMap[empKey+'_'+tgl] || absMap[emp.nama+'_'+tgl];
+                const s   = rec ? rec.status : '';
+                if(s==='H')cH++; if(s==='S')cS++; if(s==='I')cI++; if(s==='A')cA++; if(s==='C')cC++;
+                const isSun = new Date(year,month-1,d).getDay()===0;
+                return `<td style="text-align:center;padding:3px 1px;${isSun?'background:rgba(239,68,68,.04)':''}">
+                  <span style="display:inline-block;width:22px;height:22px;line-height:22px;border-radius:4px;font-size:11px;font-weight:700;text-align:center;${s?_ABS_COLOR[s]:'border:1px solid var(--border);color:var(--text-3)'};${canEdit?'cursor:pointer':''}"
+                    ${canEdit?`onclick="EmployeeModule._cycleAbsensi('${emp.id}','${emp.nama.replace(/'/g,'')}','${tgl}')"`:''} title="${s?_ABS_LABEL[s]:canEdit?'Klik untuk set':''}">${s||'·'}</span>
+                </td>`;
+              }).join('');
+              return `<tr>
+                <td style="position:sticky;left:0;background:var(--surface);z-index:1;white-space:nowrap">
+                  <div style="display:flex;align-items:center;gap:6px">${_empAvatar(emp,22)}<span style="font-weight:500;font-size:12px">${emp.nama}</span></div>
+                </td>
+                ${cells}
+                <td style="text-align:center;font-weight:700;color:var(--success)">${cH||''}</td>
+                <td style="text-align:center;font-weight:700;color:var(--warning)">${cS||''}</td>
+                <td style="text-align:center;font-weight:700;color:var(--primary-h)">${cI||''}</td>
+                <td style="text-align:center;font-weight:700;color:var(--danger)">${cA||''}</td>
+                <td style="text-align:center;font-weight:700;color:#7c3aed">${cC||''}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div></div>`;
+  }
+
+  function _absSetMonth(val, type) {
+    if (type === 'month') _absMonth = parseInt(val);
+    else _absYear = parseInt(val);
+    renderAbsensi();
+  }
+
+  async function _cycleAbsensi(empId, empNama, tgl) {
+    if (!Auth.can('employee','edit')) return;
+    const existing = _absensi.find(a => (a.empId===empId || a.empNama===empNama) && a.tgl===tgl);
+    const cur  = existing ? _ABS_STATUS.indexOf(existing.status) : -1;
+    const next = _ABS_STATUS[cur + 1]; // undefined when at end → clear
+
+    if (!next) {
+      if (existing) {
+        await DB.deleteEmpAbsensi(existing.id).catch(()=>{});
+        _absensi = _absensi.filter(a => a.id !== existing.id);
+      }
+    } else if (existing) {
+      existing.status = next;
+      const saved = await DB.saveEmpAbsensi(existing).catch(()=>existing);
+      const i = _absensi.findIndex(a => a.id === existing.id);
+      if (i >= 0) _absensi[i] = saved;
+    } else {
+      const rec   = {empId, empNama, tgl, status: next, createdAt: new Date().toISOString()};
+      const saved = await DB.saveEmpAbsensi(rec).catch(()=>rec);
+      _absensi.push(saved);
+    }
+    renderAbsensi();
+  }
+
+  async function _bulkAbsensi(status) {
+    if (!Auth.can('employee','edit')) return;
+    const today = new Date().toISOString().split('T')[0];
+    const ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const emps   = _employees.filter(e => ACTIVE.includes(e.status));
+    for (const emp of emps) {
+      const ex = _absensi.find(a => (a.empId===emp.id||a.empNama===emp.nama) && a.tgl===today);
+      if (ex) {
+        ex.status = status;
+        const saved = await DB.saveEmpAbsensi(ex).catch(()=>ex);
+        const i = _absensi.findIndex(a=>a.id===ex.id);
+        if (i>=0) _absensi[i] = saved;
+      } else {
+        const rec   = {empId:emp.id, empNama:emp.nama, tgl:today, status, createdAt:new Date().toISOString()};
+        const saved = await DB.saveEmpAbsensi(rec).catch(()=>rec);
+        _absensi.push(saved);
+      }
+    }
+    const now = new Date();
+    _absMonth = now.getMonth()+1; _absYear = now.getFullYear();
+    renderAbsensi();
+    Notify.success('Absensi hari ini: ' + status + ' untuk ' + emps.length + ' karyawan');
+  }
+
+  function openAbsensiModal(empId, tgl) {
+    const ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const empOpts = _employees.filter(e=>ACTIVE.includes(e.status))
+      .map(e=>`<option value="${e.id}" data-nama="${e.nama.replace(/"/g,'')}" ${e.id===empId?'selected':''}>${e.nama}</option>`).join('');
+    const today = tgl || new Date().toISOString().split('T')[0];
+    const mid = Utils.uid();
+    Modal.open({ id: mid, title: 'Input Absensi',
+      body: `<form id="abs-form">
+        <div class="form-group">
+          <label class="form-label">Karyawan <span class="req">*</span></label>
+          <select name="empId" class="form-control" required id="abs-emp-sel" onchange="EmployeeModule._absEmpChange(this)">
+            <option value="">Pilih karyawan...</option>${empOpts}
+          </select>
+          <input type="hidden" name="empNama" id="abs-emp-nama">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tanggal</label>
+            <input type="date" name="tgl" class="form-control" value="${today}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <select name="status" class="form-control">
+              ${_ABS_STATUS.map(s=>`<option value="${s}">${s} — ${_ABS_LABEL[s]}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Keterangan</label>
+          <input name="ket" class="form-control" placeholder="Opsional...">
+        </div>
+      </form>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+               <button class="btn btn-primary" onclick="EmployeeModule._submitAbsensi('${mid}')">Simpan</button>`,
+    });
+  }
+
+  function _absEmpChange(sel) {
+    const opt = sel.options[sel.selectedIndex];
+    const el  = document.getElementById('abs-emp-nama');
+    if (el) el.value = opt?.dataset?.nama || '';
+  }
+
+  async function _submitAbsensi(mid) {
+    const fd   = new FormData(document.getElementById('abs-form'));
+    const data = Object.fromEntries(fd.entries());
+    if (!data.empId) { Notify.warning('Pilih karyawan'); return; }
+    if (!data.tgl)   { Notify.warning('Tanggal wajib diisi'); return; }
+    const emp = _employees.find(e => e.id === data.empId);
+    if (emp) data.empNama = emp.nama;
+    const ex = _absensi.find(a => (a.empId===data.empId||a.empNama===data.empNama) && a.tgl===data.tgl);
+    if (ex) { data.id = ex.id; data.createdAt = ex.createdAt; }
+    else { data.createdAt = new Date().toISOString(); }
+    try {
+      const saved = await DB.saveEmpAbsensi(data);
+      if (ex) { const i=_absensi.findIndex(a=>a.id===saved.id); if(i>=0)_absensi[i]=saved; }
+      else { _absensi.push(saved); }
+      const d = new Date(data.tgl + 'T00:00:00');
+      _absMonth = d.getMonth()+1; _absYear = d.getFullYear();
+      renderAbsensi();
+      Modal.close(mid);
+      Notify.success('Absensi disimpan');
+    } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
+  /* ============================================================
+     PAYROLL / SLIP GAJI
+  ============================================================ */
+  function renderPayroll() {
+    const el = document.getElementById('emp-tab-payroll');
+    if (!el) return;
+    const canFinance = Auth.can('emp_finance','view');
+    const canEdit    = Auth.can('employee','edit');
+    if (!canFinance) {
+      el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" style="opacity:.3"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><h4>Akses Terbatas</h4><p>Fitur payroll hanya untuk peran dengan akses keuangan</p></div>';
+      return;
+    }
+    const year  = _payYear;
+    const month = _payMonth;
+    const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const monthName  = MONTH_NAMES[month-1];
+    const monthPay   = _payroll.filter(p => p.bulan===month && p.tahun===year);
+    const totalGross = monthPay.reduce((s,p)=>s+(p.gajiPokok||0),0);
+    const totalNet   = monthPay.reduce((s,p)=>s+(p.totalGaji||0),0);
+    const lunas      = monthPay.filter(p=>p.statusPayroll==='Lunas').length;
+
+    el.innerHTML = `
+      <div class="filter-bar" style="margin-bottom:var(--s4)">
+        <select class="form-control" style="width:140px" onchange="EmployeeModule._paySetMonth(this.value,'month')">
+          ${MONTH_NAMES.map((m,i)=>`<option value="${i+1}" ${(i+1)===month?'selected':''}>${m}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:90px" onchange="EmployeeModule._paySetMonth(this.value,'year')">
+          ${[year-1,year,year+1].map(y=>`<option value="${y}" ${y===year?'selected':''}>${y}</option>`).join('')}
+        </select>
+        ${canEdit?`<button class="btn btn-primary btn-sm" onclick="EmployeeModule.generatePayroll()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg> Generate Payroll
+        </button>`:''}
+        <span class="text-muted text-small" style="margin-left:auto">${monthPay.length} karyawan · ${lunas}/${monthPay.length} lunas</span>
+      </div>
+      ${monthPay.length ? `
+      <div style="display:flex;gap:var(--s3);flex-wrap:wrap;margin-bottom:var(--s4)">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 150px">
+          <div style="font-size:11px;color:var(--text-3)">Total Gaji Kotor</div>
+          <div style="font-size:16px;font-weight:700;font-family:var(--font-mono)">${Utils.formatRupiah(totalGross,false)}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 150px">
+          <div style="font-size:11px;color:var(--text-3)">Total Take-Home</div>
+          <div style="font-size:16px;font-weight:700;font-family:var(--font-mono);color:var(--success)">${Utils.formatRupiah(totalNet,false)}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 120px">
+          <div style="font-size:11px;color:var(--text-3)">Status Pembayaran</div>
+          <div style="font-size:16px;font-weight:700">${lunas}/${monthPay.length} Lunas</div>
+        </div>
+      </div>
+      <div class="table-wrapper"><div class="table-scroll" style="-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
+        <table class="table">
+          <thead><tr>
+            <th>#</th><th>Karyawan</th>
+            <th class="num">Gaji Pokok</th>
+            <th class="num" style="color:var(--danger)">Pot. Alpha</th>
+            <th class="num" style="color:var(--danger)">Pot. Hutang</th>
+            <th class="num" style="color:var(--success)">Bonus</th>
+            <th class="num" style="color:var(--success)">Lembur</th>
+            <th class="num" style="font-weight:700">Take-Home</th>
+            <th>Status</th>
+            <th style="width:80px">Aksi</th>
+          </tr></thead>
+          <tbody>
+            ${monthPay.map((p,i)=>{
+              const lunas = p.statusPayroll==='Lunas';
+              return `<tr>
+                <td class="text-muted">${i+1}</td>
+                <td style="font-weight:600">${p.empNama||'-'}</td>
+                <td class="num" style="font-family:var(--font-mono)">${Utils.formatRupiah(p.gajiPokok||0,false)}</td>
+                <td class="num" style="font-family:var(--font-mono);color:${(p.potonganAbsensi||0)>0?'var(--danger)':'var(--text-3)'}">${(p.potonganAbsensi||0)>0?'- '+Utils.formatRupiah(p.potonganAbsensi,false):'-'}</td>
+                <td class="num" style="font-family:var(--font-mono);color:${(p.potonganHutang||0)>0?'var(--danger)':'var(--text-3)'}">${(p.potonganHutang||0)>0?'- '+Utils.formatRupiah(p.potonganHutang,false):'-'}</td>
+                <td class="num" style="font-family:var(--font-mono);color:${(p.bonus||0)>0?'var(--success)':'var(--text-3)'}">${(p.bonus||0)>0?'+ '+Utils.formatRupiah(p.bonus,false):'-'}</td>
+                <td class="num" style="font-family:var(--font-mono);color:${(p.lembur||0)>0?'var(--success)':'var(--text-3)'}">${(p.lembur||0)>0?'+ '+Utils.formatRupiah(p.lembur,false):'-'}</td>
+                <td class="num" style="font-family:var(--font-mono);font-weight:700">${Utils.formatRupiah(p.totalGaji||0,false)}</td>
+                <td><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;${lunas?'background:rgba(34,197,94,.15);color:#16a34a':'background:rgba(234,179,8,.15);color:#b45309'}">${lunas?'✓ Lunas':'Draft'}</span></td>
+                <td>
+                  <div style="display:flex;gap:3px">
+                    <button class="btn-icon" title="Slip Gaji" onclick="EmployeeModule.openSlipGaji('${p.id}')">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    </button>
+                    ${canEdit&&!lunas?`
+                    <button class="btn-icon" title="Edit Bonus/Lembur" onclick="EmployeeModule._editPayrollRow('${p.id}')">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+                    </button>
+                    <button class="btn-icon" title="Tandai Lunas" style="color:var(--success)" onclick="EmployeeModule._markPayrollLunas('${p.id}')">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M20 6L9 17l-5-5"/></svg>
+                    </button>`:''}
+                  </div>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div></div>
+      ` : `<div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40" style="opacity:.3"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        <h4>Belum ada payroll ${monthName} ${year}</h4>
+        <p>${canEdit?'Klik "Generate Payroll" untuk membuat data gaji bulan ini':'Belum ada data'}</p>
+      </div>`}`;
+  }
+
+  function _paySetMonth(val, type) {
+    if (type === 'month') _payMonth = parseInt(val);
+    else _payYear = parseInt(val);
+    renderPayroll();
+  }
+
+  async function generatePayroll() {
+    const year  = _payYear;
+    const month = _payMonth;
+    const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const monthName  = MONTH_NAMES[month-1];
+    const existing   = _payroll.filter(p => p.bulan===month && p.tahun===year);
+    if (existing.length) {
+      const ok = await Modal.confirm({
+        title: 'Tambah ke Payroll?',
+        message: `Payroll ${monthName} ${year} sudah ada (${existing.length} data). Karyawan yang belum ada akan ditambahkan.`,
+        confirmText: 'Lanjutkan',
+      });
+      if (!ok) return;
+    }
+    const ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const emps   = _employees.filter(e => ACTIVE.includes(e.status));
+    // Count workdays (Mon-Sat) in this month
+    const daysInMonth = new Date(year, month, 0).getDate();
+    let hariKerja = 0;
+    for (let d=1; d<=daysInMonth; d++) {
+      if (new Date(year, month-1, d).getDay() !== 0) hariKerja++;
+    }
+    let created = 0;
+    for (const emp of emps) {
+      if (existing.find(p => p.empId === emp.id)) continue; // skip if already exists
+      const empAbs = _absensi.filter(a => {
+        if (a.empId !== emp.id && a.empNama !== emp.nama) return false;
+        const d = new Date(a.tgl + 'T00:00:00');
+        return d.getFullYear()===year && d.getMonth()+1===month;
+      });
+      const hariAlpha   = empAbs.filter(a => a.status==='A').length;
+      const gajiPokok   = emp.gajiPokok || emp.gaji || 0;
+      const gajiPerHari = hariKerja > 0 ? Math.round(gajiPokok / hariKerja) : 0;
+      const potAbsensi  = hariAlpha * gajiPerHari;
+      const sisaHutang  = emp.sisaHutang || 0;
+      const potHutang   = Math.min(sisaHutang, Math.floor(gajiPokok * 0.5));
+      const totalGaji   = Math.max(0, gajiPokok - potAbsensi - potHutang);
+      const rec = {
+        empId: emp.id, empNama: emp.nama,
+        bulan: month, tahun: year,
+        gajiPokok, potonganAbsensi: potAbsensi, potonganHutang: potHutang,
+        bonus: 0, lembur: 0, totalGaji,
+        statusPayroll: 'Draft', hariKerja, hariAlpha,
+        createdAt: new Date().toISOString(),
+      };
+      try {
+        const saved = await DB.saveEmpPayroll(rec);
+        _payroll.push(saved);
+        created++;
+      } catch(e) { console.warn('[Payroll] save failed:', e.message); }
+    }
+    renderPayroll();
+    Notify.success('Payroll ' + monthName + ' ' + year + ': ' + created + ' karyawan dibuat');
+  }
+
+  function openSlipGaji(payId) {
+    const p = _payroll.find(x => x.id === payId);
+    if (!p) return;
+    const emp = _employees.find(e => e.id === p.empId);
+    const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const monthName  = MONTH_NAMES[(p.bulan||1)-1];
+    const companyName = (window._beccaSettings||{}).namaPerusahaan || (window._beccaSettings||{}).nama || 'Perusahaan';
+    const mid = Utils.uid();
+    Modal.open({ id: mid, title: 'Slip Gaji — ' + p.empNama, size: 'modal-md',
+      body: `<div id="slip-print-${mid}" style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;border:1px solid var(--border);border-radius:8px">
+        <div style="text-align:center;border-bottom:2px solid var(--border);padding-bottom:14px;margin-bottom:16px">
+          <div style="font-size:18px;font-weight:800;color:var(--heading)">${companyName}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-top:2px;text-transform:uppercase;letter-spacing:.06em">Slip Gaji Karyawan</div>
+          <div style="font-size:13px;font-weight:700;margin-top:6px">${monthName} ${p.tahun}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:13px">
+          <div><div style="font-size:10px;color:var(--text-3);text-transform:uppercase">Nama</div><div style="font-weight:600">${p.empNama}</div></div>
+          <div><div style="font-size:10px;color:var(--text-3);text-transform:uppercase">Jabatan</div><div style="font-weight:600">${emp?.jabatan||'-'}</div></div>
+          <div><div style="font-size:10px;color:var(--text-3);text-transform:uppercase">Divisi</div><div style="font-weight:600">${emp?.divisi||emp?.departemen||'-'}</div></div>
+          <div><div style="font-size:10px;color:var(--text-3);text-transform:uppercase">Status</div><div style="font-weight:600">${emp?.status||'-'}</div></div>
+        </div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:6px">Pendapatan</div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;border-bottom:1px solid var(--border2)">
+            <span>Gaji Pokok (${p.hariKerja||'-'} hari kerja)</span>
+            <span style="font-weight:600;font-family:monospace">${Utils.formatRupiah(p.gajiPokok||0,false)}</span>
+          </div>
+          ${(p.bonus||0)>0?`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;border-bottom:1px solid var(--border2)"><span>Bonus</span><span style="font-weight:600;font-family:monospace;color:var(--success)">${Utils.formatRupiah(p.bonus,false)}</span></div>`:''}
+          ${(p.lembur||0)>0?`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;border-bottom:1px solid var(--border2)"><span>Lembur</span><span style="font-weight:600;font-family:monospace;color:var(--success)">${Utils.formatRupiah(p.lembur,false)}</span></div>`:''}
+        </div>
+        ${((p.potonganAbsensi||0)+(p.potonganHutang||0))>0?`
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:6px">Potongan</div>
+          ${(p.potonganAbsensi||0)>0?`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;border-bottom:1px solid var(--border2)"><span>Alpha (${p.hariAlpha||0} hari)</span><span style="font-weight:600;font-family:monospace;color:var(--danger)">- ${Utils.formatRupiah(p.potonganAbsensi,false)}</span></div>`:''}
+          ${(p.potonganHutang||0)>0?`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;border-bottom:1px solid var(--border2)"><span>Potongan Hutang</span><span style="font-weight:600;font-family:monospace;color:var(--danger)">- ${Utils.formatRupiah(p.potonganHutang,false)}</span></div>`:''}
+        </div>`:''}
+        <div style="border-top:2px solid var(--border);padding-top:12px;margin-top:4px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:14px;font-weight:700">TOTAL TAKE-HOME</span>
+          <span style="font-size:20px;font-weight:800;font-family:monospace;color:var(--primary-h)">${Utils.formatRupiah(p.totalGaji||0,false)}</span>
+        </div>
+        <div style="margin-top:20px;padding-top:12px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;font-size:11px;color:var(--text-3)">
+          <span>Diterbitkan: ${new Date().toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})}</span>
+          <span style="font-weight:700;color:${p.statusPayroll==='Lunas'?'var(--success)':'var(--warning)'}">${p.statusPayroll==='Lunas'?'✓ SUDAH DIBAYAR':'BELUM DIBAYAR'}</span>
+        </div>
+      </div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
+               <button class="btn btn-primary" onclick="window.print()">🖨 Cetak</button>`,
+    });
+  }
+
+  function _editPayrollRow(payId) {
+    const p = _payroll.find(x => x.id === payId);
+    if (!p) return;
+    const mid = Utils.uid();
+    Modal.open({ id: mid, title: 'Edit Payroll — ' + p.empNama,
+      body: `<form id="pay-edit-form">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Bonus</label>
+            <input type="number" name="bonus" class="form-control" value="${p.bonus||0}" min="0"></div>
+          <div class="form-group"><label class="form-label">Lembur</label>
+            <input type="number" name="lembur" class="form-control" value="${p.lembur||0}" min="0"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Potongan Absensi</label>
+            <input type="number" name="potonganAbsensi" class="form-control" value="${p.potonganAbsensi||0}" min="0"></div>
+          <div class="form-group"><label class="form-label">Potongan Hutang</label>
+            <input type="number" name="potonganHutang" class="form-control" value="${p.potonganHutang||0}" min="0"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Keterangan</label>
+          <input name="ket" class="form-control" value="${p.ket||''}"></div>
+      </form>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+               <button class="btn btn-primary" onclick="EmployeeModule._submitPayrollEdit('${mid}','${payId}')">Simpan</button>`,
+    });
+  }
+
+  async function _submitPayrollEdit(mid, payId) {
+    const fd = new FormData(document.getElementById('pay-edit-form'));
+    const p  = _payroll.find(x => x.id === payId);
+    if (!p) return;
+    p.bonus           = parseInt(fd.get('bonus'))||0;
+    p.lembur          = parseInt(fd.get('lembur'))||0;
+    p.potonganAbsensi = parseInt(fd.get('potonganAbsensi'))||0;
+    p.potonganHutang  = parseInt(fd.get('potonganHutang'))||0;
+    p.ket             = fd.get('ket')||'';
+    p.totalGaji = Math.max(0, (p.gajiPokok||0) - p.potonganAbsensi - p.potonganHutang + p.bonus + p.lembur);
+    try {
+      const saved = await DB.saveEmpPayroll(p);
+      const i = _payroll.findIndex(x => x.id === payId);
+      if (i >= 0) _payroll[i] = saved;
+      renderPayroll();
+      Modal.close(mid);
+      Notify.success('Payroll diperbarui');
+    } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
+  async function _markPayrollLunas(payId) {
+    const p = _payroll.find(x => x.id === payId);
+    if (!p) return;
+    const ok = await Modal.confirm({
+      title: 'Tandai Lunas?',
+      message: `Gaji <strong>${p.empNama}</strong> sebesar <strong>${Utils.formatRupiah(p.totalGaji,false)}</strong> sudah dibayarkan?`,
+      confirmText: 'Ya, Lunas',
+    });
+    if (!ok) return;
+    p.statusPayroll = 'Lunas';
+    p.tglDibayar    = new Date().toISOString().split('T')[0];
+    try {
+      const saved = await DB.saveEmpPayroll(p);
+      const i = _payroll.findIndex(x => x.id === payId);
+      if (i >= 0) _payroll[i] = saved;
+      renderPayroll();
+      Notify.success('Gaji ' + p.empNama + ' ditandai lunas ✓');
+    } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
+  /* ============================================================
+     JADWAL SHIFT
+  ============================================================ */
+  const _SHIFT_CYCLE = ['','1','2','3','Off'];
+  const _SHIFT_LABEL = {'1':'Shift 1','2':'Shift 2','3':'Shift 3','Off':'Off'};
+  const _SHIFT_COLOR = {
+    '1':'background:rgba(59,130,246,.15);color:#2563eb;border:1px solid rgba(59,130,246,.4)',
+    '2':'background:rgba(34,197,94,.15);color:#16a34a;border:1px solid rgba(34,197,94,.4)',
+    '3':'background:rgba(249,115,22,.15);color:#c2410c;border:1px solid rgba(249,115,22,.4)',
+    'Off':'background:rgba(148,163,184,.15);color:#64748b;border:1px solid rgba(148,163,184,.4)',
+  };
+  const _JDWL_DAY_NAMES = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+
+  function _getMonday(d) {
+    const dt  = new Date(d);
+    const day = dt.getDay();
+    dt.setDate(dt.getDate() - day + (day === 0 ? -6 : 1));
+    dt.setHours(0,0,0,0);
+    return dt;
+  }
+
+  function renderJadwal() {
+    const el = document.getElementById('emp-tab-jadwal');
+    if (!el) return;
+    if (!_jadwalWeekStart) _jadwalWeekStart = _getMonday(new Date());
+    const ACTIVE   = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const emps     = _employees.filter(e => ACTIVE.includes(e.status));
+    const canEdit  = Auth.can('employee','edit');
+    const weekStart = new Date(_jadwalWeekStart);
+    const weekDays  = Array.from({length:7}, (_,i) => { const d=new Date(weekStart); d.setDate(weekStart.getDate()+i); return d; });
+    const weekLabel = weekDays[0].toLocaleDateString('id-ID',{day:'numeric',month:'short'}) + ' – ' +
+                      weekDays[6].toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'});
+    const today = new Date().toISOString().split('T')[0];
+
+    // Build lookup: (empId or empNama)+'_'+tgl → jadwal
+    const jMap = {};
+    _jadwal.forEach(j => { jMap[(j.empId||j.empNama)+'_'+j.tgl] = j; });
+
+    el.innerHTML = `
+      <div class="filter-bar" style="margin-bottom:var(--s4)">
+        <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._jadwalPrevWeek()">← Sebelumnya</button>
+        <span style="font-weight:600;font-size:13px;padding:0 var(--s2)">${weekLabel}</span>
+        <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._jadwalNextWeek()">Berikutnya →</button>
+        <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._jadwalThisWeek()">Minggu Ini</button>
+        ${canEdit?`<div style="margin-left:auto;display:flex;gap:var(--s2)">
+          <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._jadwalFillAll('1')" title="Isi semua Shift 1 (Senin-Sabtu)">Fill Shift 1</button>
+          <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._jadwalFillAll('2')" title="Isi semua Shift 2 (Senin-Sabtu)">Fill Shift 2</button>
+          <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._jadwalFillAll('3')" title="Isi semua Shift 3 (Senin-Sabtu)">Fill Shift 3</button>
+        </div>`:''}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--s3);font-size:12px">
+        ${Object.entries(_SHIFT_LABEL).map(([k,v])=>`<span style="padding:2px 10px;border-radius:4px;${_SHIFT_COLOR[k]}">${v}</span>`).join('')}
+        ${canEdit?'<span style="padding:2px 10px;border-radius:4px;border:1px dashed var(--border);color:var(--text-3);font-size:11px">Klik sel untuk ganti shift</span>':''}
+      </div>
+      <div class="table-wrapper"><div class="table-scroll" style="-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
+        <table class="table" style="min-width:660px">
+          <thead><tr>
+            <th style="min-width:120px;position:sticky;left:0;background:var(--surface);z-index:2">Karyawan</th>
+            ${weekDays.map(d=>{
+              const tgl    = d.toISOString().split('T')[0];
+              const isSun  = d.getDay()===0;
+              const isSat  = d.getDay()===6;
+              const isTday = tgl===today;
+              return `<th style="text-align:center;${isSun?'color:var(--danger)':isSat?'color:var(--primary-h)':''};${isTday?'background:rgba(99,102,241,.06)':''}">
+                <div style="font-size:12px;${isTday?'font-weight:800;color:var(--primary-h)':''}">${_JDWL_DAY_NAMES[d.getDay()]}</div>
+                <div style="font-size:11px;font-weight:${isTday?700:400};color:var(--text-3)">${d.getDate()}/${d.getMonth()+1}</div>
+              </th>`;
+            }).join('')}
+          </tr></thead>
+          <tbody>
+            ${emps.map(emp=>{
+              const cells = weekDays.map(d=>{
+                const tgl    = d.toISOString().split('T')[0];
+                const rec    = jMap[(emp.id||emp.nama)+'_'+tgl] || jMap[emp.nama+'_'+tgl];
+                const shift  = rec ? (rec.shift||'') : '';
+                const isTday = tgl===today;
+                return `<td style="text-align:center;padding:5px 4px;${isTday?'background:rgba(99,102,241,.04)':''}">
+                  <span style="display:inline-block;padding:3px 0;width:68px;border-radius:6px;font-size:12px;font-weight:700;${shift?_SHIFT_COLOR[shift]:'border:1px dashed var(--border);color:var(--text-3)'};${canEdit?'cursor:pointer':''}"
+                    ${canEdit?`onclick="EmployeeModule._cycleJadwal('${emp.id}','${emp.nama.replace(/'/g,'')}','${tgl}')"`:''} title="${shift?_SHIFT_LABEL[shift]:canEdit?'Klik untuk set':''}">${shift?_SHIFT_LABEL[shift]:'·'}</span>
+                </td>`;
+              }).join('');
+              return `<tr>
+                <td style="position:sticky;left:0;background:var(--surface);z-index:1;white-space:nowrap">
+                  <div style="display:flex;align-items:center;gap:6px">${_empAvatar(emp,22)}<span style="font-weight:500;font-size:12px">${emp.nama}</span></div>
+                </td>${cells}
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div></div>`;
+  }
+
+  async function _cycleJadwal(empId, empNama, tgl) {
+    if (!Auth.can('employee','edit')) return;
+    const ex  = _jadwal.find(j => (j.empId===empId||j.empNama===empNama) && j.tgl===tgl);
+    const cur = _SHIFT_CYCLE.indexOf(ex ? (ex.shift||'') : '');
+    const next = _SHIFT_CYCLE[(cur+1) % _SHIFT_CYCLE.length];
+    if (!next) {
+      if (ex) {
+        await DB.deleteEmpJadwal(ex.id).catch(()=>{});
+        _jadwal = _jadwal.filter(j => j.id !== ex.id);
+      }
+    } else if (ex) {
+      ex.shift = next;
+      const saved = await DB.saveEmpJadwal(ex).catch(()=>ex);
+      const i = _jadwal.findIndex(j => j.id === ex.id);
+      if (i >= 0) _jadwal[i] = saved;
+    } else {
+      const rec   = {empId, empNama, tgl, shift: next, createdAt: new Date().toISOString()};
+      const saved = await DB.saveEmpJadwal(rec).catch(()=>rec);
+      _jadwal.push(saved);
+    }
+    renderJadwal();
+  }
+
+  function _jadwalPrevWeek() { _jadwalWeekStart = new Date(_jadwalWeekStart); _jadwalWeekStart.setDate(_jadwalWeekStart.getDate()-7); renderJadwal(); }
+  function _jadwalNextWeek() { _jadwalWeekStart = new Date(_jadwalWeekStart); _jadwalWeekStart.setDate(_jadwalWeekStart.getDate()+7); renderJadwal(); }
+  function _jadwalThisWeek() { _jadwalWeekStart = _getMonday(new Date()); renderJadwal(); }
+
+  async function _jadwalFillAll(shift) {
+    if (!Auth.can('employee','edit')) return;
+    const ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
+    const emps   = _employees.filter(e => ACTIVE.includes(e.status));
+    if (!_jadwalWeekStart) _jadwalWeekStart = _getMonday(new Date());
+    const ws = new Date(_jadwalWeekStart);
+    for (const emp of emps) {
+      for (let i=0; i<6; i++) { // Mon(0)→Sat(5), skip Sun
+        const d = new Date(ws);
+        d.setDate(ws.getDate()+i);
+        const tgl = d.toISOString().split('T')[0];
+        const ex  = _jadwal.find(j => (j.empId===emp.id||j.empNama===emp.nama) && j.tgl===tgl);
+        if (ex) {
+          ex.shift = shift;
+          const saved = await DB.saveEmpJadwal(ex).catch(()=>ex);
+          const i2 = _jadwal.findIndex(j=>j.id===ex.id);
+          if (i2>=0) _jadwal[i2]=saved;
+        } else {
+          const rec   = {empId:emp.id, empNama:emp.nama, tgl, shift, createdAt:new Date().toISOString()};
+          const saved = await DB.saveEmpJadwal(rec).catch(()=>rec);
+          _jadwal.push(saved);
+        }
+      }
+    }
+    renderJadwal();
+    Notify.success('Jadwal minggu ini: Shift '+shift+' untuk '+emps.length+' karyawan');
+  }
+
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip, _deleteEmpFromArsip,
     _handleFotoUpload, _removeFoto, _handleKtpUpload, _removeKtp, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter, migratePhotosFromLS,
     _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, recalcAllHutang, _showLogDetail,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
+    // Absensi
+    renderAbsensi, _absSetMonth, _cycleAbsensi, _bulkAbsensi, openAbsensiModal, _absEmpChange, _submitAbsensi,
+    // Payroll
+    renderPayroll, _paySetMonth, generatePayroll, openSlipGaji, _editPayrollRow, _submitPayrollEdit, _markPayrollLunas,
+    // Jadwal Shift
+    renderJadwal, _cycleJadwal, _jadwalPrevWeek, _jadwalNextWeek, _jadwalThisWeek, _jadwalFillAll,
     get _selectedEmpId() { return _selectedEmpId; },
     set _selectedEmpId(v) { _selectedEmpId = v; },
   };

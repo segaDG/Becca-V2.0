@@ -165,7 +165,7 @@ const DB = (() => {
   const NO_CREATED_AT = ['settings', 'presence', 'activity_logs', 'opname_logs'];
 
   // Table yang tidak punya updated_at column
-  const NO_UPDATED_AT = ['activity_logs', 'opname_logs', 'emp_logs', 'kas', 'kas_masuk'];
+  const NO_UPDATED_AT = ['activity_logs', 'opname_logs', 'emp_logs', 'kas', 'kas_masuk', 'emp_absensi', 'emp_payroll', 'emp_jadwal'];
 
   // Table yang TIDAK dicache di localStorage (selalu fetch fresh dari Supabase)
   // invoices masuk NO_CACHE agar skeleton rows dari Supabase tidak overwrite
@@ -495,6 +495,21 @@ const DB = (() => {
   };
   const saveEmployeeLog   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('emp_logs', data); };
   const deleteEmployeeLog = (id)   => _delete('emp_logs', id);
+
+  // ── EMP ABSENSI ────────────────────────────────────────────
+  const getEmpAbsensi    = ()     => _get('emp_absensi');
+  const saveEmpAbsensi   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('emp_absensi', data); };
+  const deleteEmpAbsensi = (id)   => _delete('emp_absensi', id);
+
+  // ── EMP PAYROLL ────────────────────────────────────────────
+  const getEmpPayroll    = ()     => _get('emp_payroll');
+  const saveEmpPayroll   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('emp_payroll', data); };
+  const deleteEmpPayroll = (id)   => _delete('emp_payroll', id);
+
+  // ── EMP JADWAL SHIFT ───────────────────────────────────────
+  const getEmpJadwal    = ()     => _get('emp_jadwal');
+  const saveEmpJadwal   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('emp_jadwal', data); };
+  const deleteEmpJadwal = (id)   => _delete('emp_jadwal', id);
 
   // ── ACCOUNT PAYABLE ───────────────────────────────────────
   const getAP         = ()     => _get('ap');
@@ -938,6 +953,9 @@ const DB = (() => {
     // Employees
     getEmployees, saveEmployee, deleteEmployee,
     getEmployeeLogs, saveEmployeeLog, deleteEmployeeLog,
+    getEmpAbsensi, saveEmpAbsensi, deleteEmpAbsensi,
+    getEmpPayroll, saveEmpPayroll, deleteEmpPayroll,
+    getEmpJadwal, saveEmpJadwal, deleteEmpJadwal,
     // AP
     getAP, saveAP, deleteAP, getSuppliers, saveSupplier, deleteSupplier,
     // Tasks
