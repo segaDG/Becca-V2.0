@@ -965,9 +965,13 @@ const InventoryModule = (() => {
     setTimeout(() => {
       const txtEl = document.getElementById('ivf-item-txt-'+id);
       if (txtEl) {
+        // Frequency: count how many times each itemId appears in logs
+        const freq = {};
+        _logs.forEach(l => { if (l.itemId) freq[l.itemId] = (freq[l.itemId] || 0) + 1; });
         Utils.initCombo(txtEl,
           _items.map(i => ({ label: i.nama + (i.satuan ? ' ('+i.satuan+')' : ''), value: i.id, nama: i.nama })),
-          { onSelect: entry => {
+          { frequency: freq,
+            onSelect: entry => {
               const hid = document.getElementById('ivf-item-'+id);
               if (hid) { hid.value = entry.value; hid.dataset.nama = entry.nama; }
               _ivOnItemSelect(id, entry.value, entry.label);

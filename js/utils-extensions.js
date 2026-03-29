@@ -73,13 +73,15 @@ Object.assign(Utils, {
   },
 
   /* ── Searchable combobox ──────────────────────────────────
-     initCombo(inputEl, items, { onSelect })
-     items: string[] | {label, value, ...extra}[]
+     initCombo(inputEl, items, { onSelect, frequency })
+     items     : string[] | {label, value, ...extra}[]
+     frequency : { [value]: number } — higher = shown first
      Returns { destroy() }
   ─────────────────────────────────────────────────────────── */
-  initCombo(inputEl, items, { onSelect } = {}) {
-    const norm = arr => arr.map(i => typeof i === 'string' ? { label: i, value: i } : i);
+  initCombo(inputEl, items, { onSelect, frequency } = {}) {
+    const norm    = arr => arr.map(i => typeof i === 'string' ? { label: i, value: i } : i);
     const entries = norm(items);
+    const freq    = frequency || {};
 
     const drop = document.createElement('div');
     drop.className = 'becca-combo-drop';
@@ -93,7 +95,17 @@ Object.assign(Utils, {
 
     function _matches(q) {
       const lq = q.toLowerCase();
-      return entries.filter(e => e.label.toLowerCase().includes(lq));
+      const ms = entries.filter(e => e.label.toLowerCase().includes(lq));
+      // Sort: starts-with first, then by frequency desc, then alphabetical
+      ms.sort((a, b) => {
+        const as = a.label.toLowerCase().startsWith(lq);
+        const bs = b.label.toLowerCase().startsWith(lq);
+        if (as !== bs) return as ? -1 : 1;
+        const fd = (freq[b.value] || 0) - (freq[a.value] || 0);
+        if (fd !== 0) return fd;
+        return a.label.localeCompare(b.label);
+      });
+      return ms;
     }
 
     function _hl(q, text) {
@@ -102,10 +114,19 @@ Object.assign(Utils, {
     }
 
     function _pos() {
-      const r = inputEl.getBoundingClientRect();
-      drop.style.left  = r.left + 'px';
-      drop.style.top   = (r.bottom + 3) + 'px';
-      drop.style.width = Math.max(r.width, 200) + 'px';
+      const r    = inputEl.getBoundingClientRect();
+      const vh   = window.innerHeight;
+      const dh   = drop.offsetHeight || 200;
+      const gap  = 4;
+      const w    = Math.max(r.width, 200);
+      drop.style.left  = Math.min(r.left, window.innerWidth - w - 8) + 'px';
+      drop.style.width = w + 'px';
+      // Flip above if not enough room below but more room above
+      if (vh - r.bottom - gap >= dh || vh - r.bottom >= r.top) {
+        drop.style.top = (r.bottom + gap) + 'px';
+      } else {
+        drop.style.top = Math.max(gap, r.top - dh - gap) + 'px';
+      }
     }
 
     function _render(q) {
@@ -113,23 +134,27 @@ Object.assign(Utils, {
       if (!ms.length || !q.trim()) { _hide(); return; }
       activeIdx = 0;
       drop.innerHTML = ms.map((m, i) =>
-        `<div class="bcc-i" data-i="${i}" style="padding:8px 12px;cursor:pointer;border-radius:6px;` +
-        `font-size:13px;font-weight:600;` +
+        `<div class="bcc-i" data-i="${i}" style="padding:6px 10px;cursor:pointer;border-radius:6px;` +
+        `font-size:11.5px;font-weight:600;line-height:1.4;` +
         `color:${i === 0 ? '#4f46e5' : 'var(--text,#111)'};` +
-        `background:${i === 0 ? 'rgba(99,102,241,.09)' : 'transparent'}">${_hl(q.trim(), m.label)}</div>`
+        `background:${i === 0 ? 'rgba(99,102,241,.09)' : 'transparent'}">${_hl(q.trim(), m.label)}` +
+        (freq[m.value] > 1 ? `<span style="float:right;font-size:10px;font-weight:400;color:var(--text-3,#9ca3af);margin-left:8px">${freq[m.value]}×</span>` : '') +
+        `</div>`
       ).join('');
+      drop.style.visibility = 'hidden';
+      drop.style.display    = 'block';
       _pos();
-      drop.style.display = 'block';
+      drop.style.visibility = '';
       drop.querySelectorAll('.bcc-i').forEach(el => {
         el.addEventListener('mouseenter', () => { activeIdx = +el.dataset.i; _upd(); });
-        el.addEventListener('mousedown', e => { e.preventDefault(); _pick(ms, +el.dataset.i); });
+        el.addEventListener('mousedown',  e  => { e.preventDefault(); _pick(ms, +el.dataset.i); });
       });
     }
 
     function _upd() {
       drop.querySelectorAll('.bcc-i').forEach((el, i) => {
         el.style.background = i === activeIdx ? 'rgba(99,102,241,.09)' : '';
-        el.style.color = i === activeIdx ? '#4f46e5' : 'var(--text,#111)';
+        el.style.color      = i === activeIdx ? '#4f46e5' : 'var(--text,#111)';
       });
     }
 
