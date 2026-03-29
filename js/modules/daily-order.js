@@ -802,13 +802,6 @@ const DailyOrderModule = (() => {
   }
 
   function _htmlEditRow(it, idx) {
-    const dlId   = 'di-inv-list';
-    const unique = _inventory.length
-      ? [...new Set(_inventory.map(i => i.nama).filter(Boolean))].sort()
-      : [];
-    const dlHtml = unique.length
-      ? `<datalist id="${dlId}">${unique.map(n => `<option value="${n}">`).join('')}</datalist>`
-      : '';
     const harga0 = _n(it?.hargaSatuan);
     const estQ0  = _n(it?.estQty);
     const aktQ0  = _n(it?.aktQty);
@@ -820,11 +813,9 @@ const DailyOrderModule = (() => {
       <tr style="border-bottom:1px solid var(--border);background:rgba(99,102,241,.04)">
         <td style="padding:4px 3px;text-align:center;color:var(--primary);font-size:11px;font-weight:700">${isNew?'✦':idx+1}</td>
         <td style="padding:4px 3px;min-width:140px">
-          ${dlHtml}
           <input type="hidden" id="di-stok" value="${stok0}">
-          <input id="di-item" list="${dlId}" class="form-control" style="${inp('min-width:120px')}"
+          <input id="di-item" class="form-control" style="${inp('min-width:120px')}"
             placeholder="Nama bahan..." value="${it?.item||''}"
-            oninput="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
             onchange="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._editKeyDown(event,'di-estqty')">
         </td>
@@ -1105,18 +1096,28 @@ const DailyOrderModule = (() => {
     }
   }
 
+  function _initItemCombo() {
+    const el = document.getElementById('di-item');
+    if (!el || el._comboInit) return;
+    el._comboInit = true;
+    const names = [...new Set(_inventory.map(i => i.nama).filter(Boolean))].sort();
+    Utils.initCombo(el, names, {
+      onSelect: () => { _autoFillFromInventory(); _liveCompute(); }
+    });
+  }
+
   function startAddItem() {
     const form = _currentForm();
     if (!form) { Notify.warning('Buat form produksi dulu'); return; }
     _editingItemId = 'new';
     _renderContent();
-    setTimeout(() => document.getElementById('di-item')?.focus(), 60);
+    setTimeout(() => { _initItemCombo(); document.getElementById('di-item')?.focus(); }, 60);
   }
 
   function startEditItem(itemId) {
     _editingItemId = itemId;
     _renderContent();
-    setTimeout(() => document.getElementById('di-item')?.focus(), 60);
+    setTimeout(() => { _initItemCombo(); document.getElementById('di-item')?.focus(); }, 60);
   }
 
   async function deleteItem(itemId) {

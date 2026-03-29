@@ -449,6 +449,7 @@ const InventoryModule = (() => {
   // FIX: named function so removeEventListener works correctly
   function _ivOutsideClick(e) {
     if (!_invEditId) return;
+    if (e.target.closest('.becca-combo-drop')) return; // ignore clicks inside combo dropdown
     const el = document.getElementById('iv-row-'+_invEditId);
     if (el && !el.contains(e.target)) {
       const id = _invEditId;
@@ -656,12 +657,16 @@ const InventoryModule = (() => {
   }
 
   function _ivRowEdit(r, rowNum, canEdit) {
-    const itemOpts  = _items.map(it=>`<option value="${it.id}" ${r.itemId===it.id?'selected':''}>${it.nama} (${it.satuan||''})</option>`).join('');
     const jenisOpts = ['MASUK','KELUAR'].map(j=>`<option value="${j}" ${r.jenis===j?'selected':''}>${j}</option>`).join('');
+    const curNama   = r.itemId ? (_items.find(i=>i.id===r.itemId)?.nama || r.itemNama || '') : '';
     return `<tr class="iv-editing" id="iv-row-${r.id}" data-id="${r.id}" onclick="event.stopPropagation()">
       <td><div class="ivc" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
       <td><input class="iv-inp" type="date" value="${r.tgl||''}" id="ivf-tgl-${r.id}" onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"></td>
-      <td><select class="iv-sel" id="ivf-item-${r.id}" onchange="InventoryModule._ivOnItemSelect('${r.id}',this.value,this.options[this.selectedIndex].text)"><option value="">Pilih barang...</option>${itemOpts}</select></td>
+      <td style="position:relative;min-width:150px">
+        <input type="hidden" id="ivf-item-${r.id}" value="${r.itemId||''}" data-nama="${Utils.esc(curNama)}">
+        <input class="iv-inp" id="ivf-item-txt-${r.id}" type="text" autocomplete="off"
+          placeholder="Cari barang..." value="${Utils.esc(curNama)}" style="min-width:140px">
+      </td>
       <td><select class="iv-sel" id="ivf-jenis-${r.id}" 
             onchange="InventoryModule._onJenisChange('${r.id}')"
             ${!r.itemId ? 'disabled style="opacity:.4;cursor:not-allowed" title=\"Pilih barang dulu\"' : ''}>${jenisOpts}</select></td>
@@ -915,13 +920,13 @@ const InventoryModule = (() => {
     }
   }
 
-    function _ivReadDOM(id) {
+  function _ivReadDOM(id) {
     const g = (suf) => document.getElementById('ivf-'+suf+'-'+id);
-    const itemSel = g('item');
+    const itemHid = g('item');
     return {
-      tgl:       g('tgl')?.value     || '',
-      itemId:    itemSel?.value      || '',
-      itemNama:  itemSel?.options[itemSel?.selectedIndex]?.text?.split(' (')[0] || '',
+      tgl:       g('tgl')?.value        || '',
+      itemId:    itemHid?.value         || '',
+      itemNama:  itemHid?.dataset?.nama || g('item-txt')?.value?.trim() || '',
       jenis:     g('jenis')?.value   || 'MASUK',
       jumlah:         parseFloat(g('jumlah')?.value) || 0,
       harga:          parseFloat(g('harga')?.value)  || 0,
@@ -958,7 +963,18 @@ const InventoryModule = (() => {
     const rowNum  = allRows.indexOf(trEl)+1;
     trEl.outerHTML = _ivRowEdit(row, rowNum, true);
     setTimeout(() => {
-      document.getElementById('ivf-item-'+id)?.focus();
+      const txtEl = document.getElementById('ivf-item-txt-'+id);
+      if (txtEl) {
+        Utils.initCombo(txtEl,
+          _items.map(i => ({ label: i.nama + (i.satuan ? ' ('+i.satuan+')' : ''), value: i.id, nama: i.nama })),
+          { onSelect: entry => {
+              const hid = document.getElementById('ivf-item-'+id);
+              if (hid) { hid.value = entry.value; hid.dataset.nama = entry.nama; }
+              _ivOnItemSelect(id, entry.value, entry.label);
+          }}
+        );
+        txtEl.focus();
+      }
       document.addEventListener('click', _ivOutsideClick);
     }, 50);
   }
