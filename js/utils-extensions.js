@@ -85,10 +85,11 @@ Object.assign(Utils, {
 
     const drop = document.createElement('div');
     drop.className = 'becca-combo-drop';
-    drop.style.cssText = 'position:fixed;z-index:99999;background:var(--surface,#fff);' +
-      'border:1.5px solid #6366f1;border-radius:10px;' +
-      'box-shadow:0 6px 32px rgba(0,0,0,.2);' +
-      'max-height:240px;overflow-y:auto;display:none;padding:4px';
+    drop.style.cssText = 'position:fixed;z-index:99999;' +
+      'background:var(--surface3,#2d3748);' +
+      'border:1.5px solid var(--primary,#6366f1);border-radius:10px;' +
+      'box-shadow:0 8px 32px rgba(0,0,0,.55);' +
+      'overflow-y:auto;display:none;padding:4px';
     document.body.appendChild(drop);
 
     let activeIdx = 0;
@@ -110,22 +111,28 @@ Object.assign(Utils, {
 
     function _hl(q, text) {
       const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
-      return text.replace(re, '<mark style="background:#ede9fe;color:#4f46e5;font-weight:700;border-radius:2px;padding:0 1px">$1</mark>');
+      return text.replace(re, '<mark style="background:rgba(99,102,241,.45);color:#c7d2fe;font-weight:700;border-radius:2px;padding:0 1px">$1</mark>');
     }
 
     function _pos() {
-      const r    = inputEl.getBoundingClientRect();
-      const vh   = window.innerHeight;
-      const dh   = drop.offsetHeight || 200;
-      const gap  = 4;
-      const w    = Math.max(r.width, 200);
-      drop.style.left  = Math.min(r.left, window.innerWidth - w - 8) + 'px';
+      const r      = inputEl.getBoundingClientRect();
+      const vh     = window.innerHeight;
+      const gap    = 6;
+      const w      = Math.max(r.width, 200);
+      const maxH   = 240;
+      const spBelow = Math.max(0, vh - r.bottom - gap);
+      const spAbove = Math.max(0, r.top - gap);
+      drop.style.left  = Math.min(r.left, Math.max(0, window.innerWidth - w - 8)) + 'px';
       drop.style.width = w + 'px';
-      // Flip above if not enough room below but more room above
-      if (vh - r.bottom - gap >= dh || vh - r.bottom >= r.top) {
-        drop.style.top = (r.bottom + gap) + 'px';
+      if (spBelow >= 100 || spBelow >= spAbove) {
+        // Go below
+        drop.style.maxHeight = Math.min(maxH, spBelow) + 'px';
+        drop.style.top       = (r.bottom + gap) + 'px';
       } else {
-        drop.style.top = Math.max(gap, r.top - dh - gap) + 'px';
+        // Flip above — limit height to available space above
+        const availH = Math.min(maxH, spAbove);
+        drop.style.maxHeight = availH + 'px';
+        drop.style.top       = (r.top - gap - Math.min(drop.offsetHeight || availH, availH)) + 'px';
       }
     }
 
@@ -135,10 +142,10 @@ Object.assign(Utils, {
       activeIdx = 0;
       drop.innerHTML = ms.map((m, i) =>
         `<div class="bcc-i" data-i="${i}" style="padding:6px 10px;cursor:pointer;border-radius:6px;` +
-        `font-size:11.5px;font-weight:600;line-height:1.4;` +
-        `color:${i === 0 ? '#4f46e5' : 'var(--text,#111)'};` +
-        `background:${i === 0 ? 'rgba(99,102,241,.09)' : 'transparent'}">${_hl(q.trim(), m.label)}` +
-        (freq[m.value] > 1 ? `<span style="float:right;font-size:10px;font-weight:400;color:var(--text-3,#9ca3af);margin-left:8px">${freq[m.value]}×</span>` : '') +
+        `font-size:11px;font-weight:600;line-height:1.4;` +
+        `color:${i === 0 ? '#a5b4fc' : 'var(--text,#e2e8f0)'};` +
+        `background:${i === 0 ? 'rgba(99,102,241,.22)' : 'transparent'}">${_hl(q.trim(), m.label)}` +
+        (freq[m.value] > 1 ? `<span style="float:right;font-size:10px;font-weight:400;color:var(--text-3,#64748b);margin-left:8px">${freq[m.value]}×</span>` : '') +
         `</div>`
       ).join('');
       drop.style.visibility = 'hidden';
@@ -153,8 +160,8 @@ Object.assign(Utils, {
 
     function _upd() {
       drop.querySelectorAll('.bcc-i').forEach((el, i) => {
-        el.style.background = i === activeIdx ? 'rgba(99,102,241,.09)' : '';
-        el.style.color      = i === activeIdx ? '#4f46e5' : 'var(--text,#111)';
+        el.style.background = i === activeIdx ? 'rgba(99,102,241,.22)' : '';
+        el.style.color      = i === activeIdx ? '#a5b4fc' : 'var(--text,#e2e8f0)';
       });
     }
 
