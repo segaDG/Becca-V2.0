@@ -313,7 +313,7 @@ const CustomerModule = (() => {
         [data-theme="dark"] tbody tr:hover .cst-s1,
         [data-theme="dark"] tbody tr:hover .cst-s2 { background:#1e2040!important; }
       </style>
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
         <table style="width:100%;border-collapse:collapse;min-width:2400px;font-size:11px">
 
                <thead>

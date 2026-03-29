@@ -242,9 +242,10 @@
 #content {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: hidden; /* fallback: prevents page-level horizontal scroll */
+  overflow-x: clip;   /* preferred: clips without creating x-scroll context,
+                         allows child overflow-x:auto divs to scroll on mobile */
   padding: var(--s6);
-  /* smooth scrolling */
   scroll-behavior: smooth;
 }
 

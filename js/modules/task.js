@@ -225,7 +225,10 @@ const TaskModule = (() => {
       {key:'done',       label:'✅ Done',          color:'var(--success)', bg:'rgba(16,185,129,.05)',     bd:'rgba(16,185,129,.3)'},
     ];
     el.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:start">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+        padding-bottom:6px;margin-bottom:-6px">
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));
+          gap:12px;align-items:start">
         ${COLS.map(col => {
           const colTasksRaw = data.filter(t =>
             col.key==='todo' ? (t.status==='todo'||!t.status) : t.status===col.key);
@@ -247,6 +250,7 @@ const TaskModule = (() => {
               </div>
             </div>`;
         }).join('')}
+        </div>
       </div>`;
   }
 

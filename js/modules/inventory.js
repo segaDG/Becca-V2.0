@@ -1324,42 +1324,44 @@ const InventoryModule = (() => {
         <p>Tidak ada barang yang perlu restock</p>
       </div>` : `
       <div class="table-wrapper">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>#</th><th>Nama Barang</th><th>Kategori</th>
-              <th class="num">Stok Saat Ini</th><th class="num">Stok Min</th>
-              <th>Status</th>
-              ${Auth.can('inventory','edit') ? '<th>Aksi</th>' : ''}
-            </tr>
-          </thead>
-          <tbody>
-            ${low.map((item,i) => {
-              const stok = item._stok || 0;
-              return `
-              <tr style="${stok<=0?'background:rgba(239,68,68,.05)':''}">
-                <td class="text-muted">${i+1}</td>
-                <td class="font-semibold">${item.nama}</td>
-                <td><span class="badge badge-neutral">${item.kategori||'-'}</span></td>
-                <td class="num" style="color:${stok<=0?'var(--danger)':'var(--warning)'};font-weight:700">
-                  ${stok} ${item.satuan||''}
-                </td>
-                <td class="num text-muted">${item.stokMin||0} ${item.satuan||''}</td>
-                <td>
-                  <span class="badge ${stok<=0?'badge-danger':'badge-warning'}">
-                    ${stok<=0?'❌ HABIS':'⚠️ MENIPIS'}
-                  </span>
-                </td>
-                ${Auth.can('inventory','edit') ? `
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>#</th><th>Nama Barang</th><th>Kategori</th>
+                <th class="num">Stok Saat Ini</th><th class="num">Stok Min</th>
+                <th>Status</th>
+                ${Auth.can('inventory','edit') ? '<th>Aksi</th>' : ''}
+              </tr>
+            </thead>
+            <tbody>
+              ${low.map((item,i) => {
+                const stok = item._stok || 0;
+                return `
+                <tr style="${stok<=0?'background:rgba(239,68,68,.05)':''}">
+                  <td class="text-muted">${i+1}</td>
+                  <td class="font-semibold">${item.nama}</td>
+                  <td><span class="badge badge-neutral">${item.kategori||'-'}</span></td>
+                  <td class="num" style="color:${stok<=0?'var(--danger)':'var(--warning)'};font-weight:700">
+                    ${stok} ${item.satuan||''}
+                  </td>
+                  <td class="num text-muted">${item.stokMin||0} ${item.satuan||''}</td>
                   <td>
-                    <button class="btn btn-sm btn-primary" onclick="InventoryModule.openTransaksiModal('${item.id}','MASUK')">
-                      Restock
-                    </button>
-                  </td>` : ''}
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
+                    <span class="badge ${stok<=0?'badge-danger':'badge-warning'}">
+                      ${stok<=0?'❌ HABIS':'⚠️ MENIPIS'}
+                    </span>
+                  </td>
+                  ${Auth.can('inventory','edit') ? `
+                    <td>
+                      <button class="btn btn-sm btn-primary" onclick="InventoryModule.openTransaksiModal('${item.id}','MASUK')">
+                        Restock
+                      </button>
+                    </td>` : ''}
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
       </div>`;
   }
 
