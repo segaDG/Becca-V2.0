@@ -935,7 +935,7 @@ const DailyOrderModule = (() => {
   }
 
   /* Save inline edit row — guarded against double-save */
-  async function _saveEditRow() {
+  async function _saveEditRow(jumpToField) {
     if (_saving) return;
     const form = _currentForm();
     if (!form) return;
@@ -977,7 +977,14 @@ const DailyOrderModule = (() => {
       // After saving existing item → return to view; after adding new → stay in 'new' mode
       _editingItemId = wasNew ? 'new' : null;
       _renderContent();
-      if (!wasNew) Notify.success('Bahan diperbarui');
+      if (!wasNew) {
+        Notify.success('Bahan diperbarui');
+        if (jumpToField && editingId) {
+          const _ni = form.items.findIndex(i => i.id === editingId);
+          const _nxt = form.items[_ni + 1];
+          if (_nxt) setTimeout(() => startEditItem(_nxt.id, jumpToField), 60);
+        }
+      }
       if (wasNew) setTimeout(() => { _initItemCombo(); document.getElementById('di-item')?.focus(); }, 60);
     } catch(e) {
       console.error('[DO] saveRow:', e);
@@ -1127,10 +1134,10 @@ const DailyOrderModule = (() => {
     setTimeout(() => { _initItemCombo(); document.getElementById('di-item')?.focus(); }, 60);
   }
 
-  function startEditItem(itemId) {
+  function startEditItem(itemId, focusField) {
     _editingItemId = itemId;
     _renderContent();
-    setTimeout(() => { _initItemCombo(); document.getElementById('di-item')?.focus(); }, 60);
+    setTimeout(() => { _initItemCombo(); document.getElementById(focusField || 'di-item')?.focus(); }, 60);
   }
 
   async function deleteItem(itemId) {

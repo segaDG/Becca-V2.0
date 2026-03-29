@@ -85,8 +85,14 @@ const NotifCenter = {
 
     } catch(e){ console.error('NotifCenter error:',e); }
 
-    // Filter out dismissed items (session-scoped)
-    this._items = this._items.filter(item => !dismissed.has(this._itemKey(item)));
+    // Filter out dismissed items (session-scoped) + deduplicate by key
+    const _seen = new Set();
+    this._items = this._items.filter(item => {
+      if (dismissed.has(this._itemKey(item))) return false;
+      const k = this._itemKey(item);
+      if (_seen.has(k)) return false;
+      _seen.add(k); return true;
+    });
     this._updateBadge();
     return this._items;
   },

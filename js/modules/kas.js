@@ -402,7 +402,7 @@ const KasModule = (() => {
     }
   }
 
-  function startEdit(id) {
+  function startEdit(id, focusField) {
     if (_editingId === id) return;
     if (_kasLocked.has(id)) {
       // Row terkunci - tidak bisa edit langsung, perlu unlock via # icon
@@ -435,7 +435,7 @@ const KasModule = (() => {
 
     // Focus first text input
     setTimeout(() => {
-      document.getElementById('ks-nama-'+id)?.focus();
+      document.getElementById(focusField || 'ks-nama-'+id)?.focus();
       // Attach outside click AFTER render
       document.addEventListener('click', _handleOutsideClick);
     }, 50);

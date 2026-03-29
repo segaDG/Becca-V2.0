@@ -11,8 +11,8 @@ const App = {
     order     : 'js/modules/order.js?v=20260329e',
     invoice   : 'js/modules/invoice.js?v=20260329e',
     customer  : 'js/modules/customer.js?v=20260329g',
-    kas       : 'js/modules/kas.js?v=20260330b',
-    'daily-order': 'js/modules/daily-order.js?v=20260330e',
+    kas       : 'js/modules/kas.js?v=20260330c',
+    'daily-order': 'js/modules/daily-order.js?v=20260330f',
     inventory : 'js/modules/inventory.js?v=20260330d',
     employee  : 'js/modules/employee.js?v=20260330d',
     ap        : 'js/modules/ap.js?v=20260329e',
@@ -215,7 +215,7 @@ const App = {
     window.addEventListener('resize', () => this._handleResize());
 
     // Load non-critical scripts async — tidak block render awal
-    this._loadScript('js/notifications.js?v=20260326o').catch(() => {});
+    this._loadScript('js/notifications.js?v=20260330a').catch(() => {});
     this._loadScript('js/search-fix.js?v=20260326l').catch(() => {});
     setTimeout(() => { if (typeof NotifCenter !== 'undefined') NotifCenter.refresh(); }, 800);
   },
