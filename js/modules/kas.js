@@ -291,23 +291,23 @@ const KasModule = (() => {
   function _rowView(r, rowNum, canEdit) {
     const sc = r.status==='DONE'?'badge-success':r.status==='TBC'?'badge-warning':'badge-neutral';
     const rowColorClass = r.type==='Kas' ? 'ks-row-kas' : r.status==='DONE' ? 'ks-row-done' : r.status==='TBC' ? 'ks-row-tbc' : '';
-    const ksOnDbl = _kasLocked.has(r.id) ? 'void(0)' : 'KasModule.startEdit(\'' + r.id + '\''+')';
-    return `<tr class="ks-view ${rowColorClass}" id="ks-row-${r.id}" data-id="${r.id}" style="${_kasLocked.has(r.id)?'opacity:.75':''}" ondblclick="${ksOnDbl}">
+    const ksOnDbl = !_kasLocked.has(r.id) ? `KasModule.startEdit('${r.id}',event.target.closest('td')?.dataset?.field)` : '';
+    return `<tr class="ks-view ${rowColorClass}" id="ks-row-${r.id}" data-id="${r.id}" style="${_kasLocked.has(r.id)?'opacity:.75':''};cursor:pointer" ondblclick="${ksOnDbl}">
       <td style="width:28px">
         <div class="ks-cell" style="justify-content:center;font-size:11px;color:var(--text-3)">
           ${_kasLocked.has(r.id)?'<span style="opacity:.4">'+rowNum+'</span>':rowNum}
         </div>
       </td>
-      <td style="white-space:nowrap"><div class="ks-cell">${r.tgl ? r.tgl.split('-').reverse().join('-') : ''}</div></td>
-      <td><div class="ks-cell">${r.nama||''}</div></td>
-      <td><div class="ks-cell"><span class="badge badge-neutral" style="font-size:10px">${r.type||''}</span></div></td>
-      <td><div class="ks-cell">${r.vendor||''}</div></td>
-      <td class="ks-num"><div class="ks-cell">${(r.qty||0)%1===0?(r.qty||0):parseFloat((r.qty||0).toFixed(2))}</div></td>
-      <td><div class="ks-cell">${r.satuan||''}</div></td>
-      <td class="ks-num"><div class="ks-cell">${Utils.formatRupiah(r.hargaSatuan||0)}</div></td>
-      <td class="ks-num"><div class="ks-cell"><strong>${Utils.formatRupiah(r.jumlah||0)}</strong></div></td>
-      <td><div class="ks-cell">${r.penerima||''}</div></td>
-      <td><div class="ks-cell"><span class="badge ${sc}" style="font-size:10px">${r.status||''}</span></div></td>
+      <td data-field="ks-tgl-${r.id}" style="white-space:nowrap"><div class="ks-cell">${r.tgl ? r.tgl.split('-').reverse().join('-') : ''}</div></td>
+      <td data-field="ks-nama-${r.id}"><div class="ks-cell">${r.nama||''}</div></td>
+      <td data-field="ks-type-${r.id}"><div class="ks-cell"><span class="badge badge-neutral" style="font-size:10px">${r.type||''}</span></div></td>
+      <td data-field="ks-vendor-${r.id}"><div class="ks-cell">${r.vendor||''}</div></td>
+      <td data-field="ks-qty-${r.id}" class="ks-num"><div class="ks-cell">${(r.qty||0)%1===0?(r.qty||0):parseFloat((r.qty||0).toFixed(2))}</div></td>
+      <td data-field="ks-sat-${r.id}"><div class="ks-cell">${r.satuan||''}</div></td>
+      <td data-field="ks-harga-${r.id}" class="ks-num"><div class="ks-cell">${Utils.formatRupiah(r.hargaSatuan||0)}</div></td>
+      <td data-field="ks-jumlah-${r.id}" class="ks-num"><div class="ks-cell"><strong>${Utils.formatRupiah(r.jumlah||0)}</strong></div></td>
+      <td data-field="ks-penerima-${r.id}"><div class="ks-cell">${r.penerima||''}</div></td>
+      <td data-field="ks-status-${r.id}"><div class="ks-cell"><span class="badge ${sc}" style="font-size:10px">${r.status||''}</span></div></td>
       ${canEdit?`<td>
         <div style='display:flex;gap:2px;align-items:center'>
           ${_kasLocked.has(r.id)?

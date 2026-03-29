@@ -777,21 +777,21 @@ const DailyOrderModule = (() => {
   function _htmlItemRow(it, i) {
     const sumber = it.sumber || _calcSumber(_n(it.stokGudang), _n(it.aktQty));
     return `
-      <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''};cursor:pointer" ondblclick="DailyOrderModule.startEditItem('${it.id}')" title="Double-klik untuk edit">
+      <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''};cursor:pointer" ondblclick="DailyOrderModule.startEditItem('${it.id}',event.target.closest('td')?.dataset?.field)" title="Double-klik untuk edit">
         <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${i+1}</td>
-        <td style="padding:7px 5px;font-weight:600">${it.item}</td>
-        <td style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
-        <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
-        <td style="padding:7px 5px;text-align:right;color:var(--text-3)">${_n(it.hargaSatuan)?_n(it.hargaSatuan).toLocaleString('id-ID'):'-'}</td>
-        <td style="padding:7px 5px;text-align:right;color:#6366f1">${_n(it.estTotal)?_n(it.estTotal).toLocaleString('id-ID'):'-'}</td>
-        <td style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">${it.aktQty||'-'}</td>
-        <td style="padding:7px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?_n(it.aktTotal).toLocaleString('id-ID'):'-'}</td>
-        <td style="padding:7px 5px;text-align:center">
+        <td data-field="di-item" style="padding:7px 5px;font-weight:600">${it.item}</td>
+        <td data-field="di-estqty" style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
+        <td data-field="di-item" style="padding:7px 5px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
+        <td data-field="di-harga" style="padding:7px 5px;text-align:right;color:var(--text-3)">${_n(it.hargaSatuan)?_n(it.hargaSatuan).toLocaleString('id-ID'):'-'}</td>
+        <td data-field="di-harga" style="padding:7px 5px;text-align:right;color:#6366f1">${_n(it.estTotal)?_n(it.estTotal).toLocaleString('id-ID'):'-'}</td>
+        <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">${it.aktQty||'-'}</td>
+        <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?_n(it.aktTotal).toLocaleString('id-ID'):'-'}</td>
+        <td data-field="di-aktqty" style="padding:7px 5px;text-align:center">
           <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;
             background:${sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'};
             color:${sumber==='PASAR'?'#ef4444':'#10b981'}">${sumber}</span>
         </td>
-        <td style="padding:7px 5px;color:var(--text-3);font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis">${it.catatan||''}</td>
+        <td data-field="di-catatan" style="padding:7px 5px;color:var(--text-3);font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis">${it.catatan||''}</td>
         <td style="padding:7px 5px;text-align:center;white-space:nowrap">
           <button onclick="DailyOrderModule.startEditItem('${it.id}')" title="Edit"
             style="width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:11px">✎</button>
@@ -842,7 +842,7 @@ const DailyOrderModule = (() => {
           <input id="di-aktqty" class="form-control" style="${inp('text-align:right;width:60px')}"
             type="number" step="0.01" min="0" placeholder="0" value="${aktQ0||''}"
             oninput="DailyOrderModule._liveCompute()"
-            onkeydown="DailyOrderModule._editKeyDown(event,'di-catatan')">
+            onkeydown="DailyOrderModule._aktQtyKeyDown(event)">
         </td>
         <td id="di-akttot-d" style="padding:4px 6px;text-align:right;color:#10b981;font-size:11px;white-space:nowrap">
           ${aktQ0&&harga0?(aktQ0*harga0).toLocaleString('id-ID'):'-'}
@@ -916,6 +916,12 @@ const DailyOrderModule = (() => {
     }
   }
 
+  /* Enter on AKT QTY: save + jump to next row's aktqty */
+  function _aktQtyKeyDown(e) {
+    if (e.key === 'Escape') { e.preventDefault(); _cancelEdit(); return; }
+    if (e.key === 'Enter')  { e.preventDefault(); _saveEditRow('di-aktqty'); }
+  }
+
   /* Tab/Enter key navigation between inline inputs */
   function _editKeyDown(e, nextId) {
     if (e.key === 'Enter') {
@@ -954,6 +960,7 @@ const DailyOrderModule = (() => {
     const data    = { item, estQty, satuan, hargaSatuan:harga, aktQty, stokGudang:stokGud, sumber, catatan,
                       estTotal: estQty*harga, aktTotal: aktQty*harga };
 
+    const editingId = _editingItemId !== 'new' ? _editingItemId : null;
     const wasNew = _editingItemId === 'new';
     if (wasNew) {
       form.items.push({ id: 'item_' + Utils.uid(), ...data });
@@ -1168,7 +1175,7 @@ const DailyOrderModule = (() => {
     setFormMonth, prevFormMonth, nextFormMonth,
     createForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, goToDate,
-    _saveEditRow, _cancelEdit, _editKeyDown, _estQtyKeyDown,
+    _saveEditRow, _cancelEdit, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
   };
 })();

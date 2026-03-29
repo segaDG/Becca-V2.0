@@ -618,7 +618,7 @@ const InventoryModule = (() => {
   function _ivRowView(r, rowNum, canEdit) {
     const jColor = r.jenis==='MASUK'?'var(--success)':r.jenis==='KELUAR'?'var(--danger)':'var(--warning)';
     return `<tr class="iv-view" id="iv-row-${r.id}" data-id="${r.id}"
-              ${canEdit && !_invLocked.has(r.id) ? `ondblclick="InventoryModule.startLogEdit('${r.id}')"` : ''}>
+              ${canEdit && !_invLocked.has(r.id) ? `ondblclick="InventoryModule.startLogEdit('${r.id}',event.target.closest('td')?.dataset?.field)"` : ''}>
       <td onclick="event.stopPropagation();${_invLocked.has(r.id)?`InventoryModule.unlockInvRow('${r.id}')`:'void(0)'}"
           title="${_invLocked.has(r.id)?'Klik untuk buka kunci':''}"
           style="cursor:${_invLocked.has(r.id)?'pointer':'default'}">
@@ -626,18 +626,18 @@ const InventoryModule = (() => {
           ${_invLocked.has(r.id) ? '🔒' : rowNum}
         </div>
       </td>
-      <td><div class="ivc">${r.tgl?(r.tgl.split('-').reverse().join('-')):''}</div></td>
-      <td><div class="ivc">${r.itemNama||''}</div></td>
-      <td><div class="ivc"><span class="badge" style="background:${jColor}18;color:${jColor};border:1px solid ${jColor}40;font-size:10px">${r.jenis||''}</span></div></td>
-      <td class="iv-num"><div class="ivc">${r.jumlah||0}</div></td>
-      <td class="iv-num"><div class="ivc">${r.harga?Utils.formatRupiah(r.harga):'-'}</div></td>
-      <td><div class="ivc">${r.kodeAktivitas||''}</div></td>
-      <td style="text-align:center"><div class="ivc" style="justify-content:center">
+      <td data-field="ivf-tgl-${r.id}"><div class="ivc">${r.tgl?(r.tgl.split('-').reverse().join('-')):''}</div></td>
+      <td data-field="ivf-item-txt-${r.id}"><div class="ivc">${r.itemNama||''}</div></td>
+      <td data-field="ivf-jenis-${r.id}"><div class="ivc"><span class="badge" style="background:${jColor}18;color:${jColor};border:1px solid ${jColor}40;font-size:10px">${r.jenis||''}</span></div></td>
+      <td data-field="ivf-jumlah-${r.id}" class="iv-num"><div class="ivc">${r.jumlah||0}</div></td>
+      <td data-field="ivf-harga-${r.id}" class="iv-num"><div class="ivc">${r.harga?Utils.formatRupiah(r.harga):'-'}</div></td>
+      <td data-field="ivf-kode-${r.id}"><div class="ivc">${r.kodeAktivitas||''}</div></td>
+      <td data-field="ivf-hpp-${r.id}" style="text-align:center"><div class="ivc" style="justify-content:center">
         ${r.hpp===true||r.hpp==='ya'?'<span style="font-size:11px;font-weight:600;color:var(--success)">HPP</span>':r.hpp===false||r.hpp==='tidak'?'<span style="font-size:11px;color:var(--text-3)">Non-HPP</span>':'<span style="color:var(--text-3);font-size:11px">—</span>'}
       </div></td>
-      <td><div class="ivc">${r.pengambil||''}</div></td>
-      <td><div class="ivc">${r.penanggungJawab||''}</div></td>
-      <td><div class="ivc">${r.catatan||''}</div></td>
+      <td data-field="ivf-sup-${r.id}"><div class="ivc">${r.pengambil||''}</div></td>
+      <td data-field="ivf-pj-${r.id}"><div class="ivc">${r.penanggungJawab||''}</div></td>
+      <td data-field="ivf-cat-${r.id}"><div class="ivc">${r.catatan||''}</div></td>
       ${canEdit?`<td>
         <div style='display:flex;gap:2px;align-items:center'>
           ${_invLocked.has(r.id)?
@@ -938,7 +938,7 @@ const InventoryModule = (() => {
     };
   }
 
-  function startLogEdit(id) {
+  function startLogEdit(id, focusField) {
     if (_invEditId === id) return;
     if (_invLocked.has(id)) return;  // Row terkunci
     // FIX: remove listener first
@@ -977,7 +977,7 @@ const InventoryModule = (() => {
               _ivOnItemSelect(id, entry.value, entry.label);
           }}
         );
-        txtEl.focus();
+        document.getElementById(focusField || 'ivf-item-txt-'+id)?.focus();
       }
       document.addEventListener('click', _ivOutsideClick);
     }, 50);
