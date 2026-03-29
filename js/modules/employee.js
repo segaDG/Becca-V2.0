@@ -106,6 +106,8 @@ const EmployeeModule = (() => {
     // Auto-lock semua rows yang sudah ada saat init (setelah reload)
     _logs.forEach(l => _lbLocked.add(l.id));
     _lbSaveLocks();
+    // Init face attendance module with latest data
+    if (window.FaceAttendanceModule) FaceAttendanceModule.init(_employees, _absensi);
     switchTab('data');
     // One-time: migrate photos from localStorage to Supabase (runs in background)
     migratePhotosFromLS(_lsEmpSnap).catch(() => {});
@@ -438,9 +440,12 @@ const EmployeeModule = (() => {
       </div>
 
       <!-- Card Footer -->
-      ${canEdit ? `<div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:6px">
+      ${canEdit ? `<div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" style="flex:1" onclick="EmployeeModule.openEmpModal('${emp.id}')">Edit</button>
         <button class="btn btn-ghost btn-sm" style="flex:1" onclick="EmployeeModule.openLogModal('','${emp.id}')">+ Log</button>
+        ${window.FaceAttendanceModule ? `<button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px;${emp.faceDescriptors?.length?'color:var(--success)':''}" onclick="FaceAttendanceModule.openRegisterModal('${emp.id}')" title="${emp.faceDescriptors?.length?'Wajah sudah terdaftar — klik untuk update':'Belum ada data wajah'}">
+          ${emp.faceDescriptors?.length ? '✅ Wajah' : '📷 Wajah'}
+        </button>` : ''}
       </div>` : ''}
     </div>`;
   }
@@ -502,9 +507,12 @@ const EmployeeModule = (() => {
                 <span style="font-size:12px;font-weight:500;color:var(--text);text-align:right;max-width:180px">${f.v}</span>
               </div>`).join('')}
           </div>
-          ${canEdit ? `<div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px">
+          ${canEdit ? `<div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" style="flex:1" onclick="EmployeeModule.openEmpModal('${emp.id}')">Edit Data</button>
             <button class="btn btn-primary btn-sm" style="flex:1" onclick="EmployeeModule.openLogModal('','${emp.id}')">+ Log</button>
+            ${window.FaceAttendanceModule ? `<button class="btn btn-ghost btn-sm" style="width:100%;font-size:12px;${emp.faceDescriptors?.length?'border-color:rgba(34,197,94,.4);color:var(--success)':''}" onclick="FaceAttendanceModule.openRegisterModal('${emp.id}')">
+              ${emp.faceDescriptors?.length ? '✅ Wajah Terdaftar — Update' : '📷 Daftarkan Wajah'}
+            </button>` : ''}
           </div>` : ''}
         </div>
 
@@ -1739,7 +1747,9 @@ const EmployeeModule = (() => {
         <select class="form-control" style="width:90px" onchange="EmployeeModule._absSetMonth(this.value,'year')">
           ${[year-1,year,year+1].map(y=>`<option value="${y}" ${y===year?'selected':''}>${y}</option>`).join('')}
         </select>
-        <div style="margin-left:auto;display:flex;gap:var(--s2)">
+        <div style="margin-left:auto;display:flex;gap:var(--s2);flex-wrap:wrap">
+          ${window.FaceAttendanceModule ? FaceAttendanceModule.renderToggle() : ''}
+          ${FaceAttendanceModule?.isEnabled() ? `<button class="btn btn-ghost btn-sm" style="border-color:rgba(99,102,241,.4);color:var(--primary-h)" onclick="FaceAttendanceModule.openKiosk()">🤖 Buka Kiosk</button>` : ''}
           ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="EmployeeModule._bulkAbsensi('H')" title="Tandai semua Hadir hari ini">✅ Hadir Semua</button>
           <button class="btn btn-primary btn-sm" onclick="EmployeeModule.openAbsensiModal()">+ Input</button>` : ''}
         </div>
@@ -1865,6 +1875,17 @@ const EmployeeModule = (() => {
     _absMonth = now.getMonth()+1; _absYear = now.getFullYear();
     renderAbsensi();
     Notify.success('Absensi hari ini: ' + status + ' untuk ' + emps.length + ' karyawan');
+  }
+
+  // Called by FaceAttendanceModule when kiosk records attendance
+  function _onFaceAbsensi(rec) {
+    if (!_absensi.find(a => a.id === rec.id)) _absensi.push(rec);
+    // Refresh absensi tab if currently visible
+    if (_activeTab === 'absensi') {
+      const d = new Date(rec.tgl + 'T00:00:00');
+      _absMonth = d.getMonth() + 1; _absYear = d.getFullYear();
+      renderAbsensi();
+    }
   }
 
   function openAbsensiModal(empId, tgl) {
@@ -2494,7 +2515,7 @@ const EmployeeModule = (() => {
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
     // Absensi
-    renderAbsensi, _absSetMonth, _cycleAbsensi, _bulkAbsensi, openAbsensiModal, _absEmpChange, _submitAbsensi,
+    renderAbsensi, _absSetMonth, _cycleAbsensi, _bulkAbsensi, openAbsensiModal, _absEmpChange, _submitAbsensi, _onFaceAbsensi,
     // Payroll
     renderPayroll, _paySetMonth, _paySetGrup, _paySelectAll, _payUpdateBatch, _deletePayrollBatch,
     generatePayroll, openSlipGaji, _editPayrollRow, _submitPayrollEdit, _markPayrollLunas,
