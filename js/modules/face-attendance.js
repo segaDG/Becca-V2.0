@@ -1,7 +1,8 @@
 /* ============================================
    BECCA V2.0 — Face Attendance Module
-   Absensi via pengenalan wajah (face-api.js)
-   Dapat dinonaktifkan via toggle di tab Absensi
+   Anti-spoof: Depth (micro-movement) + Liveness Challenge
+   - Depth check: analisa variance gerakan micro wajah nyata vs foto
+   - Challenge: BLINK / NOD / TURN (random)
 ============================================ */
 const FaceAttendanceModule = (() => {
 
@@ -9,37 +10,33 @@ const FaceAttendanceModule = (() => {
   const MODEL_URL  = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
   const ENABLED_KEY = 'becca_face_att_on';
 
-  let _state    = 'idle'; // 'idle' | 'loading' | 'ready' | 'error'
+  let _state    = 'idle'; // 'idle'|'loading'|'ready'|'error'
   let _errorMsg = '';
   let _stream   = null;
   let _rafId    = null;
   let _matcher  = null;
   let _employees = [];
   let _absensi   = [];
-  let _kioskCooldown = {}; // empId → lastRecognizedAt timestamp
+  let _kioskCooldown = {};
 
-  // ---- public state ----
-  function isEnabled()    { return localStorage.getItem(ENABLED_KEY) === '1'; }
-  function setEnabled(v)  {
-    localStorage.setItem(ENABLED_KEY, v ? '1' : '0');
-    if (!v) _stopStream();
-  }
+  // =============================================
+  //  STATE HELPERS
+  // =============================================
+  function isEnabled()   { return localStorage.getItem(ENABLED_KEY) === '1'; }
+  function setEnabled(v) { localStorage.setItem(ENABLED_KEY, v ? '1' : '0'); if (!v) _stopStream(); }
 
-  // ---- lazy script loader ----
   function _loadScript(src) {
     return new Promise((res, rej) => {
       if (window.faceapi) { res(); return; }
-      const existing = document.querySelector(`script[src="${src}"]`);
-      if (existing) { existing.onload = res; return; }
+      const el = document.querySelector(`script[src="${src}"]`);
+      if (el) { el.addEventListener('load', res); return; }
       const s = document.createElement('script');
-      s.src = src;
-      s.onload = res;
-      s.onerror = () => rej(new Error('Gagal mengunduh library face-api.js. Cek koneksi internet.'));
+      s.src = src; s.onload = res;
+      s.onerror = () => rej(new Error('Gagal mengunduh face-api.js — cek koneksi internet'));
       document.head.appendChild(s);
     });
   }
 
-  // ---- model loading ----
   async function _loadModels() {
     if (_state === 'ready') return;
     if (_state === 'loading') {
@@ -58,42 +55,200 @@ const FaceAttendanceModule = (() => {
         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
       ]);
       _state = 'ready';
-      _buildMatcher();
     } catch(e) {
-      _state = 'error';
-      _errorMsg = e.message;
-      throw e;
+      _state = 'error'; _errorMsg = e.message; throw e;
     }
   }
 
-  // ---- stop camera ----
   function _stopStream() {
     if (_stream) { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
     if (_rafId)  { cancelAnimationFrame(_rafId); _rafId = null; }
   }
 
-  // ---- data ----
   function init(employees, absensi) {
-    _employees = employees || [];
-    _absensi   = absensi   || [];
+    _employees = employees || []; _absensi = absensi || [];
     if (_state === 'ready') _buildMatcher();
   }
-
   function pushAbsensi(rec) { _absensi.push(rec); }
 
-  // ---- build face matcher ----
   function _buildMatcher() {
     if (!window.faceapi) return;
     const labeled = _employees
       .filter(e => e.faceDescriptors?.length)
-      .map(e => {
-        const descriptors = e.faceDescriptors.map(d => new Float32Array(Object.values(d)));
-        return new faceapi.LabeledFaceDescriptors(e.id + '||' + e.nama, descriptors);
-      });
+      .map(e => new faceapi.LabeledFaceDescriptors(
+        e.id + '||' + e.nama,
+        e.faceDescriptors.map(d => new Float32Array(Object.values(d)))
+      ));
     _matcher = labeled.length ? new faceapi.FaceMatcher(labeled, 0.5) : null;
   }
 
-  // ---- draw face box on canvas ----
+  // =============================================
+  //  FACE GEOMETRY — landmark math
+  // =============================================
+
+  // Eye Aspect Ratio — deteksi kedipan
+  // indices: p1(corner) p2 p3 p4(corner) p5 p6
+  function _ear(pts, i1, i2, i3, i4, i5, i6) {
+    const d = (a, b) => Math.hypot(pts[a].x - pts[b].x, pts[a].y - pts[b].y);
+    return (d(i2, i6) + d(i3, i5)) / (2 * d(i1, i4));
+  }
+
+  function _avgEAR(landmarks) {
+    const pts = landmarks.positions;
+    return (_ear(pts,36,37,38,39,40,41) + _ear(pts,42,43,44,45,46,47)) / 2;
+  }
+
+  // Yaw: posisi relatif hidung vs pusat wajah → toleh
+  function _yaw(landmarks) {
+    const pts = landmarks.positions;
+    const cx  = (pts[0].x + pts[16].x) / 2;
+    const fw  = pts[16].x - pts[0].x;
+    return fw > 0 ? (pts[30].x - cx) / fw : 0; // normalized −0.5..+0.5
+  }
+
+  // Pitch: rasio hidung ke dagu vs total tinggi wajah → angguk
+  function _pitch(landmarks) {
+    const pts = landmarks.positions;
+    const fh  = pts[8].y - pts[27].y;
+    return fh > 0 ? (pts[30].y - pts[27].y) / fh : 0;
+  }
+
+  // =============================================
+  //  A) DEPTH CHECK — analisa micro-movement
+  //     Wajah nyata punya getaran kecil alami.
+  //     Foto/layar statis = variance ≈ 0.
+  // =============================================
+  async function _checkDepth(video, statusEl) {
+    const FRAMES = 25;
+    const noseXs = [], noseYs = [], earVals = [];
+
+    const _setText = t => { if (statusEl) statusEl.innerHTML = t; };
+    _setText('<span style="color:var(--primary-h)">🔍 Analisa kedalaman wajah (<span id="depth-cnt">0</span>/25 frame)...</span>');
+
+    for (let i = 0; i < FRAMES; i++) {
+      const r = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+        .withFaceLandmarks(true)
+        .catch(() => null);
+      if (r) {
+        const pts = r.landmarks.positions;
+        noseXs.push(pts[30].x);
+        noseYs.push(pts[30].y);
+        earVals.push(_avgEAR(r.landmarks));
+        const cnt = document.getElementById('depth-cnt');
+        if (cnt) cnt.textContent = noseXs.length;
+      }
+      await new Promise(res => setTimeout(res, 80));
+    }
+
+    if (noseXs.length < 12) return { ok: false, reason: 'Tidak cukup data — pastikan wajah terlihat' };
+
+    const mean  = arr => arr.reduce((s, v) => s + v, 0) / arr.length;
+    const vari  = arr => { const m = mean(arr); return arr.reduce((s, v) => s + (v - m) ** 2, 0) / arr.length; };
+    const varX  = vari(noseXs);
+    const varY  = vari(noseYs);
+    const varEAR = vari(earVals);
+    const totalVar = Math.sqrt(varX + varY);
+
+    // Threshold diturunkan agar lebih sensitif:
+    // Wajah nyata: totalVar > 0.15px dan/atau varEAR > 0.0001 (kedipan micro, gerakan napas)
+    // Foto statis: totalVar ≈ 0, varEAR ≈ 0
+    const isReal = totalVar > 0.15 || varEAR > 0.0001;
+    return { ok: isReal, totalVar: totalVar.toFixed(3), varEAR: varEAR.toFixed(5) };
+  }
+
+  // =============================================
+  //  B) LIVENESS CHALLENGE — gesture acak
+  // =============================================
+  const _CHALLENGES = [
+    { type: 'BLINK', icon: '😑', text: 'Kedipkan mata sekali',    hint: 'tutup dan buka mata perlahan' },
+    { type: 'NOD',   icon: '🙇', text: 'Anggukkan kepala',        hint: 'turunkan dagu lalu naik lagi' },
+    { type: 'TURN',  icon: '↔️',  text: 'Toleh ke samping sedikit', hint: 'putar kepala sedikit ke kiri atau kanan' },
+  ];
+
+  function _pickChallenge() {
+    return _CHALLENGES[Math.floor(Math.random() * _CHALLENGES.length)];
+  }
+
+  // Kembalikan Promise<boolean> — true jika challenge berhasil dalam timeout
+  function _runChallenge(video, overlayEl, challenge, timeoutMs = 7000) {
+    return new Promise(resolve => {
+      let done = false;
+      const finish = (ok) => { if (!done) { done = true; clearTimeout(timer); resolve(ok); } };
+
+      if (overlayEl) {
+        overlayEl.style.cssText = 'display:flex;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,.65);border-radius:inherit';
+        overlayEl.innerHTML = `
+          <div style="text-align:center;color:white;padding:20px;max-width:260px">
+            <div style="font-size:44px;margin-bottom:10px;animation:pulse-icon 1s ease infinite">${challenge.icon}</div>
+            <div style="font-size:17px;font-weight:700;margin-bottom:4px">${challenge.text}</div>
+            <div style="font-size:12px;opacity:.7;margin-bottom:12px">${challenge.hint}</div>
+            <div style="height:4px;background:rgba(255,255,255,.2);border-radius:2px;overflow:hidden">
+              <div id="ch-bar" style="height:100%;background:#22c55e;width:100%;transition:width linear ${timeoutMs}ms"></div>
+            </div>
+            <div id="ch-time" style="font-size:11px;opacity:.6;margin-top:6px">${Math.round(timeoutMs/1000)}s</div>
+          </div>
+          <style>@keyframes pulse-icon{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}</style>`;
+        requestAnimationFrame(() => {
+          const bar = document.getElementById('ch-bar');
+          if (bar) bar.style.width = '0%';
+        });
+      }
+
+      const deadline = Date.now() + timeoutMs;
+      let baseline = null;
+      const bsArr = { ear: [], yaw: [], pitch: [] };
+
+      const tick = async () => {
+        if (done) return;
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) { finish(false); return; }
+
+        const timeEl = document.getElementById('ch-time');
+        if (timeEl) timeEl.textContent = Math.ceil(remaining / 1000) + 's';
+
+        const r = await faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+          .withFaceLandmarks(true)
+          .catch(() => null);
+
+        if (!r) { if (!done) setTimeout(tick, 150); return; }
+
+        const ear   = _avgEAR(r.landmarks);
+        const yaw   = _yaw(r.landmarks);
+        const pitch = _pitch(r.landmarks);
+
+        // Kumpulkan baseline 8 sampel pertama
+        if (!baseline) {
+          bsArr.ear.push(ear); bsArr.yaw.push(yaw); bsArr.pitch.push(pitch);
+          if (bsArr.ear.length >= 8) {
+            const avg = arr => arr.reduce((s, v) => s + v, 0) / arr.length;
+            baseline = { ear: avg(bsArr.ear), yaw: avg(bsArr.yaw), pitch: avg(bsArr.pitch) };
+          }
+          if (!done) setTimeout(tick, 100); return;
+        }
+
+        let passed = false;
+        if (challenge.type === 'BLINK') {
+          passed = ear < baseline.ear * 0.62; // tutup mata → EAR turun ≥38%
+        } else if (challenge.type === 'TURN') {
+          passed = Math.abs(yaw - baseline.yaw) > 0.10;
+        } else if (challenge.type === 'NOD') {
+          passed = Math.abs(pitch - baseline.pitch) > 0.07;
+        }
+
+        if (passed) finish(true);
+        else if (!done) setTimeout(tick, 100);
+      };
+
+      const timer = setTimeout(() => finish(false), timeoutMs);
+      tick();
+    });
+  }
+
+  // =============================================
+  //  DRAW helpers
+  // =============================================
   function _drawBox(canvas, video, box, color, label) {
     const ctx = canvas.getContext('2d');
     canvas.width  = video.videoWidth  || 640;
@@ -102,48 +257,56 @@ const FaceAttendanceModule = (() => {
     if (!box) return;
     const sx = canvas.width  / (video.videoWidth  || 640);
     const sy = canvas.height / (video.videoHeight || 480);
-    ctx.strokeStyle = color;
-    ctx.lineWidth   = 3;
-    ctx.shadowBlur  = 8;
-    ctx.shadowColor = color;
-    ctx.strokeRect(box.x * sx, box.y * sy, box.width * sx, box.height * sy);
+    ctx.strokeStyle = color; ctx.lineWidth = 3;
+    ctx.shadowBlur  = 10;    ctx.shadowColor = color;
+    ctx.strokeRect(box.x*sx, box.y*sy, box.width*sx, box.height*sy);
     if (label) {
-      ctx.fillStyle = color;
-      ctx.font      = 'bold 13px sans-serif';
-      ctx.fillText(label, box.x * sx, box.y * sy - 6);
+      ctx.shadowBlur = 0; ctx.fillStyle = color;
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText(label, box.x*sx, box.y*sy - 6);
     }
   }
 
-  // =========================================================
-  //  REGISTRATION — Daftarkan Wajah Karyawan
-  // =========================================================
+  function _showOverlayError(el, msg) {
+    if (!el) return;
+    el.style.cssText = 'display:flex;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,.75);border-radius:inherit';
+    el.innerHTML = `<div style="text-align:center;color:white;padding:20px">
+      <div style="font-size:28px;margin-bottom:8px">⚠️</div>
+      <div style="font-weight:600;margin-bottom:4px">Gagal</div>
+      <div style="font-size:12px;opacity:.7">${msg}</div>
+    </div>`;
+  }
+
+  // =============================================
+  //  REGISTRATION
+  // =============================================
   let _regSamples = [];
   let _regMid     = null;
 
   async function openRegisterModal(empId) {
     const emp = _employees.find(e => e.id === empId);
     if (!emp) return;
-    _regSamples = [];
-    _regMid     = Utils.uid();
+    _regSamples = []; _regMid = Utils.uid();
 
     Modal.open({
       id: _regMid,
       title: '📷 Daftarkan Wajah — ' + emp.nama,
       body: `
-        <div id="fr-status" style="text-align:center;font-size:13px;color:var(--text-3);margin-bottom:8px">
-          Memuat model AI... (pertama kali ±10 detik)
+        <div id="fr-status" style="text-align:center;font-size:13px;color:var(--text-3);min-height:20px;margin-bottom:8px">
+          Memuat AI... (pertama kali ±15 detik)
         </div>
-        <div style="position:relative;border-radius:10px;overflow:hidden;background:#111;aspect-ratio:4/3;max-height:320px">
+        <div style="position:relative;border-radius:10px;overflow:hidden;background:#111;aspect-ratio:4/3;max-height:300px">
           <video id="fr-video" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1)"></video>
           <canvas id="fr-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1)"></canvas>
-          <div id="fr-loader" style="position:absolute;inset:0;background:rgba(0,0,0,.75);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;gap:8px">
+          <div id="fr-overlay" style="display:none;position:absolute;inset:0;border-radius:inherit"></div>
+          <div id="fr-loader" style="position:absolute;inset:0;background:rgba(0,0,0,.8);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;gap:8px">
             <div style="font-size:28px">🤖</div>
             <div style="font-weight:600">Memuat AI Model...</div>
-            <div style="font-size:11px;opacity:.6">Hanya terjadi sekali, proses di-cache browser</div>
+            <div style="font-size:11px;opacity:.6">Setelah selesai, model di-cache browser</div>
           </div>
         </div>
         <div style="margin-top:10px">
-          <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Sampel terkumpul (butuh 5):</div>
+          <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Sampel (butuh 5 — ambil dari berbagai sudut):</div>
           <div id="fr-samples" style="display:flex;gap:6px;min-height:44px;flex-wrap:wrap"></div>
         </div>`,
       footer: `
@@ -163,18 +326,40 @@ const FaceAttendanceModule = (() => {
       video.srcObject = _stream;
       await new Promise(res => { video.onloadedmetadata = res; });
       document.getElementById('fr-loader')?.remove();
+
+      // A) Depth check
+      const statusEl = document.getElementById('fr-status');
+      const depth = await _checkDepth(video, statusEl);
+      if (!depth.ok) {
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--danger)">❌ Depth check gagal — gunakan wajah asli, bukan foto</span>';
+        Notify.warning('Anti-spoof: wajah tampak tidak nyata. Pastikan kamera menghadap wajah asli.');
+        return;
+      }
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--success)">✅ Wajah 3D terverifikasi</span>';
+      await new Promise(res => setTimeout(res, 800));
+
+      // B) Liveness challenge
+      const challenge = _pickChallenge();
+      const overlayEl = document.getElementById('fr-overlay');
+      if (statusEl) statusEl.innerHTML = `<span style="color:var(--primary-h)">🎯 Challenge: <strong>${challenge.text}</strong></span>`;
+      const passed = await _runChallenge(video, overlayEl, challenge, 7000);
+
+      if (overlayEl) overlayEl.style.display = 'none';
+      if (!passed) {
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--danger)">❌ Liveness challenge gagal — coba ulangi pendaftaran</span>';
+        Notify.warning('Challenge tidak terdeteksi. Coba lagi dengan gerakan yang lebih jelas.');
+        document.getElementById('fr-btn').disabled = true;
+        return;
+      }
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--success)">✅ Liveness terverifikasi — ambil 5 sampel wajah</span>';
+
+      // Enable capture + start live detection loop
       document.getElementById('fr-btn').disabled = false;
-      document.getElementById('fr-status').textContent = 'Posisikan wajah di tengah, pastikan pencahayaan cukup';
       _startRegLoop();
+
     } catch(e) {
       const ldr = document.getElementById('fr-loader');
-      if (ldr) ldr.innerHTML = `
-        <div style="text-align:center;padding:16px;color:white">
-          <div style="font-size:24px;margin-bottom:8px">⚠️</div>
-          <div style="font-weight:600;margin-bottom:4px">Gagal memuat sistem</div>
-          <div style="font-size:11px;opacity:.7">${e.message}</div>
-          <div style="font-size:11px;opacity:.5;margin-top:8px">Fitur dapat dinonaktifkan di tab Absensi</div>
-        </div>`;
+      _showOverlayError(ldr, e.message);
     }
   }
 
@@ -182,22 +367,18 @@ const FaceAttendanceModule = (() => {
     const video  = document.getElementById('fr-video');
     const canvas = document.getElementById('fr-canvas');
     if (!video || !canvas) return;
-
     const detect = async () => {
       if (!document.getElementById('fr-video')) { _stopStream(); return; }
       const r = await faceapi
         .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
         .withFaceLandmarks(true)
         .catch(() => null);
-
-      if (r) {
-        _drawBox(canvas, video, r.detection.box, '#22c55e');
-        const s = document.getElementById('fr-status');
-        if (s) s.innerHTML = '<span style="color:var(--success)">✅ Wajah terdeteksi — tekan Ambil Sampel</span>';
-      } else {
-        _drawBox(canvas, video, null, '');
-        const s = document.getElementById('fr-status');
-        if (s) s.innerHTML = '<span style="color:var(--warning)">⚠️ Wajah belum terdeteksi, perbaiki posisi...</span>';
+      _drawBox(canvas, video, r?.detection.box || null, '#22c55e');
+      const s = document.getElementById('fr-status');
+      if (s && _regSamples.length < 5) {
+        s.innerHTML = r
+          ? `<span style="color:var(--success)">✅ Wajah terdeteksi — ambil sampel (${_regSamples.length}/5)</span>`
+          : `<span style="color:var(--warning)">⚠️ Wajah belum terdeteksi...</span>`;
       }
       _rafId = requestAnimationFrame(detect);
     };
@@ -221,29 +402,25 @@ const FaceAttendanceModule = (() => {
       if (btn) btn.disabled = false;
       return;
     }
-
     _regSamples.push(Array.from(r.descriptor));
 
-    // Thumbnail preview
     const thumb = document.createElement('canvas');
     thumb.width = 44; thumb.height = 44;
     const { x, y, width, height } = r.detection.box;
     thumb.getContext('2d').drawImage(video, x, y, width, height, 0, 0, 44, 44);
-    const img = new Image();
-    img.src = thumb.toDataURL();
+    const img = new Image(); img.src = thumb.toDataURL();
     img.style.cssText = 'width:44px;height:44px;border-radius:6px;object-fit:cover;border:2px solid var(--success)';
     document.getElementById('fr-samples')?.appendChild(img);
 
-    const count = _regSamples.length;
-    const countEl = document.getElementById('fr-count');
-    if (countEl) countEl.textContent = `(${count}/5)`;
+    const cnt = _regSamples.length;
+    const cntEl = document.getElementById('fr-count');
+    if (cntEl) cntEl.textContent = `(${cnt}/5)`;
 
-    if (count < 5) {
+    if (cnt < 5) {
       if (btn) btn.disabled = false;
       const s = document.getElementById('fr-status');
-      if (s) s.textContent = `Sampel ${count}/5 — miring sedikit dan ambil lagi`;
+      if (s) s.innerHTML = `<span style="color:var(--success)">✅ Sampel ${cnt}/5 — miring sedikit lalu ambil lagi</span>`;
     } else {
-      // All 5 collected — save
       _stopStream();
       await _saveRegDescriptors(empId);
     }
@@ -258,21 +435,15 @@ const FaceAttendanceModule = (() => {
       _buildMatcher();
       if (_regMid) Modal.close(_regMid);
       Notify.success('Wajah ' + emp.nama + ' berhasil didaftarkan ✓');
-    } catch(e) {
-      Notify.error('Gagal menyimpan data wajah', e.message);
-    }
-    _regSamples = [];
-    _regMid     = null;
+    } catch(e) { Notify.error('Gagal menyimpan', e.message); }
+    _regSamples = []; _regMid = null;
   }
 
-  function _stopReg() {
-    _stopStream();
-    _regSamples = [];
-  }
+  function _stopReg() { _stopStream(); _regSamples = []; }
 
-  // =========================================================
-  //  KIOSK MODE — Pengenalan Otomatis
-  // =========================================================
+  // =============================================
+  //  KIOSK MODE
+  // =============================================
   async function openKiosk() {
     const mid = Utils.uid();
     Modal.open({
@@ -282,35 +453,29 @@ const FaceAttendanceModule = (() => {
         <div id="kiosk-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:10px">
           Memuat sistem...
         </div>
-        <div style="position:relative;border-radius:12px;overflow:hidden;background:#111;aspect-ratio:16/9;max-height:380px">
+        <div style="position:relative;border-radius:12px;overflow:hidden;background:#111;aspect-ratio:16/9;max-height:360px">
           <video id="kiosk-video" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1)"></video>
           <canvas id="kiosk-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1)"></canvas>
+          <div id="kiosk-overlay" style="display:none;position:absolute;inset:0;border-radius:inherit"></div>
           <div id="kiosk-loader" style="position:absolute;inset:0;background:rgba(0,0,0,.8);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;gap:8px">
             <div style="font-size:36px">🤖</div>
-            <div style="font-weight:600">Memuat AI Model...</div>
-            <div style="font-size:11px;opacity:.6">Pertama kali memuat ~10 detik, selanjutnya instan</div>
+            <div style="font-weight:600">Memuat AI...</div>
+            <div style="font-size:11px;opacity:.6">Pertama kali ~15 detik, selanjutnya instan</div>
           </div>
           <div id="kiosk-result" style="display:none;position:absolute;bottom:0;left:0;right:0;padding:14px 20px;
             background:linear-gradient(transparent,rgba(0,0,0,.85));text-align:center;color:white"></div>
         </div>
-        <div id="kiosk-log" style="margin-top:10px;max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;font-size:12px"></div>`,
-      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}');FaceAttendanceModule._stopKiosk()">Tutup Kiosk</button>`,
+        <div id="kiosk-log" style="margin-top:10px;max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;font-size:12px"></div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}');FaceAttendanceModule._stopKiosk()">Tutup</button>`,
     });
 
     try {
       await _loadModels();
-
       if (!_matcher) {
-        const ldr = document.getElementById('kiosk-loader');
-        if (ldr) ldr.innerHTML = `
-          <div style="text-align:center;padding:16px;color:white">
-            <div style="font-size:32px;margin-bottom:8px">⚠️</div>
-            <div style="font-weight:600">Belum ada karyawan yang terdaftar</div>
-            <div style="font-size:12px;opacity:.7;margin-top:4px">Daftarkan wajah karyawan terlebih dahulu melalui Data Karyawan</div>
-          </div>`;
+        _showOverlayError(document.getElementById('kiosk-loader'),
+          'Belum ada karyawan yang mendaftarkan wajah');
         return;
       }
-
       _stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
       });
@@ -319,19 +484,12 @@ const FaceAttendanceModule = (() => {
       video.srcObject = _stream;
       await new Promise(res => { video.onloadedmetadata = res; });
       document.getElementById('kiosk-loader')?.remove();
-
-      const status = document.getElementById('kiosk-status');
-      if (status) status.innerHTML = '🟢 Sistem aktif — tatap kamera untuk absen';
-
+      const st = document.getElementById('kiosk-status');
+      if (st) st.innerHTML = '🟢 Sistem aktif — tatap kamera untuk absen';
       _kioskCooldown = {};
       _startKioskLoop(mid);
     } catch(e) {
-      const ldr = document.getElementById('kiosk-loader');
-      if (ldr) ldr.innerHTML = `
-        <div style="text-align:center;padding:16px;color:white">
-          <div style="font-size:32px;margin-bottom:8px">❌</div>
-          <div style="font-weight:600">${e.message}</div>
-        </div>`;
+      _showOverlayError(document.getElementById('kiosk-loader'), e.message);
     }
   }
 
@@ -341,14 +499,15 @@ const FaceAttendanceModule = (() => {
     const resultEl = document.getElementById('kiosk-result');
     if (!video || !canvas) return;
 
-    let frameCount = 0;
+    let frame = 0;
+    let busy  = false; // prevent overlapping recognition
 
     const loop = async () => {
       if (!document.getElementById('kiosk-video')) { _stopStream(); return; }
-      frameCount++;
+      frame++;
 
-      // Full pipeline every 20 frames (~667ms at 30fps) — reduce CPU load
-      if (frameCount % 20 === 0) {
+      if (frame % 20 === 0 && !busy) {
+        busy = true;
         const r = await faceapi
           .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 416 }))
           .withFaceLandmarks(true)
@@ -363,18 +522,36 @@ const FaceAttendanceModule = (() => {
           if (!unknown) {
             const [empId, empNama] = match.label.split('||');
             const now = Date.now();
-            if (!_kioskCooldown[empId] || now - _kioskCooldown[empId] > 12000) {
-              _kioskCooldown[empId] = now;
-              await _recordKioskAbsensi(empId, empNama, resultEl);
+            if (!_kioskCooldown[empId] || now - _kioskCooldown[empId] > 15000) {
+              _kioskCooldown[empId] = now; // pre-set cooldown to prevent double trigger
+
+              // Liveness: quick blink challenge
+              const overlay  = document.getElementById('kiosk-overlay');
+              const st       = document.getElementById('kiosk-status');
+              if (st) st.innerHTML = `🎯 <strong>${empNama}</strong> — ${_CHALLENGES[0].text}...`;
+              const lived = await _runChallenge(video, overlay, _CHALLENGES[0], 6000); // BLINK only in kiosk
+              if (overlay) overlay.style.display = 'none';
+
+              if (lived) {
+                await _recordKioskAbsensi(empId, empNama, resultEl);
+              } else {
+                _kioskCooldown[empId] = 0; // reset so they can try again
+                if (st) st.innerHTML = '🟢 Sistem aktif — tatap kamera untuk absen';
+                if (resultEl) {
+                  resultEl.style.display = 'block';
+                  resultEl.innerHTML = `<div style="font-size:15px;color:#fca5a5">❌ Liveness gagal, ${empNama} — coba lagi</div>`;
+                  setTimeout(() => { if (resultEl) resultEl.style.display = 'none'; }, 3000);
+                }
+              }
             }
           }
-        } else {
-          // clear canvas when no face
+        } else if (!r) {
           const ctx = canvas.getContext('2d');
           canvas.width  = video.videoWidth  || 1280;
           canvas.height = video.videoHeight || 720;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
+        busy = false;
       }
 
       _rafId = requestAnimationFrame(loop);
@@ -385,61 +562,56 @@ const FaceAttendanceModule = (() => {
   async function _recordKioskAbsensi(empId, empNama, resultEl) {
     const today   = new Date().toISOString().split('T')[0];
     const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const existing = _absensi.find(a => (a.empId===empId||a.empNama===empNama) && a.tgl===today);
+    const st = document.getElementById('kiosk-status');
 
-    const existing = _absensi.find(a => (a.empId===empId || a.empNama===empNama) && a.tgl===today);
     if (existing) {
       if (resultEl) {
         resultEl.style.display = 'block';
-        resultEl.innerHTML = `
-          <div style="font-size:16px;font-weight:700">👋 ${empNama}</div>
-          <div style="font-size:12px;opacity:.8">Sudah tercatat hari ini (${existing.status}) · ${timeStr}</div>`;
+        resultEl.innerHTML = `<div style="font-size:16px;font-weight:700">👋 ${empNama}</div>
+          <div style="font-size:12px;opacity:.8">Sudah tercatat hari ini · ${timeStr}</div>`;
         setTimeout(() => { if (resultEl) resultEl.style.display = 'none'; }, 3000);
       }
+      if (st) st.innerHTML = '🟢 Sistem aktif — tatap kamera untuk absen';
       return;
     }
 
     const rec = {
       empId, empNama, tgl: today, status: 'H',
-      ket: 'Face Recognition ' + timeStr,
-      createdAt: new Date().toISOString(),
+      ket: 'Face + Liveness ' + timeStr, createdAt: new Date().toISOString(),
     };
     const saved = await DB.saveEmpAbsensi(rec).catch(() => rec);
     if (!saved.id) saved.id = Utils.uid();
     _absensi.push(saved);
-
-    // Sync ke EmployeeModule
     if (window.EmployeeModule?._onFaceAbsensi) EmployeeModule._onFaceAbsensi(saved);
 
     if (resultEl) {
       resultEl.style.display = 'block';
-      resultEl.innerHTML = `
-        <div style="font-size:22px;font-weight:700;color:#4ade80">✅ Selamat datang, ${empNama}!</div>
-        <div style="font-size:13px;opacity:.8">${timeStr} · Hadir tercatat</div>`;
+      resultEl.innerHTML = `<div style="font-size:22px;font-weight:700;color:#4ade80">✅ Selamat datang, ${empNama}!</div>
+        <div style="font-size:13px;opacity:.8">${timeStr} · Hadir · Liveness ✓</div>`;
       setTimeout(() => { if (resultEl) resultEl.style.display = 'none'; }, 4500);
     }
-
-    // Log entry
     const logEl = document.getElementById('kiosk-log');
     if (logEl) {
-      const entry = document.createElement('div');
-      entry.style.cssText = 'padding:5px 10px;border-radius:6px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--success)';
-      entry.textContent = `${timeStr} — ${empNama} ✓ Hadir`;
-      logEl.prepend(entry);
+      const e = document.createElement('div');
+      e.style.cssText = 'padding:5px 10px;border-radius:6px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--success)';
+      e.textContent = `${timeStr} — ${empNama} ✓ Hadir (Face + Liveness)`;
+      logEl.prepend(e);
     }
-    Notify.success(empNama + ' absen via wajah ✓');
+    if (st) st.innerHTML = '🟢 Sistem aktif — tatap kamera untuk absen';
+    Notify.success(empNama + ' absen — face + liveness ✓');
   }
 
-  function _stopKiosk() {
-    _stopStream();
-    _kioskCooldown = {};
-  }
+  function _stopKiosk() { _stopStream(); _kioskCooldown = {}; }
 
-  // ---- toggle button renderer ----
+  // =============================================
+  //  TOGGLE BUTTON (rendered in absensi tab)
+  // =============================================
   function renderToggle() {
     const on = isEnabled();
     return `<button class="btn btn-ghost btn-sm" onclick="FaceAttendanceModule.toggleAndRender()"
-      style="gap:6px;${on?'border-color:rgba(34,197,94,.5);color:var(--success)':''}">
-      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${on?'var(--success)':'var(--text-3)'}"></span>
+      style="${on ? 'border-color:rgba(34,197,94,.5);color:var(--success)' : ''}">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${on ? 'var(--success)' : 'var(--text-3)'};margin-right:4px"></span>
       ${on ? 'Wajah ON' : 'Wajah OFF'}
     </button>`;
   }
