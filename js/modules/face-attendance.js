@@ -529,7 +529,7 @@ const FaceAttendanceModule = (() => {
               const overlay  = document.getElementById('kiosk-overlay');
               const st       = document.getElementById('kiosk-status');
               if (st) st.innerHTML = `🎯 <strong>${empNama}</strong> — ${_CHALLENGES[0].text}...`;
-              const lived = await _runChallenge(video, overlay, _CHALLENGES[0], 6000); // BLINK only in kiosk
+              const lived = await _runChallenge(video, overlay, _CHALLENGES[0], 2500); // BLINK only in kiosk
               if (overlay) overlay.style.display = 'none';
 
               if (lived) {
