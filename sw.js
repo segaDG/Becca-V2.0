@@ -8,7 +8,7 @@ const PRECACHE = [
   '/css/layout.css',
   '/css/components.css',
   '/css/tables.css',
-  '/img/icon.svg',
+  '/img/logo-bps.png',
 ];
 
 // ---- Install: pre-cache aset utama ----
