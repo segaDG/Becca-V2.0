@@ -618,34 +618,30 @@ const FaceAttendanceModule = (() => {
     fs.style.cssText = 'position:fixed;inset:0;z-index:9998;background:#0a0d14;display:flex;flex-direction:column;font-family:sans-serif';
     fs.innerHTML = `
       <style>
-        @keyframes ks-fadein  {from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes ks-scan    {0%{top:2%}50%{top:94%}100%{top:2%}}
-        @keyframes ks-pulse   {0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.4}}
-        @keyframes ks-bracket {0%,100%{opacity:.6}50%{opacity:1}}
+        @keyframes ks-fadein {from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes ks-scan   {0%{top:0%}50%{top:97%}100%{top:0%}}
+        @keyframes ks-pulse  {0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.4}}
         #kiosk-fs{display:flex;flex-direction:column}
         #ks-header{display:flex;align-items:center;padding:10px 20px;background:rgba(10,13,20,.95);border-bottom:1px solid rgba(99,102,241,.2);flex-shrink:0;backdrop-filter:blur(8px)}
         #ks-body{flex:1;position:relative;background:#000;overflow:hidden;min-height:0}
         #ks-video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
         #ks-canvas{position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none}
-        .ks-corner{position:absolute;width:24px;height:24px;animation:ks-bracket 2s ease-in-out infinite}
-        #ks-scan{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(99,102,241,.9),transparent);box-shadow:0 0 8px rgba(99,102,241,.6);animation:ks-scan 2.8s ease-in-out infinite;pointer-events:none}
+        #ks-scan{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(99,102,241,.8),transparent);box-shadow:0 0 8px rgba(99,102,241,.5);animation:ks-scan 8s ease-in-out infinite;pointer-events:none}
         @media (orientation:portrait){
           #ks-clock{font-size:18px!important}
           #ks-result-name{font-size:22px!important}
           #ks-status{font-size:12px!important}
-          #ks-guide-box{width:55vw!important;height:65vw!important}
         }
         @media (orientation:landscape){
           #ks-clock{font-size:26px!important}
           #ks-result-name{font-size:30px!important}
-          #ks-guide-box{width:26vh!important;height:34vh!important}
         }
       </style>
 
       <!-- Header -->
       <div id="ks-header">
         <div style="display:flex;align-items:center;gap:12px">
-          <img src="/img/Logo%20BPS%20White%20Stroke%20copy.png" style="height:34px;object-fit:contain"
+          <img src="/img/logo-bps.png" style="height:34px;object-fit:contain;filter:brightness(0) invert(1)"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div style="display:none;width:34px;height:34px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;flex-shrink:0">B</div>
           <div>
@@ -668,16 +664,8 @@ const FaceAttendanceModule = (() => {
         <video id="ks-video" autoplay muted playsinline></video>
         <canvas id="ks-canvas"></canvas>
 
-        <!-- Face guide brackets -->
-        <div style="position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center">
-          <div id="ks-guide-box" style="position:relative;width:28vh;height:36vh">
-            <div class="ks-corner" style="top:0;left:0;border-top:3px solid rgba(99,102,241,.85);border-left:3px solid rgba(99,102,241,.85);border-top-left-radius:3px"></div>
-            <div class="ks-corner" style="top:0;right:0;border-top:3px solid rgba(99,102,241,.85);border-right:3px solid rgba(99,102,241,.85);border-top-right-radius:3px"></div>
-            <div class="ks-corner" style="bottom:0;left:0;border-bottom:3px solid rgba(99,102,241,.85);border-left:3px solid rgba(99,102,241,.85);border-bottom-left-radius:3px"></div>
-            <div class="ks-corner" style="bottom:0;right:0;border-bottom:3px solid rgba(99,102,241,.85);border-right:3px solid rgba(99,102,241,.85);border-bottom-right-radius:3px"></div>
-            <div id="ks-scan"></div>
-          </div>
-        </div>
+        <!-- Scan line -->
+        <div id="ks-scan"></div>
 
         <!-- Today attendance badge -->
         <div style="position:absolute;top:16px;right:16px;background:rgba(10,13,20,.8);border:1px solid rgba(99,102,241,.3);border-radius:12px;padding:10px 16px;text-align:center;backdrop-filter:blur(8px)">
@@ -730,10 +718,15 @@ const FaceAttendanceModule = (() => {
   }
 
   async function _runFullscreenKiosk() {
-    // Populate today's absensi log
+    // Sync fresh absensi from DB before showing count
     const today = new Date().toISOString().split('T')[0];
+    try {
+      const fresh = await DB.getEmpAbsensi();
+      if (fresh?.length) _absensi = fresh;
+    } catch(e) {}
+
     const todayAbs = _absensi.filter(a => a.tgl === today);
-    const logEl = document.getElementById('ks-log');
+    const logEl   = document.getElementById('ks-log');
     const countEl = document.getElementById('ks-count');
     if (countEl) countEl.textContent = todayAbs.length;
     if (logEl) {
