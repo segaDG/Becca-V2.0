@@ -290,7 +290,7 @@ const InventoryModule = (() => {
           { l:'Nilai Stok',         v: Utils.formatRupiah(totalNilai, true), c:'var(--success)' },
           { l:'Stok Menipis',       v: _items.filter(i => (i._stok||0) <= (i.stokMin||0)).length, c:'var(--warning)' },
         ].map(s => `
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:160px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 160px;min-width:0;max-width:220px">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
             <div style="font-size:18px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
           </div>
@@ -559,7 +559,7 @@ const InventoryModule = (() => {
     }
     tableDiv.innerHTML = `
       ${canEdit ? '<div style="margin-bottom:8px"><span style="font-size:11px;color:var(--text-3);font-style:italic">Klik baris untuk edit · Enter untuk simpan · + untuk tambah baris baru</span></div>' : ''}
-      <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-lg)">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;border:1px solid var(--border);border-radius:var(--r-lg)">
         <table class="iv-tbl" id="inv-grid">
           <thead><tr>
             <th style="width:32px;padding:0;text-align:center">
@@ -1385,7 +1385,7 @@ const InventoryModule = (() => {
           {l:'Barang Diopname', v:itemCount+' item', c:'var(--info)'},
           {l:'Opname Terakhir', v:lastOpname, c:'var(--text-2)'},
         ].map(s=>`
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:160px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 160px;min-width:0;max-width:220px">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
             <div style="font-size:16px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
           </div>`).join('')}

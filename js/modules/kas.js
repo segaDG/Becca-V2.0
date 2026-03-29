@@ -232,7 +232,7 @@ const KasModule = (() => {
         <div id="kas-saldo-bar" style="font-size:12px;color:var(--text-3)"></div>
         <div id="kas-balance-bar" style="text-align:right"></div>
       </div>
-      <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-lg)">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;border:1px solid var(--border);border-radius:var(--r-lg)">
         <table class="ks-tbl" id="kas-grid">
           <thead><tr>
             <th style="width:32px;padding:0;text-align:center">
@@ -621,7 +621,7 @@ const KasModule = (() => {
       const hover     = onclick ? `onmouseover="this.style.outline='2px solid ${color}'" onmouseout="this.style.outline=''"` : '';
       const clk       = onclick ? `onclick="${onclick}"` : '';
       const arrow     = onclick ? ' <span style="font-size:9px;opacity:.6">▼</span>' : '';
-      return `<div ${clk} ${hover} style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px;${clickable}transition:all .15s">
+      return `<div ${clk} ${hover} style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 140px;min-width:0;max-width:220px;${clickable}transition:all .15s">
         <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${label}${arrow}</div>
         <div style="font-size:18px;font-weight:700;color:${color};font-family:var(--font-mono)">${value}</div>
       </div>`;
@@ -1184,7 +1184,7 @@ const KasModule = (() => {
       container.innerHTML = cards.map(c =>
         '<div onclick="KasModule.filterKasMasukType()" '
         + 'style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);'
-        + 'padding:12px 18px;min-width:140px;cursor:pointer;transition:all .15s" '
+        + 'padding:12px 18px;flex:1 1 140px;min-width:0;max-width:220px;cursor:pointer;transition:all .15s" '
         + 'onmouseover="this.style.outline=\'2px solid var(--primary)\'" '
         + 'onmouseout="this.style.outline=\'\'">'
         + '<div style="font-size:11px;color:var(--text-3);margin-bottom:4px">'+c.label+' <span style="font-size:9px;opacity:.6">▼</span></div>'

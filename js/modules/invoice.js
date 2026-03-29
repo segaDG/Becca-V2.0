@@ -219,7 +219,7 @@ const InvoiceModule = (() => {
 
     page.innerHTML = `
     <style>
-      .inv-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+      .inv-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:20px}
       .inv-stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;position:relative;overflow:hidden}
       .inv-stat::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%;background:var(--c)}
       .inv-stat-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3)}

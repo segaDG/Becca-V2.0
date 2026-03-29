@@ -96,6 +96,21 @@
   font-family: var(--font);
 }
 
+/* === MOBILE RESPONSIVE === */
+
+/* Prevent parent scroll context from intercepting horizontal table swipe */
+.table-scroll {
+  overscroll-behavior-x: contain;
+}
+
+@media (max-width: 768px) {
+  .table th, .table td { padding: 8px var(--s2); font-size: 12px; }
+  .table th { font-size: 10px; }
+}
+@media (max-width: 480px) {
+  .table th, .table td { padding: 6px var(--s2); font-size: 11px; }
+}
+
 /* === PRINT === */
 @media print {
   #sidebar, #header, .btn, .pagination, .filter-bar { display: none !important; }

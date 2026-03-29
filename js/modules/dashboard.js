@@ -199,7 +199,7 @@ const DashboardModule = (() => {
         }).join('')}
       </div>
 
-      <div style="display:grid;grid-template-columns:${[canKas,canInventory].filter(Boolean).length>1?'1fr 360px':'1fr'};gap:var(--s4);margin-bottom:var(--s5)">
+      <div class="dash-grid${[canKas,canInventory].filter(Boolean).length>1?' dash-grid-2col':''}">
         ${canKas ? _renderRecentKasTable(recentKas) : ''}
         ${canInventory ? _renderLowStockCard(lowStock) : ''}
       </div>

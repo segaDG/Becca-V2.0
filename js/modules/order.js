@@ -179,7 +179,7 @@ const OrderModule = (() => {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px">
       ${[
         {l:'Total Order',   v:_data.length,            c:'#6366f1', s:'entri'},
         {l:'Real Order',    v:totalReal,               c:'#10b981', s:'terkonfirmasi'},
@@ -604,19 +604,19 @@ const OrderModule = (() => {
           <div class="form-group"><label class="form-label">Pelapor</label><input class="form-control" id="of-pelapor" placeholder="Nama..."></div>
         </div>
         <div class="of-sec" style="color:#6366f1">☀ Breakfast & Shift 1</div>
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">
           ${nf('of-bf','Breakfast','var(--warning)')}${nf('of-s1','Shift 1','#6366f1')}${nf('of-sp1','Spare 1','#6366f1')}${nf('of-ot1','OT 1','#6366f1')}${nf('of-snk1','Snack 1','#6366f1')}
         </div>
         <div class="of-sec" style="color:#10b981">🟢 Shift 2</div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">
           ${nf('of-s2','Shift 2','#10b981')}${nf('of-sp2','Spare 2','#10b981')}${nf('of-ot2','OT 2','#10b981')}${nf('of-snk2','Snack 2','#10b981')}
         </div>
         <div class="of-sec" style="color:#f59e0b">🟡 Shift 3</div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">
           ${nf('of-s3','Shift 3','#f59e0b')}${nf('of-sp3','Spare 3','#f59e0b')}${nf('of-ot3','OT 3','#f59e0b')}${nf('of-snk3','Snack 3','#f59e0b')}
         </div>
         <div class="of-sec" style="color:#ec4899">🍱 Snack Berat</div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">
           ${nf('of-snkb','Snack Berat','#ec4899')}
         </div>`,
       buttons: [

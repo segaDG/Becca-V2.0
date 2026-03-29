@@ -112,7 +112,7 @@ const APModule = (() => {
     const el = document.getElementById('ap-tab-list');
     el.innerHTML = `
       <!-- STATS CARDS -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s3);margin-bottom:var(--s5)">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--s3);margin-bottom:var(--s5)">
         ${[
           {l:'Sisa Hutang',    v:Utils.formatRupiah(totalHutang,true),  c:'#ef4444', ic:'⚠️', sub:_ap.filter(r=>r.status!=='LUNAS').length+' tagihan belum lunas', click:true},
           {l:'Sudah Dibayar',  v:Utils.formatRupiah(totalLunas,true),   c:'#10b981', ic:'✅', sub:_ap.filter(r=>r.status==='LUNAS').length+' transaksi lunas'},
@@ -151,7 +151,7 @@ const APModule = (() => {
 
       <!-- TABLE -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-        <div style="overflow-x:auto">
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
           <table style="width:100%;border-collapse:collapse;min-width:900px" id="ap-main-table">
             <thead>
               <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
@@ -564,7 +564,7 @@ const APModule = (() => {
           {l:'Punya Tagihan',  v:supWithAP+' supplier',      c:'var(--warning)'},
           {l:'Total AP Aktif', v:_ap.filter(a=>a.status!=='LUNAS').length+' tagihan', c:'var(--danger)'},
         ].map(s=>`
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:150px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 150px;min-width:0;max-width:220px">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
             <div style="font-size:16px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
           </div>`).join('')}
@@ -1072,7 +1072,7 @@ const APModule = (() => {
           </div>
 
           <!-- TABLE -->
-          <div style="overflow-x:auto">
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
             <table style="width:100%;border-collapse:collapse;min-width:680px" id="vap-table">
               <thead>
                 <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
@@ -1333,7 +1333,7 @@ const APModule = (() => {
 
     page.innerHTML = `
       <!-- Summary Header Cards -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:24px">
         <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:16px;padding:20px;color:#fff">
           <div style="font-size:11px;opacity:.8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Total AP</div>
           <div style="font-size:22px;font-weight:800;margin:6px 0">${fmtRp(grandTotal)}</div>

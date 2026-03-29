@@ -341,6 +341,10 @@
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--s4); }
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s4); }
 
+/* Dashboard 2-column: main + fixed side panel; stacks on mobile */
+.dash-grid         { display: grid; gap: var(--s4); margin-bottom: var(--s5); grid-template-columns: 1fr; }
+.dash-grid-2col    { grid-template-columns: 1fr minmax(0, 360px); }
+
 /* === RESPONSIVE BREAKPOINTS === */
 
 /* Large desktop (>1400px) */
@@ -403,7 +407,7 @@
   .main-area { width: 100vw; }
   #content { padding: var(--s3); }
 
-  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .grid-2, .grid-3, .grid-4, .dash-grid-2col { grid-template-columns: 1fr; }
 
   .tabs { width: 100%; }
 

@@ -472,3 +472,67 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .confirm-icon.warning { background: var(--warning-bg); }
 .confirm-title { font-size: 16px; font-weight: 700; margin-bottom: var(--s2); }
 .confirm-desc  { font-size: 13px; color: var(--text-2); }
+
+/* ===========================
+   MOBILE RESPONSIVE
+   =========================== */
+
+/* --- Modals: constrain to viewport on mobile --- */
+@media (max-width: 768px) {
+  .modal-backdrop { padding: var(--s3); }
+  .modal-lg,
+  .modal-xl       { max-width: 100% !important; }
+}
+
+@media (max-width: 480px) {
+  /* Bottom-sheet style on small phones */
+  .modal-backdrop {
+    padding: var(--s2);
+    align-items: flex-end;
+  }
+  .modal,
+  .modal-lg,
+  .modal-xl {
+    max-width: 100% !important;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    max-height: 92vh;
+  }
+  .modal-header { padding: var(--s4) var(--s5); }
+  .modal-body   { padding: var(--s4); }
+  .modal-footer { padding: var(--s3) var(--s4); }
+}
+
+/* --- Form rows: single column on narrow screens --- */
+@media (max-width: 600px) {
+  .form-row,
+  .form-row-3 { grid-template-columns: 1fr !important; }
+}
+
+/* --- Filter bar: override inline width="" on inputs --- */
+@media (max-width: 768px) {
+  .filter-bar .form-control {
+    width: auto    !important;
+    min-width: 0   !important;
+    flex: 1 1 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .filter-bar .form-control {
+    width: 100% !important;
+    flex: none;
+  }
+}
+
+/* --- Toast: prevent overflow on narrow screens --- */
+@media (max-width: 480px) {
+  .toast {
+    min-width: 0;
+    max-width: calc(100vw - var(--s6) * 2);
+  }
+}
