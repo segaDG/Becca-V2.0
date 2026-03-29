@@ -888,11 +888,14 @@ const FaceAttendanceModule = (() => {
   // =============================================
   function renderToggle() {
     const on = isEnabled();
-    return `<button class="btn btn-ghost btn-sm" onclick="FaceAttendanceModule.toggleAndRender()"
-      style="${on ? 'border-color:rgba(34,197,94,.5);color:var(--success)' : ''}">
-      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${on?'var(--success)':'var(--text-3)'};margin-right:4px"></span>
-      ${on ? 'Wajah ON' : 'Wajah OFF'}
-    </button>`;
+    return `<div onclick="FaceAttendanceModule.toggleAndRender()"
+      style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;padding:5px 10px 5px 6px;border-radius:20px;border:1px solid ${on?'rgba(34,197,94,.45)':'var(--border)'}">
+      <div style="position:relative;width:34px;height:19px;flex-shrink:0">
+        <div style="position:absolute;inset:0;border-radius:10px;background:${on?'#22c55e':'var(--surface2)'}"></div>
+        <div style="position:absolute;top:2px;left:${on?'17':'2'}px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.28)"></div>
+      </div>
+      <span style="font-size:12px;font-weight:600;color:${on?'var(--success)':'var(--text-3)'}">Face ${on?'ON':'OFF'}</span>
+    </div>`;
   }
   function toggleAndRender() {
     setEnabled(!isEnabled());
