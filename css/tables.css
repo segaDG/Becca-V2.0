@@ -7,7 +7,13 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  overflow: hidden;
+  /* overflow:clip — preserves border-radius clipping tapi TIDAK membuat
+     scroll container, sehingga child overflow-x:auto tetap bisa swipe di iOS */
+  overflow: clip;
+}
+/* Fallback untuk browser lama yang tidak support clip */
+@supports not (overflow: clip) {
+  .table-wrapper { overflow: hidden; }
 }
 
 /* === TABLE === */
@@ -52,9 +58,22 @@
 /* Table with scroll */
 .table-scroll {
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
 }
 .table-scroll .table { min-width: 700px; }
+
+/* Invoice scroll (inv-scroll class) */
+.inv-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+}
+.inv-scroll .table { min-width: 640px; }
 
 /* === PAGINATION === */
 .pagination {

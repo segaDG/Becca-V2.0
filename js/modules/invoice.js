@@ -237,7 +237,7 @@ const InvoiceModule = (() => {
       .inv-b.urgent{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25)}
       .inv-b.warn{background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.3)}
       .inv-b.info{background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.25)}
-      .inv-card{background:var(--surface);border:1px solid var(--border);border-radius:0 0 12px 12px;overflow:hidden}
+      .inv-card{background:var(--surface);border:1px solid var(--border);border-radius:0 0 12px 12px;overflow:clip}
       .inv-toolbar{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
       .inv-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
       .inv-th{padding:9px 8px;font-size:10px;font-weight:700;text-transform:uppercase;color:#fff;white-space:nowrap;text-align:center}
