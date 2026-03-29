@@ -63,6 +63,10 @@ const EmployeeModule = (() => {
         <div class="page-header-left"><h2>Karyawan</h2><p>Data dan logbook karyawan</p></div>
         <div class="page-header-right">
           ${Auth.can('employee','edit') ? `
+            <button class="btn btn-ghost" onclick="EmployeeModule.openBroadcastModal()" title="Kirim notifikasi ke karyawan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              Broadcast
+            </button>
             <button class="btn btn-primary" onclick="EmployeeModule.openEmpModal()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 5v14M5 12h14"/></svg>
               Tambah Karyawan
@@ -786,13 +790,11 @@ const EmployeeModule = (() => {
             </div>
             <div>
               <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;font-weight:600">Foto Diri</div>
-              <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin-bottom:4px;display:block">
+              <button type="button" class="btn btn-ghost btn-sm" style="margin-bottom:4px;display:block" onclick="EmployeeModule._pickFoto()">
                 📷 Pilih Foto
-                <input type="file" id="emp-foto-input" accept="image/*" style="display:none"
-                  onchange="EmployeeModule._handleFotoUpload(this)">
-              </label>
+              </button>
               ${d.fotoUrl ? '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);display:block" onclick="EmployeeModule._removeFoto()">✕ Hapus</button>' : ''}
-              <div style="font-size:10px;color:var(--text-3)">PNG/JPG · Max 1MB</div>
+              <div style="font-size:10px;color:var(--text-3)">Kamera / Galeri</div>
             </div>
           </div>
           <!-- Foto KTP -->
@@ -803,13 +805,11 @@ const EmployeeModule = (() => {
             </div>
             <div>
               <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;font-weight:600">Foto KTP</div>
-              <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin-bottom:4px;display:block">
+              <button type="button" class="btn btn-ghost btn-sm" style="margin-bottom:4px;display:block" onclick="EmployeeModule._pickKtp()">
                 🪪 Pilih KTP
-                <input type="file" id="emp-ktp-input" accept="image/*" style="display:none"
-                  onchange="EmployeeModule._handleKtpUpload(this)">
-              </label>
+              </button>
               ${d.ktpUrl ? '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);display:block" onclick="EmployeeModule._removeKtp()">✕ Hapus</button>' : ''}
-              <div style="font-size:10px;color:var(--text-3)">PNG/JPG · Max 5MB</div>
+              <div style="font-size:10px;color:var(--text-3)">Kamera / Galeri</div>
             </div>
           </div>
         </div>
@@ -2508,9 +2508,125 @@ const EmployeeModule = (() => {
     });
   }
 
+  // ── Broadcast Notifikasi ────────────────────────────────
+  function openBroadcastModal() {
+    if (typeof PushModule === 'undefined') { Notify.warning('Push notification belum aktif'); return; }
+    const mid = 'modal-bc-' + Utils.uid();
+    const divisiList = [...new Set(_employees.map(e => e.divisi || e.departemen).filter(Boolean))].sort();
+    Modal.open({
+      id: mid,
+      title: '📢 Broadcast Notifikasi',
+      size: 'modal-md',
+      body: `
+        <div class="form-group">
+          <label class="form-label">Judul Notifikasi *</label>
+          <input type="text" id="bc-title" class="form-control" placeholder="Contoh: Pengumuman Penting">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Pesan *</label>
+          <textarea id="bc-body" class="form-control" rows="3" placeholder="Isi pesan notifikasi..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Kirim Ke</label>
+          <select id="bc-target" class="form-control" onchange="EmployeeModule._bcTargetChange(this.value)">
+            <option value="all">Semua Karyawan</option>
+            <option value="divisi">Divisi Tertentu</option>
+            <option value="jabatan">Jabatan Tertentu</option>
+          </select>
+        </div>
+        <div id="bc-filter-wrap" style="display:none">
+          <div class="form-group">
+            <label class="form-label" id="bc-filter-label">Divisi</label>
+            <select id="bc-filter-value" class="form-control" onchange="EmployeeModule._bcCountRecipients()">
+              ${divisiList.map(d=>`<option value="${Utils.esc(d)}">${Utils.esc(d)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div style="padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text-3)">
+          📱 Penerima: <strong id="bc-count">menghitung...</strong> device terdaftar
+        </div>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="EmployeeModule._submitBroadcast('${mid}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Kirim
+        </button>`,
+    });
+    setTimeout(() => EmployeeModule._bcCountRecipients(), 200);
+  }
+
+  function _bcTargetChange(val) {
+    const wrap  = document.getElementById('bc-filter-wrap');
+    const label = document.getElementById('bc-filter-label');
+    const sel   = document.getElementById('bc-filter-value');
+    if (val === 'all') { wrap.style.display = 'none'; }
+    else {
+      wrap.style.display = '';
+      label.textContent  = val === 'divisi' ? 'Divisi' : 'Jabatan';
+      const list = val === 'divisi'
+        ? [...new Set(_employees.map(e => e.divisi || e.departemen).filter(Boolean))].sort()
+        : [...new Set(_employees.map(e => e.jabatan).filter(Boolean))].sort();
+      sel.innerHTML = list.map(d=>`<option value="${Utils.esc(d)}">${Utils.esc(d)}</option>`).join('');
+    }
+    _bcCountRecipients();
+  }
+
+  async function _bcCountRecipients() {
+    const target = document.getElementById('bc-target')?.value || 'all';
+    const val    = document.getElementById('bc-filter-value')?.value;
+    const filter = target === 'divisi' && val ? { divisi: val }
+                 : target === 'jabatan' && val ? { jabatan: val } : {};
+    const rows = await DB.getPushTokens(filter).catch(() => []);
+    const el   = document.getElementById('bc-count');
+    if (el) el.textContent = rows.length;
+  }
+
+  async function _submitBroadcast(mid) {
+    const title  = document.getElementById('bc-title')?.value?.trim();
+    const body   = document.getElementById('bc-body')?.value?.trim();
+    const target = document.getElementById('bc-target')?.value || 'all';
+    const val    = document.getElementById('bc-filter-value')?.value;
+    if (!title) { Notify.warning('Judul wajib diisi'); return; }
+    if (!body)  { Notify.warning('Pesan wajib diisi');  return; }
+    const filter = target === 'divisi' && val ? { divisi: val }
+                 : target === 'jabatan' && val ? { jabatan: val } : {};
+    const rows = await DB.getPushTokens(filter).catch(() => []);
+    if (!rows.length) { Notify.warning('Tidak ada device terdaftar untuk target ini'); return; }
+    Modal.close(mid);
+    try {
+      await PushModule.sendToGroup(filter, { title, body, data: { type: 'broadcast' } });
+      Notify.success(`Broadcast terkirim ke ${rows.length} device ✓`);
+    } catch(e) { Notify.error('Gagal kirim', e.message); }
+  }
+
+  // ── MediaPicker: foto & KTP ─────────────────────────────
+  async function _pickFoto() {
+    if (typeof MediaPicker === 'undefined') {
+      document.getElementById('emp-foto-input')?.click(); return;
+    }
+    const dataUrl = await MediaPicker.pick({ maxPx: 512, quality: 0.80 });
+    if (!dataUrl) return;
+    _tempFotoUrl = dataUrl;
+    const prev = document.getElementById('emp-foto-preview');
+    if (prev) prev.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover">';
+  }
+
+  async function _pickKtp() {
+    if (typeof MediaPicker === 'undefined') {
+      document.getElementById('emp-ktp-input')?.click(); return;
+    }
+    const dataUrl = await MediaPicker.pick({ maxPx: 1024, quality: 0.85 });
+    if (!dataUrl) return;
+    _tempKtpUrl = dataUrl;
+    const prev = document.getElementById('emp-ktp-preview');
+    if (prev) prev.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:80px;object-fit:cover;border-radius:4px">';
+  }
+
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip, _deleteEmpFromArsip,
     _handleFotoUpload, _removeFoto, _handleKtpUpload, _removeKtp, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter, migratePhotosFromLS,
+    openBroadcastModal, _bcTargetChange, _bcCountRecipients, _submitBroadcast,
+    _pickFoto, _pickKtp,
     _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, recalcAllHutang, _showLogDetail,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
