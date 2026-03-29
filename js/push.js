@@ -7,7 +7,7 @@ const PushModule = (() => {
   'use strict';
 
   const VAPID_KEY    = 'BO2AZgzwA5nJROSP6yUgaVdWjcVoSqTIfef4Bvem3oViRLI3C9ebDG5WYeSnv149RtlIZGhVyNd3N6xkRtfMju4';
-  const SEND_URL     = '/.netlify/functions/send-push';
+  const SEND_URL     = 'https://pevwkyrsfpmzhwxkoask.supabase.co/functions/v1/send-push';
   const FB_CONFIG    = {
     apiKey:            'AIzaSyBgglo30BvAH6U0RrEjUukPCtW_GQiANIA',
     authDomain:        'becca-ae19d.firebaseapp.com',
