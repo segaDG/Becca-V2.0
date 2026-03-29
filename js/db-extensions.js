@@ -120,6 +120,28 @@ const DBExtensions = (() => {
         _refreshOnlineBadge();
       },
 
+      emp_absensi: ({ eventType, new: newRow }) => {
+        if (eventType !== 'INSERT' || !newRow) return;
+        // Update face-attendance module state
+        if (window.FaceAttendanceModule) FaceAttendanceModule.pushAbsensi(newRow);
+        // Update fullscreen kiosk badge live (only if from another device)
+        const countEl = document.getElementById('ks-count');
+        const logEl   = document.getElementById('ks-log');
+        if (countEl && logEl) {
+          // Flash badge
+          countEl.style.transition = 'transform .2s,color .2s';
+          countEl.style.transform  = 'scale(1.4)';
+          countEl.style.color      = '#4ade80';
+          setTimeout(() => { countEl.style.transform='scale(1)'; countEl.style.color='#6366f1'; }, 400);
+          // Count from hidden log children
+          countEl.textContent = (parseInt(countEl.textContent) || 0) + 1;
+        }
+        // Refresh employee absensi tab if open
+        if (window.App?._currentPage === 'employee' && window.EmployeeModule) {
+          setTimeout(() => EmployeeModule.renderAbsensi?.(), 200);
+        }
+      },
+
       activity_logs: () => {
         if (window.App?._currentPage === 'settings') {
           const tab = document.querySelector('[onclick*="activity"]');

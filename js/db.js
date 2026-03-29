@@ -699,7 +699,8 @@ const DB = (() => {
       if (!sb) return;
 
       const tables = ['orders','invoices','tasks','customers','kas',
-                      'presence','activity_logs','users','settings'];
+                      'presence','activity_logs','users','settings',
+                      'emp_absensi'];
 
       tables.forEach(table => {
         const cb = callbacks[table] || callbacks['*'];
