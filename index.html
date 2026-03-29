@@ -4,6 +4,17 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>BECCA — Catering Management</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#6366f1"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <!-- iOS -->
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="BECCA"/>
+  <link rel="apple-touch-icon" href="/img/icon.svg"/>
+
   <!-- Preconnect ke domain eksternal untuk mempercepat DNS + TLS -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin/>
   <link rel="preconnect" href="https://pevwkyrsfpmzhwxkoask.supabase.co" crossorigin/>
@@ -80,5 +91,14 @@
 
   <!-- ONE-TIME IMPORT: hapus baris ini setelah import selesai -->
   <script src="js/import_orders_march2026.js"         defer></script>
+
+  <!-- PWA: daftarkan Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
