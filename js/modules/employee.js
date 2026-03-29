@@ -31,6 +31,7 @@ const EmployeeModule = (() => {
   // Jadwal Shift state
   let _jadwal          = [];
   let _jadwalWeekStart = null; // computed lazily via _getMonday()
+  let _jadwalFilling   = false; // guard: prevent concurrent _jadwalFillAll
 
   const _EMP_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6'];
   function _empColor(nama) {
@@ -819,8 +820,11 @@ const EmployeeModule = (() => {
             <input name="jabatan" class="form-control" value="${d.jabatan||''}">
           </div>
           <div class="form-group">
-            <label class="form-label">Departemen</label>
-            <input name="departemen" class="form-control" value="${d.departemen||''}">
+            <label class="form-label">Divisi / Departemen</label>
+            <input name="departemen" class="form-control" value="${d.departemen||d.divisi||''}" list="dept-list-${mid}" autocomplete="off" placeholder="Pilih atau ketik divisi...">
+            <datalist id="dept-list-${mid}">
+              ${[...new Set(_employees.map(e=>e.divisi||e.departemen).filter(Boolean))].sort().map(div=>`<option value="${div}">`).join('')}
+            </datalist>
           </div>
         </div>
         <div class="form-row">
@@ -2261,23 +2265,41 @@ const EmployeeModule = (() => {
             }).join('')}
           </tr></thead>
           <tbody>
-            ${emps.map(emp=>{
-              const cells = weekDays.map(d=>{
-                const tgl    = d.toISOString().split('T')[0];
-                const rec    = jMap[(emp.id||emp.nama)+'_'+tgl] || jMap[emp.nama+'_'+tgl];
-                const shift  = rec ? (rec.shift||'') : '';
-                const isTday = tgl===today;
-                return `<td style="text-align:center;padding:5px 4px;${isTday?'background:rgba(99,102,241,.04)':''}">
-                  <span style="display:inline-block;padding:3px 0;width:68px;border-radius:6px;font-size:12px;font-weight:700;${shift?_SHIFT_COLOR[shift]:'border:1px dashed var(--border);color:var(--text-3)'};${canEdit?'cursor:pointer':''}"
-                    ${canEdit?`onclick="EmployeeModule._cycleJadwal('${emp.id}','${emp.nama.replace(/'/g,'')}','${tgl}')"`:''} title="${shift?_SHIFT_LABEL[shift]:canEdit?'Klik untuk set':''}">${shift?_SHIFT_LABEL[shift]:'·'}</span>
-                </td>`;
+            ${(()=>{
+              // Group emps by divisi
+              const divisiMap = {};
+              emps.forEach(emp => {
+                const div = emp.divisi || emp.departemen || 'Lainnya';
+                if (!divisiMap[div]) divisiMap[div] = [];
+                divisiMap[div].push(emp);
+              });
+              const colCount = 1 + weekDays.length;
+              return Object.keys(divisiMap).sort().map(div => {
+                const rows = divisiMap[div].map(emp => {
+                  const cells = weekDays.map(d=>{
+                    const tgl    = d.toISOString().split('T')[0];
+                    const rec    = jMap[(emp.id||emp.nama)+'_'+tgl] || jMap[emp.nama+'_'+tgl];
+                    const shift  = rec ? (rec.shift||'') : '';
+                    const isTday = tgl===today;
+                    return `<td style="text-align:center;padding:5px 4px;${isTday?'background:rgba(99,102,241,.04)':''}">
+                      <span style="display:inline-block;padding:3px 0;width:68px;border-radius:6px;font-size:12px;font-weight:700;${shift?_SHIFT_COLOR[shift]:'border:1px dashed var(--border);color:var(--text-3)'};${canEdit?'cursor:pointer':''}"
+                        ${canEdit?`onclick="EmployeeModule._cycleJadwal('${emp.id}','${emp.nama.replace(/'/g,'')}','${tgl}')"`:''} title="${shift?_SHIFT_LABEL[shift]:canEdit?'Klik untuk set':''}">${shift?_SHIFT_LABEL[shift]:'·'}</span>
+                    </td>`;
+                  }).join('');
+                  return `<tr>
+                    <td style="position:sticky;left:0;background:var(--surface);z-index:1;white-space:nowrap">
+                      <div style="display:flex;align-items:center;gap:6px">${_empAvatar(emp,22)}<span style="font-weight:500;font-size:12px">${emp.nama}</span></div>
+                    </td>${cells}
+                  </tr>`;
+                }).join('');
+                const header = `<tr>
+                  <td colspan="${colCount}" style="position:sticky;left:0;background:var(--surface2);padding:5px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);border-top:1px solid var(--border)">
+                    ${div} <span style="font-weight:400;opacity:.7">(${divisiMap[div].length})</span>
+                  </td>
+                </tr>`;
+                return header + rows;
               }).join('');
-              return `<tr>
-                <td style="position:sticky;left:0;background:var(--surface);z-index:1;white-space:nowrap">
-                  <div style="display:flex;align-items:center;gap:6px">${_empAvatar(emp,22)}<span style="font-weight:500;font-size:12px">${emp.nama}</span></div>
-                </td>${cells}
-              </tr>`;
-            }).join('')}
+            })()}
           </tbody>
         </table>
       </div></div>`;
@@ -2312,30 +2334,41 @@ const EmployeeModule = (() => {
 
   async function _jadwalFillAll(shift) {
     if (!Auth.can('employee','edit')) return;
+    if (_jadwalFilling) return; // prevent concurrent execution
+    _jadwalFilling = true;
+
     const ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
     const emps   = _employees.filter(e => ACTIVE.includes(e.status));
     if (!_jadwalWeekStart) _jadwalWeekStart = _getMonday(new Date());
     const ws = new Date(_jadwalWeekStart);
+
+    // Step 1: update _jadwal array in memory synchronously — instant UI
+    const toSave = [];
     for (const emp of emps) {
-      for (let i=0; i<6; i++) { // Mon(0)→Sat(5), skip Sun
+      for (let i = 0; i < 6; i++) { // Mon→Sat, skip Sun
         const d = new Date(ws);
-        d.setDate(ws.getDate()+i);
+        d.setDate(ws.getDate() + i);
         const tgl = d.toISOString().split('T')[0];
-        const ex  = _jadwal.find(j => (j.empId===emp.id||j.empNama===emp.nama) && j.tgl===tgl);
+        const ex  = _jadwal.find(j => (j.empId===emp.id || j.empNama===emp.nama) && j.tgl===tgl);
         if (ex) {
           ex.shift = shift;
-          const saved = await DB.saveEmpJadwal(ex).catch(()=>ex);
-          const i2 = _jadwal.findIndex(j=>j.id===ex.id);
-          if (i2>=0) _jadwal[i2]=saved;
+          toSave.push({type:'update', rec: ex});
         } else {
-          const rec   = {empId:emp.id, empNama:emp.nama, tgl, shift, createdAt:new Date().toISOString()};
-          const saved = await DB.saveEmpJadwal(rec).catch(()=>rec);
-          _jadwal.push(saved);
+          const rec = {id: Utils.uid(), empId: emp.id, empNama: emp.nama, tgl, shift, createdAt: new Date().toISOString()};
+          _jadwal.push(rec);
+          toSave.push({type:'insert', rec});
         }
       }
     }
+
+    // Step 2: render immediately — user sees result right away
     renderJadwal();
-    Notify.success('Jadwal minggu ini: Shift '+shift+' untuk '+emps.length+' karyawan');
+    Notify.success('Jadwal Shift ' + shift + ' — ' + emps.length + ' karyawan ✓');
+
+    // Step 3: persist to DB in parallel (background)
+    await Promise.all(toSave.map(({rec}) => DB.saveEmpJadwal(rec).catch(()=>{}))).finally(() => {
+      _jadwalFilling = false;
+    });
   }
 
   return {
