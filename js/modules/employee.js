@@ -1762,7 +1762,7 @@ const EmployeeModule = (() => {
         <div style="margin-left:auto;display:flex;gap:var(--s2);flex-wrap:wrap">
           ${window.FaceAttendanceModule ? FaceAttendanceModule.renderToggle() : ''}
           ${FaceAttendanceModule?.isEnabled() ? `
-            <button class="btn btn-primary btn-sm" onclick="FaceAttendanceModule.openKioskFullscreen()" title="Mode layar penuh untuk tablet absensi">⛶ Layar Penuh</button>
+            <button class="btn btn-primary btn-sm" onclick="FaceAttendanceModule.openKioskFullscreen()" title="Mode layar penuh untuk tablet absensi">⛶ Scan</button>
           ` : ''}
           ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="EmployeeModule._bulkAbsensi('H')" title="Tandai semua Hadir hari ini">✅ Hadir Semua</button>
           <button class="btn btn-primary btn-sm" onclick="EmployeeModule.openAbsensiModal()">+ Input</button>` : ''}
@@ -2427,11 +2427,33 @@ const EmployeeModule = (() => {
               const colCount = 1 + weekDays.length;
               return Object.keys(divisiMap).sort().map(div => {
                 const rows = divisiMap[div].map(emp => {
+                  const isDS = ['driver','service'].some(k =>
+                    (emp.divisi||emp.departemen||'').toLowerCase().includes(k) ||
+                    (emp.jabatan||'').toLowerCase().includes(k));
                   const cells = weekDays.map(d=>{
                     const tgl    = d.toISOString().split('T')[0];
                     const rec    = jMap[(emp.id||emp.nama)+'_'+tgl] || jMap[emp.nama+'_'+tgl];
-                    const shift  = rec ? (rec.shift||'') : '';
                     const isTday = tgl===today;
+                    if (isDS) {
+                      const shifts    = rec?.shifts?.length ? rec.shifts : (rec?.shift ? [rec.shift] : []);
+                      const customers = rec?.customers || [];
+                      const shiftLbl  = shifts.length ? shifts.map(s=>_SHIFT_LABEL[s]||('S'+s)).join(',') : '·';
+                      const shiftSty  = shifts.length
+                        ? (shifts.length===1 ? _SHIFT_COLOR[shifts[0]] : 'background:rgba(99,102,241,.12);color:#4338ca;border:1px solid rgba(99,102,241,.4)')
+                        : 'border:1px dashed var(--border);color:var(--text-3)';
+                      const custShort = customers.slice(0,2).map(c=>c.replace(/^PT\.\s*/i,'').split(' ')[0]).join(' · ');
+                      return `<td style="text-align:center;padding:3px 2px;${isTday?'background:rgba(99,102,241,.04)':''}">
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:1px">
+                          <span style="display:inline-block;padding:2px 0;min-width:64px;border-radius:6px;font-size:11px;font-weight:700;${shiftSty};${canEdit?'cursor:pointer':''}"
+                            ${canEdit?`onclick="EmployeeModule._openJadwalModal('${emp.id}','${emp.nama.replace(/'/g,"\\'")}','${tgl}')"`:''}>
+                            ${shiftLbl}</span>
+                          ${customers.length?`<span style="font-size:9px;color:var(--text-3);max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${Utils.esc(customers.join(', '))}"
+                            ${canEdit?`onclick="EmployeeModule._openJadwalModal('${emp.id}','${emp.nama.replace(/'/g,"\\'")}','${tgl}')"`:''}>
+                            ${Utils.esc(custShort)}</span>`:''}
+                        </div>
+                      </td>`;
+                    }
+                    const shift  = rec ? (rec.shift||'') : '';
                     return `<td style="text-align:center;padding:5px 4px;${isTday?'background:rgba(99,102,241,.04)':''}">
                       <span style="display:inline-block;padding:3px 0;width:68px;border-radius:6px;font-size:12px;font-weight:700;${shift?_SHIFT_COLOR[shift]:'border:1px dashed var(--border);color:var(--text-3)'};${canEdit?'cursor:pointer':''}"
                         ${canEdit?`onclick="EmployeeModule._cycleJadwal('${emp.id}','${emp.nama.replace(/'/g,'')}','${tgl}')"`:''} title="${shift?_SHIFT_LABEL[shift]:canEdit?'Klik untuk set':''}">${shift?_SHIFT_LABEL[shift]:'·'}</span>
@@ -2520,6 +2542,84 @@ const EmployeeModule = (() => {
     await Promise.all(toSave.map(({rec}) => DB.saveEmpJadwal(rec).catch(()=>{}))).finally(() => {
       _jadwalFilling = false;
     });
+  }
+
+  // ── Jadwal Modal (Driver / Service multi-shift + customer) ──
+  async function _openJadwalModal(empId, empNama, tgl) {
+    if (!Auth.can('employee','edit')) return;
+    const mid = 'jdwl-' + Utils.uid();
+    const rec = _jadwal.find(j => (j.empId===empId||j.empNama===empNama) && j.tgl===tgl);
+    const currentShifts = rec?.shifts?.length ? rec.shifts : (rec?.shift ? [rec.shift] : []);
+    const currentCusts  = rec?.customers || [];
+    const custData = await DB.getCustomers().catch(() => []);
+    const custNames = [...new Set(custData.map(c => c.nama || c.data?.nama).filter(Boolean))].sort();
+    const tglFmt = new Date(tgl+'T00:00:00').toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+    Modal.open({
+      id: mid,
+      title: `🗓 Jadwal — ${empNama}`,
+      size: 'modal-md',
+      body: `
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:14px">${tglFmt}</div>
+        <div class="form-group">
+          <label class="form-label">Shift (bisa lebih dari 1)</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${['1','2','3','Off'].map(s=>`
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 14px;border-radius:8px;border:1px solid ${currentShifts.includes(s)?'transparent':'var(--border)'};${currentShifts.includes(s)?_SHIFT_COLOR[s]:''}">
+                <input type="checkbox" value="${s}" class="jm-shift" ${currentShifts.includes(s)?'checked':''}
+                  onchange="EmployeeModule._jmToggleShift(this,'${s}')">
+                ${_SHIFT_LABEL[s]}</label>`).join('')}
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Customer (bisa lebih dari 1)</label>
+          <input id="jm-search" class="form-control form-control-sm" placeholder="Cari customer..." style="margin-bottom:8px"
+            oninput="document.querySelectorAll('.jm-cust-row').forEach(r=>r.style.display=r.dataset.name.toLowerCase().includes(this.value.toLowerCase())?'':'none')">
+          <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px">
+            ${custNames.map(c=>`
+              <label class="jm-cust-row" data-name="${Utils.esc(c)}" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:5px 8px;border-radius:6px${currentCusts.includes(c)?';background:rgba(99,102,241,.08)':''}">
+                <input type="checkbox" value="${Utils.esc(c)}" class="jm-cust" ${currentCusts.includes(c)?'checked':''}>
+                <span style="font-size:12px">${Utils.esc(c)}</span>
+              </label>`).join('')}
+          </div>
+        </div>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        ${rec?`<button class="btn btn-ghost" style="color:var(--danger)" onclick="EmployeeModule._deleteJadwal('${rec.id}','${mid}')">Hapus</button>`:''}
+        <button class="btn btn-primary" onclick="EmployeeModule._saveJadwalModal('${empId}','${empNama.replace(/'/g,"\\'")}','${tgl}','${mid}')">Simpan</button>`,
+    });
+  }
+
+  async function _saveJadwalModal(empId, empNama, tgl, mid) {
+    const shifts    = [...document.querySelectorAll(`#${mid} .jm-shift:checked`)].map(e => e.value);
+    const customers = [...document.querySelectorAll(`#${mid} .jm-cust:checked`)].map(e => e.value);
+    const ex  = _jadwal.find(j => (j.empId===empId||j.empNama===empNama) && j.tgl===tgl);
+    const rec = ex ? {...ex} : {id: Utils.uid(), empId, empNama, tgl, createdAt: new Date().toISOString()};
+    rec.shift     = shifts[0] || '';
+    rec.shifts    = shifts;
+    rec.customers = customers;
+    Modal.close(mid);
+    const saved = await DB.saveEmpJadwal(rec).catch(() => rec);
+    const idx = _jadwal.findIndex(j => j.id === (ex?.id || saved.id));
+    if (idx >= 0) _jadwal[idx] = saved; else _jadwal.push(saved);
+    renderJadwal();
+  }
+
+  async function _deleteJadwal(id, mid) {
+    Modal.close(mid);
+    await DB.deleteEmpJadwal(id).catch(() => {});
+    _jadwal = _jadwal.filter(j => j.id !== id);
+    renderJadwal();
+  }
+
+  function _jmToggleShift(el, s) {
+    const label = el.closest('label');
+    if (!label) return;
+    if (el.checked) {
+      label.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 14px;border-radius:8px;border:1px solid transparent;' + (_SHIFT_COLOR[s] || '');
+    } else {
+      label.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 14px;border-radius:8px;border:1px solid var(--border)';
+    }
   }
 
   // ── Broadcast Notifikasi ────────────────────────────────
@@ -2651,6 +2751,7 @@ const EmployeeModule = (() => {
     generatePayroll, openSlipGaji, _editPayrollRow, _submitPayrollEdit, _markPayrollLunas,
     // Jadwal Shift
     renderJadwal, _cycleJadwal, _jadwalPrevWeek, _jadwalNextWeek, _jadwalThisWeek, _jadwalFillAll,
+    _openJadwalModal, _saveJadwalModal, _deleteJadwal, _jmToggleShift,
     get _selectedEmpId() { return _selectedEmpId; },
     set _selectedEmpId(v) { _selectedEmpId = v; },
   };
