@@ -2551,8 +2551,8 @@ const EmployeeModule = (() => {
     const rec = _jadwal.find(j => (j.empId===empId||j.empNama===empNama) && j.tgl===tgl);
     const currentShifts = rec?.shifts?.length ? rec.shifts : (rec?.shift ? [rec.shift] : []);
     const currentCusts  = rec?.customers || [];
-    const custData = await DB.getCustomers().catch(() => []);
-    const custNames = [...new Set(custData.map(c => c.nama || c.data?.nama).filter(Boolean))].sort();
+    const invData   = await DB.getInvoices().catch(() => []);
+    const custNames = [...new Set(invData.map(i => i.customer || i.data?.customer).filter(Boolean))].sort();
     const tglFmt = new Date(tgl+'T00:00:00').toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
     Modal.open({

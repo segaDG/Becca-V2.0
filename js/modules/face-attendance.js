@@ -18,6 +18,7 @@ const FaceAttendanceModule = (() => {
   let _matcher  = null;
   let _employees = [];
   let _absensi   = [];
+  let _localSavedIds = new Set(); // IDs saved by this device — skip realtime duplicate
   let _kioskCooldown = {};
 
   // ---- hints for each auto-capture frame ----
@@ -77,7 +78,45 @@ const FaceAttendanceModule = (() => {
     _employees = employees || []; _absensi = absensi || [];
     if (_state === 'ready') _buildMatcher();
   }
-  function pushAbsensi(rec) { _absensi.push(rec); }
+  // Called by db-extensions.js realtime handler for every INSERT
+  function _fsHandleRemote(rec) {
+    if (!rec?.id) return;
+    if (_localSavedIds.has(rec.id)) return; // this device saved it — already counted
+    if (_absensi.find(a => a.id === rec.id)) return; // duplicate guard
+    _absensi.push(rec);
+
+    const countEl = document.getElementById('ks-count');
+    if (!countEl) return; // kiosk not open
+
+    // Flash animation
+    countEl.style.transition = 'transform .2s,color .2s';
+    countEl.style.transform  = 'scale(1.4)';
+    countEl.style.color      = '#4ade80';
+    setTimeout(() => { countEl.style.transform = 'scale(1)'; countEl.style.color = '#6366f1'; }, 400);
+
+    _fsAddLog(rec.empNama, rec.ket || '');
+  }
+
+  // Legacy alias kept for external callers
+  function pushAbsensi(rec) { _fsHandleRemote(rec); }
+
+  async function resetTodayAbsensi() {
+    const today    = new Date().toISOString().split('T')[0];
+    const todayRec = _absensi.filter(a => a.tgl === today);
+    if (!todayRec.length) { if (typeof Notify !== 'undefined') Notify.info('Tidak ada data absensi hari ini'); return; }
+    const ok = await Modal.confirm({ title: 'Reset Absensi', message: `Hapus ${todayRec.length} data absensi hari ini di semua device?`, danger: true, confirmText: 'Reset' });
+    if (!ok) return;
+    await Promise.all(todayRec.map(r => DB.deleteEmpAbsensi(r.id).catch(() => {})));
+    _absensi         = _absensi.filter(a => a.tgl !== today);
+    _localSavedIds   = new Set();
+    _kioskCooldown   = {};
+    const countEl    = document.getElementById('ks-count');
+    const logEl      = document.getElementById('ks-log');
+    if (countEl) countEl.textContent = '0';
+    if (logEl)   logEl.innerHTML     = '';
+    if (typeof Notify !== 'undefined') Notify.success('Data absensi hari ini berhasil direset');
+    if (window.App?._currentPage === 'employee' && window.EmployeeModule) EmployeeModule.renderAbsensi?.();
+  }
 
   function _buildMatcher() {
     if (!window.faceapi) return;
@@ -551,6 +590,7 @@ const FaceAttendanceModule = (() => {
     const saved = await DB.saveEmpAbsensi(rec).catch(() => rec);
     if (!saved.id) saved.id = Utils.uid();
     _absensi.push(saved);
+    _localSavedIds.add(saved.id); // mark as locally saved — skip realtime echo
     if (window.EmployeeModule?._onFaceAbsensi) EmployeeModule._onFaceAbsensi(saved);
 
     _speak('Selamat datang, ' + empNama);
@@ -855,6 +895,7 @@ const FaceAttendanceModule = (() => {
     const saved = await DB.saveEmpAbsensi(rec).catch(() => rec);
     if (!saved.id) saved.id = Utils.uid();
     _absensi.push(saved);
+    _localSavedIds.add(saved.id); // mark as locally saved — skip realtime echo
     if (window.EmployeeModule?._onFaceAbsensi) EmployeeModule._onFaceAbsensi(saved);
 
     // Voice greeting
@@ -903,7 +944,7 @@ const FaceAttendanceModule = (() => {
   }
 
   return {
-    isEnabled, setEnabled, init, pushAbsensi, getEmpThumbs,
+    isEnabled, setEnabled, init, pushAbsensi, _fsHandleRemote, resetTodayAbsensi, getEmpThumbs,
     openRegisterModal, _captureReg: () => {}, _stopReg,
     openKiosk, _stopKiosk,
     openKioskFullscreen, closeFullscreenKiosk,
