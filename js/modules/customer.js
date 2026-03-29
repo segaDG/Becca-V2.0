@@ -107,19 +107,24 @@ const CustomerModule = (() => {
       _data = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(_defaultData));
     }
 
-    // Migrate: rename old names to match invoice names
+    // Migrate: rename old names to canonical full names
     const _RENAME_MAP = {
-      'PT. NICI':         'PT. NUGRAHA INDAH CITARASA INDONESIA',
-      'PT. Shinto Kogyo': 'PT. Shinto Kogyo Indonesia',
-      'PT. DAIKI':        'PT. DAIKI ALMUNIUM INDUSTRI IND',
-      'PT. AWI':          'PT. Akashi Wahana Indonesia',
-      'PT. NBC':          'PT. NBC INDONESIA',
-      'PT. RESONAC':      'PT. RESONAC MATERIALS INDONESIA',
+      'PT. NICI':           'PT. NUGRAHA INDAH CITARASA INDONESIA',
+      'PT. Shinto Kogyo':   'PT. Shinto Kogyo Indonesia',
+      'PT. DAIKI':          'PT. DAIKI ALMUNIUM INDUSTRI IND',
+      'PT. AWI':            'PT. Akashi Wahana Indonesia',
+      'PT. NBC':            'PT. NBC INDONESIA',
+      'PT. RESONAC':        'PT. RESONAC MATERIALS INDONESIA',
+      'PT. SSK':            'PT. Super Steel Karawang',
+      'SUPER STEEL KARAWANG':'PT. Super Steel Karawang',
+      'PT. AICC':           'PT. Asian Isuzu Casting Center (AICC)',
+      'PT. DDMI':           'PT. Daihatsu Drivetrain Manufacturing Indonesia (DDMI)',
+      'PT. IFF KRW':        'International Flavors & Fragrances (IFF)',
     };
     const _ID_MAP = {
-      'PT. TSURUTA':'1','PT. FURUKAWA':'2','PT. IFF KRW':'3','PT. JTEKT':'4',
+      'PT. TSURUTA':'1','PT. FURUKAWA':'2','International Flavors & Fragrances (IFF)':'3','PT. JTEKT':'4',
       'PT. IFF OTISTA':'5','PT. GLOBAL':'6','PT. MARUGO':'7','PT. TOYOBO':'8',
-      'AL-irsyad':'9','PT. DAICHINDO':'11','PT. SSK':'12','PT. Osin':'13',
+      'AL-irsyad':'9','PT. DAICHINDO':'11','PT. Super Steel Karawang':'12','PT. Osin':'13',
       'PT. Dai-Ichi':'14','PT. Beta Pharmacon':'15','PT. Hiruta':'16','Pangan Bento':'17',
       'PT. ACT':'18','PT. Piston Ring':'19','PT. Softex':'21','PT. IJSC':'22',
       'PT. Toyoda Gosai':'23','PT. Mizobata':'24','PT. Mitsui':'25','PT. SRC':'26',
@@ -128,7 +133,8 @@ const CustomerModule = (() => {
       'PT. NUGRAHA INDAH CITARASA INDONESIA':'10','PT. Shinto Kogyo Indonesia':'30',
       'PT. DAIKI ALMUNIUM INDUSTRI IND':'62','PT. Akashi Wahana Indonesia':'64',
       'PT. NBC INDONESIA':'67','PT. RESONAC MATERIALS INDONESIA':'71',
-      'PT. DDMI':'66','SODEXO INDONESIA':'51','SUPER STEEL KARAWANG':'27',
+      'PT. Daihatsu Drivetrain Manufacturing Indonesia (DDMI)':'66','SODEXO INDONESIA':'51',
+      'PT. Asian Isuzu Casting Center (AICC)':'70',
       'PT. MINDA':'20','PT. Murotech':'53','PT. ATOZ':'55','PT. DCI':'56',
       'RS PERMATA':'59','PT. Shinetsu':'60','PT. Etex':'63','PT. DIC':'68','PT. ASTRA':'69',
     };
@@ -168,7 +174,7 @@ const CustomerModule = (() => {
     const _TAX_BY_NAME = {
       'SODEXO INDONESIA':                    { pb1:true,  pph23:false },
       'PT. NUGRAHA INDAH CITARASA INDONESIA':{ pb1:true,  pph23:true  },
-      'SUPER STEEL KARAWANG':                { pb1:false, pph23:true  },
+      'PT. Super Steel Karawang':            { pb1:false, pph23:true  },
       'PT. Shinto Kogyo Indonesia':          { pb1:false, pph23:true  },
       'PT. DAIKI ALMUNIUM INDUSTRI IND':     { pb1:true,  pph23:true  },
       'PT. RESONAC MATERIALS INDONESIA':     { pb1:true,  pph23:true  },
@@ -181,7 +187,7 @@ const CustomerModule = (() => {
       'RS PERMATA':  { pb1:false, pph23:true  },
       'PT. Shinetsu':{ pb1:false, pph23:true  },
       'PT. Etex':    { pb1:false, pph23:true  },
-      'PT. DDMI':    { pb1:true,  pph23:true  },
+      'PT. Daihatsu Drivetrain Manufacturing Indonesia (DDMI)': { pb1:true, pph23:true },
       'PT. DIC':     { pb1:false, pph23:false },
       'PT. ASTRA':   { pb1:false, pph23:true  },
     };

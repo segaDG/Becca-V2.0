@@ -10,7 +10,7 @@ const App = {
     dashboard : 'js/modules/dashboard.js?v=20260329e',
     order     : 'js/modules/order.js?v=20260329e',
     invoice   : 'js/modules/invoice.js?v=20260329e',
-    customer  : 'js/modules/customer.js?v=20260329f',
+    customer  : 'js/modules/customer.js?v=20260329g',
     kas       : 'js/modules/kas.js?v=20260329e',
     'daily-order': 'js/modules/daily-order.js?v=20260329e',
     inventory : 'js/modules/inventory.js?v=20260329f',
@@ -84,7 +84,7 @@ const App = {
           })
           .catch(() => {});
       }
-      // Normalisasi nama customer di order — sekali jalan (case-insensitive match)
+      // Normalisasi nama customer — sekali jalan (case-insensitive match)
       if (DB.isReady() && !localStorage.getItem('becca_orders_norm_v1')) {
         localStorage.setItem('becca_orders_norm_v1', '1');
         Promise.all([DB.getCustomers(), DB.getOrders()]).then(async ([custs, orders]) => {
@@ -98,6 +98,41 @@ const App = {
             if (match) { order.namaPerusahaan = match; await DB.saveOrder(order); fixed++; }
           }
           if (fixed > 0) Notify.success(fixed + ' order diperbarui nama customer ✓');
+        }).catch(() => {});
+      }
+      // Rename nama customer ke nama lengkap resmi — sekali jalan
+      if (DB.isReady() && !localStorage.getItem('becca_cust_rename_v2')) {
+        localStorage.setItem('becca_cust_rename_v2', '1');
+        const _R = {
+          'pt. nici':           'PT. NUGRAHA INDAH CITARASA INDONESIA',
+          'pt. shinto kogyo':   'PT. Shinto Kogyo Indonesia',
+          'pt. daiki':          'PT. DAIKI ALMUNIUM INDUSTRI IND',
+          'pt. awi':            'PT. Akashi Wahana Indonesia',
+          'pt. nbc':            'PT. NBC INDONESIA',
+          'pt. resonac':        'PT. RESONAC MATERIALS INDONESIA',
+          'pt. ssk':            'PT. Super Steel Karawang',
+          'super steel karawang':'PT. Super Steel Karawang',
+          'pt. aicc':           'PT. Asian Isuzu Casting Center (AICC)',
+          'pt. ddmi':           'PT. Daihatsu Drivetrain Manufacturing Indonesia (DDMI)',
+          'pt. iff krw':        'International Flavors & Fragrances (IFF)',
+        };
+        const _rename = n => _R[(n||'').trim().toLowerCase()] || n;
+        Promise.all([DB.getCustomers(), DB.getOrders(), DB.getInvoices()]).then(async ([custs, orders, invs]) => {
+          let c=0, o=0, i=0;
+          for (const cust of (custs||[])) {
+            const n = _rename(cust.nama);
+            if (n !== cust.nama) { cust.nama = n; await DB.saveCustomer(cust); c++; }
+          }
+          for (const ord of (orders||[])) {
+            const n = _rename(ord.namaPerusahaan);
+            if (n !== ord.namaPerusahaan) { ord.namaPerusahaan = n; await DB.saveOrder(ord); o++; }
+          }
+          for (const inv of (invs||[])) {
+            const n = _rename(inv.customer);
+            if (n !== inv.customer) { inv.customer = n; await DB.saveInvoice(inv); i++; }
+          }
+          const total = c + o + i;
+          if (total > 0) Notify.success(`Nama customer diperbarui: ${c} customer, ${o} order, ${i} invoice ✓`);
         }).catch(() => {});
       }
       // Selalu sync users ke Supabase settings saat boot (cross-device login)
