@@ -1761,7 +1761,10 @@ const EmployeeModule = (() => {
         </select>
         <div style="margin-left:auto;display:flex;gap:var(--s2);flex-wrap:wrap">
           ${window.FaceAttendanceModule ? FaceAttendanceModule.renderToggle() : ''}
-          ${FaceAttendanceModule?.isEnabled() ? `<button class="btn btn-ghost btn-sm" style="border-color:rgba(99,102,241,.4);color:var(--primary-h)" onclick="FaceAttendanceModule.openKiosk()">🤖 Buka Kiosk</button>` : ''}
+          ${FaceAttendanceModule?.isEnabled() ? `
+            <button class="btn btn-ghost btn-sm" style="border-color:rgba(99,102,241,.4);color:var(--primary-h)" onclick="FaceAttendanceModule.openKiosk()">🤖 Kiosk</button>
+            <button class="btn btn-primary btn-sm" onclick="FaceAttendanceModule.openKioskFullscreen()" title="Mode layar penuh untuk tablet absensi">⛶ Layar Penuh</button>
+          ` : ''}
           ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="EmployeeModule._bulkAbsensi('H')" title="Tandai semua Hadir hari ini">✅ Hadir Semua</button>
           <button class="btn btn-primary btn-sm" onclick="EmployeeModule.openAbsensiModal()">+ Input</button>` : ''}
         </div>

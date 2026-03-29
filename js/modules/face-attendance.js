@@ -553,6 +553,8 @@ const FaceAttendanceModule = (() => {
     _absensi.push(saved);
     if (window.EmployeeModule?._onFaceAbsensi) EmployeeModule._onFaceAbsensi(saved);
 
+    _speak('Selamat datang, ' + empNama);
+
     if (resultEl) {
       resultEl.style.display = 'block';
       resultEl.innerHTML = `<div style="font-size:22px;font-weight:700;color:#4ade80">✅ Selamat datang, ${empNama}!</div>
@@ -571,6 +573,277 @@ const FaceAttendanceModule = (() => {
   }
 
   function _stopKiosk() { _stopStream(); _kioskCooldown = {}; }
+
+  // =============================================
+  //  SPEECH
+  // =============================================
+  function _speak(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'id-ID'; u.rate = 0.92; u.pitch = 1.05; u.volume = 1;
+    // Pick Indonesian voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const idVoice = voices.find(v => v.lang.startsWith('id')) || voices.find(v => v.lang.startsWith('en'));
+    if (idVoice) u.voice = idVoice;
+    window.speechSynthesis.speak(u);
+  }
+
+  // =============================================
+  //  FULLSCREEN KIOSK
+  // =============================================
+  let _fsClock = null;
+
+  function openKioskFullscreen() {
+    // Request native fullscreen
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+
+    const fs = document.createElement('div');
+    fs.id = 'kiosk-fs';
+    fs.style.cssText = 'position:fixed;inset:0;z-index:9998;background:#0a0d14;display:flex;flex-direction:column;font-family:sans-serif';
+    fs.innerHTML = `
+      <style>
+        @keyframes ks-fadein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes ks-flash{0%,100%{opacity:1}50%{opacity:.3}}
+        #kiosk-fs .ks-log-item{animation:ks-fadein .4s ease}
+      </style>
+
+      <!-- Header -->
+      <div style="display:flex;align-items:center;padding:12px 20px;background:#0f1320;border-bottom:1px solid #1e2540;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:32px;height:32px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff">B</div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#f0f0f0;letter-spacing:.04em">BECCA KIOSK ABSENSI</div>
+            <div style="font-size:11px;color:#6b7280" id="ks-date"></div>
+          </div>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:16px">
+          <div id="ks-clock" style="font-size:28px;font-weight:700;color:#f0f0f0;font-variant-numeric:tabular-nums;letter-spacing:.04em"></div>
+          <button onclick="FaceAttendanceModule.closeFullscreenKiosk()"
+            style="padding:7px 14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#9ca3af;font-size:13px;cursor:pointer">
+            ✕ Tutup
+          </button>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div style="flex:1;display:flex;gap:0;overflow:hidden;min-height:0">
+
+        <!-- Left: Camera -->
+        <div style="flex:1.6;position:relative;background:#000;display:flex;align-items:center;justify-content:center;min-width:0">
+          <video id="ks-video" autoplay muted playsinline
+            style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1)"></video>
+          <canvas id="ks-canvas"
+            style="position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none"></canvas>
+
+          <!-- Loader -->
+          <div id="ks-loader" style="position:absolute;inset:0;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:14px">
+            <div style="font-size:48px">🤖</div>
+            <div style="font-size:18px;font-weight:700">Memuat AI Model...</div>
+            <div style="font-size:13px;opacity:.5">Pertama kali ±15 detik</div>
+            <div style="width:120px;height:3px;background:#1f2937;border-radius:2px;overflow:hidden;margin-top:4px">
+              <div style="height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:2px;animation:becca-load 1.4s ease-in-out infinite"></div>
+            </div>
+          </div>
+
+          <!-- Welcome result overlay -->
+          <div id="ks-result" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,.72);flex-direction:column;gap:12px">
+            <div id="ks-result-icon" style="font-size:64px"></div>
+            <div id="ks-result-name" style="font-size:32px;font-weight:800;color:#fff;text-align:center;text-shadow:0 2px 12px rgba(0,0,0,.5)"></div>
+            <div id="ks-result-sub" style="font-size:16px;color:rgba(255,255,255,.75);text-align:center"></div>
+          </div>
+
+          <!-- Status bar -->
+          <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 16px;background:linear-gradient(transparent,rgba(0,0,0,.8))">
+            <div id="ks-status" style="font-size:15px;font-weight:600;color:#f0f0f0;text-align:center">Memuat sistem...</div>
+          </div>
+        </div>
+
+        <!-- Right: Log -->
+        <div style="width:300px;flex-shrink:0;background:#0f1320;border-left:1px solid #1e2540;display:flex;flex-direction:column;overflow:hidden">
+          <div style="padding:14px 16px;border-bottom:1px solid #1e2540;flex-shrink:0">
+            <div style="font-size:11px;font-weight:700;color:#6366f1;letter-spacing:.1em;text-transform:uppercase">Hadir Hari Ini</div>
+            <div id="ks-count" style="font-size:28px;font-weight:800;color:#f0f0f0;margin-top:2px">0</div>
+            <div style="font-size:11px;color:#6b7280">orang</div>
+          </div>
+          <div id="ks-log" style="flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:4px;scrollbar-width:thin;scrollbar-color:#1e2540 transparent"></div>
+        </div>
+      </div>`;
+
+    document.body.appendChild(fs);
+    _startFsClock();
+    _runFullscreenKiosk();
+  }
+
+  function _startFsClock() {
+    const tick = () => {
+      const now = new Date();
+      const c = document.getElementById('ks-clock');
+      const d = document.getElementById('ks-date');
+      if (c) c.textContent = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      if (d) d.textContent = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    };
+    tick();
+    _fsClock = setInterval(tick, 1000);
+  }
+
+  async function _runFullscreenKiosk() {
+    // Populate today's absensi log
+    const today = new Date().toISOString().split('T')[0];
+    const todayAbs = _absensi.filter(a => a.tgl === today);
+    const logEl = document.getElementById('ks-log');
+    const countEl = document.getElementById('ks-count');
+    if (countEl) countEl.textContent = todayAbs.length;
+    if (logEl) {
+      todayAbs.slice().reverse().forEach(a => _fsAddLog(a.empNama, a.ket || ''));
+    }
+
+    try {
+      await _loadModels();
+      if (!_matcher) _buildMatcher();
+      if (!_matcher) {
+        const loader = document.getElementById('ks-loader');
+        if (loader) {
+          loader.innerHTML = `<div style="text-align:center;color:#fff;padding:32px">
+            <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+            <div style="font-size:16px;font-weight:600">Belum ada karyawan mendaftarkan wajah</div>
+          </div>`;
+        }
+        return;
+      }
+      _stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      const video = document.getElementById('ks-video');
+      if (!video) { _stopStream(); return; }
+      video.srcObject = _stream;
+      await new Promise(res => { video.onloadedmetadata = res; });
+      document.getElementById('ks-loader')?.remove();
+      _setFsStatus('🟢 Tatap kamera untuk absen', '#4ade80');
+      _kioskCooldown = {};
+      _startFsLoop();
+    } catch(e) {
+      const loader = document.getElementById('ks-loader');
+      if (loader) loader.innerHTML = `<div style="text-align:center;color:#fff;padding:32px"><div style="font-size:40px;margin-bottom:12px">⚠️</div><div style="font-size:16px;font-weight:600">${e.message}</div></div>`;
+    }
+  }
+
+  function _setFsStatus(msg, color) {
+    const el = document.getElementById('ks-status');
+    if (el) { el.textContent = msg; el.style.color = color || '#f0f0f0'; }
+  }
+
+  function _fsAddLog(nama, ket) {
+    const logEl = document.getElementById('ks-log');
+    const countEl = document.getElementById('ks-count');
+    if (!logEl) return;
+    const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const el = document.createElement('div');
+    el.className = 'ks-log-item';
+    el.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2)';
+    el.innerHTML = `<span style="font-size:18px">✅</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:#f0f0f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nama}</div>
+        <div style="font-size:11px;color:#6b7280">${timeStr}</div>
+      </div>`;
+    logEl.prepend(el);
+    if (countEl) countEl.textContent = logEl.children.length;
+  }
+
+  function _startFsLoop() {
+    const video  = document.getElementById('ks-video');
+    const canvas = document.getElementById('ks-canvas');
+    if (!video || !canvas) return;
+    let frame = 0, busy = false;
+
+    const loop = async () => {
+      if (!document.getElementById('ks-video')) { _stopStream(); return; }
+      frame++;
+      if (frame % 20 === 0 && !busy) {
+        busy = true;
+        let r = null;
+        try { r = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 416 })).withFaceLandmarks(true).withFaceDescriptor(); } catch(e) { r = null; }
+
+        if (r && _matcher) {
+          const match   = _matcher.findBestMatch(r.descriptor);
+          const unknown = match.label === 'unknown';
+          _drawBox(canvas, video, r.detection.box, unknown ? '#ef4444' : '#22c55e');
+          if (!unknown) {
+            const [empId, empNama] = match.label.split('||');
+            const now = Date.now();
+            if (!_kioskCooldown[empId] || now - _kioskCooldown[empId] > 15000) {
+              _kioskCooldown[empId] = now;
+              await _recordFsAbsensi(empId, empNama);
+            }
+          }
+        } else if (!r) {
+          const ctx = canvas.getContext('2d');
+          canvas.width = video.videoWidth || 1280; canvas.height = video.videoHeight || 720;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        busy = false;
+      }
+      _rafId = requestAnimationFrame(loop);
+    };
+    loop();
+  }
+
+  async function _recordFsAbsensi(empId, empNama) {
+    const today   = new Date().toISOString().split('T')[0];
+    const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const existing = _absensi.find(a => (a.empId === empId || a.empNama === empNama) && a.tgl === today);
+
+    // Show result overlay
+    const resultEl = document.getElementById('ks-result');
+    const iconEl   = document.getElementById('ks-result-icon');
+    const nameEl   = document.getElementById('ks-result-name');
+    const subEl    = document.getElementById('ks-result-sub');
+
+    if (existing) {
+      if (resultEl) {
+        resultEl.style.display = 'flex';
+        if (iconEl) iconEl.textContent = '👋';
+        if (nameEl) nameEl.textContent = empNama;
+        if (subEl)  subEl.textContent  = `Sudah absen hari ini · ${timeStr}`;
+        _setFsStatus('👋 ' + empNama + ' sudah absen hari ini', '#fbbf24');
+        setTimeout(() => { if (resultEl) resultEl.style.display = 'none'; _setFsStatus('🟢 Tatap kamera untuk absen', '#4ade80'); }, 3000);
+      }
+      return;
+    }
+
+    const rec = { empId, empNama, tgl: today, status: 'H', ket: 'Face ' + timeStr, createdAt: new Date().toISOString() };
+    const saved = await DB.saveEmpAbsensi(rec).catch(() => rec);
+    if (!saved.id) saved.id = Utils.uid();
+    _absensi.push(saved);
+    if (window.EmployeeModule?._onFaceAbsensi) EmployeeModule._onFaceAbsensi(saved);
+
+    // Voice greeting
+    _speak('Selamat datang, ' + empNama);
+
+    // Show welcome overlay
+    if (resultEl) {
+      resultEl.style.display = 'flex';
+      if (iconEl) iconEl.textContent = '✅';
+      if (nameEl) { nameEl.textContent = empNama; nameEl.style.color = '#4ade80'; }
+      if (subEl)  subEl.textContent = timeStr + ' · Hadir · Wajah ✓';
+      _setFsStatus('✅ Selamat datang, ' + empNama + '!', '#4ade80');
+      setTimeout(() => { if (resultEl) resultEl.style.display = 'none'; _setFsStatus('🟢 Tatap kamera untuk absen', '#4ade80'); }, 4000);
+    }
+
+    _fsAddLog(empNama, timeStr);
+    Notify.success(empNama + ' absen ✓');
+  }
+
+  function closeFullscreenKiosk() {
+    _stopStream();
+    _kioskCooldown = {};
+    if (_fsClock) { clearInterval(_fsClock); _fsClock = null; }
+    document.getElementById('kiosk-fs')?.remove();
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
 
   // =============================================
   //  TOGGLE
@@ -592,6 +865,7 @@ const FaceAttendanceModule = (() => {
     isEnabled, setEnabled, init, pushAbsensi, getEmpThumbs,
     openRegisterModal, _captureReg: () => {}, _stopReg,
     openKiosk, _stopKiosk,
+    openKioskFullscreen, closeFullscreenKiosk,
     renderToggle, toggleAndRender,
     get state() { return _state; },
   };
