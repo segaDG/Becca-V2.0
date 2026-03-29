@@ -895,9 +895,11 @@ const DailyOrderModule = (() => {
   /* Auto-fill satuan/harga/stok from inventory when item selected */
   function _autoFillFromInventory() {
     if (!_inventory.length) return;
-    const val = document.getElementById('di-item')?.value.trim().toLowerCase();
-    if (!val) return;
+    const inputEl = document.getElementById('di-item');
+    const val = inputEl?.value.trim().toLowerCase();
+    if (!val) { if (inputEl) inputEl.style.borderColor = ''; return; }
     const inv = _inventory.find(i => (i.nama||'').toLowerCase() === val);
+    if (inputEl) inputEl.style.borderColor = inv ? '#10b981' : '#ef4444';
     if (!inv) return;
     const hargaEl   = document.getElementById('di-harga');
     const stokEl    = document.getElementById('di-stok');
@@ -942,6 +944,15 @@ const DailyOrderModule = (() => {
     if (!form) return;
     const item = document.getElementById('di-item')?.value.trim();
     if (!item) { Notify.warning('Nama bahan wajib diisi'); document.getElementById('di-item')?.focus(); return; }
+    if (_inventory.length) {
+      const inInv = _inventory.some(i => (i.nama||'').toLowerCase() === item.toLowerCase());
+      if (!inInv) {
+        Notify.warning(`"${item}" tidak ada di stok — pilih dari daftar`);
+        const el = document.getElementById('di-item');
+        if (el) { el.style.borderColor = '#ef4444'; el.focus(); }
+        return;
+      }
+    }
     const estQty  = parseFloat(document.getElementById('di-estqty')?.value||0)||0;
     const satuan  = document.getElementById('di-sat')?.value || '';
     const harga   = parseFloat(document.getElementById('di-harga')?.value||0)||0;

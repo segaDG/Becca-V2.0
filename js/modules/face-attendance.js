@@ -119,10 +119,8 @@ const FaceAttendanceModule = (() => {
   async function _depthCheckBackground(video, frames = 20) {
     const noseXs = [], earVals = [];
     for (let i = 0; i < frames; i++) {
-      const r = await faceapi
-        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224 }))
-        .withFaceLandmarks(true)
-        .catch(() => null);
+      let r = null;
+      try { r = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224 })).withFaceLandmarks(true); } catch(e) { r = null; }
       if (r) {
         noseXs.push(r.landmarks.positions[30].x);
         earVals.push(_avgEAR(r.landmarks));
@@ -179,10 +177,8 @@ const FaceAttendanceModule = (() => {
         const te = document.getElementById('ch-time');
         if (te) te.textContent = Math.ceil(rem / 1000) + 's';
 
-        const r = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
-          .withFaceLandmarks(true)
-          .catch(() => null);
+        let r = null;
+        try { r = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 })).withFaceLandmarks(true); } catch(e) { r = null; }
         if (!r) { if (!done) setTimeout(tick, 150); return; }
 
         const ear = _avgEAR(r.landmarks), yaw = _yaw(r.landmarks), pitch = _pitch(r.landmarks);
@@ -341,10 +337,8 @@ const FaceAttendanceModule = (() => {
     if (!video || !canvas) return;
     const loop = async () => {
       if (!document.getElementById('fr-video') || _regBusy) { _rafId = requestAnimationFrame(loop); return; }
-      const r = await faceapi
-        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224 }))
-        .withFaceLandmarks(true)
-        .catch(() => null);
+      let r = null;
+      try { r = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224 })).withFaceLandmarks(true); } catch(e) { r = null; }
       _drawBox(canvas, video, r?.detection.box || null, r ? '#22c55e' : '#6b7280');
       _rafId = requestAnimationFrame(loop);
     };
@@ -367,11 +361,7 @@ const FaceAttendanceModule = (() => {
       let r = null;
       const deadline = Date.now() + 4000;
       while (!r && Date.now() < deadline) {
-        r = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
-          .withFaceLandmarks(true)
-          .withFaceDescriptor()
-          .catch(() => null);
+        try { r = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 })).withFaceLandmarks(true).withFaceDescriptor(); } catch(e) { r = null; }
         if (!r) await new Promise(res => setTimeout(res, 200));
       }
 
@@ -509,11 +499,8 @@ const FaceAttendanceModule = (() => {
       frame++;
       if (frame % 20 === 0 && !busy) {
         busy = true;
-        const r = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 416 }))
-          .withFaceLandmarks(true)
-          .withFaceDescriptor()
-          .catch(() => null);
+        let r = null;
+        try { r = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 416 })).withFaceLandmarks(true).withFaceDescriptor(); } catch(e) { r = null; }
 
         if (r && _matcher) {
           const match   = _matcher.findBestMatch(r.descriptor);
