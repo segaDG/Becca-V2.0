@@ -249,7 +249,7 @@ const DailyOrderModule = (() => {
         border:2px solid ${sel?'#374151':'transparent'};
         background:${bg};cursor:pointer;display:flex;flex-direction:column;
         align-items:center;justify-content:center;gap:1px;padding:0;
-        ${today?'box-shadow:0 0 0 2px var(--primary);':''}">
+        ${today?'box-shadow:inset 0 0 0 2px var(--primary);':''}">
         <span style="font-size:${dayFs};font-weight:600;color:${dayCol};line-height:1">${_DAY_LABELS[dow]}</span>
         <span style="font-size:${numFs};font-weight:700;color:${col};line-height:1">${d}</span>
       </button>`;
