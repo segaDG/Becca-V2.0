@@ -2,6 +2,7 @@
  * 68 unique orders (tglOrder >= 2026-03-16, non-zero, deduplicated)
  */
 (async () => {
+  if (localStorage.getItem('becca_import_march2026_done')) { console.log('[Import] Skipped — already imported'); return; }
   if (typeof DB === 'undefined') { alert('Buka halaman BECCA dulu'); return; }
 
   // Hapus order lama (tglOrder < 2026-03-16) dari import pertama
@@ -84,7 +85,6 @@
   for (const o of orders) {
     try { await DB.saveOrder(o); ok++; } catch(e) { console.warn('fail:', o.id, e); fail++; }
   }
+  localStorage.setItem('becca_import_march2026_done', '1');
   console.log(`[Import] Done: ${ok} saved, ${fail} failed`);
-  if (typeof Notify !== 'undefined') Notify.success(`Import selesai: ${ok} order tersimpan`);
-  else alert(`Import selesai: ${ok} order tersimpan`);
 })();

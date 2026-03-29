@@ -15,10 +15,12 @@ const PROJECT_ID = "becca-ae19d";
 
 // ── PEM → DER (untuk import private key RSA) ─────────────
 function pemToDer(pem: string): ArrayBuffer {
+  // Strip PEM headers (any type), whitespace, AND literal \n \r sequences
   const b64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\s+/g, "");
+    .replace(/-----BEGIN [A-Z ]+-----/g, "")
+    .replace(/-----END [A-Z ]+-----/g, "")
+    .replace(/\\n|\\r/g, "")        // literal backslash-n / backslash-r
+    .replace(/[^A-Za-z0-9+/=]/g, ""); // keep only valid base64 chars
   const binary = atob(b64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -30,7 +32,10 @@ function b64url(data: ArrayBuffer | string): string {
   const bytes = typeof data === "string"
     ? new TextEncoder().encode(data)
     : new Uint8Array(data);
-  return btoa(String.fromCharCode(...bytes))
+  // Gunakan loop (bukan spread) agar tidak stack-overflow untuk key besar
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary)
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 

@@ -40,10 +40,9 @@ self.addEventListener('notificationclick', e => {
 });
 
 // ── Static Cache ──────────────────────────────────────────
-const CACHE_NAME = 'becca-static-v2';
+const CACHE_NAME = 'becca-static-v3';
 
 const PRECACHE = [
-  '/',
   '/css/base.css',
   '/css/layout.css',
   '/css/components.css',
@@ -72,10 +71,9 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
-  if (url.hostname.includes('supabase.co')) return;
-  if (url.hostname.includes('jsdelivr.net')) return;
-  if (url.hostname.includes('gstatic.com')) return;
-  if (url.hostname.includes('fonts.')) return;
+  // Hanya cache request dari origin sendiri — skip semua external
+  // (Firebase SDK punya fetch listener sendiri, bisa konflik jika tidak di-skip)
+  if (url.origin !== self.location.origin) return;
 
   if (e.request.mode === 'navigate') {
     e.respondWith(fetch(e.request).catch(() => caches.match('/')));
