@@ -580,13 +580,26 @@ const FaceAttendanceModule = (() => {
   function _speak(text) {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'id-ID'; u.rate = 0.92; u.pitch = 1.05; u.volume = 1;
-    // Pick Indonesian voice if available
+    const _doSpeak = (voices) => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang  = 'id-ID';
+      u.rate  = 0.88;   // sedikit lebih lambat = lebih jelas
+      u.pitch = 1.0;    // pitch netral = lebih natural
+      u.volume = 1;
+      // Urutan preferensi: Google Indonesian > Damayanti (iOS) > id-ID lain > Google English
+      const voice =
+        voices.find(v => v.lang.startsWith('id') && v.name.toLowerCase().includes('google')) ||
+        voices.find(v => v.name.includes('Damayanti')) ||
+        voices.find(v => v.lang === 'id-ID') ||
+        voices.find(v => v.lang.startsWith('id')) ||
+        voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('google')) ||
+        voices.find(v => v.lang.startsWith('en'));
+      if (voice) u.voice = voice;
+      window.speechSynthesis.speak(u);
+    };
     const voices = window.speechSynthesis.getVoices();
-    const idVoice = voices.find(v => v.lang.startsWith('id')) || voices.find(v => v.lang.startsWith('en'));
-    if (idVoice) u.voice = idVoice;
-    window.speechSynthesis.speak(u);
+    if (voices.length) { _doSpeak(voices); }
+    else { window.speechSynthesis.onvoiceschanged = () => { _doSpeak(window.speechSynthesis.getVoices()); }; }
   }
 
   // =============================================
@@ -607,70 +620,70 @@ const FaceAttendanceModule = (() => {
       <style>
         @keyframes ks-fadein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
         @keyframes ks-flash{0%,100%{opacity:1}50%{opacity:.3}}
-        #kiosk-fs .ks-log-item{animation:ks-fadein .4s ease}
+        #kiosk-fs{display:flex;flex-direction:column}
+        #ks-header{display:flex;align-items:center;padding:10px 16px;background:#0f1320;border-bottom:1px solid #1e2540;flex-shrink:0}
+        #ks-body{flex:1;position:relative;background:#000;overflow:hidden;min-height:0}
+        #ks-video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+        #ks-canvas{position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none}
+        @media (orientation:portrait){
+          #ks-clock{font-size:20px!important}
+          #ks-result-name{font-size:24px!important}
+          #ks-result-icon{font-size:48px!important}
+          #ks-status{font-size:13px!important}
+        }
+        @media (orientation:landscape){
+          #ks-clock{font-size:28px!important}
+          #ks-result-name{font-size:32px!important}
+        }
       </style>
 
       <!-- Header -->
-      <div style="display:flex;align-items:center;padding:12px 20px;background:#0f1320;border-bottom:1px solid #1e2540;flex-shrink:0">
+      <div id="ks-header">
         <div style="display:flex;align-items:center;gap:10px">
-          <div style="width:32px;height:32px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff">B</div>
+          <div style="width:30px;height:30px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#fff;flex-shrink:0">B</div>
           <div>
-            <div style="font-size:13px;font-weight:700;color:#f0f0f0;letter-spacing:.04em">BECCA KIOSK ABSENSI</div>
-            <div style="font-size:11px;color:#6b7280" id="ks-date"></div>
+            <div style="font-size:12px;font-weight:700;color:#f0f0f0;letter-spacing:.04em">BPS Face Recognition</div>
+            <div style="font-size:10px;color:#6b7280" id="ks-date"></div>
           </div>
         </div>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:16px">
-          <div id="ks-clock" style="font-size:28px;font-weight:700;color:#f0f0f0;font-variant-numeric:tabular-nums;letter-spacing:.04em"></div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+          <div id="ks-clock" style="font-weight:700;color:#f0f0f0;font-variant-numeric:tabular-nums;letter-spacing:.04em"></div>
           <button onclick="FaceAttendanceModule.closeFullscreenKiosk()"
-            style="padding:7px 14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#9ca3af;font-size:13px;cursor:pointer">
+            style="padding:6px 12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#9ca3af;font-size:12px;cursor:pointer">
             ✕ Tutup
           </button>
         </div>
       </div>
 
-      <!-- Body -->
-      <div style="flex:1;display:flex;gap:0;overflow:hidden;min-height:0">
+      <!-- Body: camera full width -->
+      <div id="ks-body">
+        <video id="ks-video" autoplay muted playsinline></video>
+        <canvas id="ks-canvas"></canvas>
 
-        <!-- Left: Camera -->
-        <div style="flex:1.6;position:relative;background:#000;display:flex;align-items:center;justify-content:center;min-width:0">
-          <video id="ks-video" autoplay muted playsinline
-            style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1)"></video>
-          <canvas id="ks-canvas"
-            style="position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none"></canvas>
-
-          <!-- Loader -->
-          <div id="ks-loader" style="position:absolute;inset:0;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:14px">
-            <div style="font-size:48px">🤖</div>
-            <div style="font-size:18px;font-weight:700">Memuat AI Model...</div>
-            <div style="font-size:13px;opacity:.5">Pertama kali ±15 detik</div>
-            <div style="width:120px;height:3px;background:#1f2937;border-radius:2px;overflow:hidden;margin-top:4px">
-              <div style="height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:2px;animation:becca-load 1.4s ease-in-out infinite"></div>
-            </div>
-          </div>
-
-          <!-- Welcome result overlay -->
-          <div id="ks-result" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,.72);flex-direction:column;gap:12px">
-            <div id="ks-result-icon" style="font-size:64px"></div>
-            <div id="ks-result-name" style="font-size:32px;font-weight:800;color:#fff;text-align:center;text-shadow:0 2px 12px rgba(0,0,0,.5)"></div>
-            <div id="ks-result-sub" style="font-size:16px;color:rgba(255,255,255,.75);text-align:center"></div>
-          </div>
-
-          <!-- Status bar -->
-          <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 16px;background:linear-gradient(transparent,rgba(0,0,0,.8))">
-            <div id="ks-status" style="font-size:15px;font-weight:600;color:#f0f0f0;text-align:center">Memuat sistem...</div>
+        <!-- Loader -->
+        <div id="ks-loader" style="position:absolute;inset:0;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:14px">
+          <div style="font-size:18px;font-weight:700">Memuat AI Model...</div>
+          <div style="font-size:13px;opacity:.5">Pertama kali ±15 detik</div>
+          <div style="width:120px;height:3px;background:#1f2937;border-radius:2px;overflow:hidden;margin-top:4px">
+            <div style="height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:2px;animation:becca-load 1.4s ease-in-out infinite"></div>
           </div>
         </div>
 
-        <!-- Right: Log -->
-        <div style="width:300px;flex-shrink:0;background:#0f1320;border-left:1px solid #1e2540;display:flex;flex-direction:column;overflow:hidden">
-          <div style="padding:14px 16px;border-bottom:1px solid #1e2540;flex-shrink:0">
-            <div style="font-size:11px;font-weight:700;color:#6366f1;letter-spacing:.1em;text-transform:uppercase">Hadir Hari Ini</div>
-            <div id="ks-count" style="font-size:28px;font-weight:800;color:#f0f0f0;margin-top:2px">0</div>
-            <div style="font-size:11px;color:#6b7280">orang</div>
-          </div>
-          <div id="ks-log" style="flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:4px;scrollbar-width:thin;scrollbar-color:#1e2540 transparent"></div>
+        <!-- Welcome result overlay -->
+        <div id="ks-result" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,.72);flex-direction:column;gap:12px">
+          <div id="ks-result-icon" style="font-size:64px"></div>
+          <div id="ks-result-name" style="font-weight:800;color:#fff;text-align:center;text-shadow:0 2px 12px rgba(0,0,0,.5)"></div>
+          <div id="ks-result-sub" style="font-size:16px;color:rgba(255,255,255,.75);text-align:center"></div>
         </div>
-      </div>`;
+
+        <!-- Status bar -->
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 16px;background:linear-gradient(transparent,rgba(0,0,0,.8))">
+          <div id="ks-status" style="font-weight:600;color:#f0f0f0;text-align:center">Memuat sistem...</div>
+        </div>
+      </div>
+
+      <div id="ks-count" style="display:none">0</div>
+      <div id="ks-log" style="display:none"></div>`;
 
     document.body.appendChild(fs);
     _startFsClock();
@@ -707,7 +720,6 @@ const FaceAttendanceModule = (() => {
         const loader = document.getElementById('ks-loader');
         if (loader) {
           loader.innerHTML = `<div style="text-align:center;color:#fff;padding:32px">
-            <div style="font-size:40px;margin-bottom:12px">⚠️</div>
             <div style="font-size:16px;font-weight:600">Belum ada karyawan mendaftarkan wajah</div>
           </div>`;
         }
@@ -726,7 +738,7 @@ const FaceAttendanceModule = (() => {
       _startFsLoop();
     } catch(e) {
       const loader = document.getElementById('ks-loader');
-      if (loader) loader.innerHTML = `<div style="text-align:center;color:#fff;padding:32px"><div style="font-size:40px;margin-bottom:12px">⚠️</div><div style="font-size:16px;font-weight:600">${e.message}</div></div>`;
+      if (loader) loader.innerHTML = `<div style="text-align:center;color:#fff;padding:32px"><div style="font-size:16px;font-weight:600">${e.message}</div></div>`;
     }
   }
 

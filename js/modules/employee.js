@@ -1762,7 +1762,6 @@ const EmployeeModule = (() => {
         <div style="margin-left:auto;display:flex;gap:var(--s2);flex-wrap:wrap">
           ${window.FaceAttendanceModule ? FaceAttendanceModule.renderToggle() : ''}
           ${FaceAttendanceModule?.isEnabled() ? `
-            <button class="btn btn-ghost btn-sm" style="border-color:rgba(99,102,241,.4);color:var(--primary-h)" onclick="FaceAttendanceModule.openKiosk()">🤖 Kiosk</button>
             <button class="btn btn-primary btn-sm" onclick="FaceAttendanceModule.openKioskFullscreen()" title="Mode layar penuh untuk tablet absensi">⛶ Layar Penuh</button>
           ` : ''}
           ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="EmployeeModule._bulkAbsensi('H')" title="Tandai semua Hadir hari ini">✅ Hadir Semua</button>
@@ -2525,7 +2524,6 @@ const EmployeeModule = (() => {
 
   // ── Broadcast Notifikasi ────────────────────────────────
   function openBroadcastModal() {
-    if (typeof PushModule === 'undefined') { Notify.warning('Push notification belum aktif'); return; }
     const mid = 'modal-bc-' + Utils.uid();
     const divisiList = [...new Set(_employees.map(e => e.divisi || e.departemen).filter(Boolean))].sort();
     Modal.open({
@@ -2605,12 +2603,13 @@ const EmployeeModule = (() => {
     if (!body)  { Notify.warning('Pesan wajib diisi');  return; }
     const filter = target === 'divisi' && val ? { divisi: val }
                  : target === 'jabatan' && val ? { jabatan: val } : {};
-    const rows = await DB.getPushTokens(filter).catch(() => []);
-    if (!rows.length) { Notify.warning('Tidak ada device terdaftar untuk target ini'); return; }
     Modal.close(mid);
+    if (typeof PushModule === 'undefined') { Notify.warning('Push notification belum aktif di perangkat ini'); return; }
     try {
+      const rows = await DB.getPushTokens(filter).catch(() => []);
       await PushModule.sendToGroup(filter, { title, body, data: { type: 'broadcast' } });
-      Notify.success(`Broadcast terkirim ke ${rows.length} device ✓`);
+      if (rows.length) Notify.success(`Broadcast terkirim ke ${rows.length} device ✓`);
+      else Notify.info('Broadcast dikirim — belum ada device terdaftar untuk notifikasi push');
     } catch(e) { Notify.error('Gagal kirim', e.message); }
   }
 
