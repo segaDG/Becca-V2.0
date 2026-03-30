@@ -69,7 +69,8 @@ const NewsModule = (() => {
     const page = document.getElementById('page-news');
     if (!page) return;
     _load();
-    const canWrite = ['admin','superadmin'].includes(Auth.currentUser()?.role);
+    const _role = (Auth.currentUser()?.role || '').toLowerCase();
+    const canWrite = ['admin','superadmin'].includes(_role) || Auth.can('news','create');
     const sorted = [..._items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const unread = _unreadCount();
 
@@ -89,7 +90,8 @@ const NewsModule = (() => {
         <div style="text-align:center;padding:80px 20px;color:var(--text-3)">
           <div style="font-size:48px;margin-bottom:12px">📭</div>
           <div style="font-size:15px;font-weight:600;margin-bottom:6px">Belum ada pengumuman</div>
-          <div style="font-size:13px">Pengumuman dari admin akan muncul di sini</div>
+          <div style="font-size:13px;margin-bottom:20px">Pengumuman dari admin akan muncul di sini</div>
+          ${canWrite ? `<button class="btn btn-primary" onclick="NewsModule.openCreate()" style="font-size:13px">+ Buat Pengumuman Pertama</button>` : ''}
         </div>
       ` : `
         <div style="display:flex;flex-direction:column;gap:10px;max-width:720px">
@@ -131,7 +133,7 @@ const NewsModule = (() => {
     _markRead(id);
     _render();
     const col = _COLOR[item.tipe] || '#6366f1';
-    const canDelete = ['admin','superadmin'].includes(Auth.currentUser()?.role);
+    const canDelete = ['admin','superadmin'].includes((Auth.currentUser()?.role||'').toLowerCase()) || Auth.can('news','delete');
     const mid = Utils.uid();
     Modal.open({
       id: mid,
