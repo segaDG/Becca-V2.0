@@ -846,8 +846,6 @@ const OrderModule = (() => {
     const custAvail = [...new Set(_data.filter(o=>!o.invoiced).map(o=>o.namaPerusahaan).filter(Boolean))].sort();
     if (!custAvail.length) { Notify.warning('Tidak ada order yang belum di-invoice'); return; }
 
-    const today = new Date().toISOString().slice(0,10);
-
     Modal.open({
       title: '🧾 Cetak Invoice Orderan',
       size: 'modal-xl',
@@ -862,12 +860,12 @@ const OrderModule = (() => {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Dari Tanggal</label>
+            <label class="form-label">Dari Tanggal <span style="font-size:10px;color:var(--text-3)">(opsional)</span></label>
             <input class="form-control" type="date" id="ic-dari" value="" onchange="OrderModule._previewInv()">
           </div>
           <div class="form-group">
-            <label class="form-label">Sampai Tanggal</label>
-            <input class="form-control" type="date" id="ic-sampai" value="${today}" onchange="OrderModule._previewInv()">
+            <label class="form-label">Sampai Tanggal <span style="font-size:10px;color:var(--text-3)">(opsional)</span></label>
+            <input class="form-control" type="date" id="ic-sampai" value="" onchange="OrderModule._previewInv()">
           </div>
         </div>
         <div class="form-group">
@@ -911,12 +909,6 @@ const OrderModule = (() => {
     const area   = document.getElementById('ic-preview');
     if (!area) return;
 
-    // Auto-generate nomor invoice
-    const nomorEl = document.getElementById('ic-nomor');
-    if (nomorEl && cust) {
-      nomorEl.value = _genInvNo(cust, dari || sampai, sampai || dari);
-    }
-
     if (!cust) {
       area.innerHTML = '<div style="color:var(--text-3);text-align:center;padding:20px">Pilih customer terlebih dahulu</div>';
       return;
@@ -930,6 +922,14 @@ const OrderModule = (() => {
     if (!list.length) {
       area.innerHTML = '<div style="color:#f59e0b;text-align:center;padding:20px">⚠ Tidak ada order yang belum di-invoice untuk filter ini</div>';
       return;
+    }
+
+    // Auto-generate nomor invoice dari rentang tanggal aktual order
+    const nomorEl = document.getElementById('ic-nomor');
+    if (nomorEl) {
+      const actualDari   = dari   || list[0].tglOrder;
+      const actualSampai = sampai || list[list.length - 1].tglOrder;
+      nomorEl.value = _genInvNo(cust, actualDari, actualSampai);
     }
 
     const tots = {};
