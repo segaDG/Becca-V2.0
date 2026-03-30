@@ -281,7 +281,10 @@ const EmployeeModule = (() => {
                     <div style="display:flex;align-items:center;gap:10px">
                       ${_empAvatar(emp, 32)}
                       <div>
-                        <div style="font-weight:600">${emp.nama||''}</div>
+                        <div style="display:flex;align-items:center;gap:5px">
+                          <span style="font-weight:600">${emp.nama||''}</span>
+                          ${emp.ktpUrl ? `<span title="KTP tersedia" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.25);flex-shrink:0">🪪 KTP</span>` : ''}
+                        </div>
                         ${emp.noHp ? `<div class="text-small text-muted">${emp.noHp}</div>` : ''}
                       </div>
                     </div>

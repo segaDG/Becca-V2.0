@@ -585,8 +585,6 @@ const OrderModule = (() => {
   /* ─── TAMBAH ORDER ─── */
   function openModal() {
     const mid   = Utils.uid();
-    const custs = _getCustomers();
-    const co = custs.map(c=>`<option value="${c.nama}">${c.nama}</option>`).join('');
     const today    = new Date().toISOString().slice(0,10);
     const cu       = typeof Auth !== 'undefined' ? Auth.currentUser() : null;
     const pelapor  = cu?.nama || cu?.username || cu?.name || '';
@@ -596,7 +594,9 @@ const OrderModule = (() => {
         <label class="form-label" style="color:${color};font-size:11px">${lbl}</label>
         <input class="form-control of-num" id="${id}" type="number" min="0" value="0"
           style="text-align:center;font-family:var(--font-mono);padding:6px 4px"
-          oninput="OrderModule._ofCheck('${mid}')">
+          oninput="OrderModule._ofCheck('${mid}')"
+          onfocus="if(this.value==='0')this.value=''"
+          onblur="if(this.value==='')this.value='0'">
       </div>`;
 
     Modal.open({
@@ -627,12 +627,19 @@ const OrderModule = (() => {
           </div>
         </div>
         <div class="of-row-cust">
-          <div class="form-group">
+          <div class="form-group" style="position:relative">
             <label class="form-label">Nama Perusahaan <span style="color:#ef4444">*</span></label>
-            <select class="form-control" id="of-cust" onchange="OrderModule._ofCheck('${mid}')"
-              style="font-size:14px;padding:9px 10px">
-              <option value="">— Pilih Customer —</option>${co}
-            </select>
+            <input id="of-cust-inp-${mid}" class="form-control" type="text"
+              placeholder="— Pilih Customer —" autocomplete="off"
+              style="font-size:14px;padding:9px 10px"
+              oninput="OrderModule._ofCustFilter('${mid}')"
+              onfocus="OrderModule._ofCustShow('${mid}')"
+              onblur="setTimeout(()=>OrderModule._ofCustHide('${mid}'),160)">
+            <input type="hidden" id="of-cust">
+            <div id="of-cust-dd-${mid}" style="display:none;position:absolute;left:0;right:0;top:100%;
+              z-index:9999;background:var(--surface);border:1px solid var(--border);
+              border-radius:var(--radius);max-height:200px;overflow-y:auto;
+              box-shadow:0 8px 24px rgba(0,0,0,.15)"></div>
           </div>
           <div class="form-group"><label class="form-label">Pelapor</label>
             <input class="form-control" id="of-pelapor" value="${pelapor}" readonly
@@ -661,6 +668,59 @@ const OrderModule = (() => {
           style="opacity:.45;cursor:not-allowed"
           onclick="OrderModule._submitOrder('${mid}')">Simpan Order</button>`,
     });
+  }
+
+  // Searchable customer autocomplete helpers
+  function _ofCustFilter(mid) {
+    const inp = document.getElementById('of-cust-inp-' + mid);
+    const dd  = document.getElementById('of-cust-dd-' + mid);
+    const hid = document.getElementById('of-cust');
+    if (!inp || !dd) return;
+    if (hid) hid.value = '';
+    _ofCheck(mid);
+    const q = inp.value.toLowerCase();
+    const custs = _getCustomers();
+    const filtered = q ? custs.filter(c => c.nama.toLowerCase().includes(q)) : custs;
+    dd.innerHTML = filtered.length
+      ? filtered.map(c => {
+          const safe = c.nama.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          return `<div style="padding:9px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border)"
+            onmousedown="OrderModule._ofCustSelect('${mid}','${safe}')"
+            onmouseover="this.style.background='var(--surface2)'"
+            onmouseout="this.style.background=''">${c.nama}</div>`;
+        }).join('')
+      : `<div style="padding:9px 12px;color:var(--text-3);font-size:14px">Tidak ada hasil</div>`;
+    dd.style.display = 'block';
+  }
+
+  function _ofCustShow(mid) {
+    _ofCustFilter(mid);
+  }
+
+  function _ofCustHide(mid) {
+    const dd  = document.getElementById('of-cust-dd-' + mid);
+    const inp = document.getElementById('of-cust-inp-' + mid);
+    const hid = document.getElementById('of-cust');
+    if (dd) dd.style.display = 'none';
+    // If typed text doesn't match any customer exactly, clear value
+    if (inp && hid) {
+      const custs = _getCustomers();
+      if (!custs.some(c => c.nama === inp.value)) {
+        inp.value = '';
+        hid.value = '';
+        _ofCheck(mid);
+      }
+    }
+  }
+
+  function _ofCustSelect(mid, val) {
+    const inp = document.getElementById('of-cust-inp-' + mid);
+    const hid = document.getElementById('of-cust');
+    const dd  = document.getElementById('of-cust-dd-' + mid);
+    if (inp) inp.value = val;
+    if (hid) hid.value = val;
+    if (dd)  dd.style.display = 'none';
+    _ofCheck(mid);
   }
 
   // Cek apakah tombol Simpan boleh aktif
@@ -1563,6 +1623,7 @@ const OrderModule = (() => {
 
   return {
     init, openModal, _submitOrder, _ofCheck, _confirmUpdate,
+    _ofCustFilter, _ofCustShow, _ofCustHide, _ofCustSelect,
     openColManager, _setColLabel, _setColGroup, _setColEditable, _removeCol, _addCol, _resetCols,
     editHeader, _saveHdr,
     startEdit, deleteOrder,
