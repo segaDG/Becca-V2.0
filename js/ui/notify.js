@@ -25,6 +25,13 @@ const Notify = {
       <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:16px;padding:0 0 0 8px;line-height:1">×</button>
     `;
 
+    el.style.cursor = 'pointer';
+    el.onclick = (e) => {
+      if (e.target.tagName === 'BUTTON') return;
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 350);
+    };
+
     root.appendChild(el);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => el.classList.add('show'));

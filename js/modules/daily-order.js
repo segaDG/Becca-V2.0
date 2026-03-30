@@ -203,6 +203,13 @@ const DailyOrderModule = (() => {
   function _htmlFormProduksi() {
     const summary      = _getOrderSummary(_date, _shift);
     const totalPortions= summary.reduce((s,c) => s + c.total, 0);
+    const _dayOrds     = _orders.filter(o => o.tglOrder === _date);
+    let totalLauk = 0, totalPendamping = 0;
+    if (_shift === 'S1') {
+      _dayOrds.forEach(o => { totalLauk += _n(o.breakfast) + _n(o.shift1) + _n(o.ot1); totalPendamping += _n(o.spare1); });
+    } else if (_shift === 'S2') {
+      _dayOrds.forEach(o => { totalLauk += _n(o.shift2) + _n(o.ot2) + _n(o.shift3) + _n(o.ot3); totalPendamping += _n(o.spare2) + _n(o.spare3); });
+    }
     const form         = _currentForm();
     const items        = form ? (form.items || []) : [];
     const totalEst     = items.reduce((s,it) => s + _n(it.estTotal), 0);
@@ -417,7 +424,12 @@ const DailyOrderModule = (() => {
             </div>
             <div style="font-weight:700;color:${_isSnack(_shift)?'#ec4899':'var(--primary)'};font-size:13px">
               Total: ${totalPortions.toLocaleString('id-ID')} ${_isSnack(_shift)?'snack':'pax'}
-            </div>`
+            </div>
+            ${!_isSnack(_shift) && totalPortions > 0 ? `
+            <div style="font-size:11px;color:var(--text-2);margin-top:4px;display:flex;gap:14px">
+              <span>Lauk: <strong style="color:var(--text)">${totalLauk.toLocaleString('id-ID')} pax</strong></span>
+              <span>Pendamping: <strong style="color:var(--text)">${totalPendamping.toLocaleString('id-ID')} pax</strong></span>
+            </div>` : ''}`
         }
         ${budgetVal > 0 && totalEst > 0 ? `
           <div style="margin-top:10px;background:var(--surface2);height:6px;border-radius:3px;overflow:hidden">
