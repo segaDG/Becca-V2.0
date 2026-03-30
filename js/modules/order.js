@@ -846,7 +846,10 @@ const OrderModule = (() => {
     const custAvail = [...new Set(_data.filter(o=>!o.invoiced).map(o=>o.namaPerusahaan).filter(Boolean))].sort();
     if (!custAvail.length) { Notify.warning('Tidak ada order yang belum di-invoice'); return; }
 
+    const _icMid = 'ic-modal-' + Utils.uid();
+    window._icMid = _icMid;
     Modal.open({
+      id: _icMid,
       title: '🧾 Cetak Invoice Orderan',
       size: 'modal-xl',
       body: `
@@ -893,7 +896,7 @@ const OrderModule = (() => {
           <button onclick="OrderModule._addAdditionalRow()" style="margin-top:8px;padding:5px 12px;font-size:11px;background:#1A7340;color:#fff;border:none;border-radius:5px;cursor:pointer">+ Tambah Baris</button>
         </div>
         <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:10px">
-          <button class="btn btn-ghost" onclick="Modal.close()">Batal</button>
+          <button class="btn btn-ghost" onclick="Modal.close(window._icMid)">Batal</button>
           <button class="btn btn-primary" onclick="OrderModule._printInvoice()" style="padding:8px 22px;font-size:13px">
             🖨 Cetak Invoice
           </button>
@@ -1135,9 +1138,11 @@ const OrderModule = (() => {
     })();
     const custObj = custDB.find(c => c.nama === cust) || {};
 
-    // Determine active columns (only cols with data)
+    // Determine active columns — always include spare (no price but qty still matters)
     const ALL_KEYS = _cols.map(c => c.key);
+    const _spareKeys = new Set(['spare1','spare2','spare3']);
     const activeCols = _cols.filter(c => {
+      if (_spareKeys.has(c.key)) return true; // spare selalu ditampilkan
       const total = list.reduce((s,o)=>s+(Number(o[c.key])||0),0)
                   + addRows.reduce((s,o)=>s+(Number(o[c.key])||0),0);
       return total > 0;
