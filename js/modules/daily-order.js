@@ -208,8 +208,10 @@ const DailyOrderModule = (() => {
     const totalEst     = items.reduce((s,it) => s + _n(it.estTotal), 0);
     const totalAkt     = items.reduce((s,it) => s + _n(it.aktTotal), 0);
 
-    // Per-shift budget
-    const fcp        = _n(form?.foodCostPct) || _defaultFcp(_shift);
+    // Per-shift budget — auto-correct old generic default (54) on snack shifts
+    const _savedFcp  = form?.foodCostPct;
+    const fcp        = (_savedFcp != null && !(_savedFcp === _DEFAULT_FCP && _isSnack(_shift)))
+                       ? _n(_savedFcp) : _defaultFcp(_shift);
     const revenue    = _calcRevenue(_date, _shift);
     const budgetVal  = revenue > 0 ? revenue * fcp / 100 : _n(form?.budgetBelanja);
     const budgetOk   = budgetVal <= 0 || totalEst <= budgetVal;
@@ -303,11 +305,17 @@ const DailyOrderModule = (() => {
           <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">SHIFT</label>
           <div style="display:flex;gap:3px;flex-wrap:wrap">
             ${(() => {
+              // If no snack orders exist for today, show all snack tabs (fresh day)
+              const hasAnySnackOrder = _orders.some(o => o.tglOrder === _date &&
+                (_n(o.snack1) > 0 || _n(o.snack2) > 0 || _n(o.snack3) > 0 || _n(o.snackBerat) > 0));
               const _tabVisible = (sh) => {
                 if (_shift === sh) return true;
+                if (!_isSnack(sh)) return true; // S1, S2 always visible
                 if (_forms.some(f => f.tanggal === _date && f.shift === sh)) return true;
-                return _getOrderSummary(_date, sh).length > 0;
+                if (_getOrderSummary(_date, sh).length > 0) return true;
+                return !hasAnySnackOrder; // show all snack tabs when no snack orders yet
               };
+              let sepInserted = false;
               return [
                 {id:'S1',   label:'Shift 1',       snack:false},
                 {id:'S2',   label:'Shift 2&amp;3', snack:false},
@@ -315,10 +323,11 @@ const DailyOrderModule = (() => {
                 {id:'SNK2', label:'🍘 S2',          snack:true},
                 {id:'SNK3', label:'🍘 S3',          snack:true},
                 {id:'SNK4', label:'🍖 Berat',       snack:true},
-              ].map((s,i) => {
+              ].map((s) => {
                 if (!_tabVisible(s.id)) return '';
-                return `
-                  ${i===2?'<div style="width:1px;background:var(--border);margin:0 2px;border-radius:1px"></div>':''}
+                const sep = (s.snack && !sepInserted) ? (sepInserted = true,
+                  '<div style="width:1px;background:var(--border);margin:0 2px;border-radius:1px"></div>') : '';
+                return sep + `
                   <button onclick="DailyOrderModule.setShift('${s.id}')"
                     style="padding:6px 10px;border:1px solid ${_shift===s.id?(s.snack?'#ec4899':'var(--primary)'):'var(--border)'};border-radius:7px;
                       background:${_shift===s.id?(s.snack?'rgba(236,72,153,.1)':'rgba(99,102,241,.1)'):'var(--surface)'};
@@ -334,7 +343,7 @@ const DailyOrderModule = (() => {
           <div>
             <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">FOOD COST (%)</label>
             <input type="number" min="0" max="100" step="0.5" placeholder="${_defaultFcp(_shift)}"
-              value="${form.foodCostPct != null ? form.foodCostPct : _defaultFcp(_shift)}"
+              value="${(form.foodCostPct != null && !(form.foodCostPct === _DEFAULT_FCP && _isSnack(_shift))) ? form.foodCostPct : _defaultFcp(_shift)}"
               onblur="DailyOrderModule.updateFormMeta('foodCostPct', +this.value)"
               style="padding:8px 10px;border:1px solid var(--primary);border-radius:8px;background:rgba(99,102,241,.06);color:var(--primary);font-size:13px;width:80px;text-align:right;font-weight:700">
           </div>
