@@ -115,6 +115,10 @@ const OrderModule = (() => {
       const sc = localStorage.getItem('becca_order_columns');
       _cols = sc ? JSON.parse(sc) : JSON.parse(JSON.stringify(_defaultCols));
       if (!_cols.length) _cols = JSON.parse(JSON.stringify(_defaultCols));
+      // Migration: remove duplicate sb-group cols — keep only built-in snackBerat
+      const _defaultKeys = new Set(_defaultCols.map(c => c.key));
+      const _hadDup = _cols.some(c => c.group === 'sb' && !_defaultKeys.has(c.key));
+      if (_hadDup) { _cols = _cols.filter(c => !(c.group === 'sb' && !_defaultKeys.has(c.key))); _saveCols(); }
       const si = localStorage.getItem('becca_order_invoices');
       _invRecs = si ? JSON.parse(si) : [];
 
