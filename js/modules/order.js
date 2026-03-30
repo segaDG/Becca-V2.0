@@ -1618,7 +1618,17 @@ const OrderModule = (() => {
     w.document.close();
   }
 
-  /* ─── CONTROLS ─── */
+  // Reload _data dari localStorage (dipanggil saat modul lain mengubah becca_orders)
+  function refreshFromStorage() {
+    try {
+      const s = localStorage.getItem('becca_orders');
+      _data = s ? JSON.parse(s) : [];
+    } catch(e) {}
+    const si = localStorage.getItem('becca_order_invoices');
+    try { _invRecs = si ? JSON.parse(si) : []; } catch(e) {}
+    _renderTbody();
+  }
+
   /* ─── CONTROLS ─── */
   function setSearch(val)          { _search = (val||'').toLowerCase().trim(); _page = 1; _renderTbody(); }
   function setFilterCustomer(val)  { _filterCustomer = val; _page = 1; _renderTbody(); }
@@ -1636,6 +1646,7 @@ const OrderModule = (() => {
     _toggleAdditional, _addAdditionalRow, _getAdditionalRows,
     setSearch, setFilterCustomer, setFilterDate,
     goPage, setPerPage,
+    refreshFromStorage,
   };
 })();
 

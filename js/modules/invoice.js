@@ -1460,6 +1460,9 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
       }
     } catch(e) {}
 
+    // Refresh OrderModule in-memory cache agar order bisa di-invoice ulang
+    if (window.OrderModule?.refreshFromStorage) window.OrderModule.refreshFromStorage();
+
     Modal.close(window._beccaDetailModalId);
     Notify.success('Invoice ' + label + ' berhasil dihapus');
     _renderFull();
