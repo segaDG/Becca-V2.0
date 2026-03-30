@@ -190,13 +190,10 @@ const App = {
     this._hideLoading();
     document.getElementById('page-login').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
-    if (!document.getElementById('sidebar-overlay')) {
-      const ov = document.createElement('div');
-      ov.id = 'sidebar-overlay';
-      ov.onclick = () => this._closeMobileSidebar();
-      ov.ontouchend = (e) => { e.preventDefault(); this._closeMobileSidebar(); };
-      document.body.appendChild(ov);
-    }
+    let _ov = document.getElementById('sidebar-overlay');
+    if (!_ov) { _ov = document.createElement('div'); _ov.id = 'sidebar-overlay'; document.body.appendChild(_ov); }
+    _ov.onclick = () => this._closeMobileSidebar();
+    _ov.ontouchend = (e) => { e.preventDefault(); this._closeMobileSidebar(); };
     Sidebar.render();
     this._renderHeader();
 
