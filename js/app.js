@@ -10,7 +10,8 @@ const App = {
     dashboard : 'js/modules/dashboard.js?v=20260329e',
     order     : 'js/modules/order.js?v=20260330a',
     invoice   : 'js/modules/invoice.js?v=20260329e',
-    customer  : 'js/modules/customer.js?v=20260329g',
+    customer  : 'js/modules/customer.js?v=20260330b',
+    news      : 'js/modules/news.js?v=20260330a',
     kas       : 'js/modules/kas.js?v=20260330c',
     'daily-order': 'js/modules/daily-order.js?v=20260330m',
     inventory : 'js/modules/inventory.js?v=20260330e',
@@ -214,7 +215,10 @@ const App = {
     // Load non-critical scripts async — tidak block render awal
     this._loadScript('js/notifications.js?v=20260330b').catch(() => {});
     this._loadScript('js/search-fix.js?v=20260330a').catch(() => {});
-    setTimeout(() => { if (typeof NotifCenter !== 'undefined') NotifCenter.refresh(); }, 800);
+    setTimeout(() => {
+      if (typeof NotifCenter !== 'undefined') NotifCenter.refresh();
+      if (typeof NewsModule !== 'undefined') NewsModule._updateBadge();
+    }, 800);
   },
 
   _handleResize() {

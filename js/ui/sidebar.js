@@ -12,6 +12,8 @@ const Sidebar = {
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>` },
     { id: 'customer',   label: 'Customer',         section: null,
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>` },
+    { id: 'news',       label: 'News',             section: null,
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10l6 6v8a2 2 0 01-2 2z"/><path d="M17 20v-8H7v8M7 4v4h8"/></svg>` },
     { id: 'employee',   label: 'Karyawan',         section: 'OPERASIONAL',
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
     { id: 'daily-order',label: 'Daily Order',       section: null,
@@ -85,6 +87,7 @@ const Sidebar = {
         <div class="nav-item" data-page="${item.id}" onclick="App.navigate('${item.id}')">
           <span class="nav-icon">${item.icon}</span>
           <span class="nav-label">${item.label}</span>
+          ${item.id === 'news' ? `<span id="news-nav-badge" style="display:none;background:#ef4444;color:#fff;border-radius:999px;font-size:9px;font-weight:700;min-width:16px;height:16px;align-items:center;justify-content:center;margin-left:auto;padding:0 4px"></span>` : ''}
         </div>
       `;
     });

@@ -286,11 +286,10 @@ const CustomerModule = (() => {
 
       <!-- TABLE SCROLL -->
       <style>
-        /* Sticky columns — calculated from actual rendered widths */
-        /* left offset: confirmed dari browser measurement */
-        .cst-s0 { position:sticky!important; left:0px!important; z-index:2!important; }
-        .cst-s1 { position:sticky!important; left:0px!important; z-index:2!important; }
-        .cst-s2 { position:sticky!important; left:0px!important; z-index:2!important;
+        /* Sticky columns — correct left offsets (desktop) */
+        .cst-s0 { position:sticky!important; left:0px!important;  z-index:2!important; }
+        .cst-s1 { position:sticky!important; left:36px!important; z-index:2!important; }
+        .cst-s2 { position:sticky!important; left:88px!important; z-index:2!important;
                   box-shadow:3px 0 5px -2px rgba(0,0,0,.12); }
         /* Header rows sticky with solid bg */
         thead .cst-s0 { background:#6366f1!important; z-index:4!important; }
@@ -299,7 +298,7 @@ const CustomerModule = (() => {
         thead tr:nth-child(2) .cst-s1 { background:#6366f1!important; z-index:4!important; }
         thead .cst-s2 { background:#6366f1!important; z-index:4!important; }
         thead tr:nth-child(2) .cst-s2 { background:#6366f1!important; z-index:4!important; }
-        /* Body rows — inherit from tr, but set solid fallback via JS on row */
+        /* Body rows */
         tbody tr:nth-child(odd)  .cst-s0,
         tbody tr:nth-child(odd)  .cst-s1,
         tbody tr:nth-child(odd)  .cst-s2 { background:#ffffff!important; }
@@ -318,6 +317,11 @@ const CustomerModule = (() => {
         [data-theme="dark"] tbody tr:hover .cst-s0,
         [data-theme="dark"] tbody tr:hover .cst-s1,
         [data-theme="dark"] tbody tr:hover .cst-s2 { background:#1e2040!important; }
+        /* Mobile: hide # and ID cols, Nama sticks at left:0 */
+        @media (max-width: 768px) {
+          .cst-s0, .cst-s1 { display:none!important; }
+          .cst-s2 { left:0px!important; box-shadow:3px 0 5px -2px rgba(0,0,0,.12); }
+        }
       </style>
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
         <table style="width:100%;border-collapse:collapse;min-width:2400px;font-size:11px">
