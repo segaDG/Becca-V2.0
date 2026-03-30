@@ -85,6 +85,25 @@ const TaskModule = (() => {
     _tMedia.splice(idx, 1);
     _renderTMediaList();
   }
+  function _openTaskImg(taskId, imgIdx) {
+    const t = _tasks.find(x => x.id === taskId);
+    const m = (t?.media || [])[imgIdx];
+    if (!m) return;
+    const src = _imgLoad(m.ownerId, m.id) || m.full || m.thumb;
+    if (!src) { Notify.warning('Foto tidak tersedia'); return; }
+    const mid = Utils.uid();
+    Modal.open({
+      id: mid,
+      title: m.name || 'Foto Lampiran',
+      size: 'modal-xl',
+      body: `<div id="timg-${mid}" style="background:#000;border-radius:8px;min-height:120px;display:flex;align-items:center;justify-content:center"></div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+    const img = new Image();
+    img.style.cssText = 'max-width:100%;max-height:85vh;object-fit:contain;display:block;margin:auto;border-radius:4px';
+    img.onload = () => { const el = document.getElementById('timg-' + mid); if (el) { el.style.minHeight=''; el.appendChild(img); } };
+    img.src = src;
+  }
 
   /* ── Init ── */
   async function init() {
@@ -636,10 +655,10 @@ const TaskModule = (() => {
         const shown = imgs.slice(0,3);
         const rest  = imgs.length - 3;
         return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px" onclick="event.stopPropagation()">
-          ${shown.map(m=>{
+          ${shown.map((m, mi)=>{
             const src = _imgLoad(m.ownerId, m.id) || m.full || m.thumb || '';
             return src ? `<img src="${src}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;cursor:zoom-in;border:1px solid var(--border)"
-              onclick="window.open(this.src,'_blank')">` : '';
+              onclick="TaskModule._openTaskImg('${t.id}',${mi})">` : '';
           }).join('')}
           ${rest > 0 ? `<div style="width:48px;height:48px;background:var(--surface2);border-radius:4px;
             display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-3)">+${rest}</div>` : ''}
@@ -865,16 +884,20 @@ const TaskModule = (() => {
               <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Dibuat oleh</div>
               <div style="font-size:13px">${d.createdBy}</div>
             </div>` : ''}
-            ${(d.media||[]).filter(m=>m.type==='image').length ? `<div>
-              <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Lampiran Foto</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px">
-                ${(d.media||[]).filter(m=>m.type==='image').map(m => {
-                  const src = _imgLoad(m.ownerId, m.id) || m.full || m.thumb || '';
-                  return src ? `<img src="${src}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:zoom-in;border:1px solid var(--border)"
-                    onclick="window.open(this.src,'_blank')">` : '';
-                }).join('')}
-              </div>
-            </div>` : ''}
+              ${(()=>{
+              const imgs = (d.media||[]).filter(m=>m.type==='image');
+              if (!imgs.length) return '';
+              return `<div>
+                <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Lampiran Foto</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  ${imgs.map((m, idx) => {
+                    const src = _imgLoad(m.ownerId, m.id) || m.full || m.thumb || '';
+                    return src ? `<img src="${src}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:zoom-in;border:1px solid var(--border)"
+                      onclick="TaskModule._openTaskImg('${editId}',${idx})">` : '';
+                  }).join('')}
+                </div>
+              </div>`;
+            })()}
           </div>`,
         footer: `
           <button class="btn btn-ghost" onclick="Modal.close('${viewId}')">Tutup</button>
@@ -1127,7 +1150,7 @@ const TaskModule = (() => {
     init, setFilter, render, openModal, _submit, shareWA,
     moveNext, movePrev, markReviewed, markDone, markArsip, markTodo, deleteTask, toggleUrgent,
     _onDragStart, _onDragEnd, _onColDragOver, _onColDragLeave, _onDrop,
-    _tAddImages, _tRemoveImg,
+    _tAddImages, _tRemoveImg, _openTaskImg,
   };
 })();
 

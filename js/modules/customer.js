@@ -204,16 +204,26 @@ const CustomerModule = (() => {
     };
     let _migrated = false;
     _data.forEach(c => {
-      if (c.pb1 === undefined || c.pb1 === null || c.pph23 === undefined || c.pph23 === null) {
+      // Fix: set pb1/pph23 independently — don't override one that's already set
+      const needPb1   = c.pb1   === undefined || c.pb1   === null;
+      const needPph23 = c.pph23 === undefined || c.pph23 === null;
+      if (needPb1 || needPph23) {
         const tax = _TAX_BY_NAME[c.nama] || _TAX_BY_ID[String(c.customerId||'')];
         if (tax) {
-          c.pb1   = tax.pb1;
-          c.pph23 = tax.pph23;
+          if (needPb1)   c.pb1   = tax.pb1;
+          if (needPph23) c.pph23 = tax.pph23;
           _migrated = true;
         }
-        // else: leave pb1/pph23 as null (belum ada data pajak)
       }
     });
+
+    // One-time migration: set pb1=true & pph23=true for ALL customers
+    if (!localStorage.getItem('becca_tax_migration_v1')) {
+      localStorage.setItem('becca_tax_migration_v1', '1');
+      _data.forEach(c => { c.pb1 = true; c.pph23 = true; });
+      _migrated = true;
+    }
+
     localStorage.setItem('becca_customers', JSON.stringify(_data));
     if (_migrated) {
       _data.forEach(c => DB.saveCustomer({...c}).catch(()=>{}));
