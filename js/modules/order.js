@@ -625,10 +625,9 @@ const OrderModule = (() => {
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">
           ${nf('of-snkb','Snack Berat','#ec4899')}
         </div>`,
-      buttons: [
-        {label:'Batal',        class:'btn-ghost',   onclick:'Modal.close()'},
-        {label:'Simpan Order', class:'btn-primary',  onclick:'OrderModule._submitOrder()'}
-      ]
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close()">Batal</button>
+        <button class="btn btn-primary" onclick="OrderModule._submitOrder()">Simpan Order</button>`,
     });
   }
 
@@ -640,10 +639,9 @@ const OrderModule = (() => {
     if (!cust) { Notify.warning('Pilih nama perusahaan'); return; }
     const now = new Date();
     const ts  = now.toISOString().slice(0,10)+' '+now.toTimeString().slice(0,8);
-    const user = (typeof Auth!=='undefined'&&Auth.user)?(Auth.user.name||Auth.user.username||''):'';
     const newOrder = {
       id:'ord_'+Date.now(), timestamp:ts,
-      pelapor:g('of-pelapor')||user, tglOrder:tgl, namaPerusahaan:cust,
+      pelapor:g('of-pelapor'), tglOrder:tgl, namaPerusahaan:cust,
       catatan:g('of-jenis'),
       breakfast:n('of-bf'),
       shift1:n('of-s1'), spare1:n('of-sp1'), ot1:n('of-ot1'), snack1:n('of-snk1'),
@@ -651,11 +649,88 @@ const OrderModule = (() => {
       shift3:n('of-s3'), spare3:n('of-sp3'), ot3:n('of-ot3'), snack3:n('of-snk3'),
       snackBerat:n('of-snkb'),
     };
-    _data.push(newOrder);
+
+    // Cek duplikat: tanggal + customer sama
+    const existing = _data.find(o => o.tglOrder === tgl && o.namaPerusahaan === cust);
+    if (existing) {
+      _showDuplicateConfirm(existing, newOrder);
+      return;
+    }
+    _saveOrder(newOrder, null);
+  }
+
+  function _orderSummaryHtml(o, label, color) {
+    const row = (lbl, val, hi) => val
+      ? `<tr style="${hi?'background:rgba(99,102,241,.07)':''}">
+           <td style="padding:3px 8px;font-size:11px;color:var(--text-3);white-space:nowrap">${lbl}</td>
+           <td style="padding:3px 8px;font-size:12px;font-weight:600;font-family:var(--font-mono);text-align:right">${val}</td>
+         </tr>` : '';
+    const fields = [
+      ['Breakfast',   o.breakfast],
+      ['Shift 1',     o.shift1],   ['Spare 1', o.spare1],   ['OT 1',  o.ot1],   ['Snack 1', o.snack1],
+      ['Shift 2',     o.shift2],   ['Spare 2', o.spare2],   ['OT 2',  o.ot2],   ['Snack 2', o.snack2],
+      ['Shift 3',     o.shift3],   ['Spare 3', o.spare3],   ['OT 3',  o.ot3],   ['Snack 3', o.snack3],
+      ['Snack Berat', o.snackBerat],
+    ];
+    const rows = fields.filter(([,v]) => v > 0).map(([l,v]) => row(l, v)).join('');
+    return `
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+                    color:${color};margin-bottom:6px;padding:4px 8px;background:${color}18;border-radius:6px">${label}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">
+          ${o.tglOrder} · ${o.catatan||'—'} · Pelapor: ${o.pelapor||'—'}
+        </div>
+        ${rows ? `<table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:8px;overflow:hidden">${rows}</table>`
+               : `<div style="padding:12px;text-align:center;font-size:12px;color:var(--text-3);background:var(--surface2);border-radius:8px">Semua nilai 0</div>`}
+      </div>`;
+  }
+
+  function _showDuplicateConfirm(existing, newOrder) {
+    const mid = 'ord-dup-' + Date.now();
+    Modal.open({
+      id: mid,
+      title: '⚠ Order Sudah Ada — Perbarui?',
+      size: 'modal-lg',
+      body: `
+        <div style="padding:10px 0 14px;font-size:13px;color:var(--text-2)">
+          Order <strong>${newOrder.namaPerusahaan}</strong> tanggal <strong>${newOrder.tglOrder}</strong>
+          sudah ada. Apakah Anda ingin memperbarui dengan data baru?
+        </div>
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          ${_orderSummaryHtml(existing, '📋 Order Lama', '#6b7280')}
+          <div style="display:flex;align-items:center;padding-top:28px;color:var(--text-3);font-size:18px">→</div>
+          ${_orderSummaryHtml(newOrder,  '✏ Order Baru', '#6366f1')}
+        </div>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="OrderModule._confirmUpdate('${existing.id}','${mid}')">Ya, Perbarui Order</button>`,
+    });
+    // Simpan newOrder ke buffer sementara
+    window._ordPendingNew = newOrder;
+  }
+
+  function _confirmUpdate(existingId, modalId) {
+    const newOrder = window._ordPendingNew;
+    if (!newOrder) return;
+    delete window._ordPendingNew;
+    Modal.close(modalId);
+    Modal.close(); // tutup form
+    _saveOrder(newOrder, existingId);
+  }
+
+  function _saveOrder(newOrder, replaceId) {
+    if (replaceId) {
+      // Update: ganti id lama, pertahankan id asli
+      newOrder.id = replaceId;
+      const i = _data.findIndex(o => o.id === replaceId);
+      if (i >= 0) _data[i] = newOrder; else _data.push(newOrder);
+      Notify.success('Order diperbarui', newOrder.namaPerusahaan);
+    } else {
+      _data.push(newOrder);
+      Notify.success('Order berhasil ditambahkan');
+    }
     _save();
     DB.saveOrder({...newOrder}).catch(e => console.warn('[Order] saveOrder:', e));
-    Modal.close();
-    Notify.success('Order berhasil ditambahkan');
     _renderFull();
   }
 
@@ -1442,7 +1517,7 @@ const OrderModule = (() => {
   function setPerPage(n)           { _perPage = n; localStorage.setItem('becca_ord_perPage', n); _page = 1; _renderTbody(); }
 
   return {
-    init, openModal, _submitOrder,
+    init, openModal, _submitOrder, _confirmUpdate,
     openColManager, _setColLabel, _setColGroup, _setColEditable, _removeCol, _addCol, _resetCols,
     editHeader, _saveHdr,
     startEdit, deleteOrder,
