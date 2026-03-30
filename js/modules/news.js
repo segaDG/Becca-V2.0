@@ -204,7 +204,7 @@ const NewsModule = (() => {
     };
     _items.push(item);
     _persist();
-    Modal.close();
+    Modal.close('news-create');
     _render();
     Notify.success('Pengumuman berhasil dikirim');
     if (typeof PushModule !== 'undefined') {
