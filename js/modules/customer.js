@@ -267,6 +267,11 @@ const CustomerModule = (() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
           Update PB1 & PPH
         </button>
+        <button class="btn btn-ghost btn-sm" onclick="CustomerModule._bulkRecalcPrices()" title="Hitung ulang harga semua shift dari Harga/Pax - PPH23 - Biaya Box - Biaya Lainnya"
+          style="font-size:11px;color:var(--text-2)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          Recalc Harga
+        </button>
         <button class="btn btn-primary" onclick="CustomerModule.openModal()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
           Tambah Customer
@@ -796,6 +801,53 @@ const CustomerModule = (() => {
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = base; });
   }
 
+  async function _bulkRecalcPrices() {
+    // Preview: show a sample of what will be computed
+    const sample = _data.slice(0, 3).map(c => {
+      const pph = c.pph23 ? Math.round((c.hargaPerPax || 0) * 0.02) : 0;
+      const net = Math.max(0, (c.hargaPerPax || 0) - pph - (c.biayaBox || 0) - (c.biayaLainnya || 0));
+      return `<tr><td style="padding:4px 8px;font-size:12px">${c.nama}</td>
+        <td style="padding:4px 8px;text-align:right;font-family:var(--font-mono);font-size:12px">${(c.hargaPerPax||0).toLocaleString()}</td>
+        <td style="padding:4px 8px;text-align:right;font-family:var(--font-mono);font-size:12px;color:#ef4444">-${pph.toLocaleString()}</td>
+        <td style="padding:4px 8px;text-align:right;font-family:var(--font-mono);font-size:12px;color:#ef4444">-${(c.biayaBox||0).toLocaleString()}</td>
+        <td style="padding:4px 8px;text-align:right;font-family:var(--font-mono);font-size:12px;color:#ef4444">-${(c.biayaLainnya||0).toLocaleString()}</td>
+        <td style="padding:4px 8px;text-align:right;font-family:var(--font-mono);font-size:12px;font-weight:700;color:#10b981">${net.toLocaleString()}</td></tr>`;
+    }).join('');
+    const ok = await Modal.confirm({
+      title: 'Recalculate Harga Semua Customer',
+      message: `<p style="font-size:13px;margin-bottom:10px">Rumus: <strong>Harga/Pax − PPH23(2%) − Biaya Box − Biaya Lainnya</strong><br>
+        Hasil diterapkan ke semua Shift (Breakfast, Shift 1/2/3, OT, Snack, Snack Berat).<br>
+        <strong>Spare 1/2/3 = 0.</strong></p>
+        <table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <thead><tr style="background:var(--surface2);font-size:11px;font-weight:700">
+            <th style="padding:4px 8px;text-align:left">Customer</th>
+            <th style="padding:4px 8px;text-align:right">Harga/Pax</th>
+            <th style="padding:4px 8px;text-align:right">PPH23</th>
+            <th style="padding:4px 8px;text-align:right">Box</th>
+            <th style="padding:4px 8px;text-align:right">Lainnya</th>
+            <th style="padding:4px 8px;text-align:right">= Harga</th>
+          </tr></thead>
+          <tbody>${sample}</tbody>
+        </table>
+        ${_data.length > 3 ? `<p style="font-size:11px;color:var(--text-3);margin-top:6px">...dan ${_data.length - 3} customer lainnya</p>` : ''}`,
+      confirmText: 'Ya, Terapkan ke Semua',
+    });
+    if (!ok) return;
+    _data.forEach(c => {
+      const pph = c.pph23 ? Math.round((c.hargaPerPax || 0) * 0.02) : 0;
+      const net = Math.max(0, (c.hargaPerPax || 0) - pph - (c.biayaBox || 0) - (c.biayaLainnya || 0));
+      c.hargaBreakfast = net;
+      c.hargaShift1  = net; c.hargaSpare1  = 0; c.hargaOT1    = net; c.hargaSnack1  = net;
+      c.hargaShift2  = net; c.hargaSpare2  = 0; c.hargaOT2    = net; c.hargaSnack2  = net;
+      c.hargaShift3  = net; c.hargaSpare3  = 0; c.hargaOT3    = net; c.hargaSnack3  = net;
+      c.hargaSnackBerat = net;
+    });
+    localStorage.setItem('becca_customers', JSON.stringify(_data));
+    _data.forEach(c => DB.saveCustomer({...c}).catch(()=>{}));
+    _render();
+    Notify.success('Harga semua customer berhasil dihitung ulang ✓');
+  }
+
   async function _bulkUpdateTax() {
     const ok = await Modal.confirm({
       title: 'Update PB1 & PPH23 Semua Customer',
@@ -810,7 +862,7 @@ const CustomerModule = (() => {
     Notify.success('PB1 & PPH23 semua customer diset Ada');
   }
 
-  return { init, setSearch, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer };
+  return { init, setSearch, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer };
 })();
 
 window.CustomerModule = CustomerModule;
