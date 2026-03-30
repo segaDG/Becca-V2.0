@@ -203,12 +203,19 @@ const DailyOrderModule = (() => {
   function _htmlFormProduksi() {
     const summary      = _getOrderSummary(_date, _shift);
     const totalPortions= summary.reduce((s,c) => s + c.total, 0);
-    const _dayOrds     = _orders.filter(o => o.tglOrder === _date);
+    const _dayOrds = _orders.filter(o => o.tglOrder === _date);
     let totalLauk = 0, totalPendamping = 0;
-    if (_shift === 'S1') {
-      _dayOrds.forEach(o => { totalLauk += _n(o.breakfast) + _n(o.shift1) + _n(o.ot1); totalPendamping += _n(o.spare1); });
-    } else if (_shift === 'S2') {
-      _dayOrds.forEach(o => { totalLauk += _n(o.shift2) + _n(o.ot2) + _n(o.shift3) + _n(o.ot3); totalPendamping += _n(o.spare2) + _n(o.spare3); });
+    if (!_isSnack(_shift)) {
+      _dayOrds.forEach(o => {
+        const cname = (o.namaPerusahaan||'').toLowerCase();
+        const c = _customers.find(x => (x.nama||x.namaPerusahaan||'').toLowerCase() === cname) || {};
+        const qL = _n(c.qtyLauk), qP = _n(c.qtyPendamping);
+        const pax = _shift === 'S1'
+          ? _n(o.breakfast) + _n(o.shift1) + _n(o.spare1) + _n(o.ot1)
+          : _n(o.shift2) + _n(o.spare2) + _n(o.ot2) + _n(o.shift3) + _n(o.spare3) + _n(o.ot3);
+        totalLauk += qL * pax;
+        totalPendamping += qP * pax;
+      });
     }
     const form         = _currentForm();
     const items        = form ? (form.items || []) : [];
