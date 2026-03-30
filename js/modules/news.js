@@ -1,6 +1,6 @@
 /* ============================================
    BECCA V2.0 — News & Pengumuman Module
-   v2.1: Media (gambar/video) + Polling
+   v2.2: Media per-user LS + Video IDB + Polling
 ============================================ */
 const NewsModule = (() => {
   'use strict';
@@ -11,25 +11,22 @@ const NewsModule = (() => {
   let _divisiList = [];
   let _jabatanList = [];
 
-  // Create-form ephemeral state (reset on openCreate)
-  let _fMedia = [];
+  // Create-form ephemeral state
+  let _fMedia = [];   // [{type:'image'|'video-idb'|'video-url', _full, _thumb, idbKey, url, name, ...}]
   let _fPollOn = false;
   let _fPollOpts = [];
 
-  /* ─── PERSISTENCE ─── */
+  /* ═══════════════════════════════════════════
+     PERSISTENCE — becca_news (item metadata only)
+  ═══════════════════════════════════════════ */
   function _readKey() {
     const uid = (typeof Auth !== 'undefined' && Auth.currentUser()?.id) || 'anon';
     return 'becca_news_read_' + uid;
   }
-
   function _load() {
     try { _items = JSON.parse(localStorage.getItem(_KEY) || '[]'); } catch { _items = []; }
-    try {
-      const r = JSON.parse(localStorage.getItem(_readKey()) || '[]');
-      _readSet = new Set(r);
-    } catch { _readSet = new Set(); }
+    try { _readSet = new Set(JSON.parse(localStorage.getItem(_readKey()) || '[]')); } catch { _readSet = new Set(); }
   }
-
   function _persist() { localStorage.setItem(_KEY, JSON.stringify(_items)); }
 
   function _markRead(id) {
@@ -40,7 +37,6 @@ const NewsModule = (() => {
         if (!r.includes(id)) { r.push(id); localStorage.setItem(_readKey(), JSON.stringify(r)); }
       } catch {}
     }
-    // Track viewer in item.views[]
     const idx = _items.findIndex(i => i.id === id);
     if (idx !== -1) {
       if (!_items[idx].views) _items[idx].views = [];
@@ -53,9 +49,7 @@ const NewsModule = (() => {
     }
     _updateBadge();
   }
-
   function _unreadCount() { return _items.filter(i => !_readSet.has(i.id)).length; }
-
   function _updateBadge() {
     const el = document.getElementById('news-nav-badge');
     if (!el) return;
@@ -64,7 +58,80 @@ const NewsModule = (() => {
     el.style.display = n > 0 ? 'flex' : 'none';
   }
 
-  /* ─── CONSTANTS ─── */
+  /* ═══════════════════════════════════════════
+     PER-USER IMAGE STORAGE  (becca_media_<uid>)
+     Gambar full-size disimpan di LS milik creator.
+     becca_news hanya menyimpan thumbnail kecil.
+  ═══════════════════════════════════════════ */
+  function _imgKey(uid) { return 'becca_media_' + uid; }
+
+  function _imgLoad(ownerId, id) {
+    try { return (JSON.parse(localStorage.getItem(_imgKey(ownerId)) || '{}'))[id] || null; }
+    catch { return null; }
+  }
+  function _imgSave(uid, id, data) {
+    try {
+      const store = JSON.parse(localStorage.getItem(_imgKey(uid)) || '{}');
+      store[id] = data;
+      localStorage.setItem(_imgKey(uid), JSON.stringify(store));
+    } catch(e) { console.warn('[News] Image save failed:', e); }
+  }
+  function _imgDelete(ownerId, id) {
+    try {
+      const store = JSON.parse(localStorage.getItem(_imgKey(ownerId)) || '{}');
+      delete store[id];
+      localStorage.setItem(_imgKey(ownerId), JSON.stringify(store));
+    } catch {}
+  }
+
+  /* ═══════════════════════════════════════════
+     INDEXEDDB — video blob storage (per device)
+  ═══════════════════════════════════════════ */
+  const _IDB = (() => {
+    let _db = null;
+    async function open() {
+      if (_db) return _db;
+      return new Promise((res, rej) => {
+        const req = indexedDB.open('becca_media_v1', 1);
+        req.onupgradeneeded = e => e.target.result.createObjectStore('blobs', { keyPath: 'id' });
+        req.onsuccess = e => { _db = e.target.result; res(_db); };
+        req.onerror   = rej;
+      });
+    }
+    return {
+      async save(id, blob) {
+        const db = await open();
+        return new Promise((res, rej) => {
+          const tx = db.transaction('blobs', 'readwrite');
+          tx.objectStore('blobs').put({ id, blob });
+          tx.oncomplete = res; tx.onerror = rej;
+        });
+      },
+      async load(id) {
+        const db = await open();
+        return new Promise(res => {
+          const tx  = db.transaction('blobs', 'readonly');
+          const req = tx.objectStore('blobs').get(id);
+          req.onsuccess = e => res(e.target.result?.blob || null);
+          req.onerror   = () => res(null);
+        });
+      },
+      async remove(id) {
+        try {
+          const db = await open();
+          await new Promise((res, rej) => {
+            const tx = db.transaction('blobs', 'readwrite');
+            tx.objectStore('blobs').delete(id);
+            tx.oncomplete = res; tx.onerror = rej;
+          });
+        } catch {}
+      },
+    };
+  })();
+
+  /* ═══════════════════════════════════════════
+     CONSTANTS & UTILS
+  ═══════════════════════════════════════════ */
   const _COLOR = { info:'#6366f1', success:'#10b981', warning:'#f59e0b', urgent:'#ef4444' };
   const _ICON  = { info:'📢', success:'✅', warning:'⚠️', urgent:'🚨' };
   const _LABEL = { info:'Info', success:'Kabar Baik', warning:'Penting', urgent:'URGENT' };
@@ -72,59 +139,82 @@ const NewsModule = (() => {
   function _fmtTime(iso) {
     if (!iso) return '';
     try {
-      const diff = Date.now() - new Date(iso).getTime();
-      if (diff < 60000)    return 'Baru saja';
-      if (diff < 3600000)  return Math.floor(diff / 60000) + ' mnt lalu';
-      if (diff < 86400000) return Math.floor(diff / 3600000) + ' jam lalu';
-      if (diff < 604800000) return Math.floor(diff / 86400000) + ' hari lalu';
+      const d = Date.now() - new Date(iso).getTime();
+      if (d < 60000)    return 'Baru saja';
+      if (d < 3600000)  return Math.floor(d / 60000) + ' mnt lalu';
+      if (d < 86400000) return Math.floor(d / 3600000) + ' jam lalu';
+      if (d < 604800000) return Math.floor(d / 86400000) + ' hari lalu';
       return new Date(iso).toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
     } catch { return ''; }
   }
 
   function _ytEmbedUrl(url) {
     const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/);
-    return m ? `https://www.youtube.com/embed/${m[1]}` : null;
+    return m ? 'https://www.youtube.com/embed/' + m[1] : null;
   }
-
   function _ytThumbUrl(url) {
     const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/);
-    return m ? `https://img.youtube.com/vi/${m[1]}/mqdefault.jpg` : null;
+    return m ? 'https://img.youtube.com/vi/' + m[1] + '/mqdefault.jpg' : null;
   }
 
-  function _compressImage(file) {
-    return new Promise((resolve, reject) => {
+  function _compressImage(file, maxPx = 1024, quality = 0.78) {
+    return new Promise((res, rej) => {
       const reader = new FileReader();
       reader.onload = e => {
         const img = new Image();
         img.onload = () => {
-          const MAX = 1024;
           let w = img.width, h = img.height;
-          if (w > MAX || h > MAX) {
-            if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
-            else { w = Math.round(w * MAX / h); h = MAX; }
+          if (w > maxPx || h > maxPx) {
+            if (w >= h) { h = Math.round(h * maxPx / w); w = maxPx; }
+            else        { w = Math.round(w * maxPx / h); h = maxPx; }
           }
           const cvs = document.createElement('canvas');
           cvs.width = w; cvs.height = h;
           cvs.getContext('2d').drawImage(img, 0, 0, w, h);
-          resolve(cvs.toDataURL('image/jpeg', 0.78));
+          res(cvs.toDataURL('image/jpeg', quality));
         };
-        img.onerror = reject;
-        img.src = e.target.result;
+        img.onerror = rej; img.src = e.target.result;
       };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+      reader.onerror = rej; reader.readAsDataURL(file);
     });
   }
 
-  /* ─── RENDER (card list) ─── */
+  function _videoThumb(file) {
+    return new Promise(resolve => {
+      const vid = document.createElement('video');
+      const url = URL.createObjectURL(file);
+      vid.src = url; vid.muted = true;
+      vid.onloadeddata = () => {
+        vid.currentTime = Math.min(1, vid.duration / 4 || 1);
+      };
+      vid.onseeked = () => {
+        const cvs = document.createElement('canvas');
+        cvs.width = 160; cvs.height = 90;
+        cvs.getContext('2d').drawImage(vid, 0, 0, 160, 90);
+        URL.revokeObjectURL(url);
+        resolve(cvs.toDataURL('image/jpeg', 0.7));
+      };
+      vid.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      vid.load();
+    });
+  }
+
+  function _fmtBytes(bytes) {
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  /* ═══════════════════════════════════════════
+     RENDER — card list
+  ═══════════════════════════════════════════ */
   function _render() {
     const page = document.getElementById('page-news');
     if (!page) return;
     _load();
-    const _role = (Auth.currentUser()?.role || '').toLowerCase();
-    const canWrite = ['admin','superadmin'].includes(_role) || Auth.can('news','create');
-    const sorted = [..._items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    const unread = _unreadCount();
+    const role     = (Auth.currentUser()?.role || '').toLowerCase();
+    const canWrite = ['admin','superadmin'].includes(role) || Auth.can('news','create');
+    const sorted   = [..._items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const unread   = _unreadCount();
 
     page.innerHTML = `
       <div class="page-header">
@@ -137,7 +227,6 @@ const NewsModule = (() => {
           ${canWrite ? `<button class="btn btn-primary" onclick="NewsModule.openCreate()">+ Buat Pengumuman</button>` : ''}
         </div>
       </div>
-
       ${sorted.length === 0 ? `
         <div style="text-align:center;padding:80px 20px;color:var(--text-3)">
           <div style="font-size:48px;margin-bottom:12px">📭</div>
@@ -148,13 +237,16 @@ const NewsModule = (() => {
       ` : `
         <div style="display:flex;flex-direction:column;gap:10px;max-width:720px">
           ${sorted.map(item => {
-            const unrd      = !_readSet.has(item.id);
-            const col       = _COLOR[item.tipe] || '#6366f1';
-            const viewCnt   = (item.views || []).length;
-            const firstImg  = (item.media || []).find(m => m.type === 'image');
-            const hasVideo  = (item.media || []).some(m => m.type === 'video');
-            const hasPoll   = !!item.poll;
+            const unrd       = !_readSet.has(item.id);
+            const col        = _COLOR[item.tipe] || '#6366f1';
+            const viewCnt    = (item.views || []).length;
+            const media      = item.media || [];
+            const firstImg   = media.find(m => m.type === 'image');
+            const hasVideo   = media.some(m => m.type === 'video-idb' || m.type === 'video-url');
+            const hasPoll    = !!item.poll;
             const totalVotes = hasPoll ? item.poll.options.reduce((s, o) => s + o.votes.length, 0) : 0;
+            // Thumbnail: use stored thumb (small) — never need to hit per-user LS for card
+            const cardThumb  = firstImg?.thumb || null;
             return `
               <div onclick="NewsModule.openItem('${item.id}')"
                 style="background:var(--surface);border:1px solid ${unrd ? col : 'var(--border)'};
@@ -168,31 +260,27 @@ const NewsModule = (() => {
                   <span style="font-size:16px">${_ICON[item.tipe] || '📢'}</span>
                   <span style="font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px;
                     background:${col}20;color:${col};text-transform:uppercase;letter-spacing:.04em">${_LABEL[item.tipe] || 'Info'}</span>
-                  ${firstImg || hasVideo ? `<span style="font-size:10px;color:var(--text-3)">${firstImg ? '🖼' : ''}${hasVideo ? '🎬' : ''}</span>` : ''}
+                  ${firstImg || hasVideo ? `<span style="font-size:11px;color:var(--text-3)">${firstImg ? '🖼' : ''}${hasVideo ? '🎬' : ''}</span>` : ''}
                   ${hasPoll ? `<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(16,185,129,.1);color:#10b981;font-weight:600">📊 ${totalVotes} suara</span>` : ''}
                   <span style="font-size:11px;color:var(--text-3);margin-left:auto">${_fmtTime(item.createdAt)}</span>
                 </div>
                 <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:4px">${item.judul}</div>
-                <div style="font-size:12px;color:var(--text-2);line-height:1.5;
-                  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;
-                  -webkit-line-clamp:2;-webkit-box-orient:vertical">${item.isi}</div>
-                ${firstImg ? `
+                <div style="font-size:12px;color:var(--text-2);line-height:1.5;overflow:hidden;
+                  text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${item.isi}</div>
+                ${cardThumb ? `
                   <div style="margin-top:10px;border-radius:8px;overflow:hidden;height:140px">
-                    <img src="${firstImg.data}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
-                  </div>
-                ` : ''}
+                    <img src="${cardThumb}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
+                  </div>` : ''}
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
                   <span style="font-size:11px;color:var(--text-3)">— ${item.author || 'Admin'}</span>
                   <span onclick="event.stopPropagation();NewsModule.openViewers('${item.id}')"
                     style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:4px;
                            cursor:pointer;padding:2px 6px;border-radius:6px;transition:background .15s"
-                    onmouseover="this.style.background='var(--surface2)'"
-                    onmouseout="this.style.background=''">
+                    onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                     </svg>
-                    ${viewCnt > 0 ? `${viewCnt} dilihat` : 'Belum dilihat'}
+                    ${viewCnt > 0 ? viewCnt + ' dilihat' : 'Belum dilihat'}
                   </span>
                 </div>
               </div>`;
@@ -203,16 +291,16 @@ const NewsModule = (() => {
     _updateBadge();
   }
 
-  /* ─── POLL HTML ─── */
+  /* ═══════════════════════════════════════════
+     POLL HTML
+  ═══════════════════════════════════════════ */
   function _renderPollHtml(item) {
     if (!item.poll) return '';
-    const poll = item.poll;
-    const user = typeof Auth !== 'undefined' ? Auth.currentUser() : null;
-    const uid  = user?.id || user?.username || 'anon';
-    const totalVotes   = poll.options.reduce((s, o) => s + o.votes.length, 0);
-    const userVotedSet = new Set(poll.options.filter(o => o.votes.includes(uid)).map(o => o.id));
-    const hasVoted     = userVotedSet.size > 0;
-
+    const poll        = item.poll;
+    const uid         = (typeof Auth !== 'undefined' ? Auth.currentUser()?.id : null) || 'anon';
+    const totalVotes  = poll.options.reduce((s, o) => s + o.votes.length, 0);
+    const votedSet    = new Set(poll.options.filter(o => o.votes.includes(uid)).map(o => o.id));
+    const hasVoted    = votedSet.size > 0;
     return `
       <div id="news-poll-${item.id}" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
         <div style="font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -221,7 +309,7 @@ const NewsModule = (() => {
         </div>
         ${poll.options.map(opt => {
           const pct   = totalVotes > 0 ? Math.round(opt.votes.length / totalVotes * 100) : 0;
-          const voted = userVotedSet.has(opt.id);
+          const voted = votedSet.has(opt.id);
           return `
             <div style="margin-bottom:8px">
               <div onclick="NewsModule._voteItem('${item.id}','${opt.id}')"
@@ -229,12 +317,11 @@ const NewsModule = (() => {
                        border:2px solid ${voted ? 'var(--primary)' : 'var(--border)'};
                        border-radius:8px;cursor:pointer;position:relative;overflow:hidden;
                        background:${voted ? 'rgba(99,102,241,.05)' : 'var(--surface)'};
-                       transition:border-color .15s,background .15s">
+                       transition:border-color .15s">
                 ${hasVoted ? `<div style="position:absolute;left:0;top:0;bottom:0;width:${pct}%;
-                  background:${voted ? 'rgba(99,102,241,.12)' : 'rgba(0,0,0,.04)'};
-                  pointer-events:none"></div>` : ''}
+                  background:${voted ? 'rgba(99,102,241,.12)' : 'rgba(0,0,0,.04)'};pointer-events:none"></div>` : ''}
                 <div style="position:relative;flex:1;font-size:13px;color:var(--text)">${opt.text}</div>
-                ${hasVoted ? `<span style="position:relative;font-size:12px;font-weight:700;min-width:35px;text-align:right;
+                ${hasVoted ? `<span style="position:relative;font-size:12px;font-weight:700;min-width:34px;text-align:right;
                   color:${voted ? 'var(--primary)' : 'var(--text-3)'}">${pct}%</span>` : ''}
                 ${voted ? `<svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"
                   width="14" height="14" style="position:relative;flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
@@ -243,39 +330,65 @@ const NewsModule = (() => {
         }).join('')}
         <div style="font-size:11px;color:var(--text-3);margin-top:2px">
           ${hasVoted
-            ? `Anda sudah memilih · ${poll.multiple ? 'Pilihan ganda' : 'Klik pilihan lain untuk ganti'}`
-            : `Klik opsi untuk memilih${poll.multiple ? ' · Pilihan ganda' : ''}`}
+            ? 'Anda sudah memilih · ' + (poll.multiple ? 'Pilihan ganda' : 'Klik opsi lain untuk ganti')
+            : 'Klik opsi untuk memilih' + (poll.multiple ? ' · Pilihan ganda' : '')}
         </div>
-      </div>
-    `;
+      </div>`;
   }
 
-  /* ─── OPEN ITEM ─── */
+  /* ═══════════════════════════════════════════
+     OPEN ITEM (detail modal)
+  ═══════════════════════════════════════════ */
   function openItem(id) {
     const item = _items.find(i => i.id === id);
     if (!item) return;
     _markRead(id);
     _render();
-    const col = _COLOR[item.tipe] || '#6366f1';
-    const canDelete = ['admin','superadmin'].includes((Auth.currentUser()?.role||'').toLowerCase()) || Auth.can('news','delete');
-    const viewCnt = (item.views || []).length;
-    const mid = Utils.uid();
+    const col      = _COLOR[item.tipe] || '#6366f1';
+    const canDel   = ['admin','superadmin'].includes((Auth.currentUser()?.role||'').toLowerCase()) || Auth.can('news','delete');
+    const viewCnt  = (item.views || []).length;
+    const mid      = Utils.uid();
+    const media    = item.media || [];
 
-    const mediaHtml = (item.media || []).map(m => {
-      if (m.type === 'image') return `
-        <div style="margin-bottom:8px;border-radius:8px;overflow:hidden">
-          <img src="${m.data}" style="width:100%;max-height:400px;object-fit:contain;background:var(--surface2)" loading="lazy">
-        </div>`;
-      if (m.type === 'video') {
+    // Build media HTML (images load from per-user LS; videos get async placeholders)
+    const mediaHtml = media.map((m, idx) => {
+      if (m.type === 'image') {
+        const data = _imgLoad(m.ownerId, m.id) || m.thumb || null;
+        return data ? `
+          <div style="margin-bottom:8px;border-radius:8px;overflow:hidden;position:relative">
+            <img src="${data}" style="width:100%;max-height:400px;object-fit:contain;background:var(--surface2)" loading="lazy">
+            <button onclick="NewsModule._downloadMedia(${JSON.stringify(item.id)},${idx})"
+              style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);color:#fff;border:none;
+                     border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;backdrop-filter:blur(4px)">
+              ⬇ Simpan
+            </button>
+          </div>` : `
+          <div style="padding:16px;text-align:center;font-size:12px;color:var(--text-3);
+                      background:var(--surface2);border-radius:8px;margin-bottom:8px">
+            🖼 Gambar tidak tersedia di perangkat ini
+          </div>`;
+      }
+      if (m.type === 'video-idb') {
+        return `
+          <div id="vid-ph-${m.idbKey}" style="margin-bottom:8px;border-radius:8px;overflow:hidden;
+               background:var(--surface2);min-height:80px;display:flex;align-items:center;justify-content:center">
+            <div style="font-size:12px;color:var(--text-3)">⏳ Memuat video...</div>
+          </div>`;
+      }
+      if (m.type === 'video-url') {
         const embed = _ytEmbedUrl(m.url);
-        if (embed) return `
+        return embed ? `
           <div style="margin-bottom:8px;border-radius:8px;overflow:hidden;position:relative;padding-top:56.25%">
             <iframe src="${embed}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0"
               allowfullscreen loading="lazy"></iframe>
-          </div>`;
-        return `
-          <div style="margin-bottom:8px">
+          </div>` : `
+          <div style="margin-bottom:8px;position:relative">
             <video src="${m.url}" controls style="width:100%;max-height:300px;border-radius:8px;background:#000"></video>
+            <button onclick="NewsModule._downloadMedia(${JSON.stringify(item.id)},${idx})"
+              style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);color:#fff;border:none;
+                     border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">
+              ⬇ Simpan
+            </button>
           </div>`;
       }
       return '';
@@ -296,7 +409,7 @@ const NewsModule = (() => {
         ${_renderPollHtml(item)}
       `,
       footer: `
-        ${canDelete ? `<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="NewsModule.deleteItem('${item.id}')">Hapus</button>` : ''}
+        ${canDel ? `<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="NewsModule.deleteItem('${item.id}')">Hapus</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="Modal.close('${mid}');NewsModule.openViewers('${item.id}')"
           style="display:flex;align-items:center;gap:5px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
@@ -307,47 +420,103 @@ const NewsModule = (() => {
         <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
       `,
     });
+
+    // Load IDB videos async after modal renders
+    requestAnimationFrame(() => {
+      (item.media || []).forEach(m => {
+        if (m.type !== 'video-idb') return;
+        _IDB.load(m.idbKey).then(blob => {
+          const ph = document.getElementById('vid-ph-' + m.idbKey);
+          if (!ph) return;
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            ph.innerHTML = `
+              <div style="position:relative">
+                <video src="${url}" controls style="width:100%;max-height:300px;border-radius:8px;background:#000"
+                  onended="try{URL.revokeObjectURL('${url}')}catch{}"></video>
+                <button onclick="NewsModule._downloadMedia('${item.id}',${(item.media||[]).indexOf(m)})"
+                  style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);color:#fff;border:none;
+                         border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">
+                  ⬇ Simpan
+                </button>
+              </div>`;
+          } else {
+            ph.innerHTML = `<div style="padding:16px;text-align:center;font-size:12px;color:var(--text-3)">
+              Video tidak tersedia di perangkat ini (diunggah dari perangkat lain)</div>`;
+          }
+        });
+      });
+    });
   }
 
-  /* ─── VOTE ─── */
+  /* ═══════════════════════════════════════════
+     DOWNLOAD MEDIA — simpan ke perangkat user
+  ═══════════════════════════════════════════ */
+  function _downloadMedia(itemId, mediaIdx) {
+    const item = _items.find(i => i.id === itemId);
+    if (!item) return;
+    const m = (item.media || [])[mediaIdx];
+    if (!m) return;
+
+    if (m.type === 'image') {
+      const data = _imgLoad(m.ownerId, m.id) || m.thumb;
+      if (!data) { Notify.error('Gambar tidak tersedia'); return; }
+      // Simpan salinan ke LS user yang sedang login
+      const viewerUid = Auth.currentUser()?.id || Auth.currentUser()?.username || 'anon';
+      if (viewerUid !== m.ownerId) _imgSave(viewerUid, m.id, data);
+      // Browser download
+      const a = document.createElement('a');
+      a.href = data; a.download = m.name || 'gambar.jpg'; a.click();
+      Notify.success('Gambar disimpan ✓');
+    } else if (m.type === 'video-idb') {
+      _IDB.load(m.idbKey).then(blob => {
+        if (!blob) { Notify.error('Video tidak tersedia di perangkat ini'); return; }
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href = url; a.download = m.name || 'video.mp4'; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        Notify.success('Video disimpan ✓');
+      });
+    } else if (m.type === 'video-url') {
+      window.open(m.url, '_blank');
+    }
+  }
+
+  /* ═══════════════════════════════════════════
+     VOTE
+  ═══════════════════════════════════════════ */
   function _voteItem(id, optId) {
     const item = _items.find(i => i.id === id);
-    if (!item || !item.poll) return;
-    const user = typeof Auth !== 'undefined' ? Auth.currentUser() : null;
-    const uid  = user?.id || user?.username || 'anon';
-    const opt  = item.poll.options.find(o => o.id === optId);
+    if (!item?.poll) return;
+    const uid = (Auth.currentUser()?.id || Auth.currentUser()?.username || 'anon');
+    const opt = item.poll.options.find(o => o.id === optId);
     if (!opt) return;
-
     if (!item.poll.multiple) {
-      // Single choice: move vote to new option
       item.poll.options.forEach(o => { o.votes = o.votes.filter(v => v !== uid); });
       opt.votes.push(uid);
     } else {
-      // Multiple choice: toggle
       if (opt.votes.includes(uid)) opt.votes = opt.votes.filter(v => v !== uid);
       else opt.votes.push(uid);
     }
-    _persist();
-    _render();
-    // Update poll section in-place in open modal
+    _persist(); _render();
     const container = document.getElementById('news-poll-' + id);
     if (container) container.outerHTML = _renderPollHtml(item);
   }
 
-  /* ─── VIEWERS ─── */
+  /* ═══════════════════════════════════════════
+     VIEWERS
+  ═══════════════════════════════════════════ */
   function openViewers(id) {
-    const item = _items.find(i => i.id === id);
+    const item  = _items.find(i => i.id === id);
     if (!item) return;
     const views = item.views || [];
     const mid   = Utils.uid();
     Modal.open({
-      id: mid,
-      title: `👁 Sudah Dilihat — ${item.judul}`,
-      size: 'modal-md',
+      id: mid, title: `👁 Sudah Dilihat — ${item.judul}`, size: 'modal-md',
       body: views.length === 0 ? `
         <div style="text-align:center;padding:40px 20px;color:var(--text-3)">
           <div style="font-size:36px;margin-bottom:10px">👁</div>
-          <div style="font-size:14px">Belum ada yang membuka pengumuman ini</div>
+          <div>Belum ada yang membuka pengumuman ini</div>
         </div>
       ` : `
         <div style="margin-bottom:10px;font-size:12px;color:var(--text-3)">${views.length} orang sudah membaca</div>
@@ -361,40 +530,36 @@ const NewsModule = (() => {
                 ${(v.nama||'?')[0].toUpperCase()}
               </div>
               <div style="flex:1">
-                <div style="font-size:13px;font-weight:600;color:var(--text)">${v.nama || 'User'}</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text)">${v.nama||'User'}</div>
                 <div style="font-size:11px;color:var(--text-3)">${_fmtTime(v.viewedAt)}</div>
               </div>
               <div style="font-size:10px;color:var(--text-3)">
                 ${v.viewedAt ? new Date(v.viewedAt).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}
               </div>
-            </div>
-          `).join('')}
+            </div>`).join('')}
         </div>
       `,
       footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
     });
   }
 
-  /* ─── CREATE FORM ─── */
+  /* ═══════════════════════════════════════════
+     CREATE FORM
+  ═══════════════════════════════════════════ */
   async function openCreate() {
-    _divisiList = [];
-    _jabatanList = [];
-    _fMedia = [];
-    _fPollOn = false;
+    _divisiList = []; _jabatanList = [];
+    _fMedia = []; _fPollOn = false;
     _fPollOpts = [{ id: Utils.uid(), text: '' }, { id: Utils.uid(), text: '' }];
-
     try {
       if (typeof DB !== 'undefined') {
-        const emps = await DB.getEmployees().catch(() => []);
+        const emps   = await DB.getEmployees().catch(() => []);
         _divisiList  = [...new Set(emps.map(e => e.divisi || e.departemen).filter(Boolean))].sort();
         _jabatanList = [...new Set(emps.map(e => e.jabatan).filter(Boolean))].sort();
       }
     } catch {}
 
     Modal.open({
-      id: 'news-create',
-      title: '📢 Buat Pengumuman',
-      size: 'modal-lg',
+      id: 'news-create', title: '📢 Buat Pengumuman', size: 'modal-lg',
       body: `
         <div style="display:flex;flex-direction:column;gap:14px">
           <div class="form-group">
@@ -412,8 +577,7 @@ const NewsModule = (() => {
           </div>
           <div class="form-group">
             <label class="form-label">Isi Pengumuman *</label>
-            <textarea id="nc-isi" class="form-control" rows="4"
-              placeholder="Tulis isi pengumuman di sini..." style="resize:vertical"></textarea>
+            <textarea id="nc-isi" class="form-control" rows="4" placeholder="Tulis isi pengumuman..." style="resize:vertical"></textarea>
           </div>
 
           <!-- Media -->
@@ -426,11 +590,18 @@ const NewsModule = (() => {
                 <input type="file" id="nc-img-input" accept="image/*" multiple style="display:none"
                   onchange="NewsModule._ncAddImages(this)">
               </label>
+              <label class="btn btn-ghost btn-sm" style="cursor:pointer;font-size:12px">
+                🎬 Upload Video
+                <input type="file" id="nc-vid-input" accept="video/*" style="display:none"
+                  onchange="NewsModule._ncAddVideoFile(this)">
+              </label>
               <button class="btn btn-ghost btn-sm" type="button" onclick="NewsModule._ncAddVideoUrl()" style="font-size:12px">
-                🎬 Tambah Video URL
+                🔗 Video URL
               </button>
             </div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:6px">Gambar maks 3 buah · Video: URL YouTube atau link langsung</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:6px">
+              Gambar maks 10 buah · Video langsung tersimpan di perangkat · URL untuk YouTube/link eksternal
+            </div>
           </div>
 
           <!-- Polling -->
@@ -494,18 +665,20 @@ const NewsModule = (() => {
     setTimeout(() => NewsModule._ncCountRecipients(), 200);
   }
 
-  /* ─── FORM MEDIA HANDLERS ─── */
+  /* ─── Form: Media ─── */
   function _ncRenderMediaPreview() {
     const el = document.getElementById('nc-media-list');
     if (!el) return;
     if (_fMedia.length === 0) { el.innerHTML = ''; return; }
     el.innerHTML = _fMedia.map((m, i) => {
-      const thumb = m.type === 'image' ? m.data : (m.thumb || null);
+      const thumb = m._thumb || m.thumb || null;
+      const label = m.type === 'video-idb' ? `<div style="position:absolute;bottom:3px;left:3px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px">${_fmtBytes(m.size||0)}</div>` : '';
       return `
         <div style="position:relative;width:80px;height:80px;flex-shrink:0">
           ${thumb
             ? `<img src="${thumb}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`
             : `<div style="width:80px;height:80px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px">🎬</div>`}
+          ${label}
           <button onclick="NewsModule._ncRemoveMedia(${i})"
             style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;
                    background:#ef4444;color:#fff;border:none;cursor:pointer;font-size:11px;
@@ -517,88 +690,95 @@ const NewsModule = (() => {
   async function _ncAddImages(input) {
     const files     = Array.from(input.files || []);
     const imgCount  = _fMedia.filter(m => m.type === 'image').length;
-    const remaining = 3 - imgCount;
-    if (remaining <= 0) { Notify.warning('Maksimal 3 gambar per pengumuman'); input.value = ''; return; }
+    const remaining = 10 - imgCount;
+    if (remaining <= 0) { Notify.warning('Maksimal 10 gambar per pengumuman'); input.value = ''; return; }
     for (const file of files.slice(0, remaining)) {
       try {
-        const data = await _compressImage(file);
-        _fMedia.push({ type: 'image', data, name: file.name });
+        const [full, thumb] = await Promise.all([
+          _compressImage(file, 1024, 0.78),
+          _compressImage(file, 200, 0.60),
+        ]);
+        _fMedia.push({ type: 'image', _full: full, _thumb: thumb, name: file.name });
         _ncRenderMediaPreview();
-      } catch { Notify.error('Gagal memuat gambar: ' + file.name); }
+      } catch { Notify.error('Gagal memuat: ' + file.name); }
+    }
+    input.value = '';
+  }
+
+  async function _ncAddVideoFile(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+    Notify.info('Memproses video...');
+    const idbKey = Utils.uid();
+    const thumb  = await _videoThumb(file).catch(() => null);
+    try {
+      await _IDB.save(idbKey, file);
+      _fMedia.push({ type: 'video-idb', idbKey, _thumb: thumb, name: file.name, size: file.size });
+      _ncRenderMediaPreview();
+    } catch(e) {
+      Notify.error('Gagal menyimpan video: ' + e.message);
     }
     input.value = '';
   }
 
   function _ncAddVideoUrl() {
-    const url = prompt('Masukkan URL video:\n(YouTube: youtube.com/watch?v=... atau youtu.be/...)\n(Langsung: URL file .mp4 dll)');
-    if (!url || !url.trim()) return;
+    const url = prompt('Masukkan URL video:\n(YouTube: youtube.com/watch?v=... atau youtu.be/...)\n(Langsung: link file video)');
+    if (!url?.trim()) return;
     const u     = url.trim();
     const thumb = _ytThumbUrl(u);
-    _fMedia.push({ type: 'video', url: u, name: 'Video', thumb });
+    _fMedia.push({ type: 'video-url', url: u, _thumb: thumb, name: 'Video', thumb });
     _ncRenderMediaPreview();
   }
 
-  function _ncRemoveMedia(idx) {
+  async function _ncRemoveMedia(idx) {
+    const m = _fMedia[idx];
+    if (m?.type === 'video-idb' && m.idbKey) await _IDB.remove(m.idbKey);
     _fMedia.splice(idx, 1);
     _ncRenderMediaPreview();
   }
 
-  /* ─── FORM POLL HANDLERS ─── */
+  /* ─── Form: Poll ─── */
   function _ncTogglePoll(on) {
     _fPollOn = on;
     const body = document.getElementById('nc-poll-body');
     if (body) body.style.display = on ? '' : 'none';
   }
-
   function _ncAddPollOpt() {
     if (_fPollOpts.length >= 6) { Notify.warning('Maksimal 6 pilihan'); return; }
     _fPollOpts.push({ id: Utils.uid(), text: '' });
     _ncRenderPollOpts();
   }
-
   function _ncRemovePollOpt(idx) {
     if (_fPollOpts.length <= 2) { Notify.warning('Minimal 2 pilihan'); return; }
     _fPollOpts.splice(idx, 1);
     _ncRenderPollOpts();
   }
-
-  function _ncPollOptInput(idx, val) {
-    if (_fPollOpts[idx]) _fPollOpts[idx].text = val;
-  }
-
+  function _ncPollOptInput(idx, val) { if (_fPollOpts[idx]) _fPollOpts[idx].text = val; }
   function _ncRenderPollOpts() {
     const el = document.getElementById('nc-poll-opts');
     if (!el) return;
     el.innerHTML = _fPollOpts.map((opt, i) => `
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <span style="font-size:12px;color:var(--text-3);width:16px;text-align:right;flex-shrink:0">${i + 1}.</span>
-        <input class="form-control" style="flex:1;font-size:13px"
-          placeholder="Pilihan ${i + 1}..."
-          value="${Utils.esc(opt.text)}"
-          oninput="NewsModule._ncPollOptInput(${i}, this.value)">
+        <span style="font-size:12px;color:var(--text-3);width:16px;text-align:right;flex-shrink:0">${i+1}.</span>
+        <input class="form-control" style="flex:1;font-size:13px" placeholder="Pilihan ${i+1}..."
+          value="${Utils.esc(opt.text)}" oninput="NewsModule._ncPollOptInput(${i},this.value)">
         <button onclick="NewsModule._ncRemovePollOpt(${i})"
           style="width:28px;height:28px;flex-shrink:0;border-radius:6px;border:1px solid var(--border);
                  background:transparent;cursor:pointer;font-size:16px;color:var(--text-3);
                  display:flex;align-items:center;justify-content:center">×</button>
-      </div>
-    `).join('');
+      </div>`).join('');
   }
 
-  /* ─── PUSH HANDLERS ─── */
+  /* ─── Form: Push ─── */
   function _ncTargetChange(val) {
     const wrap  = document.getElementById('nc-filter-wrap');
     const label = document.getElementById('nc-filter-label');
     const sel   = document.getElementById('nc-filter-value');
     const info  = document.getElementById('nc-push-info');
-    if (val === 'none') {
-      if (wrap) wrap.style.display = 'none';
-      if (info) info.style.display = 'none';
-      return;
-    }
+    if (val === 'none') { if (wrap) wrap.style.display='none'; if (info) info.style.display='none'; return; }
     if (info) info.style.display = '';
-    if (val === 'all') {
-      if (wrap) wrap.style.display = 'none';
-    } else {
+    if (val === 'all') { if (wrap) wrap.style.display='none'; }
+    else {
       if (wrap) wrap.style.display = '';
       if (label) label.textContent = val === 'divisi' ? 'Divisi' : 'Jabatan';
       const list = val === 'divisi' ? _divisiList : _jabatanList;
@@ -606,26 +786,26 @@ const NewsModule = (() => {
     }
     _ncCountRecipients();
   }
-
   async function _ncCountRecipients() {
     const target = document.getElementById('nc-target')?.value || 'all';
     if (target === 'none') return;
     const val    = document.getElementById('nc-filter-value')?.value;
-    const filter = target === 'divisi' && val ? { divisi: val }
-                 : target === 'jabatan' && val ? { jabatan: val } : {};
+    const filter = target==='divisi'&&val ? {divisi:val} : target==='jabatan'&&val ? {jabatan:val} : {};
     if (typeof DB === 'undefined') return;
     const rows = await DB.getPushTokens(filter).catch(() => []);
     const el   = document.getElementById('nc-count');
     if (el) el.textContent = rows.length;
   }
 
-  /* ─── SUBMIT ─── */
+  /* ═══════════════════════════════════════════
+     SUBMIT CREATE
+  ═══════════════════════════════════════════ */
   async function _submitCreate() {
     const judul  = document.getElementById('nc-judul')?.value.trim();
     const isi    = document.getElementById('nc-isi')?.value.trim();
     const tipe   = document.getElementById('nc-tipe')?.value || 'info';
     const target = document.getElementById('nc-target')?.value || 'all';
-    const val    = document.getElementById('nc-filter-value')?.value;
+    const fval   = document.getElementById('nc-filter-value')?.value;
     if (!judul) { Notify.warning('Judul wajib diisi'); return; }
     if (!isi)   { Notify.warning('Isi pengumuman wajib diisi'); return; }
 
@@ -634,22 +814,39 @@ const NewsModule = (() => {
       const q    = document.getElementById('nc-poll-q')?.value.trim();
       const opts = _fPollOpts.filter(o => o.text.trim());
       if (!q)            { Notify.warning('Pertanyaan polling wajib diisi'); return; }
-      if (opts.length < 2) { Notify.warning('Minimal 2 pilihan polling harus diisi'); return; }
+      if (opts.length<2) { Notify.warning('Minimal 2 pilihan polling harus diisi'); return; }
       poll = {
         question: q,
-        options: opts.map(o => ({ id: o.id, text: o.text.trim(), votes: [] })),
+        options:  opts.map(o => ({ id: o.id, text: o.text.trim(), votes: [] })),
         multiple: document.getElementById('nc-poll-multiple')?.checked || false,
       };
     }
 
-    const user = Auth.currentUser();
+    const user    = Auth.currentUser();
+    const ownerId = user?.id || user?.username || 'anon';
+
+    // Save full images to creator's per-user LS; store only thumb + ref in news item
+    const savedMedia = [];
+    for (const m of _fMedia) {
+      if (m.type === 'image') {
+        const id = Utils.uid();
+        _imgSave(ownerId, id, m._full);
+        savedMedia.push({ type: 'image', id, ownerId, name: m.name, thumb: m._thumb });
+      } else if (m.type === 'video-idb') {
+        // IDB already saved during _ncAddVideoFile; just reference key
+        savedMedia.push({ type: 'video-idb', idbKey: m.idbKey, name: m.name, size: m.size, thumb: m._thumb });
+      } else if (m.type === 'video-url') {
+        savedMedia.push({ type: 'video-url', url: m.url, name: m.name, thumb: m.thumb });
+      }
+    }
+
     const item = {
       id: Utils.uid(), judul, isi, tipe,
       author: user?.nama || user?.username || 'Admin',
       createdAt: new Date().toISOString(),
       views: [],
-      ..._fMedia.length > 0  && { media: _fMedia.map(m => ({ ...m })) },
-      ...(poll               && { poll }),
+      ...(savedMedia.length > 0 && { media: savedMedia }),
+      ...(poll && { poll }),
     };
     _items.push(item);
     _persist();
@@ -659,8 +856,7 @@ const NewsModule = (() => {
     Notify.success('Pengumuman berhasil dikirim');
 
     if (target !== 'none' && typeof PushModule !== 'undefined') {
-      const filter = target === 'divisi' && val ? { divisi: val }
-                   : target === 'jabatan' && val ? { jabatan: val } : {};
+      const filter = target==='divisi'&&fval ? {divisi:fval} : target==='jabatan'&&fval ? {jabatan:fval} : {};
       try {
         const rows = await DB.getPushTokens(filter).catch(() => []);
         await PushModule.sendToGroup(filter, { title: judul, body: isi.substring(0, 120), data: { type: 'news' } });
@@ -670,9 +866,20 @@ const NewsModule = (() => {
     }
   }
 
-  /* ─── DELETE / MARK READ ─── */
-  function deleteItem(id) {
+  /* ═══════════════════════════════════════════
+     DELETE / MARK READ
+  ═══════════════════════════════════════════ */
+  async function deleteItem(id) {
     if (!confirm('Hapus pengumuman ini?')) return;
+    const item = _items.find(i => i.id === id);
+    if (item) {
+      // Clean up per-user image LS and IDB
+      const ownerId = Auth.currentUser()?.id || Auth.currentUser()?.username || 'anon';
+      (item.media || []).forEach(m => {
+        if (m.type === 'image')     _imgDelete(m.ownerId || ownerId, m.id);
+        if (m.type === 'video-idb') _IDB.remove(m.idbKey);
+      });
+    }
     _items = _items.filter(i => i.id !== id);
     _persist();
     Modal.closeAll();
@@ -680,19 +887,15 @@ const NewsModule = (() => {
     Notify.success('Pengumuman dihapus');
   }
 
-  function markAllRead() {
-    _items.forEach(i => _markRead(i.id));
-    _render();
-  }
+  function markAllRead() { _items.forEach(i => _markRead(i.id)); _render(); }
 
   async function init() { _load(); _render(); }
 
   return {
     init, openItem, openViewers, openCreate, deleteItem, markAllRead,
-    _submitCreate, _updateBadge,
-    _voteItem,
+    _submitCreate, _updateBadge, _voteItem, _downloadMedia,
     _ncTargetChange, _ncCountRecipients,
-    _ncAddImages, _ncAddVideoUrl, _ncRemoveMedia,
+    _ncAddImages, _ncAddVideoFile, _ncAddVideoUrl, _ncRemoveMedia,
     _ncTogglePoll, _ncAddPollOpt, _ncRemovePollOpt, _ncPollOptInput,
   };
 })();
