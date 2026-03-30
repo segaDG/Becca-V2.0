@@ -2711,6 +2711,20 @@ const EmployeeModule = (() => {
       if (rows.length) Notify.success(`Broadcast terkirim ke ${rows.length} device ✓`);
       else Notify.info('Broadcast dikirim — belum ada device terdaftar untuk notifikasi push');
     } catch(e) { Notify.error('Gagal kirim', e.message); }
+    // Simpan ke News feed agar muncul di halaman News
+    try {
+      const _user = Auth.currentUser();
+      const _tgt  = target === 'all' ? '' : ` (${target}: ${val||''})`;
+      const news  = JSON.parse(localStorage.getItem('becca_news') || '[]');
+      news.push({
+        id: Utils.uid(), judul: title, isi: body + (_tgt ? `\n\nDikirim ke: ${_tgt.trim()}` : ''),
+        tipe: 'info',
+        author: _user?.nama || _user?.username || 'Admin',
+        createdAt: new Date().toISOString(),
+      });
+      localStorage.setItem('becca_news', JSON.stringify(news));
+      if (typeof NewsModule !== 'undefined') { NewsModule._updateBadge(); }
+    } catch {}
   }
 
   // ── MediaPicker: foto & KTP ─────────────────────────────
