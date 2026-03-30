@@ -6,16 +6,53 @@ const NotifCenter = {
   _items: [],
   _DISMISS_KEY: 'becca_notif_dismissed',
 
-  _getDismissed() {
-    try { return new Set(JSON.parse(sessionStorage.getItem(this._DISMISS_KEY)||'[]')); } catch { return new Set(); }
+  _lsKey() {
+    const uid = (typeof Auth !== 'undefined' && Auth.currentUser()?.id) || '';
+    return this._DISMISS_KEY + (uid ? '_' + uid : '');
   },
+
+  // Baca dari localStorage (sync, untuk clearAll lokal)
+  _getDismissedLocal() {
+    try { return new Set(JSON.parse(localStorage.getItem(this._lsKey()) || '[]')); }
+    catch { return new Set(); }
+  },
+
+  // Baca dari Supabase (async) → cross-device sync, fallback ke localStorage
+  async _getDismissed() {
+    const user = (typeof Auth !== 'undefined') ? Auth.currentUser() : null;
+    if (user?.id && typeof DB !== 'undefined' && DB.isReady()) {
+      try {
+        const users = await DB.getUsers();
+        const me = (users||[]).find(u => u.id === user.id ||
+          (u.username||'').toLowerCase() === (user.username||'').toLowerCase());
+        if (me?.notifDismissed) {
+          const set = new Set(me.notifDismissed);
+          try { localStorage.setItem(this._lsKey(), JSON.stringify([...set])); } catch {}
+          return set;
+        }
+      } catch {}
+    }
+    return this._getDismissedLocal();
+  },
+
+  // Simpan ke localStorage (cepat) + async sync ke Supabase (cross-device)
   _saveDismissed(set) {
-    try { sessionStorage.setItem(this._DISMISS_KEY, JSON.stringify([...set])); } catch {}
+    const arr = [...set];
+    try { localStorage.setItem(this._lsKey(), JSON.stringify(arr)); } catch {}
+    const user = (typeof Auth !== 'undefined') ? Auth.currentUser() : null;
+    if (user?.id && typeof DB !== 'undefined' && DB.isReady()) {
+      DB.getUsers().then(users => {
+        const me = (users||[]).find(u => u.id === user.id ||
+          (u.username||'').toLowerCase() === (user.username||'').toLowerCase());
+        if (me) DB.saveUser({ ...me, notifDismissed: arr }).catch(() => {});
+      }).catch(() => {});
+    }
   },
+
   _itemKey(item) { return `${item.type}|${item.title}`; },
 
   clearAll() {
-    const dismissed = this._getDismissed();
+    const dismissed = this._getDismissedLocal();
     this._items.forEach(item => dismissed.add(this._itemKey(item)));
     this._saveDismissed(dismissed);
     this._items = [];
@@ -26,7 +63,7 @@ const NotifCenter = {
 
   async refresh() {
     this._items = [];
-    const dismissed = this._getDismissed();
+    const dismissed = await this._getDismissed();
     const today = new Date().toISOString().split('T')[0];
     const soon  = new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0];
 
@@ -85,7 +122,7 @@ const NotifCenter = {
 
     } catch(e){ console.error('NotifCenter error:',e); }
 
-    // Filter out dismissed items (session-scoped) + deduplicate by key
+    // Filter out dismissed items (synced via Supabase per user) + deduplicate by key
     const _seen = new Set();
     this._items = this._items.filter(item => {
       if (dismissed.has(this._itemKey(item))) return false;

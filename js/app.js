@@ -212,7 +212,7 @@ const App = {
     window.addEventListener('resize', () => this._handleResize());
 
     // Load non-critical scripts async — tidak block render awal
-    this._loadScript('js/notifications.js?v=20260330a').catch(() => {});
+    this._loadScript('js/notifications.js?v=20260330b').catch(() => {});
     this._loadScript('js/search-fix.js?v=20260330a').catch(() => {});
     setTimeout(() => { if (typeof NotifCenter !== 'undefined') NotifCenter.refresh(); }, 800);
   },
