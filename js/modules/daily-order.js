@@ -40,9 +40,14 @@ const DailyOrderModule = (() => {
 
   /* Shift display label and type helpers */
   function _shiftLabel(s) {
-    return {S1:'Shift 1', S2:'Shift 2&3', SNK1:'Snack S1', SNK2:'Snack S2', SNK3:'Snack S3'}[s] || s;
+    return {S1:'Shift 1', S2:'Shift 2&3', SNK1:'Snack S1', SNK2:'Snack S2', SNK3:'Snack S3', SNK4:'Snack Berat'}[s] || s;
   }
-  function _isSnack(s) { return s === 'SNK1' || s === 'SNK2' || s === 'SNK3'; }
+  function _isSnack(s) { return s === 'SNK1' || s === 'SNK2' || s === 'SNK3' || s === 'SNK4'; }
+  function _defaultFcp(shift) {
+    if (shift === 'SNK4') return 65;
+    if (_isSnack(shift)) return 70;
+    return _DEFAULT_FCP;
+  }
 
   /* Determine PASAR vs STOK — single source of truth */
   function _calcSumber(stokGudang, aktQty) {
@@ -74,7 +79,8 @@ const DailyOrderModule = (() => {
       else if (shift === 'S2')   { meals  = _n(o.shift2) + _n(o.spare2) + _n(o.ot2) + _n(o.shift3) + _n(o.spare3) + _n(o.ot3); }
       else if (shift === 'SNK1') { snacks = _n(o.snack1); }
       else if (shift === 'SNK2') { snacks = _n(o.snack2); }
-      else if (shift === 'SNK3') { snacks = _n(o.snack3) + _n(o.snackBerat); }
+      else if (shift === 'SNK3') { snacks = _n(o.snack3); }
+      else if (shift === 'SNK4') { snacks = _n(o.snackBerat); }
       if (meals + snacks > 0) out.push({ nama: o.namaPerusahaan, meals, snacks, total: meals + snacks });
     });
     return out.sort((a,b) => b.total - a.total);
@@ -108,6 +114,7 @@ const DailyOrderModule = (() => {
         total += _n(o.snack2)    * _n(c.hargaSnack2);
       } else if (shift === 'SNK3') {
         total += _n(o.snack3)    * _n(c.hargaSnack3);
+      } else if (shift === 'SNK4') {
         total += _n(o.snackBerat)* _n(c.hargaSnackBerat);
       }
     });
@@ -202,7 +209,7 @@ const DailyOrderModule = (() => {
     const totalAkt     = items.reduce((s,it) => s + _n(it.aktTotal), 0);
 
     // Per-shift budget
-    const fcp        = _n(form?.foodCostPct) || _DEFAULT_FCP;
+    const fcp        = _n(form?.foodCostPct) || _defaultFcp(_shift);
     const revenue    = _calcRevenue(_date, _shift);
     const budgetVal  = revenue > 0 ? revenue * fcp / 100 : _n(form?.budgetBelanja);
     const budgetOk   = budgetVal <= 0 || totalEst <= budgetVal;
@@ -213,23 +220,24 @@ const DailyOrderModule = (() => {
     const formSNK1   = _forms.find(f => f.tanggal === _date && f.shift === 'SNK1');
     const formSNK2   = _forms.find(f => f.tanggal === _date && f.shift === 'SNK2');
     const formSNK3   = _forms.find(f => f.tanggal === _date && f.shift === 'SNK3');
+    const formSNK4   = _forms.find(f => f.tanggal === _date && f.shift === 'SNK4');
     const _fcpRev = (frm, sh) => {
       const rev = _calcRevenue(_date, sh);
-      const fcp = _n(frm?.foodCostPct) || _DEFAULT_FCP;
+      const fcp = _n(frm?.foodCostPct) || _defaultFcp(sh);
       return rev > 0 ? rev * fcp / 100 : _n(frm?.budgetBelanja);
     };
     const totBudget  = _fcpRev(formS1,'S1') + _fcpRev(formS2,'S2') +
-                       _fcpRev(formSNK1,'SNK1') + _fcpRev(formSNK2,'SNK2') + _fcpRev(formSNK3,'SNK3');
+                       _fcpRev(formSNK1,'SNK1') + _fcpRev(formSNK2,'SNK2') + _fcpRev(formSNK3,'SNK3') + _fcpRev(formSNK4,'SNK4');
     const _spentOf   = f => (f?.items||[]).reduce((s,it) => {
       const v = (it.aktTotal !== null && it.aktTotal !== undefined && it.aktTotal !== '')
         ? _n(it.aktTotal) : _n(it.estTotal);
       return s + v;
     }, 0);
     const totSpent   = _spentOf(formS1) + _spentOf(formS2) +
-                       _spentOf(formSNK1) + _spentOf(formSNK2) + _spentOf(formSNK3);
+                       _spentOf(formSNK1) + _spentOf(formSNK2) + _spentOf(formSNK3) + _spentOf(formSNK4);
     const totSelisih = totBudget - totSpent;          // positive = surplus
     const totPct     = totBudget > 0 ? totSpent / totBudget * 100 : 0;
-    const hasDayData = (formS1 || formS2 || formSNK1 || formSNK2 || formSNK3) && totBudget > 0;
+    const hasDayData = (formS1 || formS2 || formSNK1 || formSNK2 || formSNK3 || formSNK4) && totBudget > 0;
 
     // ── Mini date cards ──
     const days     = _daysInMonth(_formMonth);
@@ -294,43 +302,41 @@ const DailyOrderModule = (() => {
         <div>
           <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">SHIFT</label>
           <div style="display:flex;gap:3px;flex-wrap:wrap">
-            ${[
-              {id:'S1',   label:'Shift 1',   snack:false},
-              {id:'S2',   label:'Shift 2&amp;3', snack:false},
-              {id:'SNK1', label:'🍘 S1', snack:true},
-              {id:'SNK2', label:'🍘 S2', snack:true},
-              {id:'SNK3', label:'🍘 S3', snack:true},
-            ].map((s,i) => `
-              ${i===2?'<div style="width:1px;background:var(--border);margin:0 2px;border-radius:1px"></div>':''}
-              <button onclick="DailyOrderModule.setShift('${s.id}')"
-                style="padding:6px 10px;border:1px solid ${_shift===s.id?(s.snack?'#ec4899':'var(--primary)'):'var(--border)'};border-radius:7px;
-                  background:${_shift===s.id?(s.snack?'rgba(236,72,153,.1)':'rgba(99,102,241,.1)'):'var(--surface)'};
-                  color:${_shift===s.id?(s.snack?'#ec4899':'var(--primary)'):'var(--text-2)'};
-                  font-weight:${_shift===s.id?'700':'500'};font-size:11px;cursor:pointer;white-space:nowrap">
-                ${s.label}
-              </button>
-            `).join('')}
+            ${(() => {
+              const _tabVisible = (sh) => {
+                if (_shift === sh) return true;
+                if (_forms.some(f => f.tanggal === _date && f.shift === sh)) return true;
+                return _getOrderSummary(_date, sh).length > 0;
+              };
+              return [
+                {id:'S1',   label:'Shift 1',       snack:false},
+                {id:'S2',   label:'Shift 2&amp;3', snack:false},
+                {id:'SNK1', label:'🍘 S1',          snack:true},
+                {id:'SNK2', label:'🍘 S2',          snack:true},
+                {id:'SNK3', label:'🍘 S3',          snack:true},
+                {id:'SNK4', label:'🍖 Berat',       snack:true},
+              ].map((s,i) => {
+                if (!_tabVisible(s.id)) return '';
+                return `
+                  ${i===2?'<div style="width:1px;background:var(--border);margin:0 2px;border-radius:1px"></div>':''}
+                  <button onclick="DailyOrderModule.setShift('${s.id}')"
+                    style="padding:6px 10px;border:1px solid ${_shift===s.id?(s.snack?'#ec4899':'var(--primary)'):'var(--border)'};border-radius:7px;
+                      background:${_shift===s.id?(s.snack?'rgba(236,72,153,.1)':'rgba(99,102,241,.1)'):'var(--surface)'};
+                      color:${_shift===s.id?(s.snack?'#ec4899':'var(--primary)'):'var(--text-2)'};
+                      font-weight:${_shift===s.id?'700':'500'};font-size:11px;cursor:pointer;white-space:nowrap">
+                    ${s.label}
+                  </button>`;
+              }).join('');
+            })()}
           </div>
         </div>
         ${form ? `
           <div>
             <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">FOOD COST (%)</label>
-            <input type="number" min="0" max="100" step="0.5" placeholder="${_DEFAULT_FCP}"
-              value="${form.foodCostPct != null ? form.foodCostPct : _DEFAULT_FCP}"
+            <input type="number" min="0" max="100" step="0.5" placeholder="${_defaultFcp(_shift)}"
+              value="${form.foodCostPct != null ? form.foodCostPct : _defaultFcp(_shift)}"
               onblur="DailyOrderModule.updateFormMeta('foodCostPct', +this.value)"
               style="padding:8px 10px;border:1px solid var(--primary);border-radius:8px;background:rgba(99,102,241,.06);color:var(--primary);font-size:13px;width:80px;text-align:right;font-weight:700">
-          </div>
-          <div style="align-self:flex-end">
-            <div style="font-size:10px;color:var(--text-3);font-weight:600;margin-bottom:4px">
-              BUDGET (${fcp}% × ${revenue > 0 ? _fmtRp(revenue) : '—'})
-            </div>
-            <div style="padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;white-space:nowrap;
-              background:${revenue > 0 ? (budgetOk?'rgba(16,185,129,.1)':'rgba(239,68,68,.1)') : 'var(--surface2)'};
-              color:${revenue > 0 ? (budgetOk?'#10b981':'#ef4444') : 'var(--text-3)'}">
-              ${revenue > 0
-                ? `${_fmtRp(budgetVal)}<span style="font-size:10px;font-weight:400;margin-left:4px">${budgetOk?'✓ Aman':'⚠ Over'}</span>`
-                : `<span style="font-weight:400;font-size:11px">Perlu data order</span>`}
-            </div>
           </div>
         ` : ''}
 
@@ -375,10 +381,13 @@ const DailyOrderModule = (() => {
             </span>` : ''}
           </div>
           ${revenue > 0 && totalPortions > 0 ? `
-            <div style="font-size:11px;color:var(--text-3)">
-              Omset: ${_fmtRp(revenue)} × ${fcp}%
-              = <strong style="color:${budgetOk?'#10b981':'#ef4444'}">${_fmtRp(budgetVal)}</strong>
-              &nbsp;|&nbsp; Est HPP: <strong style="color:var(--text)">${_fmtRp(totalEst)}</strong>
+            <div style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span>Omset: ${_fmtRp(revenue)} × ${fcp}%</span>
+              <span style="background:${budgetOk?'rgba(16,185,129,.18)':'rgba(239,68,68,.18)'};
+                color:${budgetOk?'#10b981':'#ef4444'};padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px">
+                ${_fmtRp(budgetVal)}
+              </span>
+              <span>Est HPP: <strong style="color:var(--text)">${_fmtRp(totalEst)}</strong></span>
             </div>
           ` : ''}
         </div>
@@ -475,8 +484,8 @@ const DailyOrderModule = (() => {
                 ${items.length > 0 ? (() => {
                   const _sumEst = f => (f?.items||[]).reduce((s,it) => s + _n(it.estTotal), 0);
                   const _sumAkt = f => (f?.items||[]).reduce((s,it) => s + _n(it.aktTotal), 0);
-                  const totEstAll = _sumEst(formS1) + _sumEst(formS2) + _sumEst(formSNK1) + _sumEst(formSNK2) + _sumEst(formSNK3);
-                  const totAktAll = _sumAkt(formS1) + _sumAkt(formS2) + _sumAkt(formSNK1) + _sumAkt(formSNK2) + _sumAkt(formSNK3);
+                  const totEstAll = _sumEst(formS1) + _sumEst(formS2) + _sumEst(formSNK1) + _sumEst(formSNK2) + _sumEst(formSNK3) + _sumEst(formSNK4);
+                  const totAktAll = _sumAkt(formS1) + _sumAkt(formS2) + _sumAkt(formSNK1) + _sumAkt(formSNK2) + _sumAkt(formSNK3) + _sumAkt(formSNK4);
                   const selEst = totBudget > 0 ? totBudget - totEstAll : null;
                   const selAkt = totBudget > 0 ? totBudget - totAktAll : null;
                   const _selCell = (v, label) => v === null ? `<td style="padding:9px 5px"></td>` : `
@@ -1055,7 +1064,7 @@ const DailyOrderModule = (() => {
       tanggal     : _date,
       shift       : _shift,
       budgetBelanja: 0,
-      foodCostPct  : _DEFAULT_FCP,
+      foodCostPct  : _defaultFcp(_shift),
       items        : [],
       status       : 'draft',
       createdAt    : new Date().toISOString(),
