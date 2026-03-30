@@ -429,14 +429,17 @@ const DailyOrderModule = (() => {
                 </div>`;
               }).join('')}
             </div>
-            <div style="font-weight:700;color:${_isSnack(_shift)?'#ec4899':'var(--primary)'};font-size:13px">
-              Total: ${totalPortions.toLocaleString('id-ID')} ${_isSnack(_shift)?'snack':'pax'}
-            </div>
-            ${!_isSnack(_shift) && totalPortions > 0 ? `
-            <div style="font-size:11px;color:var(--text-2);margin-top:4px;display:flex;gap:14px">
-              <span>Lauk: <strong style="color:var(--text)">${totalLauk.toLocaleString('id-ID')} pax</strong></span>
-              <span>Pendamping: <strong style="color:var(--text)">${totalPendamping.toLocaleString('id-ID')} pax</strong></span>
-            </div>` : ''}`
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">
+              <span style="background:${_isSnack(_shift)?'rgba(236,72,153,.15)':'rgba(99,102,241,.15)'};
+                color:${_isSnack(_shift)?'#ec4899':'var(--primary)'};
+                padding:4px 12px;border-radius:20px;font-weight:700;font-size:13px;white-space:nowrap">
+                Total: ${totalPortions.toLocaleString('id-ID')} ${_isSnack(_shift)?'snack':'pax'}
+              </span>
+              ${!_isSnack(_shift) && totalPortions > 0 ? `
+              <span style="font-size:11px;color:var(--text-2)">Lauk: <strong style="color:var(--text)">${totalLauk.toLocaleString('id-ID')} pcs</strong></span>
+              <span style="font-size:11px;color:var(--text-2)">Pendamping: <strong style="color:var(--text)">${totalPendamping.toLocaleString('id-ID')} pcs</strong></span>
+              ` : ''}
+            </div>`
         }
         ${budgetVal > 0 && totalEst > 0 ? `
           <div style="margin-top:10px;background:var(--surface2);height:6px;border-radius:3px;overflow:hidden">
@@ -451,9 +454,11 @@ const DailyOrderModule = (() => {
 
       <!-- Form produksi table -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-        <div style="padding:var(--s3) var(--s4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="padding:var(--s3) var(--s4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
+          background:${_isSnack(_shift)?'rgba(236,72,153,.08)':_shift==='S2'?'rgba(139,92,246,.08)':'rgba(99,102,241,.08)'};
+          border-bottom-color:${_isSnack(_shift)?'rgba(236,72,153,.2)':_shift==='S2'?'rgba(139,92,246,.2)':'rgba(99,102,241,.2)'}">
           <div>
-            <span style="font-size:13px;font-weight:700">Form Produksi</span>
+            <span style="font-size:13px;font-weight:700;color:${_isSnack(_shift)?'#ec4899':_shift==='S2'?'#8b5cf6':'#6366f1'}">Form Produksi</span>
             <span style="font-size:11px;color:var(--text-3);margin-left:8px">${items.length} bahan</span>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
