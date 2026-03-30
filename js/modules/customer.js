@@ -730,6 +730,15 @@ const CustomerModule = (() => {
           ${c ? 'Simpan Perubahan' : 'Tambah Customer'}
         </button>`
     });
+    // Clear 0 on focus, restore on blur for all number inputs in this modal
+    setTimeout(() => {
+      const el = document.getElementById(_custModalId);
+      if (!el) return;
+      el.querySelectorAll('input[type="number"]').forEach(inp => {
+        inp.addEventListener('focus', () => { if (inp.value === '0') inp.value = ''; });
+        inp.addEventListener('blur',  () => { if (inp.value === '')  inp.value = '0'; });
+      });
+    }, 50);
   }
 
   function _submit(id) {
