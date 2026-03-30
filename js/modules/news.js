@@ -8,6 +8,8 @@ const NewsModule = (() => {
   const _KEY = 'becca_news';
   let _items = [];
   let _readSet = new Set();
+  let _divisiList = [];
+  let _jabatanList = [];
 
   function _readKey() {
     const uid = (typeof Auth !== 'undefined' && Auth.currentUser()?.id) || 'anon';
@@ -149,13 +151,24 @@ const NewsModule = (() => {
       `,
       footer: `
         ${canDelete ? `<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="NewsModule.deleteItem('${item.id}')">Hapus</button>` : ''}
-        <button class="btn btn-ghost" onclick="Modal.close()">Tutup</button>
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
       `,
     });
   }
 
   /* ─── CREATE ─── */
-  function openCreate() {
+  async function openCreate() {
+    // Fetch employees untuk daftar divisi & jabatan
+    _divisiList = [];
+    _jabatanList = [];
+    try {
+      if (typeof DB !== 'undefined') {
+        const emps = await DB.getEmployees().catch(() => []);
+        _divisiList  = [...new Set(emps.map(e => e.divisi || e.departemen).filter(Boolean))].sort();
+        _jabatanList = [...new Set(emps.map(e => e.jabatan).filter(Boolean))].sort();
+      }
+    } catch {}
+
     Modal.open({
       id: 'news-create',
       title: '📢 Buat Pengumuman',
@@ -180,19 +193,76 @@ const NewsModule = (() => {
             <textarea id="nc-isi" class="form-control" rows="5"
               placeholder="Tulis isi pengumuman di sini..." style="resize:vertical"></textarea>
           </div>
+          <div class="form-group">
+            <label class="form-label">Kirim Push Notifikasi Ke</label>
+            <select id="nc-target" class="form-control" onchange="NewsModule._ncTargetChange(this.value)">
+              <option value="all">Semua Karyawan</option>
+              <option value="divisi">Divisi Tertentu</option>
+              <option value="jabatan">Jabatan Tertentu</option>
+              <option value="none">Tidak Kirim Push</option>
+            </select>
+          </div>
+          <div id="nc-filter-wrap" style="display:none">
+            <div class="form-group" style="margin:0">
+              <label class="form-label" id="nc-filter-label">Divisi</label>
+              <select id="nc-filter-value" class="form-control" onchange="NewsModule._ncCountRecipients()">
+                ${_divisiList.map(d => `<option value="${Utils.esc(d)}">${Utils.esc(d)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div id="nc-push-info" style="padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text-3)">
+            📱 Penerima push: <strong id="nc-count">menghitung...</strong> device terdaftar
+          </div>
         </div>
       `,
       footer: `
-        <button class="btn btn-ghost" onclick="Modal.close()">Batal</button>
+        <button class="btn btn-ghost" onclick="Modal.close('news-create')">Batal</button>
         <button class="btn btn-primary" onclick="NewsModule._submitCreate()">Kirim Pengumuman</button>
       `,
     });
+    setTimeout(() => NewsModule._ncCountRecipients(), 200);
   }
 
-  function _submitCreate() {
-    const judul = document.getElementById('nc-judul')?.value.trim();
-    const isi   = document.getElementById('nc-isi')?.value.trim();
-    const tipe  = document.getElementById('nc-tipe')?.value || 'info';
+  function _ncTargetChange(val) {
+    const wrap  = document.getElementById('nc-filter-wrap');
+    const label = document.getElementById('nc-filter-label');
+    const sel   = document.getElementById('nc-filter-value');
+    const info  = document.getElementById('nc-push-info');
+    if (val === 'none') {
+      if (wrap) wrap.style.display = 'none';
+      if (info) info.style.display = 'none';
+      return;
+    }
+    if (info) info.style.display = '';
+    if (val === 'all') {
+      if (wrap) wrap.style.display = 'none';
+    } else {
+      if (wrap) wrap.style.display = '';
+      if (label) label.textContent = val === 'divisi' ? 'Divisi' : 'Jabatan';
+      const list = val === 'divisi' ? _divisiList : _jabatanList;
+      if (sel) sel.innerHTML = list.map(d => `<option value="${Utils.esc(d)}">${Utils.esc(d)}</option>`).join('');
+    }
+    _ncCountRecipients();
+  }
+
+  async function _ncCountRecipients() {
+    const target = document.getElementById('nc-target')?.value || 'all';
+    if (target === 'none') return;
+    const val    = document.getElementById('nc-filter-value')?.value;
+    const filter = target === 'divisi' && val ? { divisi: val }
+                 : target === 'jabatan' && val ? { jabatan: val } : {};
+    if (typeof DB === 'undefined') return;
+    const rows = await DB.getPushTokens(filter).catch(() => []);
+    const el   = document.getElementById('nc-count');
+    if (el) el.textContent = rows.length;
+  }
+
+  async function _submitCreate() {
+    const judul  = document.getElementById('nc-judul')?.value.trim();
+    const isi    = document.getElementById('nc-isi')?.value.trim();
+    const tipe   = document.getElementById('nc-tipe')?.value || 'info';
+    const target = document.getElementById('nc-target')?.value || 'all';
+    const val    = document.getElementById('nc-filter-value')?.value;
     if (!judul) { Notify.warning('Judul wajib diisi'); return; }
     if (!isi)   { Notify.warning('Isi pengumuman wajib diisi'); return; }
     const user = Auth.currentUser();
@@ -207,8 +277,16 @@ const NewsModule = (() => {
     Modal.close('news-create');
     _render();
     Notify.success('Pengumuman berhasil dikirim');
-    if (typeof PushModule !== 'undefined') {
-      PushModule.broadcast(judul, isi.substring(0, 120)).catch(() => {});
+    // Kirim push notification ke target
+    if (target !== 'none' && typeof PushModule !== 'undefined') {
+      const filter = target === 'divisi' && val ? { divisi: val }
+                   : target === 'jabatan' && val ? { jabatan: val } : {};
+      try {
+        const rows = await DB.getPushTokens(filter).catch(() => []);
+        await PushModule.sendToGroup(filter, { title: judul, body: isi.substring(0, 120), data: { type: 'news' } });
+        if (rows.length) Notify.success(`Push terkirim ke ${rows.length} device ✓`);
+        else Notify.info('Belum ada device terdaftar untuk notifikasi push');
+      } catch(e) { console.warn('Push failed:', e); }
     }
   }
 
@@ -216,7 +294,7 @@ const NewsModule = (() => {
     if (!confirm('Hapus pengumuman ini?')) return;
     _items = _items.filter(i => i.id !== id);
     _persist();
-    Modal.close();
+    Modal.closeAll();
     _render();
     Notify.success('Pengumuman dihapus');
   }
@@ -231,7 +309,7 @@ const NewsModule = (() => {
     _render();
   }
 
-  return { init, openItem, openCreate, deleteItem, markAllRead, _submitCreate, _updateBadge };
+  return { init, openItem, openCreate, deleteItem, markAllRead, _submitCreate, _updateBadge, _ncTargetChange, _ncCountRecipients };
 })();
 
 window.NewsModule = NewsModule;

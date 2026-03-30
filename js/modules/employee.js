@@ -63,10 +63,6 @@ const EmployeeModule = (() => {
         <div class="page-header-left"><h2>Karyawan</h2><p>Data dan logbook karyawan</p></div>
         <div class="page-header-right">
           ${Auth.can('employee','edit') ? `
-            <button class="btn btn-ghost" onclick="EmployeeModule.openBroadcastModal()" title="Kirim notifikasi ke karyawan">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              Broadcast
-            </button>
             <button class="btn btn-primary" onclick="EmployeeModule.openEmpModal()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 5v14M5 12h14"/></svg>
               Tambah Karyawan
@@ -2622,110 +2618,6 @@ const EmployeeModule = (() => {
     }
   }
 
-  // ── Broadcast Notifikasi ────────────────────────────────
-  function openBroadcastModal() {
-    const mid = 'modal-bc-' + Utils.uid();
-    const divisiList = [...new Set(_employees.map(e => e.divisi || e.departemen).filter(Boolean))].sort();
-    Modal.open({
-      id: mid,
-      title: '📢 Broadcast Notifikasi',
-      size: 'modal-md',
-      body: `
-        <div class="form-group">
-          <label class="form-label">Judul Notifikasi *</label>
-          <input type="text" id="bc-title" class="form-control" placeholder="Contoh: Pengumuman Penting">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Pesan *</label>
-          <textarea id="bc-body" class="form-control" rows="3" placeholder="Isi pesan notifikasi..."></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Kirim Ke</label>
-          <select id="bc-target" class="form-control" onchange="EmployeeModule._bcTargetChange(this.value)">
-            <option value="all">Semua Karyawan</option>
-            <option value="divisi">Divisi Tertentu</option>
-            <option value="jabatan">Jabatan Tertentu</option>
-          </select>
-        </div>
-        <div id="bc-filter-wrap" style="display:none">
-          <div class="form-group">
-            <label class="form-label" id="bc-filter-label">Divisi</label>
-            <select id="bc-filter-value" class="form-control" onchange="EmployeeModule._bcCountRecipients()">
-              ${divisiList.map(d=>`<option value="${Utils.esc(d)}">${Utils.esc(d)}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div style="padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text-3)">
-          📱 Penerima: <strong id="bc-count">menghitung...</strong> device terdaftar
-        </div>`,
-      footer: `
-        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        <button class="btn btn-primary" onclick="EmployeeModule._submitBroadcast('${mid}')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          Kirim
-        </button>`,
-    });
-    setTimeout(() => EmployeeModule._bcCountRecipients(), 200);
-  }
-
-  function _bcTargetChange(val) {
-    const wrap  = document.getElementById('bc-filter-wrap');
-    const label = document.getElementById('bc-filter-label');
-    const sel   = document.getElementById('bc-filter-value');
-    if (val === 'all') { wrap.style.display = 'none'; }
-    else {
-      wrap.style.display = '';
-      label.textContent  = val === 'divisi' ? 'Divisi' : 'Jabatan';
-      const list = val === 'divisi'
-        ? [...new Set(_employees.map(e => e.divisi || e.departemen).filter(Boolean))].sort()
-        : [...new Set(_employees.map(e => e.jabatan).filter(Boolean))].sort();
-      sel.innerHTML = list.map(d=>`<option value="${Utils.esc(d)}">${Utils.esc(d)}</option>`).join('');
-    }
-    _bcCountRecipients();
-  }
-
-  async function _bcCountRecipients() {
-    const target = document.getElementById('bc-target')?.value || 'all';
-    const val    = document.getElementById('bc-filter-value')?.value;
-    const filter = target === 'divisi' && val ? { divisi: val }
-                 : target === 'jabatan' && val ? { jabatan: val } : {};
-    const rows = await DB.getPushTokens(filter).catch(() => []);
-    const el   = document.getElementById('bc-count');
-    if (el) el.textContent = rows.length;
-  }
-
-  async function _submitBroadcast(mid) {
-    const title  = document.getElementById('bc-title')?.value?.trim();
-    const body   = document.getElementById('bc-body')?.value?.trim();
-    const target = document.getElementById('bc-target')?.value || 'all';
-    const val    = document.getElementById('bc-filter-value')?.value;
-    if (!title) { Notify.warning('Judul wajib diisi'); return; }
-    if (!body)  { Notify.warning('Pesan wajib diisi');  return; }
-    const filter = target === 'divisi' && val ? { divisi: val }
-                 : target === 'jabatan' && val ? { jabatan: val } : {};
-    Modal.close(mid);
-    if (typeof PushModule === 'undefined') { Notify.warning('Push notification belum aktif di perangkat ini'); return; }
-    try {
-      const rows = await DB.getPushTokens(filter).catch(() => []);
-      await PushModule.sendToGroup(filter, { title, body, data: { type: 'broadcast' } });
-      if (rows.length) Notify.success(`Broadcast terkirim ke ${rows.length} device ✓`);
-      else Notify.info('Broadcast dikirim — belum ada device terdaftar untuk notifikasi push');
-    } catch(e) { Notify.error('Gagal kirim', e.message); }
-    // Simpan ke News feed agar muncul di halaman News
-    try {
-      const _user = Auth.currentUser();
-      const _tgt  = target === 'all' ? '' : ` (${target}: ${val||''})`;
-      const news  = JSON.parse(localStorage.getItem('becca_news') || '[]');
-      news.push({
-        id: Utils.uid(), judul: title, isi: body + (_tgt ? `\n\nDikirim ke: ${_tgt.trim()}` : ''),
-        tipe: 'info',
-        author: _user?.nama || _user?.username || 'Admin',
-        createdAt: new Date().toISOString(),
-      });
-      localStorage.setItem('becca_news', JSON.stringify(news));
-      if (typeof NewsModule !== 'undefined') { NewsModule._updateBadge(); }
-    } catch {}
-  }
 
   // ── MediaPicker: foto & KTP ─────────────────────────────
   async function _pickFoto() {
@@ -2753,7 +2645,6 @@ const EmployeeModule = (() => {
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip, _deleteEmpFromArsip,
     _handleFotoUpload, _removeFoto, _handleKtpUpload, _removeKtp, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter, migratePhotosFromLS,
-    openBroadcastModal, _bcTargetChange, _bcCountRecipients, _submitBroadcast,
     _pickFoto, _pickKtp,
     _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, recalcAllHutang, _showLogDetail,
     setFilter, sortBy, viewCard, filterCards,
