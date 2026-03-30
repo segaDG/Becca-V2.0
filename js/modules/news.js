@@ -204,6 +204,32 @@ const NewsModule = (() => {
     return (bytes / 1024 / 1024).toFixed(1) + ' MB';
   }
 
+  /* ─── Per-user saved video tracker ─── */
+  function _vidSavedKey() {
+    const uid = Auth.currentUser()?.id || Auth.currentUser()?.username || 'anon';
+    return 'becca_svid_' + uid;
+  }
+  function _getUserVidKey(idbKey) {
+    const uid = (Auth.currentUser()?.id || Auth.currentUser()?.username || 'anon').slice(0, 10);
+    return 'uv_' + uid + '_' + idbKey;
+  }
+  function _isVidSaved(idbKey) {
+    try { return !!(JSON.parse(localStorage.getItem(_vidSavedKey()) || '{}')[idbKey]); }
+    catch { return false; }
+  }
+  function _getVidSavedKey(idbKey) {
+    try { return (JSON.parse(localStorage.getItem(_vidSavedKey()) || '{}'))[idbKey] || null; }
+    catch { return null; }
+  }
+  function _markVidSaved(idbKey, userKey) {
+    try {
+      const k = _vidSavedKey();
+      const s = JSON.parse(localStorage.getItem(k) || '{}');
+      s[idbKey] = userKey;
+      localStorage.setItem(k, JSON.stringify(s));
+    } catch {}
+  }
+
   /* ═══════════════════════════════════════════
      RENDER — card list
   ═══════════════════════════════════════════ */
@@ -211,8 +237,7 @@ const NewsModule = (() => {
     const page = document.getElementById('page-news');
     if (!page) return;
     _load();
-    const role     = (Auth.currentUser()?.role || '').toLowerCase();
-    const canWrite = ['admin','superadmin'].includes(role) || Auth.can('news','create');
+    const canWrite = Auth.can('news', 'create');
     const sorted   = [..._items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const unread   = _unreadCount();
 
@@ -345,7 +370,7 @@ const NewsModule = (() => {
     _markRead(id);
     _render();
     const col      = _COLOR[item.tipe] || '#6366f1';
-    const canDel   = ['admin','superadmin'].includes((Auth.currentUser()?.role||'').toLowerCase()) || Auth.can('news','delete');
+    const canDel   = Auth.can('news', 'create');
     const viewCnt  = (item.views || []).length;
     const mid      = Utils.uid();
     const media    = item.media || [];
@@ -423,9 +448,13 @@ const NewsModule = (() => {
 
     // Load IDB videos async after modal renders
     requestAnimationFrame(() => {
-      (item.media || []).forEach(m => {
+      (item.media || []).forEach((m, mediaIdx) => {
         if (m.type !== 'video-idb') return;
-        _IDB.load(m.idbKey).then(blob => {
+        const hasSaved = _isVidSaved(m.idbKey);
+        const loadKey  = hasSaved ? (_getVidSavedKey(m.idbKey) || m.idbKey) : m.idbKey;
+        _IDB.load(loadKey).then(async blob => {
+          // Fallback ke original key jika user key sudah tidak ada
+          if (!blob && hasSaved) blob = await _IDB.load(m.idbKey);
           const ph = document.getElementById('vid-ph-' + m.idbKey);
           if (!ph) return;
           if (blob) {
@@ -434,18 +463,98 @@ const NewsModule = (() => {
               <div style="position:relative">
                 <video src="${url}" controls style="width:100%;max-height:300px;border-radius:8px;background:#000"
                   onended="try{URL.revokeObjectURL('${url}')}catch{}"></video>
-                <button onclick="NewsModule._downloadMedia('${item.id}',${(item.media||[]).indexOf(m)})"
-                  style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);color:#fff;border:none;
-                         border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">
-                  ⬇ Simpan
-                </button>
+                <div style="position:absolute;top:8px;right:8px;display:flex;gap:4px">
+                  <button id="vid-btn-${m.idbKey}"
+                    onclick="NewsModule._saveVideo('${item.id}',${mediaIdx})"
+                    style="background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:6px;
+                           padding:4px 8px;font-size:11px;cursor:pointer">
+                    ${hasSaved ? '✓ Tersimpan' : '⬇ Simpan'}
+                  </button>
+                  ${hasSaved ? `<button onclick="NewsModule._openVideoPlayer('${loadKey}','${m.name||'Video'}')"
+                    style="background:rgba(99,102,241,.85);color:#fff;border:none;border-radius:6px;
+                           padding:4px 8px;font-size:11px;cursor:pointer">▶ Putar Full</button>` : ''}
+                </div>
               </div>`;
           } else {
-            ph.innerHTML = `<div style="padding:16px;text-align:center;font-size:12px;color:var(--text-3)">
-              Video tidak tersedia di perangkat ini (diunggah dari perangkat lain)</div>`;
+            ph.innerHTML = `
+              <div style="padding:20px;text-align:center;font-size:12px;color:var(--text-3)">
+                🎬 Video tidak tersedia di perangkat ini<br>
+                <span style="font-size:11px">(diunggah dari perangkat lain)</span>
+              </div>`;
           }
         });
       });
+    });
+  }
+
+  /* ═══════════════════════════════════════════
+     SAVE VIDEO — simpan ke IDB user + download
+  ═══════════════════════════════════════════ */
+  async function _saveVideo(itemId, mediaIdx) {
+    const item = _items.find(i => i.id === itemId);
+    if (!item) return;
+    const m = (item.media || [])[mediaIdx];
+    if (!m || m.type !== 'video-idb') return;
+
+    const btn = document.getElementById('vid-btn-' + m.idbKey);
+    if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
+
+    const hasSaved = _isVidSaved(m.idbKey);
+    const srcKey   = hasSaved ? (_getVidSavedKey(m.idbKey) || m.idbKey) : m.idbKey;
+    const blob     = await _IDB.load(srcKey);
+    if (!blob) {
+      Notify.error('Video tidak tersedia di perangkat ini');
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Simpan'; }
+      return;
+    }
+
+    // Simpan ke IDB milik user ini
+    const userKey = _getUserVidKey(m.idbKey);
+    await _IDB.save(userKey, blob);
+    _markVidSaved(m.idbKey, userKey);
+
+    // Browser download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = m.name || 'video.mp4'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    Notify.success('Video disimpan ke perangkat ✓');
+
+    // Update button → Putar Full
+    if (btn) {
+      btn.disabled = false; btn.textContent = '✓ Tersimpan';
+      // Tambah tombol Putar Full di sebelahnya
+      const playBtn = document.createElement('button');
+      playBtn.textContent = '▶ Putar Full';
+      playBtn.style.cssText = 'background:rgba(99,102,241,.85);color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px';
+      playBtn.onclick = () => _openVideoPlayer(userKey, m.name || 'Video');
+      btn.parentNode.appendChild(playBtn);
+    }
+  }
+
+  /* ═══════════════════════════════════════════
+     OPEN VIDEO PLAYER — fullscreen modal
+  ═══════════════════════════════════════════ */
+  function _openVideoPlayer(idbKey, name) {
+    const mid = Utils.uid();
+    Modal.open({
+      id: mid,
+      title: '▶ ' + (name || 'Video'),
+      size: 'modal-xl',
+      body: `<div id="vp-${mid}" style="background:#000;border-radius:8px;min-height:180px;
+              display:flex;align-items:center;justify-content:center">
+        <div style="color:#888;font-size:13px">⏳ Memuat...</div>
+      </div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+    _IDB.load(idbKey).then(blob => {
+      const el = document.getElementById('vp-' + mid);
+      if (!el) return;
+      if (!blob) { el.innerHTML = `<div style="color:#aaa;padding:20px;font-size:12px">Video tidak tersedia</div>`; return; }
+      const url = URL.createObjectURL(blob);
+      el.innerHTML = `<video src="${url}" controls autoplay
+        style="width:100%;border-radius:8px;max-height:75vh;display:block"
+        onended="try{URL.revokeObjectURL('${url}')}catch{}"></video>`;
     });
   }
 
@@ -468,15 +577,6 @@ const NewsModule = (() => {
       const a = document.createElement('a');
       a.href = data; a.download = m.name || 'gambar.jpg'; a.click();
       Notify.success('Gambar disimpan ✓');
-    } else if (m.type === 'video-idb') {
-      _IDB.load(m.idbKey).then(blob => {
-        if (!blob) { Notify.error('Video tidak tersedia di perangkat ini'); return; }
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.href = url; a.download = m.name || 'video.mp4'; a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-        Notify.success('Video disimpan ✓');
-      });
     } else if (m.type === 'video-url') {
       window.open(m.url, '_blank');
     }
@@ -894,6 +994,7 @@ const NewsModule = (() => {
   return {
     init, openItem, openViewers, openCreate, deleteItem, markAllRead,
     _submitCreate, _updateBadge, _voteItem, _downloadMedia,
+    _saveVideo, _openVideoPlayer,
     _ncTargetChange, _ncCountRecipients,
     _ncAddImages, _ncAddVideoFile, _ncAddVideoUrl, _ncRemoveMedia,
     _ncTogglePoll, _ncAddPollOpt, _ncRemovePollOpt, _ncPollOptInput,

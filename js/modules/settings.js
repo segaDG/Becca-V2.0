@@ -22,7 +22,7 @@ const SettingsModule = (() => {
     } catch {}
     return [..._DEFAULT_ROLES, ...extra.filter(r=>!_DEFAULT_ROLES.includes(r))];
   }
-  const FEATURES = ['dashboard','order','invoice','customer','employee','emp_finance','inventory','kas','ap','task','daily-order','report','settings'];
+  const FEATURES = ['dashboard','order','invoice','customer','employee','emp_finance','inventory','kas','ap','task','daily-order','report','settings','news'];
 
   /* ===================== INIT ===================== */
   async function init() {
@@ -572,7 +572,7 @@ const SettingsModule = (() => {
     const m = {dashboard:'📊 Dashboard',order:'📋 Order',invoice:'🧾 Invoice',customer:'👥 Customer',
                employee:'👷 Karyawan',emp_finance:'💰 Gaji & Hutang Karyawan',inventory:'📦 Inventory',
                kas:'💰 Kas Kecil',ap:'💳 Account Payable',task:'✅ Task','daily-order':'📅 Daily Order',
-               report:'📈 Laporan',settings:'⚙️ Pengaturan'};
+               report:'📈 Laporan',settings:'⚙️ Pengaturan',news:'📢 News & Pengumuman'};
     return m[f]||f;
   }
 
