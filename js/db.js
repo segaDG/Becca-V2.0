@@ -538,6 +538,11 @@ const DB = (() => {
   const saveSupplier  = (data) => { if (!data.id) data.id = Utils.uid(); return _save('suppliers', data); };
   const deleteSupplier = (id)  => _delete('suppliers', id);
 
+  // ── NEWS & PENGUMUMAN ─────────────────────────────────────
+  const getNews    = ()     => _get('news');
+  const saveNews   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('news', data); };
+  const deleteNews = (id)   => _delete('news', id);
+
   // ── TASKS ─────────────────────────────────────────────────
   const getTasks   = ()     => _get('tasks');
   const saveTask   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('tasks', data); };
@@ -999,6 +1004,8 @@ const DB = (() => {
     getEmpJadwal, saveEmpJadwal, deleteEmpJadwal,
     // AP
     getAP, saveAP, deleteAP, getSuppliers, saveSupplier, deleteSupplier,
+    // News & Pengumuman
+    getNews, saveNews, deleteNews,
     // Tasks
     getTasks, saveTask, deleteTask,
     // Daily Order Forms

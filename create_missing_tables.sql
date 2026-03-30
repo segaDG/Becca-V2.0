@@ -65,3 +65,13 @@ CREATE TABLE IF NOT EXISTS public.push_tokens (
 );
 ALTER TABLE public.push_tokens DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.push_tokens TO anon;
+
+-- ── news (pengumuman) ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.news (
+  id         TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  data       JSONB
+);
+ALTER TABLE public.news DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.news TO anon;

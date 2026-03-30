@@ -45,6 +45,8 @@ const NewsModule = (() => {
       if (!_items[idx].views.some(v => v.uid === uid)) {
         _items[idx].views.push({ uid, nama: user?.nama || user?.username || 'User', viewedAt: new Date().toISOString() });
         _persist();
+        // Sync views ke Supabase (fire and forget)
+        if (typeof DB !== 'undefined') DB.saveNews(_items[idx]).catch(() => {});
       }
     }
     _updateBadge();
@@ -620,7 +622,9 @@ const NewsModule = (() => {
       if (opt.votes.includes(uid)) opt.votes = opt.votes.filter(v => v !== uid);
       else opt.votes.push(uid);
     }
-    _persist(); _render();
+    _persist();
+    if (typeof DB !== 'undefined') DB.saveNews(item).catch(() => {});
+    _render();
     const container = document.getElementById('news-poll-' + id);
     if (container) container.outerHTML = _renderPollHtml(item);
   }
@@ -972,6 +976,8 @@ const NewsModule = (() => {
     };
     _items.push(item);
     _persist();
+    // Sync ke Supabase agar semua device menerima pengumuman
+    if (typeof DB !== 'undefined') DB.saveNews(item).catch(() => {});
     Modal.close('news-create');
     _fMedia = [];
     _render();
@@ -1004,6 +1010,7 @@ const NewsModule = (() => {
     }
     _items = _items.filter(i => i.id !== id);
     _persist();
+    if (typeof DB !== 'undefined') DB.deleteNews(id).catch(() => {});
     Modal.closeAll();
     _render();
     Notify.success('Pengumuman dihapus');
@@ -1011,7 +1018,21 @@ const NewsModule = (() => {
 
   function markAllRead() { _items.forEach(i => _markRead(i.id)); _render(); }
 
-  async function init() { _load(); _render(); }
+  async function init() {
+    // Load dari Supabase (cross-device); fallback ke localStorage jika offline/tabel belum ada
+    if (typeof DB !== 'undefined') {
+      try {
+        const rows = await DB.getNews();
+        _items = Array.isArray(rows) ? rows : [];
+        // Sync ke localStorage sebagai cache
+        try { localStorage.setItem(_KEY, JSON.stringify(_items)); } catch {}
+      } catch { _load(); }
+    } else {
+      _load();
+    }
+    try { _readSet = new Set(JSON.parse(localStorage.getItem(_readKey()) || '[]')); } catch { _readSet = new Set(); }
+    _render();
+  }
 
   return {
     init, openItem, openViewers, openCreate, deleteItem, markAllRead,
