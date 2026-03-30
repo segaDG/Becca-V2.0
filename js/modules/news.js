@@ -338,7 +338,7 @@ const NewsModule = (() => {
         ${poll.options.map(opt => {
           const pct   = totalVotes > 0 ? Math.round(opt.votes.length / totalVotes * 100) : 0;
           const voted = votedSet.has(opt.id);
-          const voterLabel = opt.votes.length > 0 && hasVoted
+          const voterLabel = opt.votes.length > 0 && canSeeVoters
             ? `<span onclick="event.stopPropagation();NewsModule.openVoters('${item.id}','${opt.id}')"
                 style="position:relative;font-size:11px;color:${voted ? 'var(--primary)' : 'var(--text-3)'};
                        cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px;

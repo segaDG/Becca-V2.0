@@ -99,14 +99,14 @@ const DailyOrderModule = (() => {
       if (shift === 'S1') {
         total += _n(o.breakfast) * _n(c.hargaBreakfast || c.hargaShift1);
         total += _n(o.shift1)    * _n(c.hargaShift1);
-        total += _n(o.spare1)    * _n(c.hargaSpare1   || c.hargaShift1);
+        total += _n(o.spare1)    * _n(c.hargaSpare1);   // spare = 0, tidak ada harga
         total += _n(o.ot1)       * _n(c.hargaOT1      || c.hargaShift1);
       } else if (shift === 'S2') {
         total += _n(o.shift2)    * _n(c.hargaShift2);
-        total += _n(o.spare2)    * _n(c.hargaSpare2   || c.hargaShift2);
+        total += _n(o.spare2)    * _n(c.hargaSpare2);   // spare = 0, tidak ada harga
         total += _n(o.ot2)       * _n(c.hargaOT2      || c.hargaShift2);
         total += _n(o.shift3)    * _n(c.hargaShift3);
-        total += _n(o.spare3)    * _n(c.hargaSpare3   || c.hargaShift3);
+        total += _n(o.spare3)    * _n(c.hargaSpare3);   // spare = 0, tidak ada harga
         total += _n(o.ot3)       * _n(c.hargaOT3      || c.hargaShift3);
       } else if (shift === 'SNK1') {
         total += _n(o.snack1)    * _n(c.hargaSnack1);
