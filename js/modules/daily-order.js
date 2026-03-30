@@ -455,11 +455,11 @@ const DailyOrderModule = (() => {
       <!-- Form produksi table -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
         <div style="padding:var(--s3) var(--s4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
-          background:${_isSnack(_shift)?'rgba(236,72,153,.08)':_shift==='S2'?'rgba(139,92,246,.08)':'rgba(99,102,241,.08)'};
-          border-bottom-color:${_isSnack(_shift)?'rgba(236,72,153,.2)':_shift==='S2'?'rgba(139,92,246,.2)':'rgba(99,102,241,.2)'}">
+          background:${_isSnack(_shift)?'rgba(236,72,153,.1)':'rgba(99,102,241,.1)'};
+          border-bottom-color:${_isSnack(_shift)?'rgba(236,72,153,.25)':'rgba(99,102,241,.25)'}">
           <div>
-            <span style="font-size:13px;font-weight:700;color:${_isSnack(_shift)?'#ec4899':_shift==='S2'?'#8b5cf6':'#6366f1'}">Form Produksi</span>
-            <span style="font-size:11px;color:var(--text-3);margin-left:8px">${items.length} bahan</span>
+            <span style="font-size:13px;font-weight:700;color:${_isSnack(_shift)?'#9d174d':'#3730a3'}">Form Produksi</span>
+            <span style="font-size:11px;color:${_isSnack(_shift)?'rgba(157,23,77,.6)':'rgba(55,48,163,.6)'};margin-left:8px">${items.length} bahan</span>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             ${form ? `
