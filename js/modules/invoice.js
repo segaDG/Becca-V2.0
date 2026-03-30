@@ -1438,17 +1438,22 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
 
     // Kembalikan orders ke status belum di-invoice
     try {
-      // Hapus dari becca_order_invoices
+      // Ambil orderIds dari becca_order_invoices (lebih akurat dari invoiceRef matching)
       const recs = JSON.parse(localStorage.getItem('becca_order_invoices') || '[]');
-      const filtered = recs.filter(r => r.nomor !== inv.invoiceNum);
-      localStorage.setItem('becca_order_invoices', JSON.stringify(filtered));
+      const orderRec = recs.find(r => r.nomor === inv.invoiceNum);
+      const orderIdsSet = new Set(orderRec?.orderIds || []);
 
-      // Reset flag invoiced pada becca_orders + sync ke DB
+      // Hapus record invoice dari becca_order_invoices
+      localStorage.setItem('becca_order_invoices', JSON.stringify(
+        recs.filter(r => r.nomor !== inv.invoiceNum)
+      ));
+
+      // Reset flag invoiced: cocokkan via invoiceRef ATAU orderIds
       const orders = JSON.parse(localStorage.getItem('becca_orders') || '[]');
       const toSync = [];
       orders.forEach(o => {
-        if (o.invoiceRef === inv.invoiceNum) {
-          o.invoiced   = false;
+        if (o.invoiceRef === inv.invoiceNum || orderIdsSet.has(o.id)) {
+          o.invoiced = false;
           delete o.invoiceRef;
           delete o.invoiceDate;
           toSync.push(o);
@@ -1456,7 +1461,8 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
       });
       if (toSync.length) {
         localStorage.setItem('becca_orders', JSON.stringify(orders));
-        toSync.forEach(o => DB.saveOrder({ ...o }).catch(() => {}));
+        // Await agar DB konsisten sebelum refreshFromStorage dibaca ulang oleh init()
+        await Promise.all(toSync.map(o => DB.saveOrder({ ...o }).catch(() => {})));
       }
     } catch(e) {}
 
