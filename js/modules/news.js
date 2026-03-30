@@ -380,11 +380,12 @@ const NewsModule = (() => {
     // Build media HTML (images load from per-user LS; videos get async placeholders)
     const mediaHtml = media.map((m, idx) => {
       if (m.type === 'image') {
-        const data = _imgLoad(m.ownerId, m.id) || m.thumb || null;
+        const data = _imgLoad(m.ownerId, m.id) || m.full || m.thumb || null;
         return data ? `
           <div style="margin-bottom:8px;border-radius:8px;overflow:hidden;position:relative">
-            <img src="${data}" style="width:100%;max-height:400px;object-fit:contain;background:var(--surface2)" loading="lazy">
-            <button onclick="NewsModule._downloadMedia(${JSON.stringify(item.id)},${idx})"
+            <img src="${data}" style="width:100%;max-height:400px;object-fit:contain;background:var(--surface2);cursor:zoom-in"
+              onclick="NewsModule._openImage('${item.id}',${idx})" loading="lazy">
+            <button onclick="NewsModule._downloadMedia('${item.id}',${idx})"
               style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);color:#fff;border:none;
                      border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;backdrop-filter:blur(4px)">
               ⬇ Simpan
@@ -411,7 +412,7 @@ const NewsModule = (() => {
           </div>` : `
           <div style="margin-bottom:8px;position:relative">
             <video src="${m.url}" controls style="width:100%;max-height:300px;border-radius:8px;background:#000"></video>
-            <button onclick="NewsModule._downloadMedia(${JSON.stringify(item.id)},${idx})"
+            <button onclick="NewsModule._downloadMedia('${item.id}',${idx})"
               style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);color:#fff;border:none;
                      border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">
               ⬇ Simpan
@@ -458,6 +459,11 @@ const NewsModule = (() => {
         _IDB.load(loadKey).then(async blob => {
           // Fallback ke original key jika user key sudah tidak ada
           if (!blob && hasSaved) blob = await _IDB.load(m.idbKey);
+          // Cross-device: load dari base64 yang disimpan di news item (video ≤ 10MB)
+          if (!blob && m.data) {
+            try { blob = await fetch(m.data).then(r => r.blob()); } catch {}
+            if (blob) _IDB.save(m.idbKey, blob).catch(() => {}); // cache lokal
+          }
           const ph = document.getElementById('vid-ph-' + m.idbKey);
           if (!ph) return;
           if (blob) {
@@ -536,6 +542,39 @@ const NewsModule = (() => {
   }
 
   /* ═══════════════════════════════════════════
+     OPEN IMAGE — lightbox full-screen viewer
+  ═══════════════════════════════════════════ */
+  function _openImage(itemId, mediaIdx) {
+    const item = _items.find(i => i.id === itemId);
+    if (!item) return;
+    const m = (item.media || [])[mediaIdx];
+    if (!m) return;
+    const src = _imgLoad(m.ownerId, m.id) || m.full || m.thumb;
+    if (!src) { Notify.error('Gambar tidak tersedia'); return; }
+
+    const mid = Utils.uid();
+    Modal.open({
+      id: mid,
+      title: m.name || 'Foto',
+      size: 'modal-xl',
+      body: `<div id="imgv-${mid}" style="background:#000;border-radius:8px;min-height:200px;
+              display:flex;align-items:center;justify-content:center;overflow:hidden"></div>`,
+      footer: `
+        <button class="btn btn-ghost btn-sm" onclick="NewsModule._downloadMedia('${itemId}',${mediaIdx})">⬇ Unduh</button>
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
+      `,
+    });
+    // Load image setelah modal render (hindari embed base64 besar di innerHTML)
+    const img = new Image();
+    img.style.cssText = 'max-width:100%;max-height:85vh;object-fit:contain;display:block;margin:auto;border-radius:4px';
+    img.onload = () => {
+      const el = document.getElementById('imgv-' + mid);
+      if (el) { el.style.minHeight = ''; el.appendChild(img); }
+    };
+    img.src = src;
+  }
+
+  /* ═══════════════════════════════════════════
      DOWNLOAD ALL — unduh semua media sekaligus
   ═══════════════════════════════════════════ */
   async function _downloadAll(itemId) {
@@ -547,19 +586,21 @@ const NewsModule = (() => {
     for (let idx = 0; idx < item.media.length; idx++) {
       const m = item.media[idx];
       if (m.type === 'image') {
-        const data = _imgLoad(m.ownerId, m.id) || m.thumb;
+        const data = _imgLoad(m.ownerId, m.id) || m.full || m.thumb;
         if (!data) continue;
         const b = _b64ToBlob(data, 'image/jpeg');
         if (b) {
           blobs.push(b); names.push(m.name || `gambar-${idx+1}.jpg`);
-          // Simpan salinan ke LS user
           const vuid = Auth.currentUser()?.id || Auth.currentUser()?.username || 'anon';
           if (vuid !== m.ownerId) _imgSave(vuid, m.id, data);
         }
       } else if (m.type === 'video-idb') {
         const hasSaved = _isVidSaved(m.idbKey);
         const srcKey   = hasSaved ? (_getVidSavedKey(m.idbKey) || m.idbKey) : m.idbKey;
-        const b = await _IDB.load(srcKey);
+        let b = await _IDB.load(srcKey);
+        if (!b && hasSaved) b = await _IDB.load(m.idbKey);
+        // Cross-device: load dari base64 jika tersedia
+        if (!b && m.data) { try { b = await fetch(m.data).then(r => r.blob()); } catch {} }
         if (b) { blobs.push(b); names.push(m.name || `video-${idx+1}.mp4`); }
       } else if (m.type === 'video-url') {
         window.open(m.url, '_blank');
@@ -609,7 +650,13 @@ const NewsModule = (() => {
 
     const hasSaved = _isVidSaved(m.idbKey);
     const srcKey   = hasSaved ? (_getVidSavedKey(m.idbKey) || m.idbKey) : m.idbKey;
-    const blob     = await _IDB.load(srcKey);
+    let blob       = await _IDB.load(srcKey);
+    if (!blob && hasSaved) blob = await _IDB.load(m.idbKey);
+    // Cross-device: load dari base64 yang disimpan di news item
+    if (!blob && m.data) {
+      if (btn) btn.textContent = '⏳ Mengunduh...';
+      try { blob = await fetch(m.data).then(r => r.blob()); } catch {}
+    }
     if (!blob) {
       Notify.error('Video tidak tersedia di perangkat ini');
       if (btn) { btn.disabled = false; btn.textContent = '⬇ Simpan'; }
@@ -673,7 +720,8 @@ const NewsModule = (() => {
     if (!m) return;
 
     if (m.type === 'image') {
-      const data = _imgLoad(m.ownerId, m.id) || m.thumb;
+      // Prioritas: LS creator (full) → m.full (cross-device) → thumbnail
+      const data = _imgLoad(m.ownerId, m.id) || m.full || m.thumb;
       if (!data) { Notify.error('Gambar tidak tersedia'); return; }
       // Simpan salinan ke LS user yang sedang login
       const viewerUid = Auth.currentUser()?.id || Auth.currentUser()?.username || 'anon';
@@ -1037,10 +1085,22 @@ const NewsModule = (() => {
       if (m.type === 'image') {
         const id = Utils.uid();
         _imgSave(ownerId, id, m._full);
-        savedMedia.push({ type: 'image', id, ownerId, name: m.name, thumb: m._thumb });
+        // Simpan full juga di news item agar device lain bisa akses ukuran penuh
+        savedMedia.push({ type: 'image', id, ownerId, name: m.name, thumb: m._thumb, full: m._full });
       } else if (m.type === 'video-idb') {
-        // IDB already saved during _ncAddVideoFile; just reference key
-        savedMedia.push({ type: 'video-idb', idbKey: m.idbKey, name: m.name, size: m.size, thumb: m._thumb });
+        // Baca blob; jika ≤ 10MB simpan sebagai base64 agar cross-device bisa download
+        let vidData = null;
+        if ((m.size || 0) <= 10 * 1024 * 1024) {
+          try {
+            const blob = await _IDB.load(m.idbKey);
+            if (blob) vidData = await new Promise(res => {
+              const r = new FileReader();
+              r.onload = e => res(e.target.result);
+              r.readAsDataURL(blob);
+            });
+          } catch {}
+        }
+        savedMedia.push({ type: 'video-idb', idbKey: m.idbKey, name: m.name, size: m.size, thumb: m._thumb, ...(vidData ? { data: vidData } : {}) });
       } else if (m.type === 'video-url') {
         savedMedia.push({ type: 'video-url', url: m.url, name: m.name, thumb: m.thumb });
       }
@@ -1118,7 +1178,7 @@ const NewsModule = (() => {
   return {
     init, openItem, openViewers, openCreate, deleteItem, markAllRead,
     _submitCreate, _updateBadge, _voteItem, _downloadMedia, _downloadAll,
-    _saveVideo, _openVideoPlayer,
+    _saveVideo, _openVideoPlayer, _openImage,
     _ncTargetChange, _ncCountRecipients,
     _ncAddImages, _ncAddVideoFile, _ncAddVideoUrl, _ncRemoveMedia,
     _ncTogglePoll, _ncAddPollOpt, _ncRemovePollOpt, _ncPollOptInput,
