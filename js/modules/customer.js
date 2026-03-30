@@ -252,6 +252,11 @@ const CustomerModule = (() => {
         <p>Manajemen data perusahaan klien catering — ${_data.length} perusahaan</p>
       </div>
       ${canEdit ? `<div class="page-header-right">
+        <button class="btn btn-ghost btn-sm" onclick="CustomerModule._bulkUpdateTax()" title="Set PB1 & PPH23 = Ada untuk semua customer"
+          style="font-size:11px;color:var(--text-2)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          Update PB1 & PPH
+        </button>
         <button class="btn btn-primary" onclick="CustomerModule.openModal()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
           Tambah Customer
@@ -774,13 +779,28 @@ const CustomerModule = (() => {
   function _fillAllShifts() {
     const base = parseFloat(document.getElementById('cf-harga-base')?.value) || 0;
     if (!base) { Notify.warning('Masukkan harga dasar terlebih dahulu'); return; }
-    const ids = ['cf-hargaBreakfast','cf-hargaShift1','cf-hargaSpare1','cf-hargaOT1','cf-hargaSnack1',
-                 'cf-hargaShift2','cf-hargaSpare2','cf-hargaOT2','cf-hargaSnack2',
-                 'cf-hargaShift3','cf-hargaSpare3','cf-hargaOT3','cf-hargaSnack3','cf-hargaSnackBerat'];
+    // Spare 1/2/3 tidak memiliki harga — tidak diisi
+    const ids = ['cf-hargaBreakfast','cf-hargaShift1','cf-hargaOT1','cf-hargaSnack1',
+                 'cf-hargaShift2','cf-hargaOT2','cf-hargaSnack2',
+                 'cf-hargaShift3','cf-hargaOT3','cf-hargaSnack3','cf-hargaSnackBerat'];
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = base; });
   }
 
-  return { init, setSearch, sortBy, openModal, _submit, _fillAllShifts, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer };
+  async function _bulkUpdateTax() {
+    const ok = await Modal.confirm({
+      title: 'Update PB1 & PPH23 Semua Customer',
+      message: 'Set PB1 = <strong>Ada</strong> dan PPH23 = <strong>Ada</strong> untuk <strong>semua ' + _data.length + ' customer</strong>?',
+      confirmText: 'Ya, Update Semua',
+    });
+    if (!ok) return;
+    _data.forEach(c => { c.pb1 = true; c.pph23 = true; });
+    localStorage.setItem('becca_customers', JSON.stringify(_data));
+    _data.forEach(c => DB.saveCustomer({...c}).catch(()=>{}));
+    _render();
+    Notify.success('PB1 & PPH23 semua customer diset Ada');
+  }
+
+  return { init, setSearch, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer };
 })();
 
 window.CustomerModule = CustomerModule;

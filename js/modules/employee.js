@@ -1733,6 +1733,8 @@ const EmployeeModule = (() => {
     const daysInMonth = new Date(year, month, 0).getDate();
     const days  = Array.from({length: daysInMonth}, (_,i) => i+1);
     const DAY_SH = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
+    const _now   = new Date();
+    const todayY = _now.getFullYear(), todayM = _now.getMonth()+1, todayD = _now.getDate();
     const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
     // Lookup: (empId or empNama) + '_' + tgl → absensi record
@@ -1773,9 +1775,13 @@ const EmployeeModule = (() => {
           <thead><tr>
             <th style="min-width:130px;position:sticky;left:0;background:var(--surface);z-index:2">Karyawan</th>
             ${days.map(d=>{
-              const dow = new Date(year,month-1,d).getDay();
-              return `<th style="width:30px;text-align:center;padding:4px 2px;${dow===0?'color:var(--danger)':dow===6?'color:var(--primary-h)':''}">
-                <div style="font-size:11px">${d}</div><div style="font-size:9px;font-weight:400">${DAY_SH[dow]}</div>
+              const dow    = new Date(year,month-1,d).getDay();
+              const isToday = year===todayY && month===todayM && d===todayD;
+              return `<th style="width:30px;text-align:center;padding:4px 2px;
+                ${isToday ? 'background:rgba(99,102,241,.14);border-bottom:2px solid var(--primary)' : ''};
+                ${!isToday && dow===0 ? 'color:var(--danger)' : !isToday && dow===6 ? 'color:var(--primary-h)' : ''}">
+                <div style="font-size:11px;${isToday?'font-weight:800;color:var(--primary)':''}">${d}</div>
+                <div style="font-size:9px;font-weight:400;${isToday?'color:var(--primary)':''}">${DAY_SH[dow]}</div>
               </th>`;
             }).join('')}
             <th style="text-align:center;color:var(--success);white-space:nowrap">H</th>
@@ -1802,8 +1808,9 @@ const EmployeeModule = (() => {
                     const rec = absMap[empKey+'_'+tgl] || absMap[emp.nama+'_'+tgl];
                     const s   = rec ? rec.status : '';
                     if(s==='H')cH++; if(s==='S')cS++; if(s==='I')cI++; if(s==='A')cA++; if(s==='C')cC++;
-                    const isSun = new Date(year,month-1,d).getDay()===0;
-                    return `<td style="text-align:center;padding:3px 1px;${isSun?'background:rgba(239,68,68,.04)':''}">
+                    const isSun   = new Date(year,month-1,d).getDay()===0;
+                    const isTodayCell = year===todayY && month===todayM && d===todayD;
+                    return `<td style="text-align:center;padding:3px 1px;${isTodayCell?'background:rgba(99,102,241,.07)':isSun?'background:rgba(239,68,68,.04)':''}">
                       <span style="display:inline-block;width:22px;height:22px;line-height:22px;border-radius:4px;font-size:11px;font-weight:700;text-align:center;${s?_ABS_COLOR[s]:'border:1px solid var(--border);color:var(--text-3)'};${canEdit?'cursor:pointer':''}"
                         ${canEdit?`onclick="EmployeeModule._cycleAbsensi('${emp.id}','${emp.nama.replace(/'/g,'')}','${tgl}')"`:''} title="${s?_ABS_LABEL[s]:canEdit?'Klik untuk set':''}">${s||'·'}</span>
                     </td>`;

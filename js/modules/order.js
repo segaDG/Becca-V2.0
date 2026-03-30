@@ -586,7 +586,9 @@ const OrderModule = (() => {
   function openModal() {
     const custs = _getCustomers();
     const co = custs.map(c=>`<option value="${c.nama}">${c.nama}</option>`).join('');
-    const today = new Date().toISOString().slice(0,10);
+    const today    = new Date().toISOString().slice(0,10);
+    const cu       = typeof Auth !== 'undefined' ? Auth.currentUser() : null;
+    const pelapor  = cu?.nama || cu?.username || cu?.name || '';
     const nf = (id, lbl, color='var(--text-2)') =>
       `<div class="form-group"><label class="form-label" style="color:${color}">${lbl}</label><input class="form-control" id="${id}" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>`;
 
@@ -605,7 +607,7 @@ const OrderModule = (() => {
           <div class="form-group"><label class="form-label">Nama Perusahaan *</label>
             <select class="form-control" id="of-cust"><option value="">— Pilih Customer —</option>${co}</select>
           </div>
-          <div class="form-group"><label class="form-label">Pelapor</label><input class="form-control" id="of-pelapor" placeholder="Nama..."></div>
+          <div class="form-group"><label class="form-label">Pelapor</label><input class="form-control" id="of-pelapor" value="${pelapor}" readonly style="background:var(--surface2);color:var(--text-2);cursor:default"></div>
         </div>
         <div class="of-sec" style="color:#6366f1">☀ Breakfast & Shift 1</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">

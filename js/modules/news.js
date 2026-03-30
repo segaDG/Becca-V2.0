@@ -326,8 +326,9 @@ const NewsModule = (() => {
     const poll        = item.poll;
     const uid         = (typeof Auth !== 'undefined' ? Auth.currentUser()?.id : null) || 'anon';
     const totalVotes  = poll.options.reduce((s, o) => s + o.votes.length, 0);
-    const votedSet    = new Set(poll.options.filter(o => o.votes.includes(uid)).map(o => o.id));
+    const votedSet    = new Set(poll.options.filter(o => o.votes.some(v => _voteUid(v) === uid)).map(o => o.id));
     const hasVoted    = votedSet.size > 0;
+    const canSeeVoters = typeof Auth !== 'undefined' && Auth.can('news', 'edit');
     return `
       <div id="news-poll-${item.id}" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
         <div style="font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -337,6 +338,12 @@ const NewsModule = (() => {
         ${poll.options.map(opt => {
           const pct   = totalVotes > 0 ? Math.round(opt.votes.length / totalVotes * 100) : 0;
           const voted = votedSet.has(opt.id);
+          const voterLabel = opt.votes.length > 0 && hasVoted
+            ? `<span onclick="event.stopPropagation();NewsModule.openVoters('${item.id}','${opt.id}')"
+                style="position:relative;font-size:11px;color:${voted ? 'var(--primary)' : 'var(--text-3)'};
+                       cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px;
+                       white-space:nowrap">${opt.votes.length} orang</span>`
+            : (hasVoted ? `<span style="position:relative;font-size:11px;color:var(--text-3)">${opt.votes.length} orang</span>` : '');
           return `
             <div style="margin-bottom:8px">
               <div onclick="NewsModule._voteItem('${item.id}','${opt.id}')"
@@ -350,6 +357,7 @@ const NewsModule = (() => {
                 <div style="position:relative;flex:1;font-size:13px;color:var(--text)">${opt.text}</div>
                 ${hasVoted ? `<span style="position:relative;font-size:12px;font-weight:700;min-width:34px;text-align:right;
                   color:${voted ? 'var(--primary)' : 'var(--text-3)'}">${pct}%</span>` : ''}
+                ${voterLabel}
                 ${voted ? `<svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"
                   width="14" height="14" style="position:relative;flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
               </div>
@@ -737,18 +745,24 @@ const NewsModule = (() => {
   /* ═══════════════════════════════════════════
      VOTE
   ═══════════════════════════════════════════ */
+  // Normalize vote entry: old votes stored uid as string, new as {uid,nama}
+  const _voteUid  = v => (typeof v === 'string' ? v : v?.uid);
+  const _voteName = v => (typeof v === 'string' ? null : v?.nama);
+
   function _voteItem(id, optId) {
     const item = _items.find(i => i.id === id);
     if (!item?.poll) return;
-    const uid = (Auth.currentUser()?.id || Auth.currentUser()?.username || 'anon');
-    const opt = item.poll.options.find(o => o.id === optId);
+    const cu   = Auth.currentUser();
+    const uid  = cu?.id || cu?.username || 'anon';
+    const nama = cu?.nama || cu?.username || uid;
+    const opt  = item.poll.options.find(o => o.id === optId);
     if (!opt) return;
     if (!item.poll.multiple) {
-      item.poll.options.forEach(o => { o.votes = o.votes.filter(v => v !== uid); });
-      opt.votes.push(uid);
+      item.poll.options.forEach(o => { o.votes = o.votes.filter(v => _voteUid(v) !== uid); });
+      opt.votes.push({ uid, nama });
     } else {
-      if (opt.votes.includes(uid)) opt.votes = opt.votes.filter(v => v !== uid);
-      else opt.votes.push(uid);
+      if (opt.votes.some(v => _voteUid(v) === uid)) opt.votes = opt.votes.filter(v => _voteUid(v) !== uid);
+      else opt.votes.push({ uid, nama });
     }
     _persist();
     if (typeof DB !== 'undefined') DB.saveNews(item).catch(() => {});
@@ -791,6 +805,43 @@ const NewsModule = (() => {
                 ${v.viewedAt ? new Date(v.viewedAt).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}
               </div>
             </div>`).join('')}
+        </div>
+      `,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+  }
+
+  /* ═══════════════════════════════════════════
+     POLL VOTERS
+  ═══════════════════════════════════════════ */
+  function openVoters(itemId, optId) {
+    const item = _items.find(i => i.id === itemId);
+    if (!item?.poll) return;
+    const opt = item.poll.options.find(o => o.id === optId);
+    if (!opt) return;
+    const mid = Utils.uid();
+    const voters = opt.votes;
+    Modal.open({
+      id: mid, title: `📊 Pemilih — ${opt.text}`, size: 'modal-sm',
+      body: voters.length === 0 ? `
+        <div style="text-align:center;padding:40px 20px;color:var(--text-3)">
+          <div style="font-size:32px;margin-bottom:8px">🗳</div>
+          <div>Belum ada yang memilih opsi ini</div>
+        </div>
+      ` : `
+        <div style="margin-bottom:10px;font-size:12px;color:var(--text-3)">${voters.length} orang memilih opsi ini</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${voters.map(v => {
+            const name = _voteName(v) || _voteUid(v) || 'User';
+            const init = name[0]?.toUpperCase() || '?';
+            return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;
+                        background:var(--surface2);border-radius:8px">
+              <div style="width:28px;height:28px;border-radius:50%;background:var(--primary);
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${init}</div>
+              <div style="font-size:13px;font-weight:600;color:var(--text)">${name}</div>
+            </div>`;
+          }).join('')}
         </div>
       `,
       footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
@@ -1184,7 +1235,7 @@ const NewsModule = (() => {
   }
 
   return {
-    init, openItem, openViewers, openCreate, deleteItem, markAllRead,
+    init, openItem, openViewers, openVoters, openCreate, deleteItem, markAllRead,
     _submitCreate, _updateBadge, _voteItem, _downloadMedia, _downloadAll,
     _saveVideo, _openVideoPlayer, _openImage,
     _ncTargetChange, _ncCountRecipients,
