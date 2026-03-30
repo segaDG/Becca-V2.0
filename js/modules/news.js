@@ -29,12 +29,30 @@ const NewsModule = (() => {
   }
 
   function _markRead(id) {
-    if (_readSet.has(id)) return;
-    _readSet.add(id);
-    try {
-      const r = JSON.parse(localStorage.getItem(_readKey()) || '[]');
-      if (!r.includes(id)) { r.push(id); localStorage.setItem(_readKey(), JSON.stringify(r)); }
-    } catch {}
+    // Track read-set per user
+    const alreadyRead = _readSet.has(id);
+    if (!alreadyRead) {
+      _readSet.add(id);
+      try {
+        const r = JSON.parse(localStorage.getItem(_readKey()) || '[]');
+        if (!r.includes(id)) { r.push(id); localStorage.setItem(_readKey(), JSON.stringify(r)); }
+      } catch {}
+    }
+    // Track viewer in the item's views array (deduplicate by uid)
+    const idx = _items.findIndex(i => i.id === id);
+    if (idx !== -1) {
+      if (!_items[idx].views) _items[idx].views = [];
+      const user = typeof Auth !== 'undefined' ? Auth.currentUser() : null;
+      const uid  = user?.id || user?.username || 'anon';
+      if (!_items[idx].views.some(v => v.uid === uid)) {
+        _items[idx].views.push({
+          uid,
+          nama: user?.nama || user?.username || 'User',
+          viewedAt: new Date().toISOString(),
+        });
+        _persist();
+      }
+    }
     _updateBadge();
   }
 
@@ -98,8 +116,9 @@ const NewsModule = (() => {
       ` : `
         <div style="display:flex;flex-direction:column;gap:10px;max-width:720px">
           ${sorted.map(item => {
-            const unrd = !_readSet.has(item.id);
-            const col  = _COLOR[item.tipe] || '#6366f1';
+            const unrd     = !_readSet.has(item.id);
+            const col      = _COLOR[item.tipe] || '#6366f1';
+            const viewCnt  = (item.views || []).length;
             return `
               <div onclick="NewsModule.openItem('${item.id}')"
                 style="background:var(--surface);border:1px solid ${unrd ? col : 'var(--border)'};
@@ -119,7 +138,20 @@ const NewsModule = (() => {
                 <div style="font-size:12px;color:var(--text-2);line-height:1.5;
                   overflow:hidden;text-overflow:ellipsis;display:-webkit-box;
                   -webkit-line-clamp:2;-webkit-box-orient:vertical">${item.isi}</div>
-                <div style="font-size:11px;color:var(--text-3);margin-top:7px">— ${item.author || 'Admin'}</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+                  <span style="font-size:11px;color:var(--text-3)">— ${item.author || 'Admin'}</span>
+                  <span onclick="event.stopPropagation();NewsModule.openViewers('${item.id}')"
+                    style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:4px;
+                           cursor:pointer;padding:2px 6px;border-radius:6px;transition:background .15s"
+                    onmouseover="this.style.background='var(--surface2)'"
+                    onmouseout="this.style.background=''">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    ${viewCnt > 0 ? `${viewCnt} dilihat` : 'Belum dilihat'}
+                  </span>
+                </div>
               </div>`;
           }).join('')}
         </div>
@@ -136,6 +168,7 @@ const NewsModule = (() => {
     _render();
     const col = _COLOR[item.tipe] || '#6366f1';
     const canDelete = ['admin','superadmin'].includes((Auth.currentUser()?.role||'').toLowerCase()) || Auth.can('news','delete');
+    const viewCnt = (item.views || []).length;
     const mid = Utils.uid();
     Modal.open({
       id: mid,
@@ -151,14 +184,63 @@ const NewsModule = (() => {
       `,
       footer: `
         ${canDelete ? `<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="NewsModule.deleteItem('${item.id}')">Hapus</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="Modal.close('${mid}');NewsModule.openViewers('${item.id}')"
+          style="display:flex;align-items:center;gap:5px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+          ${viewCnt} dilihat
+        </button>
         <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
       `,
     });
   }
 
+  /* ─── VIEWERS ─── */
+  function openViewers(id) {
+    const item = _items.find(i => i.id === id);
+    if (!item) return;
+    const views = item.views || [];
+    const mid = Utils.uid();
+    Modal.open({
+      id: mid,
+      title: `👁 Sudah Dilihat — ${item.judul}`,
+      size: 'modal-md',
+      body: views.length === 0 ? `
+        <div style="text-align:center;padding:40px 20px;color:var(--text-3)">
+          <div style="font-size:36px;margin-bottom:10px">👁</div>
+          <div style="font-size:14px">Belum ada yang membuka pengumuman ini</div>
+        </div>
+      ` : `
+        <div style="margin-bottom:10px;font-size:12px;color:var(--text-3)">
+          ${views.length} orang sudah membaca pengumuman ini
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${views.map((v, i) => `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;
+                        background:var(--surface2);border-radius:8px">
+              <div style="width:28px;height:28px;border-radius:50%;background:var(--primary);
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:11px;font-weight:700;color:#fff;flex-shrink:0">
+                ${(v.nama||'?')[0].toUpperCase()}
+              </div>
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:600;color:var(--text)">${v.nama || 'User'}</div>
+                <div style="font-size:11px;color:var(--text-3)">${_fmtTime(v.viewedAt)}</div>
+              </div>
+              <div style="font-size:10px;color:var(--text-3);text-align:right">
+                ${v.viewedAt ? new Date(v.viewedAt).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+  }
+
   /* ─── CREATE ─── */
   async function openCreate() {
-    // Fetch employees untuk daftar divisi & jabatan
     _divisiList = [];
     _jabatanList = [];
     try {
@@ -193,25 +275,29 @@ const NewsModule = (() => {
             <textarea id="nc-isi" class="form-control" rows="5"
               placeholder="Tulis isi pengumuman di sini..." style="resize:vertical"></textarea>
           </div>
-          <div class="form-group">
-            <label class="form-label">Kirim Push Notifikasi Ke</label>
-            <select id="nc-target" class="form-control" onchange="NewsModule._ncTargetChange(this.value)">
-              <option value="all">Semua Karyawan</option>
-              <option value="divisi">Divisi Tertentu</option>
-              <option value="jabatan">Jabatan Tertentu</option>
-              <option value="none">Tidak Kirim Push</option>
-            </select>
-          </div>
-          <div id="nc-filter-wrap" style="display:none">
-            <div class="form-group" style="margin:0">
-              <label class="form-label" id="nc-filter-label">Divisi</label>
-              <select id="nc-filter-value" class="form-control" onchange="NewsModule._ncCountRecipients()">
-                ${_divisiList.map(d => `<option value="${Utils.esc(d)}">${Utils.esc(d)}</option>`).join('')}
+          <div style="border-top:1px solid var(--border);padding-top:14px">
+            <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:10px">📱 Push Notifikasi</div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label">Kirim Push Notifikasi Ke</label>
+              <select id="nc-target" class="form-control" onchange="NewsModule._ncTargetChange(this.value)">
+                <option value="all">Semua Karyawan</option>
+                <option value="divisi">Divisi Tertentu</option>
+                <option value="jabatan">Jabatan Tertentu</option>
+                <option value="none">Tidak Kirim Push</option>
               </select>
             </div>
-          </div>
-          <div id="nc-push-info" style="padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text-3)">
-            📱 Penerima push: <strong id="nc-count">menghitung...</strong> device terdaftar
+            <div id="nc-filter-wrap" style="display:none;margin-bottom:10px">
+              <div class="form-group" style="margin:0">
+                <label class="form-label" id="nc-filter-label">Divisi</label>
+                <select id="nc-filter-value" class="form-control" onchange="NewsModule._ncCountRecipients()">
+                  ${_divisiList.map(d => `<option value="${Utils.esc(d)}">${Utils.esc(d)}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div id="nc-push-info" style="padding:8px 12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text-3)">
+              📱 Penerima push: <strong id="nc-count">menghitung...</strong> device terdaftar
+              <div style="margin-top:3px;color:var(--text-3);font-size:11px">Pengumuman tetap tampil di feed untuk semua user</div>
+            </div>
           </div>
         </div>
       `,
@@ -271,13 +357,13 @@ const NewsModule = (() => {
       judul, isi, tipe,
       author: user?.nama || user?.username || 'Admin',
       createdAt: new Date().toISOString(),
+      views: [],
     };
     _items.push(item);
     _persist();
     Modal.close('news-create');
     _render();
     Notify.success('Pengumuman berhasil dikirim');
-    // Kirim push notification ke target
     if (target !== 'none' && typeof PushModule !== 'undefined') {
       const filter = target === 'divisi' && val ? { divisi: val }
                    : target === 'jabatan' && val ? { jabatan: val } : {};
@@ -309,7 +395,7 @@ const NewsModule = (() => {
     _render();
   }
 
-  return { init, openItem, openCreate, deleteItem, markAllRead, _submitCreate, _updateBadge, _ncTargetChange, _ncCountRecipients };
+  return { init, openItem, openViewers, openCreate, deleteItem, markAllRead, _submitCreate, _updateBadge, _ncTargetChange, _ncCountRecipients };
 })();
 
 window.NewsModule = NewsModule;
