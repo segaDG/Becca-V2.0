@@ -32,18 +32,12 @@ const Sidebar = {
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>` },
   ],
 
-  // render() async: baca settings dari DB agar nama/logo perusahaan selalu terbaru
-  async render() {
-    const sidebar  = document.getElementById('sidebar');
-    const user     = Auth.currentUser();
-
-    // Baca dari DB (bukan Utils.ls.get) agar dapat data terbaru
-    const settings = await DB.getSettings().catch(() => ({}));
+  // Bangun HTML sidebar dari settings yang diberikan (sync, tidak ada network call)
+  _buildHtml(user, settings) {
     const compName = settings.namaPerusahaan || '';
     const tagline  = settings.tagline || '';
     const logoUrl  = settings.logoUrl || '';
 
-    // ── Brand area pakai class CSS asli ──────────────────────
     let logoContent;
     if (logoUrl) {
       logoContent = `<div class="sidebar-logo" style="background:transparent;padding:0;overflow:hidden">
@@ -64,6 +58,7 @@ const Sidebar = {
       nameHtml = `<div class="sidebar-name">BECCA <span style="opacity:.5;font-weight:400;font-size:12px">v2.0</span></div>`;
     }
 
+    const sectionStyle = 'font-size:9px;font-weight:700;letter-spacing:.08em;opacity:.6;padding-left:var(--s4);';
     let html = `
       <div class="sidebar-brand">
         ${logoContent}
@@ -72,13 +67,9 @@ const Sidebar = {
       <nav class="sidebar-nav">
     `;
 
-    // Section label style: lebih kecil dan halus
-    const sectionStyle = 'font-size:9px;font-weight:700;letter-spacing:.08em;opacity:.6;padding-left:var(--s4);';
-
     let lastSection = '';
     this._items.forEach(item => {
       if (!Auth.can(item.id, 'view')) return;
-
       if (item.section && item.section !== lastSection) {
         lastSection = item.section;
         html += `<div class="nav-section" style="${sectionStyle}">${item.section}</div>`;
@@ -110,8 +101,58 @@ const Sidebar = {
         </div>
       `;
     }
+    return html;
+  },
 
-    sidebar.innerHTML = html;
+  // Baca settings dari localStorage cache (sync, tanpa network)
+  _cachedSettings() {
+    try {
+      const raw = JSON.parse(localStorage.getItem('becca_settings') || '[]');
+      const row = Array.isArray(raw) ? raw[0] : raw;
+      if (!row) return {};
+      const d = row.data;
+      return d ? (typeof d === 'string' ? JSON.parse(d) : d) : row;
+    } catch { return {}; }
+  },
+
+  // Update news badge dari localStorage (tanpa perlu news module loaded)
+  _updateNewsBadge(user) {
+    try {
+      const uid   = user?.id || user?.username || 'anon';
+      const items = JSON.parse(localStorage.getItem('becca_news') || '[]');
+      const read  = new Set(JSON.parse(localStorage.getItem('becca_news_read_' + uid) || '[]'));
+      const n     = items.filter(i => !read.has(i.id)).length;
+      const badge = document.getElementById('news-nav-badge');
+      if (badge && n > 0) {
+        badge.textContent = n > 9 ? '9+' : String(n);
+        badge.style.display = 'flex';
+      }
+    } catch {}
+  },
+
+  // render(): tampilkan segera dari cache localStorage, lalu update dari DB di background
+  async render() {
+    const sidebar = document.getElementById('sidebar');
+    const user    = Auth.currentUser();
+
+    // ── 1. Render instan dari cache (nol network delay) ───────
+    const cached = this._cachedSettings();
+    sidebar.innerHTML = this._buildHtml(user, cached);
+    this._updateNewsBadge(user);
+
+    // ── 2. Fetch fresh dari DB di background; update jika ada perbedaan ───
+    DB.getSettings().then(fresh => {
+      if (!fresh) return;
+      // Hanya re-render jika brand berubah (nama/logo/tagline)
+      if (fresh.namaPerusahaan !== cached.namaPerusahaan ||
+          fresh.logoUrl        !== cached.logoUrl        ||
+          fresh.tagline        !== cached.tagline) {
+        const activePage = typeof App !== 'undefined' ? App._currentPage : null;
+        sidebar.innerHTML = this._buildHtml(user, fresh);
+        this._updateNewsBadge(user);
+        if (activePage) this.setActive(activePage);
+      }
+    }).catch(() => {});
   },
 
   setActive(pageId) {

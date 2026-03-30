@@ -436,6 +436,7 @@ const NewsModule = (() => {
         ${_renderPollHtml(item)}
       `,
       footer: `
+        ${media.length > 0 ? `<button class="btn btn-ghost btn-sm" onclick="NewsModule._downloadAll('${item.id}')">⬇ Unduh Semua</button>` : ''}
         ${canDel ? `<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="NewsModule.deleteItem('${item.id}')">Hapus</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="Modal.close('${mid}');NewsModule.openViewers('${item.id}')"
           style="display:flex;align-items:center;gap:5px">
@@ -491,28 +492,107 @@ const NewsModule = (() => {
 
   /* ═══════════════════════════════════════════
      GALLERY DOWNLOAD — simpan ke galeri device
-     Web Share API (iOS/Android) → fallback <a>
+     Konversi base64 → Blob secara sinkron (menjaga
+     user gesture agar Web Share API tidak error)
   ═══════════════════════════════════════════ */
+  function _b64ToBlob(dataUrl, mimeOverride) {
+    try {
+      const [hdr, b64] = dataUrl.split(',');
+      const mime = mimeOverride || hdr.match(/:(.*?);/)?.[1] || 'application/octet-stream';
+      const bytes = atob(b64);
+      const arr = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+      return new Blob([arr], { type: mime });
+    } catch { return null; }
+  }
+
   async function _galleryDownload(data, name, mimeType) {
-    if (navigator.canShare) {
+    // Konversi ke Blob secara sinkron — jangan await sebelum share API
+    const blob = data instanceof Blob ? data
+      : (typeof data === 'string' && data.startsWith('data:') ? _b64ToBlob(data, mimeType) : null);
+
+    // Mobile: coba Web Share API (share sheet → "Simpan ke Foto" dll)
+    const isMobile = navigator.maxTouchPoints > 0;
+    if (isMobile && blob && navigator.share && navigator.canShare) {
       try {
-        const blob = data instanceof Blob
-          ? data
-          : await fetch(data).then(r => r.blob());
-        const file = new File([blob], name, { type: mimeType || blob.type || 'application/octet-stream' });
+        const file = new File([blob], name, { type: blob.type || mimeType });
         if (navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], title: name });
+          await navigator.share({ files: [file] });
           return;
         }
       } catch(e) {
-        if (e.name === 'AbortError') return; // user membatalkan share sheet
+        if (e.name === 'AbortError') return;
+        // Error lain (NotAllowedError dll): lanjut ke download biasa
       }
     }
-    // Fallback: download browser biasa
-    const url = data instanceof Blob ? URL.createObjectURL(data) : data;
+
+    // Desktop atau fallback: download lewat <a>
+    const url = blob ? URL.createObjectURL(blob) : (data || '');
+    if (!url) return;
     const a = document.createElement('a');
-    a.href = url; a.download = name; a.click();
-    if (data instanceof Blob) setTimeout(() => URL.revokeObjectURL(url), 5000);
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    if (blob) setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  /* ═══════════════════════════════════════════
+     DOWNLOAD ALL — unduh semua media sekaligus
+  ═══════════════════════════════════════════ */
+  async function _downloadAll(itemId) {
+    const item = _items.find(i => i.id === itemId);
+    if (!item || !(item.media || []).length) return;
+
+    const blobs = [], names = [];
+
+    for (let idx = 0; idx < item.media.length; idx++) {
+      const m = item.media[idx];
+      if (m.type === 'image') {
+        const data = _imgLoad(m.ownerId, m.id) || m.thumb;
+        if (!data) continue;
+        const b = _b64ToBlob(data, 'image/jpeg');
+        if (b) {
+          blobs.push(b); names.push(m.name || `gambar-${idx+1}.jpg`);
+          // Simpan salinan ke LS user
+          const vuid = Auth.currentUser()?.id || Auth.currentUser()?.username || 'anon';
+          if (vuid !== m.ownerId) _imgSave(vuid, m.id, data);
+        }
+      } else if (m.type === 'video-idb') {
+        const hasSaved = _isVidSaved(m.idbKey);
+        const srcKey   = hasSaved ? (_getVidSavedKey(m.idbKey) || m.idbKey) : m.idbKey;
+        const b = await _IDB.load(srcKey);
+        if (b) { blobs.push(b); names.push(m.name || `video-${idx+1}.mp4`); }
+      } else if (m.type === 'video-url') {
+        window.open(m.url, '_blank');
+      }
+    }
+
+    if (!blobs.length) { Notify.info('Tidak ada media yang bisa diunduh'); return; }
+
+    // Mobile: share semua file sekaligus dalam satu share sheet
+    const isMobile = navigator.maxTouchPoints > 0;
+    if (isMobile && navigator.share && navigator.canShare) {
+      try {
+        const files = blobs.map((b, i) => new File([b], names[i], { type: b.type }));
+        if (navigator.canShare({ files })) {
+          await navigator.share({ files });
+          Notify.success(`${blobs.length} media siap disimpan ✓`);
+          return;
+        }
+      } catch(e) {
+        if (e.name === 'AbortError') return;
+      }
+    }
+
+    // Desktop: download satu per satu
+    for (let i = 0; i < blobs.length; i++) {
+      const url = URL.createObjectURL(blobs[i]);
+      const a = document.createElement('a');
+      a.href = url; a.download = names[i];
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      if (i < blobs.length - 1) await new Promise(r => setTimeout(r, 350));
+    }
+    Notify.success(`${blobs.length} media diunduh ✓`);
   }
 
   /* ═══════════════════════════════════════════
@@ -1019,24 +1099,25 @@ const NewsModule = (() => {
   function markAllRead() { _items.forEach(i => _markRead(i.id)); _render(); }
 
   async function init() {
-    // Load dari Supabase (cross-device); fallback ke localStorage jika offline/tabel belum ada
-    if (typeof DB !== 'undefined') {
-      try {
-        const rows = await DB.getNews();
-        _items = Array.isArray(rows) ? rows : [];
-        // Sync ke localStorage sebagai cache
-        try { localStorage.setItem(_KEY, JSON.stringify(_items)); } catch {}
-      } catch { _load(); }
-    } else {
-      _load();
-    }
-    try { _readSet = new Set(JSON.parse(localStorage.getItem(_readKey()) || '[]')); } catch { _readSet = new Set(); }
+    // ── 1. Tampilkan dari localStorage dulu (instan, tanpa tunggu network) ──
+    _load();
     _render();
+
+    // ── 2. Fetch dari Supabase di background, update jika ada data baru ──
+    if (typeof DB !== 'undefined') {
+      DB.getNews().then(rows => {
+        if (!Array.isArray(rows)) return;
+        _items = rows;
+        try { localStorage.setItem(_KEY, JSON.stringify(_items)); } catch {}
+        _render();
+        _updateBadge();
+      }).catch(() => {});
+    }
   }
 
   return {
     init, openItem, openViewers, openCreate, deleteItem, markAllRead,
-    _submitCreate, _updateBadge, _voteItem, _downloadMedia,
+    _submitCreate, _updateBadge, _voteItem, _downloadMedia, _downloadAll,
     _saveVideo, _openVideoPlayer,
     _ncTargetChange, _ncCountRecipients,
     _ncAddImages, _ncAddVideoFile, _ncAddVideoUrl, _ncRemoveMedia,
