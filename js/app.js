@@ -11,7 +11,7 @@ const App = {
     order     : 'js/modules/order.js?v=20260330a',
     invoice   : 'js/modules/invoice.js?v=20260329e',
     customer  : 'js/modules/customer.js?v=20260330b',
-    news      : 'js/modules/news.js?v=20260330h',
+    news      : 'js/modules/news.js?v=20260330i',
     kas       : 'js/modules/kas.js?v=20260330c',
     'daily-order': 'js/modules/daily-order.js?v=20260330m',
     inventory : 'js/modules/inventory.js?v=20260330e',
@@ -19,7 +19,7 @@ const App = {
     ap        : 'js/modules/ap.js?v=20260330a',
     task      : 'js/modules/task.js?v=20260329f',
     report    : 'js/modules/report.js?v=20260326r',
-    settings  : 'js/modules/settings.js?v=20260330b',
+    settings  : 'js/modules/settings.js?v=20260330c',
   },
 
   _loadScript(src) {

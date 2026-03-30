@@ -488,6 +488,32 @@ const NewsModule = (() => {
   }
 
   /* ═══════════════════════════════════════════
+     GALLERY DOWNLOAD — simpan ke galeri device
+     Web Share API (iOS/Android) → fallback <a>
+  ═══════════════════════════════════════════ */
+  async function _galleryDownload(data, name, mimeType) {
+    if (navigator.canShare) {
+      try {
+        const blob = data instanceof Blob
+          ? data
+          : await fetch(data).then(r => r.blob());
+        const file = new File([blob], name, { type: mimeType || blob.type || 'application/octet-stream' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: name });
+          return;
+        }
+      } catch(e) {
+        if (e.name === 'AbortError') return; // user membatalkan share sheet
+      }
+    }
+    // Fallback: download browser biasa
+    const url = data instanceof Blob ? URL.createObjectURL(data) : data;
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    if (data instanceof Blob) setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  /* ═══════════════════════════════════════════
      SAVE VIDEO — simpan ke IDB user + download
   ═══════════════════════════════════════════ */
   async function _saveVideo(itemId, mediaIdx) {
@@ -513,12 +539,9 @@ const NewsModule = (() => {
     await _IDB.save(userKey, blob);
     _markVidSaved(m.idbKey, userKey);
 
-    // Browser download
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = m.name || 'video.mp4'; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    Notify.success('Video disimpan ke perangkat ✓');
+    // Simpan ke galeri device (Web Share API atau fallback download)
+    await _galleryDownload(blob, m.name || 'video.mp4', 'video/mp4');
+    Notify.success('Video disimpan ke galeri ✓');
 
     // Update button → Putar Full
     if (btn) {
@@ -561,7 +584,7 @@ const NewsModule = (() => {
   /* ═══════════════════════════════════════════
      DOWNLOAD MEDIA — simpan ke perangkat user
   ═══════════════════════════════════════════ */
-  function _downloadMedia(itemId, mediaIdx) {
+  async function _downloadMedia(itemId, mediaIdx) {
     const item = _items.find(i => i.id === itemId);
     if (!item) return;
     const m = (item.media || [])[mediaIdx];
@@ -573,10 +596,9 @@ const NewsModule = (() => {
       // Simpan salinan ke LS user yang sedang login
       const viewerUid = Auth.currentUser()?.id || Auth.currentUser()?.username || 'anon';
       if (viewerUid !== m.ownerId) _imgSave(viewerUid, m.id, data);
-      // Browser download
-      const a = document.createElement('a');
-      a.href = data; a.download = m.name || 'gambar.jpg'; a.click();
-      Notify.success('Gambar disimpan ✓');
+      // Simpan ke galeri device
+      await _galleryDownload(data, m.name || 'gambar.jpg', 'image/jpeg');
+      Notify.success('Gambar disimpan ke galeri ✓');
     } else if (m.type === 'video-url') {
       window.open(m.url, '_blank');
     }

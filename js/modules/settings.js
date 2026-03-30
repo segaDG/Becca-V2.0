@@ -585,6 +585,7 @@ const SettingsModule = (() => {
         const fullEl = document.getElementById('priv_'+role+'_'+feat+'_full');
         if (fullEl?.checked)      custom[role][feat] = 'all';
         else if (viewEl?.checked) custom[role][feat] = 'view';
+        else                      custom[role][feat] = '';
       });
     });
     // Simpan ke localStorage dengan key langsung (bukan via Utils.ls agar tidak double-prefix)

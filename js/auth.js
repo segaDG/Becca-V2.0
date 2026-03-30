@@ -120,11 +120,14 @@ const Auth = {
 
   _getPrivileges(role) {
     // Baca langsung dari localStorage (bukan via Utils.ls agar tidak double-prefix 'becca_becca_')
+    const defaults = this._defaultPrivileges[role] || this._defaultPrivileges['operator'];
     let custom = null;
     try { custom = JSON.parse(localStorage.getItem('becca_privileges') || 'null'); } catch {}
-    if (custom && custom[role] && Object.keys(custom[role]).length > 0) return custom[role];
-    // Fallback ke default; jika role tidak dikenal, pakai hak operator
-    return this._defaultPrivileges[role] || this._defaultPrivileges['operator'];
+    // Merge: defaults jadi base, custom override per-feature — sehingga fitur baru tetap tampil
+    if (custom && custom[role] && Object.keys(custom[role]).length > 0) {
+      return { ...defaults, ...custom[role] };
+    }
+    return defaults;
   },
 
   /* ===================== RENDER LOGIN ===================== */
