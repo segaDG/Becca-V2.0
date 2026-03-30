@@ -826,12 +826,14 @@ const NewsModule = (() => {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Judul *</label>
-            <input id="nc-judul" class="form-control" placeholder="Judul pengumuman...">
+            <label class="form-label">Judul <span style="color:#ef4444">*</span></label>
+            <input id="nc-judul" class="form-control" placeholder="Judul pengumuman..."
+              oninput="this.style.borderColor=''">
           </div>
           <div class="form-group">
-            <label class="form-label">Isi Pengumuman *</label>
-            <textarea id="nc-isi" class="form-control" rows="4" placeholder="Tulis isi pengumuman..." style="resize:vertical"></textarea>
+            <label class="form-label">Isi Pengumuman <span style="color:#ef4444">*</span></label>
+            <textarea id="nc-isi" class="form-control" rows="4" placeholder="Tulis isi pengumuman..."
+              style="resize:vertical" oninput="this.style.borderColor=''"></textarea>
           </div>
 
           <!-- Media -->
@@ -853,8 +855,8 @@ const NewsModule = (() => {
                 🔗 Video URL
               </button>
             </div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:6px">
-              Gambar maks 10 buah · Video langsung tersimpan di perangkat · URL untuk YouTube/link eksternal
+            <div style="font-size:11px;color:var(--text-3);margin-top:6px;line-height:1.6">
+              Gambar maks 10 buah · <span style="color:#f59e0b;font-weight:600">Video maks 10 MB</span> (lebih besar hanya tersedia di perangkat ini) · URL untuk YouTube/link eksternal
             </div>
           </div>
 
@@ -869,8 +871,9 @@ const NewsModule = (() => {
             </div>
             <div id="nc-poll-body" style="display:none;margin-top:12px">
               <div class="form-group" style="margin-bottom:10px">
-                <label class="form-label">Pertanyaan *</label>
-                <input id="nc-poll-q" class="form-control" placeholder="Contoh: Apakah Anda setuju?">
+                <label class="form-label">Pertanyaan <span style="color:#ef4444">*</span></label>
+                <input id="nc-poll-q" class="form-control" placeholder="Contoh: Apakah Anda setuju?"
+                  oninput="this.style.borderColor=''">
               </div>
               <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Pilihan Jawaban</div>
               <div id="nc-poll-opts"></div>
@@ -1060,14 +1063,19 @@ const NewsModule = (() => {
     const tipe   = document.getElementById('nc-tipe')?.value || 'info';
     const target = document.getElementById('nc-target')?.value || 'all';
     const fval   = document.getElementById('nc-filter-value')?.value;
-    if (!judul) { Notify.warning('Judul wajib diisi'); return; }
-    if (!isi)   { Notify.warning('Isi pengumuman wajib diisi'); return; }
+    const _err = (id, msg) => {
+      const el = document.getElementById(id);
+      if (el) { el.style.borderColor = '#ef4444'; el.focus(); el.scrollIntoView({ behavior:'smooth', block:'center' }); }
+      Notify.warning(msg);
+    };
+    if (!judul) { _err('nc-judul', 'Judul wajib diisi'); return; }
+    if (!isi)   { _err('nc-isi',   'Isi pengumuman wajib diisi'); return; }
 
     let poll = null;
     if (_fPollOn) {
       const q    = document.getElementById('nc-poll-q')?.value.trim();
       const opts = _fPollOpts.filter(o => o.text.trim());
-      if (!q)            { Notify.warning('Pertanyaan polling wajib diisi'); return; }
+      if (!q)            { _err('nc-poll-q', 'Pertanyaan polling wajib diisi'); return; }
       if (opts.length<2) { Notify.warning('Minimal 2 pilihan polling harus diisi'); return; }
       poll = {
         question: q,
