@@ -792,6 +792,10 @@ const InvoiceModule = (() => {
             style="background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.35)">
             🖨 Cetak / PDF
           </button>
+          <button class="btn" onclick="InvoiceModule.deleteInv('${inv.id||inv.invoiceNum}')"
+            style="background:rgba(239,68,68,.08);color:#ef4444;border:1px solid rgba(239,68,68,.3)">
+            🗑 Hapus
+          </button>
           ${isFromOrder ? `
           <button class="btn" id="btn-simpan-revisi"
             onclick="InvoiceModule.reviseInv('${inv.id||inv.invoiceNum}')"
@@ -1412,9 +1416,43 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
 
 </body></html>`;
 
-    const w = window.open('','_blank','width=900,height=780');
-    w.document.write(html);
-    w.document.close();
+    const blob = new Blob([html], { type: 'text/html' });
+    const blobUrl = URL.createObjectURL(blob);
+    const w = window.open(blobUrl, '_blank');
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+    if (!w) Notify.warning('Popup diblokir browser. Izinkan popup untuk halaman ini lalu coba lagi.');
+  }
+
+  /* ─── HAPUS INVOICE ─── */
+  async function deleteInv(key) {
+    const inv = _findInv(key);
+    if (!inv) return;
+    const label = inv.invoiceNum || inv.customer || key;
+    if (!confirm(`Hapus invoice "${label}"?\n\nData ini tidak dapat dikembalikan.`)) return;
+
+    // Hapus dari _invoices
+    _invoices = _invoices.filter(i => i.id !== key && i.invoiceNum !== key);
+
+    // Hapus dari DB
+    try { await DB.deleteInvoice(inv.id || key); } catch(e) {}
+
+    // Jika invoice berasal dari order, hapus juga dari becca_order_invoices
+    try {
+      const recs = JSON.parse(localStorage.getItem('becca_order_invoices') || '[]');
+      const filtered = recs.filter(r => r.nomor !== inv.invoiceNum);
+      if (filtered.length !== recs.length) {
+        localStorage.setItem('becca_order_invoices', JSON.stringify(filtered));
+        // Unmark invoiceRef di becca_orders
+        const orders = JSON.parse(localStorage.getItem('becca_orders') || '[]');
+        let changed = false;
+        orders.forEach(o => { if (o.invoiceRef === inv.invoiceNum) { delete o.invoiceRef; changed = true; } });
+        if (changed) localStorage.setItem('becca_orders', JSON.stringify(orders));
+      }
+    } catch(e) {}
+
+    Modal.close(window._beccaDetailModalId);
+    Notify.success('Invoice ' + label + ' berhasil dihapus');
+    _renderFull();
   }
 
   /* ─── CONTROLS ─── */
@@ -1433,7 +1471,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail };
+  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail, deleteInv };
 })();
 
 window.InvoiceModule = InvoiceModule;
