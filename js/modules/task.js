@@ -16,6 +16,75 @@ const TaskModule = (() => {
   let _tasks      = [];
   let _filter     = 'board';
   let _submitting = false;  // guard against double-submit
+  let _tMedia     = [];     // form media state
+
+  /* ── Image helpers (same pattern as news) ── */
+  const _imgKey  = uid => 'becca_media_' + uid;
+  function _imgSave(ownerId, id, data) {
+    try {
+      const k = _imgKey(ownerId);
+      const s = JSON.parse(localStorage.getItem(k) || '{}');
+      s[id] = data;
+      localStorage.setItem(k, JSON.stringify(s));
+    } catch {}
+  }
+  function _imgLoad(ownerId, id) {
+    try { return JSON.parse(localStorage.getItem(_imgKey(ownerId)) || '{}')[id] || null; }
+    catch { return null; }
+  }
+  function _scaleImg(file, maxPx) {
+    return new Promise(res => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale);
+        c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        res(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); res(null); };
+      img.src = url;
+    });
+  }
+  function _renderTMediaList() {
+    const el = document.getElementById('task-media-list');
+    if (!el) return;
+    el.innerHTML = _tMedia.map((m, i) => `
+      <div style="position:relative;width:64px;height:64px;flex-shrink:0">
+        <img src="${m.thumb}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">
+        <button onclick="TaskModule._tRemoveImg(${i})"
+          style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;
+                 background:#ef4444;color:#fff;border:none;font-size:11px;line-height:1;cursor:pointer;
+                 display:flex;align-items:center;justify-content:center">×</button>
+      </div>`).join('');
+  }
+  async function _tAddImages() {
+    if (_tMedia.length >= 5) { Notify.warning('Maksimal 5 gambar'); return; }
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
+    input.onchange = async () => {
+      const files = [...input.files].slice(0, 5 - _tMedia.length);
+      for (const f of files) {
+        const thumb = await _scaleImg(f, 200);
+        const full  = await _scaleImg(f, 1024);
+        if (!thumb) continue;
+        const id = Utils.uid();
+        const cu = _cu();
+        const ownerId = cu?.id || cu?.username || 'anon';
+        _tMedia.push({ type: 'image', id, ownerId, name: f.name, thumb, full });
+        _imgSave(ownerId, id, full);
+      }
+      _renderTMediaList();
+    };
+    input.click();
+  }
+  function _tRemoveImg(idx) {
+    _tMedia.splice(idx, 1);
+    _renderTMediaList();
+  }
 
   /* ── Init ── */
   async function init() {
@@ -560,6 +629,23 @@ const TaskModule = (() => {
       ${t.deskripsi ? `<p style="font-size:11px;color:var(--text-2);margin:0 0 6px;
         display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${t.deskripsi}</p>` : ''}
 
+      <!-- Foto lampiran -->
+      ${(()=>{
+        const imgs = (t.media||[]).filter(m=>m.type==='image');
+        if (!imgs.length) return '';
+        const shown = imgs.slice(0,3);
+        const rest  = imgs.length - 3;
+        return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px" onclick="event.stopPropagation()">
+          ${shown.map(m=>{
+            const src = _imgLoad(m.ownerId, m.id) || m.full || m.thumb || '';
+            return src ? `<img src="${src}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;cursor:zoom-in;border:1px solid var(--border)"
+              onclick="window.open(this.src,'_blank')">` : '';
+          }).join('')}
+          ${rest > 0 ? `<div style="width:48px;height:48px;background:var(--surface2);border-radius:4px;
+            display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-3)">+${rest}</div>` : ''}
+        </div>`;
+      })()}
+
       <!-- Meta -->
       <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-3);flex-wrap:wrap;margin-bottom:8px">
         ${assignDisp ? `<span style="background:var(--surface2);padding:1px 6px;border-radius:10px">👤 ${assignDisp}</span>` : ''}
@@ -779,6 +865,16 @@ const TaskModule = (() => {
               <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Dibuat oleh</div>
               <div style="font-size:13px">${d.createdBy}</div>
             </div>` : ''}
+            ${(d.media||[]).filter(m=>m.type==='image').length ? `<div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Lampiran Foto</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                ${(d.media||[]).filter(m=>m.type==='image').map(m => {
+                  const src = _imgLoad(m.ownerId, m.id) || m.full || m.thumb || '';
+                  return src ? `<img src="${src}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:zoom-in;border:1px solid var(--border)"
+                    onclick="window.open(this.src,'_blank')">` : '';
+                }).join('')}
+              </div>
+            </div>` : ''}
           </div>`,
         footer: `
           <button class="btn btn-ghost" onclick="Modal.close('${viewId}')">Tutup</button>
@@ -797,6 +893,9 @@ const TaskModule = (() => {
     // Current assignees (support lama & baru)
     const curAssignees = Array.isArray(d.assignees) ? d.assignees
       : d.assignee ? [d.assignee] : [];
+
+    // Reset form media state; pre-fill from existing task
+    _tMedia = (d.media || []).filter(m => m.type === 'image').map(m => ({...m}));
 
     Modal.open({
       id: mid,
@@ -853,6 +952,31 @@ const TaskModule = (() => {
             <label class="form-label">Deadline</label>
             <input name="deadline" type="date" class="form-control" value="${d.deadline||''}">
           </div>
+          <div class="form-group">
+            <label class="form-label">Lampiran Foto
+              <span style="font-size:10px;color:var(--text-3);font-weight:400"> maks 5 gambar</span>
+            </label>
+            <div id="task-media-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+              ${_tMedia.map((m,i) => `
+                <div style="position:relative;width:64px;height:64px;flex-shrink:0">
+                  <img src="${m.thumb}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">
+                  <button onclick="TaskModule._tRemoveImg(${i})"
+                    style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;
+                           background:#ef4444;color:#fff;border:none;font-size:11px;cursor:pointer;
+                           display:flex;align-items:center;justify-content:center">×</button>
+                </div>`).join('')}
+            </div>
+            <button type="button" onclick="TaskModule._tAddImages()"
+              style="border:1.5px dashed var(--border);background:var(--surface2);color:var(--text-2);
+                     border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;
+                     display:flex;align-items:center;gap:6px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              Tambah Foto
+            </button>
+          </div>
         </form>`,
       footer: `
         <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
@@ -882,6 +1006,9 @@ const TaskModule = (() => {
     const checked = [...document.querySelectorAll('#assignee-list input[type=checkbox]:checked')];
     data.assignees = checked.map(cb => cb.value);
     data.assignee  = data.assignees[0] || ''; // backward compat
+
+    // Lampirkan foto (hanya simpan thumb ke DB; full sudah di per-user LS)
+    data.media = _tMedia.map(m => ({ type:'image', id:m.id, ownerId:m.ownerId, name:m.name, thumb:m.thumb, full:m.full }));
 
     const u = _cu();
     if (editId) {
@@ -913,6 +1040,20 @@ const TaskModule = (() => {
       }
       Notify.success(editId?'Task berhasil diperbarui!':'Task baru ditambahkan!');
       DB.logActivity({type:editId?'edit_task':'add_task', detail:'Task: '+data.judul});
+
+      // Push notification ke semua assignee saat task baru dibuat
+      if (!editId && data.assignees?.length && typeof PushModule !== 'undefined') {
+        const senderName = data.createdBy || 'Tim';
+        data.assignees.forEach(name => {
+          PushModule.sendToUser(name, {
+            title: '📋 Task Baru: ' + (data.judul || ''),
+            body:  'Ditugaskan oleh ' + senderName,
+            data:  { type: 'task', taskId: (saved||data).id },
+          }).catch(() => {});
+        });
+      }
+
+      _tMedia = []; // reset form media
       Modal.close(modalId);
       _renderTabs(); render();
     } catch(err) { Notify.error('Gagal', err.message); }
@@ -985,7 +1126,8 @@ const TaskModule = (() => {
   return {
     init, setFilter, render, openModal, _submit, shareWA,
     moveNext, movePrev, markReviewed, markDone, markArsip, markTodo, deleteTask, toggleUrgent,
-    _onDragStart, _onDragEnd, _onColDragOver, _onColDragLeave, _onDrop
+    _onDragStart, _onDragEnd, _onColDragOver, _onColDragLeave, _onDrop,
+    _tAddImages, _tRemoveImg,
   };
 })();
 

@@ -584,59 +584,104 @@ const OrderModule = (() => {
 
   /* ─── TAMBAH ORDER ─── */
   function openModal() {
+    const mid   = Utils.uid();
     const custs = _getCustomers();
     const co = custs.map(c=>`<option value="${c.nama}">${c.nama}</option>`).join('');
     const today    = new Date().toISOString().slice(0,10);
     const cu       = typeof Auth !== 'undefined' ? Auth.currentUser() : null;
     const pelapor  = cu?.nama || cu?.username || cu?.name || '';
+    // number field helper
     const nf = (id, lbl, color='var(--text-2)') =>
-      `<div class="form-group"><label class="form-label" style="color:${color}">${lbl}</label><input class="form-control" id="${id}" type="number" min="0" value="0" style="text-align:center;font-family:var(--font-mono)"></div>`;
+      `<div class="form-group" style="min-width:0">
+        <label class="form-label" style="color:${color};font-size:11px">${lbl}</label>
+        <input class="form-control of-num" id="${id}" type="number" min="0" value="0"
+          style="text-align:center;font-family:var(--font-mono);padding:6px 4px"
+          oninput="OrderModule._ofCheck('${mid}')">
+      </div>`;
 
     Modal.open({
+      id: mid,
       title: 'Tambah Order Catering',
       size: 'modal-lg',
       body: `
-        <style>.of-sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:6px}</style>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)">
-          <div class="form-group"><label class="form-label">Tanggal Order *</label><input class="form-control" id="of-tgl" type="date" value="${today}"></div>
+        <style>
+          .of-sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+            color:var(--text-3);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:6px}
+          .of-row2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}
+          .of-row-cust{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}
+          .of-nums{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px}
+          @media(max-width:540px){
+            .of-row2,.of-row-cust{grid-template-columns:1fr}
+            .of-nums{grid-template-columns:repeat(3,1fr)}
+          }
+        </style>
+        <div class="of-row2">
+          <div class="form-group"><label class="form-label">Tanggal Order *</label>
+            <input class="form-control" id="of-tgl" type="date" value="${today}">
+          </div>
           <div class="form-group"><label class="form-label">Jenis Orderan</label>
-            <select class="form-control" id="of-jenis"><option value="real orderan">Real Orderan</option><option value="estimasi orderan">Estimasi Orderan</option></select>
+            <select class="form-control" id="of-jenis">
+              <option value="real orderan">Real Orderan</option>
+              <option value="estimasi orderan">Estimasi Orderan</option>
+            </select>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--s3)">
-          <div class="form-group"><label class="form-label">Nama Perusahaan *</label>
-            <select class="form-control" id="of-cust"><option value="">— Pilih Customer —</option>${co}</select>
+        <div class="of-row-cust">
+          <div class="form-group">
+            <label class="form-label">Nama Perusahaan <span style="color:#ef4444">*</span></label>
+            <select class="form-control" id="of-cust" onchange="OrderModule._ofCheck('${mid}')"
+              style="font-size:14px;padding:9px 10px">
+              <option value="">— Pilih Customer —</option>${co}
+            </select>
           </div>
-          <div class="form-group"><label class="form-label">Pelapor</label><input class="form-control" id="of-pelapor" value="${pelapor}" readonly style="background:var(--surface2);color:var(--text-2);cursor:default"></div>
+          <div class="form-group"><label class="form-label">Pelapor</label>
+            <input class="form-control" id="of-pelapor" value="${pelapor}" readonly
+              style="background:var(--surface2);color:var(--text-2);cursor:default">
+          </div>
         </div>
         <div class="of-sec" style="color:#6366f1">☀ Breakfast & Shift 1</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">
+        <div class="of-nums">
           ${nf('of-bf','Breakfast','var(--warning)')}${nf('of-s1','Shift 1','#6366f1')}${nf('of-sp1','Spare 1','#6366f1')}${nf('of-ot1','OT 1','#6366f1')}${nf('of-snk1','Snack 1','#6366f1')}
         </div>
         <div class="of-sec" style="color:#10b981">🟢 Shift 2</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">
+        <div class="of-nums">
           ${nf('of-s2','Shift 2','#10b981')}${nf('of-sp2','Spare 2','#10b981')}${nf('of-ot2','OT 2','#10b981')}${nf('of-snk2','Snack 2','#10b981')}
         </div>
         <div class="of-sec" style="color:#f59e0b">🟡 Shift 3</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">
+        <div class="of-nums">
           ${nf('of-s3','Shift 3','#f59e0b')}${nf('of-sp3','Spare 3','#f59e0b')}${nf('of-ot3','OT 3','#f59e0b')}${nf('of-snk3','Snack 3','#f59e0b')}
         </div>
         <div class="of-sec" style="color:#ec4899">🍱 Snack Berat</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">
+        <div class="of-nums">
           ${nf('of-snkb','Snack Berat','#ec4899')}
         </div>`,
       footer: `
-        <button class="btn btn-ghost" onclick="Modal.close()">Batal</button>
-        <button class="btn btn-primary" onclick="OrderModule._submitOrder()">Simpan Order</button>`,
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button id="of-save-${mid}" class="btn btn-primary" disabled
+          style="opacity:.45;cursor:not-allowed"
+          onclick="OrderModule._submitOrder('${mid}')">Simpan Order</button>`,
     });
   }
 
-  function _submitOrder() {
+  // Cek apakah tombol Simpan boleh aktif
+  function _ofCheck(mid) {
+    const btn  = document.getElementById('of-save-' + mid);
+    if (!btn) return;
+    const cust = document.getElementById('of-cust')?.value || '';
+    const hasQty = [...document.querySelectorAll('.of-num')].some(el => parseInt(el.value) > 0);
+    const ok = !!cust && hasQty;
+    btn.disabled = !ok;
+    btn.style.opacity  = ok ? '1'   : '.45';
+    btn.style.cursor   = ok ? 'pointer' : 'not-allowed';
+  }
+
+  function _submitOrder(mid) {
     const g = id => document.getElementById(id)?.value?.trim()||'';
     const n = id => parseInt(document.getElementById(id)?.value)||0;
     const tgl = g('of-tgl'), cust = g('of-cust');
     if (!tgl)  { Notify.warning('Tanggal order wajib diisi'); return; }
     if (!cust) { Notify.warning('Pilih nama perusahaan'); return; }
+    window._ordFormMid = mid; // simpan untuk Modal.close di _saveOrder
     const now = new Date();
     const ts  = now.toISOString().slice(0,10)+' '+now.toTimeString().slice(0,8);
     const newOrder = {
@@ -714,13 +759,12 @@ const OrderModule = (() => {
     if (!newOrder) return;
     delete window._ordPendingNew;
     Modal.close(modalId);
-    Modal.close(); // tutup form
+    if (window._ordFormMid) { Modal.close(window._ordFormMid); delete window._ordFormMid; }
     _saveOrder(newOrder, existingId);
   }
 
   function _saveOrder(newOrder, replaceId) {
     if (replaceId) {
-      // Update: ganti id lama, pertahankan id asli
       newOrder.id = replaceId;
       const i = _data.findIndex(o => o.id === replaceId);
       if (i >= 0) _data[i] = newOrder; else _data.push(newOrder);
@@ -729,6 +773,7 @@ const OrderModule = (() => {
       _data.push(newOrder);
       Notify.success('Order berhasil ditambahkan');
     }
+    if (window._ordFormMid) { Modal.close(window._ordFormMid); delete window._ordFormMid; }
     _save();
     DB.saveOrder({...newOrder}).catch(e => console.warn('[Order] saveOrder:', e));
     _renderFull();
@@ -1517,7 +1562,7 @@ const OrderModule = (() => {
   function setPerPage(n)           { _perPage = n; localStorage.setItem('becca_ord_perPage', n); _page = 1; _renderTbody(); }
 
   return {
-    init, openModal, _submitOrder, _confirmUpdate,
+    init, openModal, _submitOrder, _ofCheck, _confirmUpdate,
     openColManager, _setColLabel, _setColGroup, _setColEditable, _removeCol, _addCol, _resetCols,
     editHeader, _saveHdr,
     startEdit, deleteOrder,
