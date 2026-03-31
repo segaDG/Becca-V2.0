@@ -316,8 +316,10 @@ const KasModule = (() => {
       </div>
     `;
     _renderBalanceCards();
-    // Register fill-drag callback for kas table
-    if (window.GridSelect) GridSelect.onFill('kas-grid', _onGridFill);
+    if (window.GridSelect) {
+      GridSelect.onFill('kas-grid', _onGridFill);
+      GridSelect.onPaste('kas-grid', _onGridPaste);
+    }
   }
 
   /* ---- VIEW ROW ---- */
@@ -1475,6 +1477,31 @@ const KasModule = (() => {
       saved++;
     });
     if (saved) { Notify.success(saved+' baris diperbarui'); renderTransaksi(); }
+  }
+
+  function _onGridPaste(tblId, startRow, startCol, pasteRows) {
+    const tbl = document.getElementById(tblId);
+    if (!tbl) return;
+    const tbody = tbl.querySelector('tbody');
+    if (!tbody) return;
+    const rows = Array.from(tbody.children);
+    let saved = 0;
+    pasteRows.forEach((cols, ri) => {
+      const tr = rows[startRow + ri];
+      const id = tr?.dataset?.id;
+      const row = id ? _kas.find(r=>r.id===id) : null;
+      if (!row || _kasLocked.has(id)) return;
+      cols.forEach((val, ci) => {
+        const key = _KAS_COL_MAP[startCol + ci];
+        if (!key) return;
+        const isNum = key==='qty'||key==='hargaSatuan'||key==='jumlah';
+        row[key] = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
+      });
+      row.jumlah = (row.qty||0)*(row.hargaSatuan||0);
+      DB.saveKas({...row}).catch(()=>{});
+      saved++;
+    });
+    if (saved) { Notify.success(saved+' baris di-paste'); renderTransaksi(); }
   }
 
   return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
