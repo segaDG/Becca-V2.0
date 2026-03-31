@@ -342,9 +342,19 @@ const DailyOrderModule = (() => {
             <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f59e0b;margin-right:3px;vertical-align:middle"></span>S1</span>
             <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f97316;margin-right:3px;vertical-align:middle"></span>S2</span>
             <span><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:#ec4899;margin-right:3px;vertical-align:middle"></span>Snack</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#ea580c;margin-right:3px;vertical-align:middle"></span>Event</span>
           </div>
+          <button onclick="DailyOrderModule.addEvent()" title="Tambah Event Catering"
+            style="margin-left:auto;padding:4px 10px;border:1px solid rgba(234,88,12,.4);border-radius:6px;
+            background:rgba(234,88,12,.08);color:#ea580c;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;
+            display:flex;align-items:center;gap:4px"
+            onmouseover="this.style.background='#ea580c';this.style.color='#fff'"
+            onmouseout="this.style.background='rgba(234,88,12,.08)';this.style.color='#ea580c'">+ Event</button>
         </div>
-        <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:flex-end">${cards}</div>
+        <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:flex-end">
+          ${cards}
+          ${_getEventCards()}
+        </div>
       </div>
 
       <!-- Shift + meta -->
@@ -424,6 +434,8 @@ const DailyOrderModule = (() => {
         })() : ''}
       </div>
 
+      ${_isEvent(_shift) ? _htmlEventForm() : ''}
+      ${!_isEvent(_shift) ? `
       <!-- Ringkasan orderan -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4);margin-bottom:var(--s4)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
@@ -481,6 +493,7 @@ const DailyOrderModule = (() => {
             </div>`
         }
       </div>
+      ` : ''}
 
       <!-- Form produksi table -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
@@ -1376,6 +1389,147 @@ const DailyOrderModule = (() => {
     else Notify.warning('Popup diblokir browser');
   }
 
+  /* ═══ EVENT CATERING ═══ */
+  const _EVT_FC = 45; // default food cost event
+
+  function _isEvent(shift) { return (shift||'').startsWith('EVT'); }
+
+  function _getEventsForDate(date) {
+    return _forms.filter(f => f.tanggal === date && _isEvent(f.shift)).sort((a,b) => (a.shift||'').localeCompare(b.shift||''));
+  }
+
+  function _nextEventShift(date) {
+    const evts = _getEventsForDate(date);
+    for (let i = 1; i <= 99; i++) {
+      const s = 'EVT' + i;
+      if (!evts.some(e => e.shift === s)) return s;
+    }
+    return 'EVT1';
+  }
+
+  function _eventLabel(shift) { return 'C' + (shift||'').replace('EVT',''); }
+
+  function _getEventCards() {
+    const evts = _forms.filter(f => f.tanggal && f.tanggal.slice(0,7) === _formMonth && _isEvent(f.shift));
+    if (!evts.length) return '';
+    // Group by date
+    const byDate = {};
+    evts.forEach(e => { if(!byDate[e.tanggal]) byDate[e.tanggal]=[]; byDate[e.tanggal].push(e); });
+    return Object.entries(byDate).sort((a,b)=>a[0].localeCompare(b[0])).map(([date, list]) => {
+      return list.map(evt => {
+        const sel = _date === date && _shift === evt.shift;
+        const d = parseInt(date.slice(8));
+        const label = _eventLabel(evt.shift);
+        return `<button onclick="DailyOrderModule.setDate('${date}');DailyOrderModule.setShift('${evt.shift}')"
+          title="${date} ${label}: ${evt.evtCustomer||'Event'}"
+          style="width:${sel?33:28}px;height:${sel?44:36}px;flex-shrink:0;border-radius:6px;
+          border:2px solid ${sel?'#374151':'transparent'};
+          background:linear-gradient(135deg,#ea580c,#f97316);cursor:pointer;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;gap:1px;padding:0;position:relative">
+          <span style="font-size:7px;font-weight:700;color:rgba(255,255,255,.8);line-height:1">${label}</span>
+          <span style="font-size:${sel?'12px':'10px'};font-weight:800;color:#fff;line-height:1">${d}</span>
+        </button>`;
+      }).join('');
+    }).join('');
+  }
+
+  async function addEvent() {
+    const date = _date;
+    const shift = _nextEventShift(date);
+    const form = {
+      id: 'do_' + date.replace(/-/g,'') + '_' + shift,
+      tanggal: date, shift,
+      budgetBelanja: 0, foodCostPct: _EVT_FC,
+      items: [], status: 'draft',
+      evtCustomer: '', evtHarga: 0, evtPortions: 0, evtWaktu: '',
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    };
+    try {
+      await DB.saveDailyOrderForm(form);
+      _forms.push(form);
+      _shift = shift;
+      _renderFull(document.getElementById('page-daily-order'));
+      Notify.success('Event ' + _eventLabel(shift) + ' dibuat');
+    } catch(e) { Notify.error('Gagal membuat event'); }
+  }
+
+  async function saveEventMeta(key, val) {
+    const form = _currentForm();
+    if (!form) return;
+    if (key === 'evtHarga' || key === 'evtPortions' || key === 'foodCostPct') val = parseFloat(val) || 0;
+    form[key] = val;
+    form.updatedAt = new Date().toISOString();
+    try { await DB.saveDailyOrderForm(form); } catch(e) {}
+    // Recompute budget display
+    if (key === 'evtHarga' || key === 'evtPortions' || key === 'foodCostPct') {
+      const budEl = document.getElementById('evt-budget-display');
+      if (budEl) {
+        const h = form.evtHarga||0, p = form.evtPortions||0, fc = form.foodCostPct||_EVT_FC;
+        budEl.textContent = _fmtRp(h * p * fc / 100);
+      }
+    }
+  }
+
+  function _htmlEventForm() {
+    const form = _currentForm();
+    if (!form) return '';
+    const custs = _customers.map(c => c.nama).sort();
+    const h = form.evtHarga||0, p = form.evtPortions||0, fc = form.foodCostPct||_EVT_FC;
+    const budget = h * p * fc / 100;
+    const totalEst = (form.items||[]).reduce((s,it) => s + _n(it.estTotal), 0);
+    const totalAkt = (form.items||[]).reduce((s,it) => s + _n(it.aktTotal), 0);
+    const sisa = budget - totalEst;
+
+    return `
+      <div style="background:linear-gradient(135deg,rgba(234,88,12,.06),rgba(249,115,22,.03));border:2px solid rgba(234,88,12,.25);border-radius:12px;padding:14px;margin-bottom:var(--s4)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="background:linear-gradient(135deg,#ea580c,#f97316);color:#fff;font-weight:800;font-size:13px;padding:4px 10px;border-radius:6px">${_eventLabel(_shift)}</span>
+            <span style="font-size:12px;font-weight:700;color:#ea580c">EVENT CATERING</span>
+            <span style="font-size:11px;color:var(--text-3)">${new Date(_date+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}</span>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button onclick="DailyOrderModule.printForm()" style="padding:5px 10px;border:1px solid rgba(234,88,12,.3);border-radius:6px;background:transparent;color:#ea580c;font-size:11px;cursor:pointer;font-weight:600">Print</button>
+            <button onclick="DailyOrderModule.deleteForm()" style="padding:5px 10px;border:1px solid rgba(239,68,68,.3);border-radius:6px;background:transparent;color:#ef4444;font-size:11px;cursor:pointer">Hapus</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <label style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase">Nama Perusahaan</label>
+            <input list="evt-cust-list" value="${(form.evtCustomer||'').replace(/"/g,'&quot;')}" placeholder="Customer / Event"
+              onchange="DailyOrderModule.saveEventMeta('evtCustomer',this.value)"
+              style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;font-weight:600">
+            <datalist id="evt-cust-list">${custs.map(n=>'<option value="'+n+'">').join('')}</datalist>
+          </div>
+          <div>
+            <label style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase">Harga / Pax</label>
+            <input type="number" min="0" value="${h}" onchange="DailyOrderModule.saveEventMeta('evtHarga',this.value)"
+              style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;text-align:right;font-family:var(--font-mono)">
+          </div>
+          <div>
+            <label style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase">Jumlah Porsi</label>
+            <input type="number" min="0" value="${p}" onchange="DailyOrderModule.saveEventMeta('evtPortions',this.value)"
+              style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;text-align:right;font-family:var(--font-mono)">
+          </div>
+          <div>
+            <label style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase">FC %</label>
+            <input type="number" min="0" max="100" step="0.5" value="${fc}" onchange="DailyOrderModule.saveEventMeta('foodCostPct',this.value)"
+              style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:#ea580c;font-size:12px;text-align:right;font-weight:700">
+          </div>
+          <div>
+            <label style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase">Waktu Antar</label>
+            <input type="time" value="${form.evtWaktu||''}" onchange="DailyOrderModule.saveEventMeta('evtWaktu',this.value)"
+              style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span style="background:rgba(234,88,12,.15);color:#ea580c;padding:4px 12px;border-radius:20px;font-weight:700;font-size:12px" id="evt-budget-display">Budget ${_fmtRp(budget)}</span>
+          <span style="background:rgba(99,102,241,.15);color:#6366f1;padding:3px 10px;border-radius:20px;font-weight:700;font-size:11px">Est HPP ${_fmtRp(totalEst)}</span>
+          <span style="background:${sisa>=0?'rgba(16,185,129,.15)':'rgba(239,68,68,.15)'};color:${sisa>=0?'#059669':'#ef4444'};padding:3px 10px;border-radius:20px;font-weight:700;font-size:11px">Sisa ${sisa>=0?'+':''}${_fmtRp(Math.abs(sisa))}</span>
+        </div>
+      </div>`;
+  }
+
   async function createForm() {
     // Guard: don't create if already exists
     if (_currentForm()) { Notify.warning('Form sudah ada untuk tanggal dan shift ini'); return; }
@@ -1530,7 +1684,7 @@ const DailyOrderModule = (() => {
   return {
     init, setView, setDate, setShift, setMonth,
     setFormMonth, prevFormMonth, nextFormMonth,
-    createForm, copyEstToAkt, printForm, toggleStatus, deleteForm, updateFormMeta,
+    createForm, addEvent, saveEventMeta, copyEstToAkt, printForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, goToDate,
     _saveEditRow, _cancelEdit, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
