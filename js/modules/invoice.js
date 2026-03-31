@@ -647,17 +647,12 @@ const InvoiceModule = (() => {
       } catch(e) {}
     }
 
-    const ALL_KEYS = ['breakfast','shift1','spare1','ot1','snack1',
-                      'shift2','spare2','ot2','snack2',
-                      'shift3','spare3','ot3','snack3','snackBerat'];
-    const ALL_LABELS = {breakfast:'Breakfast',shift1:'Shift I',spare1:'Spare I',ot1:'OT1',snack1:'Snk1',
-      shift2:'Shift II',spare2:'Spare II',ot2:'OT2',snack2:'Snk2',
-      shift3:'Shift III',spare3:'Spare III',ot3:'OT3',snack3:'Snk3',snackBerat:'SnkBrt'};
+    const ALL_KEYS = _PRINT_COLS.map(c => c.key);
+    const ALL_LABELS = {};
+    _PRINT_COLS.forEach(c => { ALL_LABELS[c.key] = c.full; });
 
-    // Kolom yang aktif (ada datanya) — spare selalu ditampilkan
-    const _spareKeysD = new Set(['spare1','spare2','spare3']);
+    // Kolom yang aktif (ada datanya) — spare tidak ditampilkan
     const activeCols = ALL_KEYS.filter(k =>
-      _spareKeysD.has(k) ||
       orderList.some(o => Number(o[k]) > 0) ||
       (orderRec?.totals && (orderRec.totals[k]||0) > 0)
     ).map(k => ({key:k, label:ALL_LABELS[k]||k}));
@@ -1117,7 +1112,8 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
   }
 
   // Print window untuk invoice yang sudah ada
-  function _openInvPrintWin(inv, orderRec, orderList) {
+  function _openInvPrintWin(inv, orderRec, orderList, addRows) {
+    addRows = addRows || inv.addRows || [];
     const C = { NAVY:'#3B4E87', NAVY_D:'#2C3B65', NAVY_M:'#4A5E99',
                 BL:'#C9DAF8', BP:'#E8F0FE', SUB:'#ACC9FE',
                 GRY:'#666666', GLT:'#AAAAAA', URL:'#0070C0', RED:'#FF0000' };
@@ -1136,26 +1132,19 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     const yr  = tgl1 ? tgl1.getFullYear() : '';
     const periodeStr = tgl1 && tgl2 ? `${sd} – ${ed} ${mth} ${yr}` : '--';
 
-    // Kolom aktif dari order
-    const ALL_COLS_KEYS = ['breakfast','shift1','spare1','ot1','snack1',
-                           'shift2','spare2','ot2','snack2',
-                           'shift3','spare3','ot3','snack3','snackBerat'];
-    const ALL_COLS_LABEL = {
-      breakfast:'Breakfast',shift1:'Shift I',spare1:'Spare I',ot1:'OT1',snack1:'Snk1',
-      shift2:'Shift II',spare2:'Spare II',ot2:'OT2',snack2:'Snk2',
-      shift3:'Shift III',spare3:'Spare III',ot3:'OT3',snack3:'Snk3',snackBerat:'SnkBrt'
-    };
+    // Kolom aktif (tanpa spare) — pakai nama lengkap
+    const ALL_COLS_KEYS = _PRINT_COLS.map(c => c.key);
+    const ALL_COLS_LABEL = {};
+    _PRINT_COLS.forEach(c => { ALL_COLS_LABEL[c.key] = c.full; });
 
-    // Hitung kolom aktif dari orderRec.totals atau orderList — spare selalu ditampilkan
-    const _spareKeysP = new Set(['spare1','spare2','spare3']);
     let activeCols = [];
     if (orderRec?.totals) {
       activeCols = ALL_COLS_KEYS
-        .filter(k => _spareKeysP.has(k) || (orderRec.totals[k]||0) > 0)
+        .filter(k => (orderRec.totals[k]||0) > 0)
         .map(k => ({ key: k, label: ALL_COLS_LABEL[k] || k }));
     } else if (orderList.length) {
       activeCols = ALL_COLS_KEYS
-        .filter(k => _spareKeysP.has(k) || orderList.some(o => Number(o[k]) > 0))
+        .filter(k => orderList.some(o => Number(o[k]) > 0))
         .map(k => ({ key: k, label: ALL_COLS_LABEL[k] || k }));
     }
 
@@ -1277,18 +1266,15 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         const qty = totals[c.key]||0;
         if (!qty) return '';
         const descMap = {
-          shift1:'Food Catering Service Shift I — Makan Siang',
-          shift2:'Food Catering Service Shift II — Makan Sore',
-          shift3:'Food Catering Service Shift III — Makan Malam',
-          snack1:'Food Catering Service Shift I — Snack',
-          snack2:'Food Catering Service Shift II — Takjil',
-          snack3:'Food Catering Service Shift III — Takjil',
-          ot1:'Food Catering Service — OT Shift I',
-          ot2:'Food Catering Service — OT Shift II',
-          ot3:'Food Catering Service — OT Shift III',
-          spare1:'Food Catering Service — Spare I',
-          spare2:'Food Catering Service — Spare II',
-          spare3:'Food Catering Service — Spare III',
+          shift1:'Food Catering Service Shift 1 — Makan Siang',
+          shift2:'Food Catering Service Shift 2 — Makan Sore',
+          shift3:'Food Catering Service Shift 3 — Makan Malam',
+          snack1:'Food Catering Service Shift 1 — Snack',
+          snack2:'Food Catering Service Shift 2 — Takjil',
+          snack3:'Food Catering Service Shift 3 — Takjil',
+          ot1:'Food Catering Service — OT Shift 1',
+          ot2:'Food Catering Service — OT Shift 2',
+          ot3:'Food Catering Service — OT Shift 3',
           snackBerat:'Food Catering Service — Snack Berat',
           breakfast:'Food Catering Service — Breakfast',
         };
@@ -1314,6 +1300,25 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
         <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right;font-weight:700">${rp(subtotal)}</td>
       </tr>`;
+    }
+
+    // Additional rows sebagai item tambahan di invoice
+    if (addRows.length) {
+      const addDescMap = {};
+      _ADD_OPTIONS.forEach(o => { addDescMap[o.key] = o.label; });
+      invItemsHtml += addRows.map((r,i) => {
+        const desc = 'Additional — ' + (addDescMap[r.jenis] || r.jenis);
+        const stripe = i%2===0 ? C.BP : '#ffffff';
+        return `<tr style="background:${stripe}">
+          <td style="padding:5px 8px;border:1px solid #dde3f0;width:24px"></td>
+          <td colspan="2" style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:left;font-style:italic">${desc}</td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right">${rp(r.harga)}</td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${r.qty}</td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:center"></td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;width:18px"></td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right;font-weight:700">${rp(r.qty * r.harga)}</td>
+        </tr>`;
+      }).join('');
     }
 
     const css = `
@@ -1435,14 +1440,26 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
      CREATE INVOICE (dari data Order)
   ═══════════════════════════════════════ */
   const _ORDER_COLS = [
-    {key:'breakfast', label:'BF'},   {key:'shift1',  label:'S1'},
-    {key:'spare1',    label:'Sp1'},  {key:'ot1',     label:'OT1'},
-    {key:'snack1',    label:'Snk1'}, {key:'shift2',  label:'S2'},
-    {key:'spare2',    label:'Sp2'},  {key:'ot2',     label:'OT2'},
-    {key:'snack2',    label:'Snk2'}, {key:'shift3',  label:'S3'},
-    {key:'spare3',    label:'Sp3'},  {key:'ot3',     label:'OT3'},
-    {key:'snack3',    label:'Snk3'}, {key:'snackBerat',label:'SnkBrt'},
+    {key:'breakfast', label:'BF',    full:'Breakfast'},
+    {key:'shift1',    label:'S1',    full:'Shift 1'},
+    {key:'spare1',    label:'Sp1',   full:'Spare 1',     spare:true},
+    {key:'ot1',       label:'OT1',   full:'OT 1'},
+    {key:'snack1',    label:'Snk1',  full:'Snack 1'},
+    {key:'shift2',    label:'S2',    full:'Shift 2'},
+    {key:'spare2',    label:'Sp2',   full:'Spare 2',     spare:true},
+    {key:'ot2',       label:'OT2',   full:'OT 2'},
+    {key:'snack2',    label:'Snk2',  full:'Snack 2'},
+    {key:'shift3',    label:'S3',    full:'Shift 3'},
+    {key:'spare3',    label:'Sp3',   full:'Spare 3',     spare:true},
+    {key:'ot3',       label:'OT3',   full:'OT 3'},
+    {key:'snack3',    label:'Snk3',  full:'Snack 3'},
+    {key:'snackBerat',label:'SnkBrt',full:'Snack Berat'},
   ];
+  const _SPARE_KEYS = new Set(['spare1','spare2','spare3']);
+  // Kolom tanpa spare untuk rekap & invoice
+  const _PRINT_COLS = _ORDER_COLS.filter(c => !c.spare);
+  // Opsi jenis untuk additional order (tanpa spare)
+  const _ADD_OPTIONS = _PRINT_COLS.map(c => ({key:c.key, label:c.full}));
 
   function _getOrders() {
     try { return JSON.parse(localStorage.getItem('becca_orders')||'[]'); } catch(e){ return []; }
@@ -1530,9 +1547,22 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
           </label>
         </div>
         <div id="ic-additional" style="display:none;margin-top:8px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
-          <div style="font-size:11px;font-weight:700;color:#1A7340;margin-bottom:8px">+ Additional Order Rows</div>
-          <div id="ic-add-rows"></div>
-          <button onclick="InvoiceModule._addAdditionalRow()" style="margin-top:8px;padding:5px 12px;font-size:11px;background:#1A7340;color:#fff;border:none;border-radius:5px;cursor:pointer">+ Tambah Baris</button>
+          <div style="font-size:11px;font-weight:700;color:#1A7340;margin-bottom:8px">+ Additional Order</div>
+          <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px" id="ic-add-table">
+            <thead>
+              <tr style="background:rgba(26,115,64,.1)">
+                <th style="padding:5px 6px;text-align:left;font-size:10px;width:22px">#</th>
+                <th style="padding:5px 6px;text-align:left;font-size:10px">Tanggal</th>
+                <th style="padding:5px 6px;text-align:left;font-size:10px">Jenis</th>
+                <th style="padding:5px 6px;text-align:center;font-size:10px;width:70px">QTY</th>
+                <th style="padding:5px 6px;text-align:center;font-size:10px;width:110px">Harga/Unit</th>
+                <th style="padding:5px 6px;text-align:right;font-size:10px;width:110px">Total</th>
+                <th style="width:30px"></th>
+              </tr>
+            </thead>
+            <tbody id="ic-add-rows"></tbody>
+          </table>
+          <button onclick="InvoiceModule._addAdditionalRow()" style="padding:5px 12px;font-size:11px;background:#1A7340;color:#fff;border:none;border-radius:5px;cursor:pointer">+ Tambah Baris</button>
         </div>
         <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:10px">
           <button class="btn btn-ghost" onclick="Modal.close(window._icCreateMid)">Batal</button>
@@ -1576,7 +1606,8 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     }
 
     const tots = {};
-    _ORDER_COLS.forEach(c => { tots[c.key] = list.reduce((s,o)=>s+(Number(o[c.key])||0),0); });
+    const visibleCols = _PRINT_COLS; // tanpa spare
+    visibleCols.forEach(c => { tots[c.key] = list.reduce((s,o)=>s+(Number(o[c.key])||0),0); });
 
     area.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -1588,18 +1619,18 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
           <thead>
             <tr style="background:var(--primary-h)">
               <th style="padding:6px 8px;color:#fff;font-weight:700;text-align:left">Tgl Order</th>
-              ${_ORDER_COLS.map(c=>`<th style="padding:6px 5px;color:#fff;font-weight:700;text-align:center">${c.label}</th>`).join('')}
+              ${visibleCols.map(c=>`<th style="padding:6px 5px;color:#fff;font-weight:700;text-align:center">${c.label}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
             ${list.map((o,i)=>`
               <tr style="background:${i%2===0?'var(--surface)':'var(--surface2)'};border-bottom:1px solid var(--border)">
                 <td style="padding:5px 8px;font-weight:600">${_fmtDate(o.tglOrder)}</td>
-                ${_ORDER_COLS.map(c=>`<td style="padding:5px;text-align:center">${(o[c.key]||0)>0?`<b>${o[c.key]}</b>`:'<span style="color:var(--border2)">-</span>'}</td>`).join('')}
+                ${visibleCols.map(c=>`<td style="padding:5px;text-align:center">${(o[c.key]||0)>0?`<b>${o[c.key]}</b>`:'<span style="color:var(--border2)">-</span>'}</td>`).join('')}
               </tr>`).join('')}
             <tr style="background:rgba(99,102,241,.1);border-top:2px solid var(--border);font-weight:700">
               <td style="padding:6px 8px;color:#6366f1">TOTAL (${list.length})</td>
-              ${_ORDER_COLS.map(c=>`<td style="padding:6px 5px;text-align:center;color:${tots[c.key]>0?'#6366f1':'var(--text-3)'}">${tots[c.key]||'-'}</td>`).join('')}
+              ${visibleCols.map(c=>`<td style="padding:6px 5px;text-align:center;color:${tots[c.key]>0?'#6366f1':'var(--text-3)'}">${tots[c.key]||'-'}</td>`).join('')}
             </tr>
           </tbody>
         </table>
@@ -1615,43 +1646,65 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     }
   }
   function _addAdditionalRow() {
-    const rows = document.getElementById('ic-add-rows');
-    if (!rows) return;
-    const idx = rows.children.length;
+    const tbody = document.getElementById('ic-add-rows');
+    if (!tbody) return;
+    const idx = tbody.children.length;
     const today = new Date().toISOString().slice(0,10);
-    const colInputs = _ORDER_COLS.map(col => `
-      <td style="padding:3px">
-        <input type="number" min="0" value="0"
-          data-add="${idx}" data-key="${col.key}"
-          style="width:52px;padding:3px 5px;text-align:center;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px;font-family:var(--font-mono)">
-      </td>`).join('');
-    const row = document.createElement('div');
-    row.style.cssText = 'margin-bottom:4px';
-    row.innerHTML = `<table style="width:100%;font-size:11px;border-collapse:collapse">
-      <tr>
-        <td style="padding:3px;font-size:10px;color:var(--text-3);width:22px">${idx+1}</td>
-        <td style="padding:3px">
-          <input type="date" value="${today}" data-add="${idx}" data-key="tglOrder"
-            style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px">
-        </td>
-        ${colInputs}
-        <td style="padding:3px">
-          <button onclick="this.closest('div').remove()" style="padding:2px 7px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);border-radius:4px;color:#ef4444;cursor:pointer;font-size:10px">x</button>
-        </td>
-      </tr>
-    </table>`;
-    rows.appendChild(row);
+    const opts = _ADD_OPTIONS.map(o => `<option value="${o.key}">${o.label}</option>`).join('');
+    const tr = document.createElement('tr');
+    tr.style.cssText = idx%2===0 ? '' : 'background:rgba(26,115,64,.04)';
+    tr.innerHTML = `
+      <td style="padding:4px 6px;font-size:10px;color:var(--text-3)">${idx+1}</td>
+      <td style="padding:4px 3px">
+        <input type="date" value="${today}" data-add="${idx}" data-key="tglOrder"
+          style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px;width:100%">
+      </td>
+      <td style="padding:4px 3px">
+        <select data-add="${idx}" data-key="jenis"
+          style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px;width:100%">
+          ${opts}
+        </select>
+      </td>
+      <td style="padding:4px 3px">
+        <input type="number" min="0" value="0" data-add="${idx}" data-key="qty"
+          oninput="InvoiceModule._calcAddRowTotal(this)"
+          onfocus="if(this.value==='0')this.value=''"
+          onblur="if(this.value==='')this.value='0'"
+          style="width:100%;padding:4px 5px;text-align:center;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px;font-family:var(--font-mono)">
+      </td>
+      <td style="padding:4px 3px">
+        <input type="number" min="0" value="0" data-add="${idx}" data-key="harga"
+          oninput="InvoiceModule._calcAddRowTotal(this)"
+          onfocus="if(this.value==='0')this.value=''"
+          onblur="if(this.value==='')this.value='0'"
+          style="width:100%;padding:4px 5px;text-align:center;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px;font-family:var(--font-mono)">
+      </td>
+      <td style="padding:4px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:600" data-add="${idx}" data-key="total">0</td>
+      <td style="padding:4px 3px">
+        <button onclick="this.closest('tr').remove()" style="padding:2px 7px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);border-radius:4px;color:#ef4444;cursor:pointer;font-size:10px">x</button>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+  function _calcAddRowTotal(el) {
+    const tr = el.closest('tr');
+    if (!tr) return;
+    const qty = parseInt(tr.querySelector('[data-key="qty"]')?.value) || 0;
+    const harga = parseInt(tr.querySelector('[data-key="harga"]')?.value) || 0;
+    const totalEl = tr.querySelector('[data-key="total"]');
+    if (totalEl) totalEl.textContent = (qty * harga).toLocaleString('id');
   }
   function _getAdditionalRows() {
-    const rows = document.getElementById('ic-add-rows');
-    if (!rows) return [];
+    const tbody = document.getElementById('ic-add-rows');
+    if (!tbody) return [];
     const result = [];
-    rows.querySelectorAll('[data-add]').forEach(inp => {
-      const idx = inp.dataset.add;
-      if (!result[idx]) result[idx] = {};
-      result[idx][inp.dataset.key] = inp.value;
+    tbody.querySelectorAll('tr').forEach(tr => {
+      const tgl   = tr.querySelector('[data-key="tglOrder"]')?.value || '';
+      const jenis = tr.querySelector('[data-key="jenis"]')?.value || '';
+      const qty   = parseInt(tr.querySelector('[data-key="qty"]')?.value) || 0;
+      const harga = parseInt(tr.querySelector('[data-key="harga"]')?.value) || 0;
+      if (qty > 0) result.push({tglOrder:tgl, jenis, qty, harga});
     });
-    return result.filter(Boolean);
+    return result;
   }
 
   async function _createInvoice() {
@@ -1741,9 +1794,11 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     // Refresh OrderModule in-memory
     if (window.OrderModule?.refreshFromStorage) window.OrderModule.refreshFromStorage();
 
-    // Cetak
+    // Collect additional rows
     const includeAdd = document.getElementById('ic-add-chk')?.checked || false;
     const addRows = includeAdd ? _getAdditionalRows() : [];
+    // Simpan addRows ke invObj agar bisa diprint ulang dari detail
+    if (addRows.length) invObj.addRows = addRows;
 
     Modal.close(window._icCreateMid);
     Notify.success(`Invoice ${nomor} berhasil — ${list.length} order ditandai`);
@@ -1751,7 +1806,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
 
     // Buka print window
     const orderRec = {nomor, customer:cust, dari, sampai, orderIds:ids, totals:tots};
-    _openInvPrintWin(invObj, orderRec, list);
+    _openInvPrintWin(invObj, orderRec, list, addRows);
   }
 
   /* ─── HAPUS INVOICE ─── */
@@ -1821,7 +1876,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _createInvoice, _toggleAdditional, _addAdditionalRow };
+  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _createInvoice, _toggleAdditional, _addAdditionalRow, _calcAddRowTotal };
 })();
 
 window.InvoiceModule = InvoiceModule;

@@ -821,7 +821,7 @@ const CustomerModule = (() => {
     const ok = await Modal.confirm({
       title: 'Recalculate Harga Semua Customer',
       message: `<p style="font-size:13px;margin-bottom:10px">Semua harga shift = <strong>Harga/Pax (Harga Dasar)</strong><br>
-        Diterapkan ke: Breakfast, Shift 1/2/3, Spare, OT, Snack, Snack Berat.<br>
+        Diterapkan ke: Breakfast, Shift 1/2/3, OT, Snack, Snack Berat. <strong>Spare = 0.</strong><br>
         <em style="font-size:12px;color:var(--text-3)">Potongan PPH23, Biaya Box, Biaya Lainnya dihitung di estimasi budget Daily Order.</em></p>
         <table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:6px;overflow:hidden">
           <thead><tr style="background:var(--surface2);font-size:11px;font-weight:700">
@@ -838,9 +838,9 @@ const CustomerModule = (() => {
     _data.forEach(c => {
       const h = c.hargaPerPax || 0;
       c.hargaBreakfast = h;
-      c.hargaShift1  = h; c.hargaSpare1  = h; c.hargaOT1    = h; c.hargaSnack1  = h;
-      c.hargaShift2  = h; c.hargaSpare2  = h; c.hargaOT2    = h; c.hargaSnack2  = h;
-      c.hargaShift3  = h; c.hargaSpare3  = h; c.hargaOT3    = h; c.hargaSnack3  = h;
+      c.hargaShift1  = h; c.hargaSpare1  = 0; c.hargaOT1    = h; c.hargaSnack1  = h;
+      c.hargaShift2  = h; c.hargaSpare2  = 0; c.hargaOT2    = h; c.hargaSnack2  = h;
+      c.hargaShift3  = h; c.hargaSpare3  = 0; c.hargaOT3    = h; c.hargaSnack3  = h;
       c.hargaSnackBerat = h;
     });
     localStorage.setItem('becca_customers', JSON.stringify(_data));
