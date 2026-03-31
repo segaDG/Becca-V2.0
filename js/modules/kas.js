@@ -483,11 +483,13 @@ const KasModule = (() => {
     }
 
     Object.assign(row, vals);
+    const wasNew = row._isNew;
     // Change detection - skip save if nothing changed
     const newStr = JSON.stringify({tgl:row.tgl,nama:row.nama,type:row.type,vendor:row.vendor,
       qty:row.qty,satuan:row.satuan,hargaSatuan:row.hargaSatuan,jumlah:row.jumlah,
       penerima:row.penerima,status:row.status,bulan:row.bulan});
     delete row._original;
+    delete row._isNew;
     const hasChanged = origStr !== newStr;
 
     const trEl = document.getElementById('ks-row-'+id);
@@ -501,7 +503,9 @@ const KasModule = (() => {
 
     // Save to DB async
     DB.saveKas(row).then(() => {
-      DB.logActivity({type:'edit_kas', detail:'Edit: '+(row.nama||id), snapshot:{after:{nama:row.nama,type:row.type,jumlah:row.jumlah,vendor:row.vendor,tgl:row.tgl,status:row.status}}});
+      const logType = wasNew ? 'add_kas' : 'edit_kas';
+      const logDetail = wasNew ? 'Baris baru: '+(row.nama||id) : 'Edit: '+(row.nama||id);
+      DB.logActivity({type:logType, detail:logDetail, snapshot:{after:{nama:row.nama,type:row.type,jumlah:row.jumlah,vendor:row.vendor,tgl:row.tgl,status:row.status}}});
       const newTr = document.getElementById('ks-row-'+id);
       if (newTr) { newTr.classList.add('ks-saved'); setTimeout(()=>newTr.classList.remove('ks-saved'),500); }
     }).catch(e => Notify.error('Gagal simpan', e.message));
@@ -524,11 +528,23 @@ const KasModule = (() => {
     if (ok) { _editingId = null; addRow(); }
   }
 
-  // Esc: discard changes + close edit (no new row)
+  // Esc: discard changes + close edit
+  // Jika baris baru (dari Enter) dan belum diisi → hapus baris tersebut
   function cancelEdit(id) {
     if (_editingId !== id) return;
     document.removeEventListener('click', _handleOutsideClick);
     const row = _kas.find(r => r.id === id);
+
+    // Cek apakah ini baris baru yang masih kosong (belum diisi nama)
+    if (row && row._isNew && !(row.nama||'').trim()) {
+      _editingId = null;
+      _kas = _kas.filter(r => r.id !== id);
+      DB.deleteKas(id).catch(() => {});
+      renderTransaksi();
+      Notify.info('Baris baru dibatalkan');
+      return;
+    }
+
     if (row?._original) {
       try { Object.assign(row, JSON.parse(row._original)); } catch {}
     }
@@ -571,8 +587,8 @@ const KasModule = (() => {
     };
     try {
       const saved = await DB.saveKas(newRow);
+      saved._isNew = true;
       _kas.unshift(saved);
-      DB.logActivity({type:'add_kas', detail:'Baris baru', snapshot:{after:{tgl:saved.tgl,nama:saved.nama||'Baris baru'}}});
       renderTransaksi();
       setTimeout(()=>startEdit(saved.id), 80);
     } catch(e) { Notify.error('Gagal', e.message); }
