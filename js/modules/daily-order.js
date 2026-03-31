@@ -1012,7 +1012,8 @@ const DailyOrderModule = (() => {
     const stok0  = _n(it?.stokGudang);
     const sumb0  = _calcSumber(stok0, aktQ0);
     const isNew  = !it;
-    const inp    = p => `padding:3px 5px;font-size:11px;${p}`;
+    const inp    = p => `padding:3px 5px;font-size:11px;${p}" onfocus="this.select()` ;
+    // ^^ closes style=" early, injects onfocus as separate attribute
     return `
       <tr style="border-bottom:1px solid var(--border);background:rgba(99,102,241,.04)">
         <td style="padding:4px 3px;text-align:center;color:var(--primary);font-size:11px;font-weight:700">${isNew?'✦':idx+1}</td>
