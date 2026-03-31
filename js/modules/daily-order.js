@@ -518,6 +518,8 @@ const DailyOrderModule = (() => {
                 color:${form.status==='final'?'#f59e0b':'#10b981'};font-size:12px;cursor:pointer;font-weight:600">
                 ${form.status==='final'?'↺ Buka Draft':'✓ Finalisasi'}
               </button>
+              <button onclick="DailyOrderModule.openCopyFormModal()"
+                style="padding:6px 12px;border:1px solid rgba(139,92,246,.4);border-radius:7px;background:rgba(139,92,246,.08);color:#8b5cf6;font-size:12px;cursor:pointer;font-weight:600">Copy Form</button>
               <button onclick="DailyOrderModule.printForm()"
                 style="padding:6px 12px;border:1px solid rgba(99,102,241,.4);border-radius:7px;background:rgba(99,102,241,.08);color:#6366f1;font-size:12px;cursor:pointer;font-weight:600">Print</button>
               <button onclick="DailyOrderModule.deleteForm()"
@@ -1267,48 +1269,96 @@ const DailyOrderModule = (() => {
     } catch(e) { Notify.error('Gagal menyimpan'); }
   }
 
-  // Col map: 0=#, 1=item, 2=estQty, 3=satuan, 4=harga, 5=estTotal, 6=aktQty, 7=aktTotal, 8=sumber, 9=catatan
-  const _DO_COL_KEYS = [null,'item','estQty','satuan','hargaSatuan','estTotal','aktQty','aktTotal','sumber','catatan'];
-  const _DO_NUM_KEYS = new Set(['estQty','hargaSatuan','estTotal','aktQty','aktTotal']);
-
-  async function _onGridPaste(tblId, startRow, startCol, pasteRows) {
+  /* ── COPY FORM ke shift/tanggal lain ── */
+  function openCopyFormModal() {
     const form = _currentForm();
-    if (!form) return;
-    const items = form.items || [];
-    let changed = 0, created = 0;
+    if (!form || !form.items?.length) { Notify.warning('Form kosong, tidak ada yang bisa di-copy'); return; }
+    const srcLabel = `${new Date(_date+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})} / ${_isEvent(_shift)?_eventLabel(_shift):_shiftLabel(_shift)}`;
+    const allShifts = [{id:'S1',l:'Shift 1'},{id:'S2',l:'Shift 2&3'},{id:'SNK1',l:'Snack S1'},{id:'SNK2',l:'Snack S2'},{id:'SNK3',l:'Snack S3'},{id:'SNK4',l:'Snack Berat'}];
+    const shiftOpts = allShifts.map(s => `<option value="${s.id}">${s.l}</option>`).join('');
+    // Juga list event yang ada
+    const evtOpts = _forms.filter(f => _isEvent(f.shift)).map(f =>
+      `<option value="${f.shift}">${_eventLabel(f.shift)} (${f.tanggal})</option>`).join('');
 
-    pasteRows.forEach((cols, ri) => {
-      const itemIdx = startRow + ri;
-      // Auto-create new item if row doesn't exist
-      if (itemIdx >= items.length) {
-        items.push({ id: 'item_' + Utils.uid(), item:'', estQty:0, satuan:'', hargaSatuan:0,
-          aktQty:0, stokGudang:0, sumber:'STOK', catatan:'', estTotal:0, aktTotal:0 });
-        created++;
-      }
-      const it = items[itemIdx];
-      cols.forEach((val, ci) => {
-        const key = _DO_COL_KEYS[startCol + ci];
-        if (!key) return;
-        if (_DO_NUM_KEYS.has(key)) {
-          it[key] = parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0;
-        } else {
-          it[key] = val.trim();
-        }
-      });
-      // Recalc totals
-      it.estTotal = (it.estQty||0) * (it.hargaSatuan||0);
-      it.aktTotal = (it.aktQty||0) * (it.hargaSatuan||0);
-      it.sumber = _calcSumber(_n(it.stokGudang), _n(it.aktQty));
-      changed++;
+    const mid = 'cp-form-' + Utils.uid();
+    window._cpFormMid = mid;
+    Modal.open({
+      id: mid,
+      title: 'Copy Form Produksi',
+      body: `
+        <div style="margin-bottom:12px;font-size:12px;color:var(--text-3)">
+          Copy <strong style="color:var(--text)">${form.items.length} item</strong> dari <strong style="color:var(--primary)">${srcLabel}</strong> ke:
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group">
+            <label class="form-label">Tanggal Tujuan</label>
+            <input type="date" class="form-control" id="cp-tgl" value="${_date}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Shift Tujuan</label>
+            <select class="form-control" id="cp-shift">
+              ${shiftOpts}
+              ${evtOpts}
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="cp-est-only" checked style="width:15px;height:15px;accent-color:#8b5cf6">
+          <label for="cp-est-only" style="font-size:12px;color:var(--text-2);cursor:pointer">Hanya copy estimasi (tanpa data aktual)</label>
+        </div>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close(window._cpFormMid)">Batal</button>
+        <button class="btn btn-primary" onclick="DailyOrderModule.doCopyForm()" style="background:#8b5cf6;border-color:#8b5cf6">Copy</button>`
+    });
+  }
+
+  async function doCopyForm() {
+    const form = _currentForm();
+    if (!form || !form.items?.length) return;
+    const tgl = document.getElementById('cp-tgl')?.value;
+    const shift = document.getElementById('cp-shift')?.value;
+    const estOnly = document.getElementById('cp-est-only')?.checked ?? true;
+    if (!tgl || !shift) { Notify.warning('Pilih tanggal dan shift tujuan'); return; }
+    if (tgl === _date && shift === _shift) { Notify.warning('Tidak bisa copy ke shift yang sama'); return; }
+
+    // Cek apakah target sudah ada
+    let target = _forms.find(f => f.tanggal === tgl && f.shift === shift);
+    const isNew = !target;
+    if (!target) {
+      target = {
+        id: 'do_' + tgl.replace(/-/g,'') + '_' + shift,
+        tanggal: tgl, shift,
+        budgetBelanja: 0, foodCostPct: _isEvent(shift) ? 45 : _defaultFcp(shift),
+        items: [], status: 'draft',
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      };
+    }
+
+    // Copy items
+    const newItems = form.items.map(it => {
+      const copy = {
+        id: 'item_' + Utils.uid(),
+        item: it.item, satuan: it.satuan, hargaSatuan: it.hargaSatuan,
+        estQty: it.estQty, estTotal: it.estTotal,
+        aktQty: estOnly ? 0 : (it.aktQty||0),
+        aktTotal: estOnly ? 0 : (it.aktTotal||0),
+        stokGudang: 0, sumber: 'STOK', catatan: '',
+      };
+      return copy;
     });
 
-    form.items = items;
-    form.updatedAt = new Date().toISOString();
+    target.items = newItems;
+    target.updatedAt = new Date().toISOString();
+
     try {
-      await DB.saveDailyOrderForm(form);
-      _renderContent();
-      Notify.success(`${changed} baris di-paste${created?' ('+created+' baru)':''}`);
-    } catch(e) { Notify.error('Gagal paste'); }
+      await DB.saveDailyOrderForm(target);
+      if (isNew) _forms.push(target);
+      Modal.close(window._cpFormMid);
+      // Navigate to target
+      _date = tgl; _shift = shift; _formMonth = tgl.slice(0,7);
+      _renderFull(document.getElementById('page-daily-order'));
+      Notify.success(`${newItems.length} item di-copy ke ${_shiftLabel(shift)} ${new Date(tgl+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'short'})}`);
+    } catch(e) { Notify.error('Gagal copy form'); }
   }
 
   function printForm() {
@@ -1733,7 +1783,7 @@ const DailyOrderModule = (() => {
   return {
     init, setView, setDate, setShift, setMonth,
     setFormMonth, prevFormMonth, nextFormMonth,
-    createForm, addEvent, saveEventMeta, copyEstToAkt, printForm, toggleStatus, deleteForm, updateFormMeta,
+    createForm, addEvent, saveEventMeta, copyEstToAkt, openCopyFormModal, doCopyForm, printForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, goToDate,
     _saveEditRow, _cancelEdit, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
