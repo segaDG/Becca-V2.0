@@ -72,7 +72,7 @@ const InventoryModule = (() => {
     const cachedOpname = DB.getCached('opname_logs');
 
     if (cachedItems)  _items      = cachedItems;
-    if (cachedLogs)   _logs       = cachedLogs;
+    if (cachedLogs)   { _logs = cachedLogs; _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||'')); }
     if (cachedOpname) _opnameLogs = cachedOpname;
 
     // Reset edit state
@@ -93,6 +93,7 @@ const InventoryModule = (() => {
       ]);
       _items      = freshItems;
       _logs       = freshLogs;
+      _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
       _opnameLogs = freshOpname;
 
       // Auto-dedup: jika ada nama barang ganda (dari double-migration), bersihkan otomatis
@@ -143,6 +144,7 @@ const InventoryModule = (() => {
       if (n > 0) {
         _items = await DB.getInventoryItems();
         _logs  = await DB.getInventory();
+        _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
         _recalcStok();
         renderStok();
         Notify.success('Duplikat dibersihkan: ' + n + ' item dihapus dari database ✓');
@@ -250,6 +252,7 @@ const InventoryModule = (() => {
       // Reload logs (MASUK/KELUAR only) - OPNAME ada di tab sendiri
       DB.getInventory().then(freshLogs => {
         _logs = freshLogs;
+        _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
         _recalcStok();
         renderTransaksi();
       }).catch(() => renderTransaksi());
@@ -544,13 +547,47 @@ const InventoryModule = (() => {
       </button>`;
     }).join('');
 
+    // Count pending (belum/partial/update)
+    const pendingCount = relevant.filter(f => {
+      const st = 'do_'+(f.tanggal||'').replace(/-/g,'')+'_'+f.shift;
+      const sl = _logs.filter(l=>l.syncTag===st);
+      const ak = (f.items||[]).filter(it=>it.aktQty>0);
+      const full = sl.length >= ak.length && !ak.some(it => { const l=sl.find(x=>(x.itemNama||'').toLowerCase()===(it.item||'').toLowerCase()); return l&&l.jumlah!==it.aktQty; });
+      return !full;
+    }).length;
+
+    // Update badge on Activity Line tab
+    const tabBtn = document.getElementById('inv-tab-btn-transaksi');
+    if (tabBtn) {
+      const oldBadge = tabBtn.querySelector('.sync-badge');
+      if (oldBadge) oldBadge.remove();
+      if (pendingCount > 0) {
+        tabBtn.style.position = 'relative';
+        tabBtn.insertAdjacentHTML('beforeend',
+          '<span class="sync-badge" style="position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;background:#ef4444;color:#fff;font-size:9px;font-weight:700;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface)">' + pendingCount + '</span>');
+      }
+    }
+
+    // Update badge on sidebar
+    const sideLink = document.querySelector('[data-page="inventory"]');
+    if (sideLink) {
+      const oldBadge = sideLink.querySelector('.sync-badge');
+      if (oldBadge) oldBadge.remove();
+      if (pendingCount > 0) {
+        sideLink.style.position = 'relative';
+        sideLink.insertAdjacentHTML('beforeend',
+          '<span class="sync-badge" style="position:absolute;top:4px;right:4px;min-width:14px;height:14px;background:#ef4444;color:#fff;font-size:8px;font-weight:700;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 3px">' + pendingCount + '</span>');
+      }
+    }
+
     el.innerHTML = `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:8px;display:flex;align-items:center;gap:6px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
           Sync Form Produksi
+          ${pendingCount>0?'<span style="background:#ef4444;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700">'+pendingCount+' pending</span>':''}
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${cards}</div>
+        <div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px">${cards}</div>
       </div>`;
   }
 
@@ -705,14 +742,19 @@ const InventoryModule = (() => {
 
   function _n(v) { return Number(v)||0; }
 
+  function reArrangeInv() {
+    _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+    renderTransaksi();
+    Notify.success('Data diurutkan berdasarkan tanggal');
+  }
+
   function renderTransaksi() {
     const canEdit = Auth.can('inventory','edit');
     const sorted  = [..._logs]
       .filter(l => l.jenis !== 'OPNAME')
       .filter(l => l.itemNama || l.tgl)
       .filter(l => !_logFilterNama || (l.itemNama||'').toLowerCase().includes(_logFilterNama))
-      .filter(l => !_logFilterTgl  || (l.tgl||'') === _logFilterTgl)
-      .sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+      .filter(l => !_logFilterTgl  || (l.tgl||'') === _logFilterTgl);
 
     const totalPages = Math.max(1, Math.ceil(sorted.length / _invLogPerPage));
     if (_invLogPage > totalPages) _invLogPage = totalPages;
@@ -765,6 +807,7 @@ const InventoryModule = (() => {
           style="padding:7px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px">
         <button onclick="UndoRedo.undo('inv')" title="Undo (Ctrl+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canUndo('inv')?'':'opacity:.3;pointer-events:none'}">↩</button>
         <button onclick="UndoRedo.redo('inv')" title="Redo (Ctrl+Shift+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canRedo('inv')?'':'opacity:.3;pointer-events:none'}">↪</button>
+        <button onclick="InventoryModule.reArrangeInv()" title="Urutkan berdasarkan tanggal" style="height:30px;padding:0 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;gap:4px;color:var(--text-2);font-size:11px;font-weight:600;white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 6h18M3 12h12M3 18h6"/></svg>Re-arrange</button>
         <button id="inv-log-reset" onclick="InventoryModule.clearLogFilter()"
           style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:12px;cursor:pointer;display:none">✕ Reset</button>
         <span id="inv-log-count" style="font-size:11px;color:var(--text-3);margin-left:auto"></span>
@@ -2446,7 +2489,7 @@ const InventoryModule = (() => {
     _showHPPAIInfo,
     renderLaporanBulanan,
     renderSummary,
-    setLogFilterNama, setLogFilterTgl, clearLogFilter,
+    setLogFilterNama, setLogFilterTgl, clearLogFilter, reArrangeInv,
     syncFormProduksi, _toggleSyncCheck, _confirmSync,
   };
 

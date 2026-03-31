@@ -105,6 +105,7 @@ const EmployeeModule = (() => {
       DB.getEmpJadwal().catch(()=>[]),
     ]);
     _lbLoadLocks();
+    _logs.sort((a,b)=>((b.tanggal||b.tgl||'')).localeCompare((a.tanggal||a.tgl||'')));
     // Auto-lock semua rows yang sudah ada saat init (setelah reload)
     _logs.forEach(l => _lbLocked.add(l.id));
     _lbSaveLocks();
@@ -636,6 +637,7 @@ const EmployeeModule = (() => {
         <input type="date" class="form-control" style="width:140px" id="lb-filter-to"
           onchange="EmployeeModule.renderLogbook()">
         <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._resetLbFilter()" title="Reset">↺</button>
+        <button onclick="EmployeeModule.reArrangeLb()" title="Urutkan" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 6h18M3 12h12M3 18h6"/></svg>Re-arrange</button>
         <span style="margin-left:auto;font-size:12px;color:var(--text-3)" id="lb-count-label"></span>
         ${Auth.can('employee','edit') ? `
           <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._lbLockAll()" title="Kunci semua baris">🔒 Kunci Semua</button>
@@ -690,7 +692,7 @@ const EmployeeModule = (() => {
     const canEdit     = Auth.can('employee','edit');
     const cols        = canEdit ? 8 : 7;
 
-    let logs = [..._logs].sort((a,b)=>((b.tanggal||b.tgl||'')).localeCompare((a.tanggal||a.tgl||'')));
+    let logs = [..._logs];
     if (filterNama)            logs = logs.filter(l=>l.nama===filterNama);
     if (filterBulan)           logs = logs.filter(l=>String(l.bulan)===filterBulan);
     if (filterKonf !== '_all_') logs = logs.filter(l=>l.konfirmasi===filterKonf);
@@ -2681,8 +2683,10 @@ const EmployeeModule = (() => {
     if (prev) prev.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:80px;object-fit:cover;border-radius:4px">';
   }
 
+  function reArrangeLb() { _logs.sort((a,b)=>((b.tanggal||b.tgl||'')).localeCompare((a.tanggal||a.tgl||''))); renderLogbook(); Notify.success('Data diurutkan berdasarkan tanggal'); }
+
   return {
-    init, switchTab, renderData, renderCard, renderLogbook, renderArsip, _deleteEmpFromArsip,
+    init, switchTab, renderData, renderCard, renderLogbook, renderArsip, _deleteEmpFromArsip, reArrangeLb,
     _handleFotoUpload, _removeFoto, _handleKtpUpload, _removeKtp, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter, migratePhotosFromLS,
     _pickFoto, _pickKtp,
     _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, recalcAllHutang, _showLogDetail, goLbPage, setLbPerPage,

@@ -328,6 +328,14 @@ const InvoiceModule = (() => {
     return '';
   }
 
+  /* ══ RE-ARRANGE AR ══ */
+  function reArrangeAR() {
+    _invoices.sort((a,b) => (b.tglInvoice||'').localeCompare(a.tglInvoice||''));
+    _invoices.forEach((inv,i) => { inv.no = i+1; });
+    _renderFull();
+    Notify.success('Data diurutkan berdasarkan tanggal');
+  }
+
   /* ══ TAB AR ══ */
   function _renderAR() {
     let list = [..._invoices];
@@ -359,6 +367,7 @@ const InvoiceModule = (() => {
         <option value="Unpaid" ${_filterStatus==='Unpaid'?'selected':''}>⏱ Belum Bayar</option>
         <option value="Overdue" ${_filterStatus==='Overdue'?'selected':''}>⚠ Overdue</option>
       </select>
+      <button onclick="InvoiceModule.reArrangeAR()" title="Urutkan berdasarkan tanggal" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 6h18M3 12h12M3 18h6"/></svg>Re-arrange</button>
       <span style="font-size:11px;color:var(--text-3);margin-left:auto">
         ${list.length} inv &nbsp;·&nbsp;
         <span style="color:#10b981">✓${paid}</span> &nbsp;·&nbsp;
@@ -1961,7 +1970,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _showConfirmPreview, _createInvoice, _toggleAdditional, _addAdditionalRow, _calcAddRowTotal };
+  return { init, switchTab, setSearch, setFilter, reArrangeAR, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _showConfirmPreview, _createInvoice, _toggleAdditional, _addAdditionalRow, _calcAddRowTotal };
 })();
 
 window.InvoiceModule = InvoiceModule;

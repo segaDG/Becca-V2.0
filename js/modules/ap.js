@@ -38,6 +38,7 @@ const APModule = (() => {
     `;
     Promise.all([DB.getAP().catch(()=>[]), DB.getSuppliers().catch(()=>[])]).then(([ap, sup]) => {
       _ap        = ap;
+      _ap.sort((a,b)=>((b.tgl_transaksi||b.tgl||'')).localeCompare((a.tgl_transaksi||a.tgl||'')));
       _suppliers = sup;
       switchTab('list');
     });
@@ -147,6 +148,7 @@ const APModule = (() => {
           <option value="BELUM">⏳ Belum Bayar</option>
         </select>
         <button onclick="APModule.resetFilter()" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:11px;color:var(--text-3);white-space:nowrap">↺ Reset</button>
+        <button onclick="APModule.reArrangeAP()" title="Urutkan" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 6h18M3 12h12M3 18h6"/></svg>Re-arrange</button>
         <button onclick="UndoRedo.undo('ap')" title="Undo (Ctrl+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canUndo('ap')?'':'opacity:.3;pointer-events:none'}">↩</button>
         <button onclick="UndoRedo.redo('ap')" title="Redo (Ctrl+Shift+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canRedo('ap')?'':'opacity:.3;pointer-events:none'}">↪</button>
         <span id="ap-count-label" style="margin-left:auto;font-size:11px;color:var(--text-3);white-space:nowrap"></span>
@@ -1564,6 +1566,8 @@ const APModule = (() => {
   }
 
 
-  return { init, render, filterBelum, applyFilter, resetFilter, goApPage, setApPerPage, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, apAddRow, _apKey };
+  function reArrangeAP() { _ap.sort((a,b)=>((b.tgl_transaksi||b.tgl||'')).localeCompare((a.tgl_transaksi||a.tgl||''))); _apPage=1; applyFilter(); Notify.success('Data diurutkan berdasarkan tanggal'); }
+
+  return { init, render, filterBelum, applyFilter, resetFilter, reArrangeAP, goApPage, setApPerPage, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, apAddRow, _apKey };
 })();
 window.APModule = APModule;
