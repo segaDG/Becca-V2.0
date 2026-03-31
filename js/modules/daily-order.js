@@ -230,9 +230,12 @@ const DailyOrderModule = (() => {
       case 'selisih':  el.innerHTML = _htmlCekSelisih();   break;
       case 'summary':  el.innerHTML = _htmlSummary();      break;
     }
-    // Register paste callback for form produksi table
-    if (_view === 'form' && window.GridSelect) {
-      GridSelect.onPaste('do-grid', _onGridPaste);
+    if (_view === 'form') {
+      if (window.GridSelect) GridSelect.onPaste('do-grid', _onGridPaste);
+      // Auto-select text on focus for edit inputs
+      document.querySelectorAll('#do-content .form-control').forEach(el => {
+        el.addEventListener('focus', () => { if (el.select) el.select(); }, {once:false});
+      });
     }
   }
 
@@ -798,12 +801,19 @@ const DailyOrderModule = (() => {
       let q2 = _n(o.shift2)+_n(o.spare2)+_n(o.ot2)+_n(o.shift3)+_n(o.spare3)+_n(o.ot3);
       const pph2 = c.pph23 ? Math.round(g2*0.02) : 0;
       const r2 = g2 - pph2 - _n(c.biayaBox)*q2 - _n(c.biayaLainnya)*q2;
-      // Snacks
-      const sn1 = _n(o.snack1)*_n(c.hargaSnack1), sn2 = _n(o.snack2)*_n(c.hargaSnack2);
-      const sn3 = _n(o.snack3)*_n(c.hargaSnack3), sn4 = _n(o.snackBerat)*_n(c.hargaSnackBerat);
+      // Snacks — apply same deductions (PPH23, biayaBox, biayaLainnya)
+      const _snkNet = (gross, qty) => {
+        const p = c.pph23 ? Math.round(gross*0.02) : 0;
+        return gross - p - _n(c.biayaBox)*qty - _n(c.biayaLainnya)*qty;
+      };
+      const sn1g = _n(o.snack1)*_n(c.hargaSnack1), sn1q = _n(o.snack1);
+      const sn2g = _n(o.snack2)*_n(c.hargaSnack2), sn2q = _n(o.snack2);
+      const sn3g = _n(o.snack3)*_n(c.hargaSnack3), sn3q = _n(o.snack3);
+      const sn4g = _n(o.snackBerat)*_n(c.hargaSnackBerat), sn4q = _n(o.snackBerat);
       if(!_revCache[d]) _revCache[d] = {S1:0,S2:0,SNK1:0,SNK2:0,SNK3:0,SNK4:0};
       _revCache[d].S1 += r1; _revCache[d].S2 += r2;
-      _revCache[d].SNK1 += sn1; _revCache[d].SNK2 += sn2; _revCache[d].SNK3 += sn3; _revCache[d].SNK4 += sn4;
+      _revCache[d].SNK1 += _snkNet(sn1g,sn1q); _revCache[d].SNK2 += _snkNet(sn2g,sn2q);
+      _revCache[d].SNK3 += _snkNet(sn3g,sn3q); _revCache[d].SNK4 += _snkNet(sn4g,sn4q);
     });
     function _dayOmset(dateStr) {
       const r = _revCache[dateStr]; if(!r) return 0;
@@ -1046,8 +1056,7 @@ const DailyOrderModule = (() => {
     const stok0  = _n(it?.stokGudang);
     const sumb0  = _calcSumber(stok0, aktQ0);
     const isNew  = !it;
-    const inp    = p => `padding:3px 5px;font-size:11px;${p}" onfocus="this.select()` ;
-    // ^^ closes style=" early, injects onfocus as separate attribute
+    const inp    = p => `padding:3px 5px;font-size:11px;${p}`;
     return `
       <tr style="border-bottom:1px solid var(--border);background:rgba(99,102,241,.04)">
         <td style="padding:4px 3px;text-align:center;color:var(--primary);font-size:11px;font-weight:700">${isNew?'✦':idx+1}</td>
@@ -1212,12 +1221,12 @@ const DailyOrderModule = (() => {
 
     _saving = true;
     try {
+      // Save form, then merge DB result back WITHOUT overwriting items
       const savedForm = await DB.saveDailyOrderForm(form);
-      // Pastikan items dari form TIDAK tertimpa oleh DB result
-      if (savedForm && savedForm !== form) {
-        savedForm.items = form.items; // preserve in-memory items
-        const idx = _forms.findIndex(f => f.id === form.id);
-        if (idx >= 0) _forms[idx] = savedForm;
+      if (savedForm && typeof savedForm === 'object') {
+        // Merge DB metadata (updatedAt etc) into existing form, preserve items
+        const preserveKeys = new Set(['items']);
+        Object.keys(savedForm).forEach(k => { if (!preserveKeys.has(k)) form[k] = savedForm[k]; });
       }
       // After saving existing item → return to view; after adding new → stay in 'new' mode
       _editingItemId = wasNew ? 'new' : null;

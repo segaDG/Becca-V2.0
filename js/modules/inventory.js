@@ -723,10 +723,10 @@ const InventoryModule = (() => {
     const aktItems = (form.items||[]).filter(it => it.aktQty > 0);
     let synced = 0, revised = 0;
 
-    // Read revised QTY from DOM
+    // Read revised QTY from DOM (key as number to match loop index)
     const revInputs = document.querySelectorAll('[data-sync-idx]');
     const revMap = {};
-    revInputs.forEach(inp => { revMap[inp.dataset.syncIdx] = parseFloat(inp.value)||0; });
+    revInputs.forEach(inp => { revMap[parseInt(inp.dataset.syncIdx,10)] = parseFloat(inp.value)||0; });
 
     for (const [i, it] of aktItems.entries()) {
       if (!checked.has(i)) continue;
