@@ -33,7 +33,7 @@ const DailyOrderModule = (() => {
 
   function _fmtRp(n) {
     if (!n && n !== 0) return '-';
-    return 'Rp\u00a0' + Number(n).toLocaleString('id-ID');
+    return 'Rp\u00a0' + Math.round(Number(n)).toLocaleString('id-ID');
   }
 
   function _n(v) { return Number(v) || 0; }

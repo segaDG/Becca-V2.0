@@ -732,9 +732,9 @@ const InventoryModule = (() => {
         .iv-del{width:26px;height:26px;border:none;background:transparent;cursor:pointer;color:var(--text-3);border-radius:4px;display:flex;align-items:center;justify-content:center;margin:auto;transition:all .15s;}
         .iv-del:hover{background:rgba(239,68,68,.15);color:var(--danger);}
         .iv-saved{animation:ivSv .5s ease;}@keyframes ivSv{0%{background:rgba(34,197,94,.25)}100%{background:transparent}}
-        .iv-tbl tr.iv-synced td{background:rgba(16,185,129,.04)!important;border-left-color:rgba(16,185,129,.15)}
-        .iv-tbl tr.iv-synced:hover td{background:rgba(16,185,129,.1)!important}
-        .iv-tbl tr.iv-synced td:first-child{border-left:3px solid #10b981!important}
+        .iv-tbl tr.iv-synced td{background:rgba(139,92,246,.04)!important;border-left-color:rgba(139,92,246,.15)}
+        .iv-tbl tr.iv-synced:hover td{background:rgba(139,92,246,.1)!important}
+        .iv-tbl tr.iv-synced td:first-child{border-left:3px solid #8b5cf6!important}
       `;
       document.head.appendChild(st);
     }
@@ -857,7 +857,7 @@ const InventoryModule = (() => {
         </div>
       </td>
       <td data-field="ivf-tgl-${r.id}"><div class="ivc">${r.tgl?(r.tgl.split('-').reverse().join('-')):''}</div></td>
-      <td data-field="ivf-item-txt-${r.id}"><div class="ivc">${r.itemNama||''}${isSync?'<span style="font-size:8px;background:rgba(16,185,129,.15);color:#10b981;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">SYNC</span>':''}</div></td>
+      <td data-field="ivf-item-txt-${r.id}"><div class="ivc">${r.itemNama||''}${isSync?'<span style="font-size:8px;background:rgba(139,92,246,.15);color:#8b5cf6;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">SYNC</span>':''}</div></td>
       <td data-field="ivf-jenis-${r.id}"><div class="ivc"><span class="badge" style="background:${jColor}18;color:${jColor};border:1px solid ${jColor}40;font-size:10px">${r.jenis||''}</span></div></td>
       <td data-field="ivf-jumlah-${r.id}" class="iv-num"><div class="ivc">${r.jumlah||0}</div></td>
       <td data-field="ivf-harga-${r.id}" class="iv-num"><div class="ivc">${r.harga?Utils.formatRupiah(r.harga):'-'}</div></td>
