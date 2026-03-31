@@ -556,14 +556,14 @@ const DailyOrderModule = (() => {
                   <tfoot>
                     <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:700">
                       <td colspan="5" style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px;letter-spacing:.03em">TOTAL ESTIMASI</td>
-                      <td style="padding:9px 5px;text-align:right;color:#6366f1">${totalEst.toLocaleString('id-ID')}</td>
+                      <td style="padding:9px 5px;text-align:right;color:#6366f1">${_fmtRp(totalEst)}</td>
                       <td style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px">AKTUAL</td>
-                      <td style="padding:9px 5px;text-align:right;color:#10b981">${totalAkt.toLocaleString('id-ID')}</td>
+                      <td style="padding:9px 5px;text-align:right;color:#10b981">${_fmtRp(totalAkt)}</td>
                       <td colspan="2"></td>
                       <td style="padding:9px 5px;text-align:right;white-space:nowrap">
                         <div style="font-size:9px;color:var(--text-3);font-weight:600">SISA AKT (${_shiftLabel(_shift)})</div>
                         <div style="font-size:12px;font-weight:800;color:${shiftSisaAkt>=0?'#10b981':'#ef4444'}">
-                          ${shiftSisaAkt>=0?'+':''}${Math.round(shiftSisaAkt).toLocaleString('id-ID')}
+                          ${shiftSisaAkt>=0?'+':''}${_fmtRp(Math.abs(shiftSisaAkt))}
                         </div>
                       </td>
                     </tr>
@@ -638,7 +638,7 @@ const DailyOrderModule = (() => {
                       <td style="padding:8px;font-weight:600">${it.item}</td>
                       <td style="padding:8px;text-align:right;font-weight:700;color:var(--primary)">${it.totalQty.toLocaleString('id-ID',{maximumFractionDigits:2})}</td>
                       <td style="padding:8px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
-                      <td style="padding:8px;text-align:right">${it.totalValue.toLocaleString('id-ID')}</td>
+                      <td style="padding:8px;text-align:right">${_fmtRp(it.totalValue)}</td>
                       <td style="padding:8px">
                         <div style="display:flex;align-items:center;gap:6px">
                           <div style="flex:1;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">
@@ -678,7 +678,7 @@ const DailyOrderModule = (() => {
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4);margin-bottom:var(--s4)">
         <div style="font-size:11px;font-weight:700;color:var(--text-3)">TOTAL SELISIH NILAI</div>
         <div style="font-size:26px;font-weight:700;margin-top:4px;color:${totalNilai>=0?'#ef4444':'#10b981'}">
-          ${totalNilai>=0?'+':''}${totalNilai.toLocaleString('id-ID')}
+          ${totalNilai>=0?'+':''}${_fmtRp(Math.abs(totalNilai))}
         </div>
         <div style="font-size:11px;color:var(--text-3);margin-top:4px">
           + = aktual melebihi estimasi &nbsp;|&nbsp; − = aktual lebih hemat dari estimasi
@@ -718,7 +718,7 @@ const DailyOrderModule = (() => {
                         ${ok?'-':(r.selisih>0?'+':'')+r.selisih.toLocaleString('id-ID',{maximumFractionDigits:2})}
                       </td>
                       <td style="padding:8px;text-align:right;font-weight:600;color:${ok?'var(--text-3)':over?'#ef4444':'#6366f1'}">
-                        ${ok?'-':(r.nilaiSelisih>0?'+':'')+r.nilaiSelisih.toLocaleString('id-ID')}
+                        ${ok?'-':(r.nilaiSelisih>0?'+':'')+_fmtRp(Math.abs(r.nilaiSelisih))}
                       </td>
                       <td style="padding:8px;text-align:center">
                         <span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;
@@ -973,10 +973,10 @@ const DailyOrderModule = (() => {
         <td data-field="di-item" style="padding:7px 5px;font-weight:600">${it.item}</td>
         <td data-field="di-estqty" style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
         <td data-field="di-item" style="padding:7px 5px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
-        <td data-field="di-harga" style="padding:7px 5px;text-align:right;color:var(--text-3)">${_n(it.hargaSatuan)?_n(it.hargaSatuan).toLocaleString('id-ID'):'-'}</td>
-        <td data-field="di-harga" style="padding:7px 5px;text-align:right;color:#6366f1">${_n(it.estTotal)?_n(it.estTotal).toLocaleString('id-ID'):'-'}</td>
+        <td data-field="di-harga" style="padding:7px 5px;text-align:right;color:var(--text-3)">${_n(it.hargaSatuan)?_fmtRp(it.hargaSatuan):'-'}</td>
+        <td data-field="di-harga" style="padding:7px 5px;text-align:right;color:#6366f1">${_n(it.estTotal)?_fmtRp(it.estTotal):'-'}</td>
         <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">${it.aktQty||'-'}</td>
-        <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?_n(it.aktTotal).toLocaleString('id-ID'):'-'}</td>
+        <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?_fmtRp(it.aktTotal):'-'}</td>
         <td data-field="di-aktqty" style="padding:7px 5px;text-align:center">
           <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;
             background:${sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'};
@@ -1260,75 +1260,84 @@ const DailyOrderModule = (() => {
     const budgetVal = revenue > 0 ? revenue * fcp / 100 : _n(form.budgetBelanja);
     const dateLabel = new Date(_date+'T00:00:00').toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     const rp = n => n ? 'Rp '+Math.round(n).toLocaleString('id') : '-';
+    const summary = _getOrderSummary(_date, _shift);
+    const totalPortions = summary.reduce((s,c) => s + c.total, 0);
 
-    const rows = items.map((it,i) => {
+    const custRows = summary.map(c => `
+      <div style="display:inline-flex;align-items:center;gap:4px;background:#f0f0ff;border:1px solid #ddd;border-radius:6px;padding:4px 10px">
+        <span style="font-size:10px;font-weight:700;color:#3B4E87">${_shortName(c.nama)}</span>
+        <span style="font-size:12px;font-weight:800;color:#1a1a2e">${c.total}</span>
+        <span style="font-size:9px;color:#999">${c.meals>0&&c.snacks>0?c.meals+'pax '+c.snacks+'snk':c.snacks>0?'snk':'pax'}</span>
+      </div>`).join('');
+
+    const itemRows = items.map((it,i) => {
       const sumber = it.sumber || _calcSumber(_n(it.stokGudang), _n(it.aktQty));
       return `<tr style="border-bottom:1px solid #ddd;${i%2?'background:#f8f9fa':''}">
-        <td style="padding:5px 6px;text-align:center;color:#999;font-size:10px">${i+1}</td>
-        <td style="padding:5px 6px;font-weight:600">${it.item||''}</td>
-        <td style="padding:5px 6px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
-        <td style="padding:5px 6px;text-align:center;color:#666">${it.satuan||''}</td>
-        <td style="padding:5px 6px;text-align:right;color:#666">${_n(it.hargaSatuan)?_n(it.hargaSatuan).toLocaleString('id'):'-'}</td>
-        <td style="padding:5px 6px;text-align:right;color:#6366f1">${_n(it.estTotal)?_n(it.estTotal).toLocaleString('id'):'-'}</td>
-        <td style="padding:5px 6px;text-align:right;color:#10b981;font-weight:600">${it.aktQty||'-'}</td>
-        <td style="padding:5px 6px;text-align:right;color:#10b981">${_n(it.aktTotal)?_n(it.aktTotal).toLocaleString('id'):'-'}</td>
-        <td style="padding:5px 6px;text-align:center"><span style="font-size:10px;padding:1px 6px;border-radius:10px;
+        <td style="padding:4px 5px;text-align:center;color:#999;font-size:9px">${i+1}</td>
+        <td style="padding:4px 5px;font-weight:600;font-size:10px">${it.item||''}</td>
+        <td style="padding:4px 5px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
+        <td style="padding:4px 5px;text-align:center;color:#666">${it.satuan||''}</td>
+        <td style="padding:4px 5px;text-align:right;color:#666">${_n(it.hargaSatuan)?rp(it.hargaSatuan):'-'}</td>
+        <td style="padding:4px 5px;text-align:right;color:#6366f1">${_n(it.estTotal)?rp(it.estTotal):'-'}</td>
+        <td style="padding:4px 5px;text-align:right;color:#10b981;font-weight:600">${it.aktQty||'-'}</td>
+        <td style="padding:4px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?rp(it.aktTotal):'-'}</td>
+        <td style="padding:4px 5px;text-align:center"><span style="font-size:9px;padding:1px 5px;border-radius:8px;
           background:${sumber==='PASAR'?'#fef2f2':'#f0fdf4'};color:${sumber==='PASAR'?'#ef4444':'#10b981'};font-weight:600">${sumber}</span></td>
-        <td style="padding:5px 6px;color:#999;font-size:10px">${it.catatan||''}</td>
       </tr>`;
     }).join('');
 
+    const sisaEst = budgetVal - totalEst;
+    const sisaAkt = budgetVal - totalAkt;
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>Form Produksi - ${dateLabel} - ${_shiftLabel(_shift)}</title>
     <style>
       *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a2e;padding:20px}
-      @page{size:A4 landscape;margin:10mm}
-      @media print{.no-print{display:none!important}}
+      body{font-family:Arial,sans-serif;font-size:10px;color:#1a1a2e;padding:16px}
+      @page{size:A4 portrait;margin:8mm}
+      @media print{.no-print{display:none!important}body{padding:0}}
       table{width:100%;border-collapse:collapse}
-      th{background:#3B4E87;color:#fff;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+      th{background:#3B4E87;color:#fff;padding:5px;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+      td{font-size:10px}
     </style></head><body>
     <button class="no-print" onclick="window.print()" style="position:fixed;top:10px;right:10px;padding:8px 20px;background:#3B4E87;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;z-index:99">Print</button>
 
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;border-bottom:3px solid #3B4E87;padding-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;border-bottom:3px solid #3B4E87;padding-bottom:8px">
       <div>
-        <div style="font-size:18px;font-weight:900;color:#3B4E87">FORM PRODUKSI</div>
-        <div style="font-size:12px;color:#666;margin-top:2px">BOGA PANGAN SENTOSA - Industrial Catering Service</div>
+        <div style="font-size:16px;font-weight:900;color:#3B4E87">FORM PRODUKSI</div>
+        <div style="font-size:10px;color:#666;margin-top:1px">BOGA PANGAN SENTOSA — Industrial Catering Service</div>
       </div>
       <div style="text-align:right">
-        <div style="font-size:13px;font-weight:700">${dateLabel}</div>
-        <div style="font-size:12px;color:#3B4E87;font-weight:700">${_shiftLabel(_shift)}</div>
-        <div style="font-size:10px;color:#666;margin-top:2px">Status: ${form.status==='final'?'Final':'Draft'}</div>
+        <div style="font-size:12px;font-weight:700">${dateLabel}</div>
+        <div style="font-size:11px;color:#3B4E87;font-weight:700">${_shiftLabel(_shift)}</div>
+        <div style="font-size:9px;color:#666;margin-top:1px">${form.status==='final'?'Final':'Draft'} &middot; FC ${fcp}%</div>
       </div>
     </div>
 
-    <div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap">
-      <div style="background:#f0f0ff;border:1px solid #ddd;border-radius:6px;padding:8px 14px;flex:1;min-width:120px">
-        <div style="font-size:9px;color:#666;font-weight:700;text-transform:uppercase">Budget</div>
-        <div style="font-size:14px;font-weight:800;color:#3B4E87">${rp(budgetVal)}</div>
-      </div>
-      <div style="background:#f0f0ff;border:1px solid #ddd;border-radius:6px;padding:8px 14px;flex:1;min-width:120px">
-        <div style="font-size:9px;color:#666;font-weight:700;text-transform:uppercase">Est HPP</div>
-        <div style="font-size:14px;font-weight:800;color:#6366f1">${rp(totalEst)}</div>
-      </div>
-      <div style="background:#f0fff4;border:1px solid #ddd;border-radius:6px;padding:8px 14px;flex:1;min-width:120px">
-        <div style="font-size:9px;color:#666;font-weight:700;text-transform:uppercase">Akt HPP</div>
-        <div style="font-size:14px;font-weight:800;color:#10b981">${rp(totalAkt)}</div>
-      </div>
-      <div style="background:${budgetVal-totalEst>=0?'#f0fff4':'#fff0f0'};border:1px solid #ddd;border-radius:6px;padding:8px 14px;flex:1;min-width:120px">
-        <div style="font-size:9px;color:#666;font-weight:700;text-transform:uppercase">Sisa Est</div>
-        <div style="font-size:14px;font-weight:800;color:${budgetVal-totalEst>=0?'#10b981':'#ef4444'}">${(budgetVal-totalEst>=0?'+':'')+rp(Math.abs(budgetVal-totalEst))}</div>
-      </div>
-      <div style="background:${budgetVal-totalAkt>=0?'#f0fff4':'#fff0f0'};border:1px solid #ddd;border-radius:6px;padding:8px 14px;flex:1;min-width:120px">
-        <div style="font-size:9px;color:#666;font-weight:700;text-transform:uppercase">Sisa Akt</div>
-        <div style="font-size:14px;font-weight:800;color:${budgetVal-totalAkt>=0?'#10b981':'#ef4444'}">${(budgetVal-totalAkt>=0?'+':'')+rp(Math.abs(budgetVal-totalAkt))}</div>
-      </div>
+    <!-- Order Summary -->
+    <div style="margin-bottom:10px;padding:8px 10px;background:#f8f8ff;border:1px solid #e0e0f0;border-radius:6px">
+      <div style="font-size:8px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Ringkasan Order — ${totalPortions} porsi</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">${custRows}</div>
     </div>
 
+    <!-- Budget Cards -->
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      ${[
+        {l:'Budget',  v:rp(budgetVal), bg:'#f0f0ff', c:'#3B4E87'},
+        {l:'Est HPP', v:rp(totalEst),  bg:'#f0f0ff', c:'#6366f1'},
+        {l:'Akt HPP', v:rp(totalAkt),  bg:'#f0fff4', c:'#10b981'},
+        {l:'Sisa Est',v:(sisaEst>=0?'+':'')+rp(Math.abs(sisaEst)), bg:sisaEst>=0?'#f0fff4':'#fff0f0', c:sisaEst>=0?'#10b981':'#ef4444'},
+        {l:'Sisa Akt',v:(sisaAkt>=0?'+':'')+rp(Math.abs(sisaAkt)), bg:sisaAkt>=0?'#f0fff4':'#fff0f0', c:sisaAkt>=0?'#10b981':'#ef4444'},
+      ].map(s=>`<div style="flex:1;background:${s.bg};border:1px solid #ddd;border-radius:5px;padding:5px 8px;min-width:0">
+        <div style="font-size:7px;color:#666;font-weight:700;text-transform:uppercase">${s.l}</div>
+        <div style="font-size:11px;font-weight:800;color:${s.c};white-space:nowrap">${s.v}</div>
+      </div>`).join('')}
+    </div>
+
+    <!-- Items Table -->
     <table>
       <thead><tr>
-        <th style="width:24px">#</th>
-        <th style="text-align:left;min-width:140px">Item / Bahan</th>
+        <th style="width:20px">#</th>
+        <th style="text-align:left">Item / Bahan</th>
         <th style="text-align:right">Est Qty</th>
         <th style="text-align:center">Sat</th>
         <th style="text-align:right">Harga @</th>
@@ -1336,33 +1345,33 @@ const DailyOrderModule = (() => {
         <th style="text-align:right">Akt Qty</th>
         <th style="text-align:right">Akt Total</th>
         <th style="text-align:center">Sumber</th>
-        <th style="text-align:left">Catatan</th>
       </tr></thead>
-      <tbody>${rows}</tbody>
+      <tbody>${itemRows}</tbody>
       <tfoot>
         <tr style="background:#e8eaf6;border-top:2px solid #3B4E87;font-weight:700">
-          <td colspan="5" style="padding:6px;text-align:right;color:#666;font-size:10px">TOTAL</td>
-          <td style="padding:6px;text-align:right;color:#6366f1">${totalEst.toLocaleString('id')}</td>
+          <td colspan="5" style="padding:5px;text-align:right;color:#666;font-size:9px">TOTAL</td>
+          <td style="padding:5px;text-align:right;color:#6366f1">${rp(totalEst)}</td>
           <td></td>
-          <td style="padding:6px;text-align:right;color:#10b981">${totalAkt.toLocaleString('id')}</td>
-          <td colspan="2"></td>
+          <td style="padding:5px;text-align:right;color:#10b981">${rp(totalAkt)}</td>
+          <td></td>
         </tr>
       </tfoot>
     </table>
 
-    <div style="margin-top:24px;display:flex;justify-content:space-between">
-      <div style="text-align:center;min-width:150px">
-        <div style="font-size:10px;color:#666;margin-bottom:40px">Dibuat oleh,</div>
-        <div style="border-top:1px solid #333;padding-top:3px;font-size:9px;color:#666">Admin Produksi</div>
+    <!-- Signatures -->
+    <div style="margin-top:20px;display:flex;justify-content:space-between">
+      <div style="text-align:center;min-width:140px">
+        <div style="font-size:9px;color:#666;margin-bottom:36px">Dibuat oleh,</div>
+        <div style="border-top:1px solid #333;padding-top:2px;font-size:8px;color:#666">Admin Produksi</div>
       </div>
-      <div style="text-align:center;min-width:150px">
-        <div style="font-size:10px;color:#666;margin-bottom:40px">Disetujui oleh,</div>
-        <div style="border-top:1px solid #333;padding-top:3px;font-size:9px;color:#666">Manager Produksi</div>
+      <div style="text-align:center;min-width:140px">
+        <div style="font-size:9px;color:#666;margin-bottom:36px">Disetujui oleh,</div>
+        <div style="border-top:1px solid #333;padding-top:2px;font-size:8px;color:#666">Manager Produksi</div>
       </div>
     </div>
     </body></html>`;
 
-    const w = window.open('','_blank','width=1000,height=700');
+    const w = window.open('','_blank','width=800,height=900');
     if (w) { w.document.write(html); w.document.close(); }
     else Notify.warning('Popup diblokir browser');
   }
