@@ -384,6 +384,10 @@ const DB = (() => {
     const { error } = await sb.from(table).delete().eq('id', id);
     if (error) {
       console.warn('[DB] delete ' + table + ':', error.message);
+      // Tetap hapus dari localStorage agar UI konsisten
+      _lsDelete(table, id);
+      _invalidateCache(table);
+      throw new Error('[DB] delete ' + table + ' failed: ' + error.message);
     }
     _invalidateCache(table);
     _lsDelete(table, id);

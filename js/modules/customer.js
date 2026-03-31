@@ -111,16 +111,17 @@ const CustomerModule = (() => {
     // Filter out customers yang sudah dihapus tapi masih ada di DB
     const _deletedIds = _getDeletedIds();
     if (_deletedIds.length) {
+      const delSet = new Set(_deletedIds.map(String));
       const beforeLen = _data.length;
-      _data = _data.filter(c => !_deletedIds.includes(c.id));
+      _data = _data.filter(c => !delSet.has(String(c.id)));
       if (_data.length < beforeLen) {
         console.log('[Customer] Filtered out', beforeLen - _data.length, 'deleted customers from DB');
-        // Retry DB deletion untuk ID yang masih pending
-        _deletedIds.forEach(id => DB.deleteCustomer(id).then(() => {
-          const ids = _getDeletedIds().filter(x => x !== id);
-          localStorage.setItem(_DELETED_KEY, JSON.stringify(ids));
-        }).catch(() => {}));
       }
+      // Retry DB deletion untuk semua ID yang masih pending
+      _deletedIds.forEach(id => DB.deleteCustomer(id).then(() => {
+        const ids = _getDeletedIds().filter(x => String(x) !== String(id));
+        localStorage.setItem(_DELETED_KEY, JSON.stringify(ids));
+      }).catch(() => {}));
     }
 
     // Migrate: rename old names to canonical full names
@@ -822,8 +823,9 @@ const CustomerModule = (() => {
     try { return JSON.parse(localStorage.getItem(_DELETED_KEY) || '[]'); } catch { return []; }
   }
   function _addDeletedId(id) {
-    const ids = _getDeletedIds();
-    if (!ids.includes(id)) { ids.push(id); localStorage.setItem(_DELETED_KEY, JSON.stringify(ids)); }
+    const sid = String(id);
+    const ids = _getDeletedIds().map(String);
+    if (!ids.includes(sid)) { ids.push(sid); localStorage.setItem(_DELETED_KEY, JSON.stringify(ids)); }
   }
 
   async function deleteCustomer(id) {
