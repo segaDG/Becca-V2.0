@@ -194,9 +194,19 @@ const KasModule = (() => {
   }
 
   /* ===================== RENDER TRANSAKSI ===================== */
+  let _autoSort = true; // default: sort by date
+
+  function reArrange() {
+    _autoSort = true;
+    renderTransaksi();
+    Notify.success('Data diurutkan berdasarkan tanggal');
+  }
+
   function renderTransaksi() {
     const canEdit = Auth.can('kas','edit');
-    const filtered = _applyFilter(_kas).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    const filtered = _applyFilter(_kas);
+    if (_autoSort) filtered.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    _autoSort = false; // setelah render, jangan auto-sort lagi sampai user klik re-arrange
     const total    = filtered.length;
     const paged    = filtered.slice((_page-1)*_perPage, _page*_perPage);
     const totalPg  = Math.ceil(total/_perPage);
@@ -229,6 +239,16 @@ const KasModule = (() => {
                  color:var(--text-2);font-size:18px;transition:all .15s;"
           onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'"
           onmouseout="this.style.background='transparent';this.style.color='var(--text-2)'">↺</button>
+        <button onclick="KasModule.reArrange()" title="Urutkan berdasarkan tanggal"
+          style="height:34px;padding:0 10px;border-radius:var(--r-sm);
+                 border:1px solid var(--border2);background:transparent;
+                 cursor:pointer;display:flex;align-items:center;gap:4px;
+                 color:var(--text-2);font-size:11px;font-weight:600;transition:all .15s;white-space:nowrap"
+          onmouseover="this.style.background='rgba(99,102,241,.1)';this.style.color='var(--primary)';this.style.borderColor='var(--primary)'"
+          onmouseout="this.style.background='transparent';this.style.color='var(--text-2)';this.style.borderColor='var(--border2)'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 6h18M3 12h12M3 18h6"/></svg>
+          Re-arrange
+        </button>
         <span class="text-muted text-small" style="margin-left:auto">${total} baris</span>
       </div>
 
@@ -627,8 +647,8 @@ const KasModule = (() => {
       return true;
     });
   }
-  function setFilter(k,v){ if(_editingId)commitEdit(_editingId); _filter[k]=v; _page=1; renderTransaksi(); }
-  function resetFilter()  { if(_editingId)commitEdit(_editingId); _filter={}; _page=1; renderTransaksi(); }
+  function setFilter(k,v){ if(_editingId)commitEdit(_editingId); _filter[k]=v; _page=1; _autoSort=true; renderTransaksi(); }
+  function resetFilter()  { if(_editingId)commitEdit(_editingId); _filter={}; _page=1; _autoSort=true; renderTransaksi(); }
   function goPage(p)      { if(_editingId)commitEdit(_editingId); _page=p; renderTransaksi(); }
   function setPerPage(n)  { _perPage=n; localStorage.setItem('becca_kas_perPage',n); _page=1; renderTransaksi(); }
 
@@ -1530,6 +1550,6 @@ const KasModule = (() => {
     }
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
+  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
 })();
 window.KasModule = KasModule;
