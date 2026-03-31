@@ -675,7 +675,7 @@ const InventoryModule = (() => {
           </table>
         </div>
         <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:11px;color:var(--text-3)">${checkedCount} / ${syncableCount} item dicentang</span>
+          <span style="font-size:11px;color:var(--text-3)"><span class="sync-checked-count">${checkedCount}</span> / ${syncableCount} item dicentang</span>
           <div style="display:flex;gap:8px">
             <button class="btn btn-ghost" onclick="Modal.close(window._syncPreviewMid)">Batal</button>
             <button class="btn btn-primary" onclick="InventoryModule._confirmSync('${formId}')"
@@ -692,9 +692,16 @@ const InventoryModule = (() => {
     if (!_syncChecked[formId]) _syncChecked[formId] = new Set();
     const s = _syncChecked[formId];
     if (s.has(idx)) s.delete(idx); else s.add(idx);
-    // Re-open modal to refresh
-    Modal.close(window._syncPreviewMid);
-    setTimeout(() => syncFormProduksi(formId), 50);
+    // Update button text + state tanpa refresh modal
+    const cnt = s.size;
+    const btn = document.querySelector('[onclick*="_confirmSync"]');
+    if (btn) {
+      btn.textContent = 'Sync ' + cnt + ' Item';
+      btn.style.opacity = cnt ? '1' : '.4';
+      btn.style.pointerEvents = cnt ? 'auto' : 'none';
+    }
+    const cntEl = document.querySelector('.sync-checked-count');
+    if (cntEl) cntEl.textContent = cnt;
   }
 
   async function _confirmSync(formId) {
@@ -828,6 +835,13 @@ const InventoryModule = (() => {
     if (resetBtn) resetBtn.style.display = (_logFilterNama || _logFilterTgl) ? '' : 'none';
     const countEl = document.getElementById('inv-log-count');
     if (countEl) countEl.textContent = sorted.length + ' baris';
+    // Update undo/redo button state
+    document.querySelectorAll('#inv-log-filter button[onclick*="UndoRedo"]').forEach(btn => {
+      const isUndo = btn.onclick?.toString().includes('undo');
+      const canDo = isUndo ? UndoRedo.canUndo('inv') : UndoRedo.canRedo('inv');
+      btn.style.opacity = canDo ? '1' : '.3';
+      btn.style.pointerEvents = canDo ? 'auto' : 'none';
+    });
 
     // ── Table: always re-render ──
     let tableDiv = document.getElementById('inv-log-table');
@@ -1398,7 +1412,8 @@ const InventoryModule = (() => {
       if (!ok) return; // validation failed, block adding new row
     }
     const today = new Date().toISOString().split('T')[0];
-    const newRow = {tgl:today,itemId:'',itemNama:'',jenis:'MASUK',jumlah:0,stokAkhir:0,harga:0,kodeAktivitas:'',hpp:0,pengambil:'',penanggungJawab:'',catatan:''};
+    const _user = (typeof Auth!=='undefined'&&Auth.currentUser()) ? (Auth.currentUser().nama||Auth.currentUser().username||'') : '';
+    const newRow = {tgl:today,itemId:'',itemNama:'',jenis:'MASUK',jumlah:0,stokAkhir:0,harga:0,kodeAktivitas:'',hpp:0,pengambil:'',penanggungJawab:_user,catatan:''};
     try {
       const saved = await DB.saveInventoryLog(newRow);
       saved._isNew = true;  // strict validation until first commit

@@ -1184,7 +1184,13 @@ const DailyOrderModule = (() => {
 
     _saving = true;
     try {
-      await DB.saveDailyOrderForm(form);
+      const savedForm = await DB.saveDailyOrderForm(form);
+      // Pastikan items dari form TIDAK tertimpa oleh DB result
+      if (savedForm && savedForm !== form) {
+        savedForm.items = form.items; // preserve in-memory items
+        const idx = _forms.findIndex(f => f.id === form.id);
+        if (idx >= 0) _forms[idx] = savedForm;
+      }
       // After saving existing item → return to view; after adding new → stay in 'new' mode
       _editingItemId = wasNew ? 'new' : null;
       _renderContent();
