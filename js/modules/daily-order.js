@@ -475,15 +475,38 @@ const DailyOrderModule = (() => {
               ` : ''}
             </div>`
         }
-        ${budgetVal > 0 && totalEst > 0 ? `
-          <div style="margin-top:10px;background:var(--surface2);height:6px;border-radius:3px;overflow:hidden">
-            <div style="height:100%;width:${Math.min(100,(totalEst/budgetVal*100)).toFixed(1)}%;
-              background:${budgetOk?'#10b981':'#ef4444'};border-radius:3px;transition:width .3s"></div>
-          </div>
-          <div style="font-size:10px;color:var(--text-3);margin-top:4px;text-align:right">
-            ${(totalEst/budgetVal*100).toFixed(1)}% dari budget
-          </div>
-        ` : ''}
+        ${budgetVal > 0 ? (() => {
+          const sisaEst = budgetVal - totalEst;
+          const sisaEstC = sisaEst >= 0 ? '#10b981' : '#ef4444';
+          const sisaAktC = shiftSisaAkt >= 0 ? '#10b981' : '#ef4444';
+          const estPct = totalEst > 0 ? (totalEst/budgetVal*100) : 0;
+          return `
+          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+            <div style="flex:1;min-width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+              <div style="font-size:9px;font-weight:700;color:var(--text-3);letter-spacing:.04em;margin-bottom:4px">SISA EST (${_shiftLabel(_shift)})</div>
+              <div style="font-size:16px;font-weight:800;color:${sisaEstC};font-family:var(--font-mono)">
+                ${sisaEst>=0?'+':''}${_fmtRp(Math.abs(sisaEst))}
+              </div>
+              ${totalEst > 0 ? `
+              <div style="margin-top:4px;background:var(--border);height:4px;border-radius:2px;overflow:hidden">
+                <div style="height:100%;width:${Math.min(100,estPct).toFixed(1)}%;background:${budgetOk?'#10b981':'#ef4444'};border-radius:2px"></div>
+              </div>
+              <div style="font-size:9px;color:var(--text-3);margin-top:2px">${estPct.toFixed(1)}% terpakai</div>` : ''}
+            </div>
+            <div style="flex:1;min-width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+              <div style="font-size:9px;font-weight:700;color:var(--text-3);letter-spacing:.04em;margin-bottom:4px">SISA AKT (${_shiftLabel(_shift)})</div>
+              <div style="font-size:16px;font-weight:800;color:${sisaAktC};font-family:var(--font-mono)">
+                ${shiftSisaAkt>=0?'+':''}${_fmtRp(Math.abs(shiftSisaAkt))}
+              </div>
+              ${totalAkt > 0 ? `
+              <div style="margin-top:4px;background:var(--border);height:4px;border-radius:2px;overflow:hidden">
+                <div style="height:100%;width:${Math.min(100,(totalAkt/budgetVal*100)).toFixed(1)}%;background:${shiftSisaAkt>=0?'#10b981':'#ef4444'};border-radius:2px"></div>
+              </div>
+              <div style="font-size:9px;color:var(--text-3);margin-top:2px">${(totalAkt/budgetVal*100).toFixed(1)}% terpakai</div>` :
+              '<div style="font-size:9px;color:var(--text-3);margin-top:4px">Belum ada data aktual</div>'}
+            </div>
+          </div>`;
+        })() : ''}
       </div>
 
       <!-- Form produksi table -->
