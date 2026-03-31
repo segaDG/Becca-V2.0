@@ -12,6 +12,8 @@ const EmployeeModule = (() => {
   let _searchQ    = '';
   let _lbEditId   = null;   // logbook row sedang diedit
   let _lbLocked   = new Set(); // id yang terkunci
+  let _lbPage     = 1;
+  let _lbPerPage  = parseInt(localStorage.getItem('becca_lb_perPage')||'50');
   const _LB_LOCK_KEY = 'becca_lb_locked_ids';
   let _filterStatus = '';
   let _filterDept   = '';
@@ -672,8 +674,11 @@ const EmployeeModule = (() => {
   function _resetLbFilter() {
     ['lb-filter-nama','lb-filter-bulan','lb-filter-konf','lb-filter-from','lb-filter-to']
       .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    _lbPage = 1;
     renderLogbook();
   }
+  function goLbPage(p) { _lbPage = Math.max(1,p); renderLogbook(); }
+  function setLbPerPage(n) { _lbPerPage = n; localStorage.setItem('becca_lb_perPage',n); _lbPage = 1; renderLogbook(); }
 
   function _renderLogRows() {
     const BULAN_LABEL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
@@ -698,7 +703,31 @@ const EmployeeModule = (() => {
     const subHutang = logs.reduce((s,l)=>s+(l.hutang||(l.jenis==='BERHUTANG'?l.jumlah:0)||0),0);
     const subBayar  = logs.reduce((s,l)=>s+(l.bayar||(l.jenis==='BAYAR HUTANG'?l.jumlah:0)||0),0);
 
-    const rows = logs.map((l,i) => _lbRowView(l, i+1)).join('');
+    // Pagination
+    const totalPg = Math.max(1, Math.ceil(logs.length / _lbPerPage));
+    if (_lbPage > totalPg) _lbPage = totalPg;
+    const paged = logs.slice((_lbPage-1)*_lbPerPage, _lbPage*_lbPerPage);
+    const rows = paged.map((l,i) => _lbRowView(l, (_lbPage-1)*_lbPerPage+i+1)).join('');
+
+    // Inject pagination bar after render
+    setTimeout(() => {
+      let pgEl = document.getElementById('lb-pagination');
+      if (!pgEl) {
+        pgEl = document.createElement('div'); pgEl.id = 'lb-pagination';
+        pgEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;font-size:11px;color:var(--text-3);margin-top:4px';
+        const tbl = document.querySelector('#emp-tab-logbook .table-wrapper');
+        if (tbl) tbl.parentNode.insertBefore(pgEl, tbl.nextSibling);
+      }
+      pgEl.innerHTML = `
+        <span>Hal ${_lbPage}/${totalPg} &middot; ${logs.length} entri</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <select onchange="EmployeeModule.setLbPerPage(+this.value)" style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer">
+            ${[20,50,100].map(n=>`<option value="${n}" ${_lbPerPage===n?'selected':''}>${n}/hal</option>`).join('')}
+          </select>
+          <button onclick="EmployeeModule.goLbPage(${_lbPage-1})" ${_lbPage<=1?'disabled':''} style="padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);cursor:pointer;font-size:11px">&lsaquo;</button>
+          <button onclick="EmployeeModule.goLbPage(${_lbPage+1})" ${_lbPage>=totalPg?'disabled':''} style="padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);cursor:pointer;font-size:11px">&rsaquo;</button>
+        </div>`;
+    }, 50);
 
     // Footer subtotal
     const footer = `<tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--border2)">
@@ -2656,7 +2685,7 @@ const EmployeeModule = (() => {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip, _deleteEmpFromArsip,
     _handleFotoUpload, _removeFoto, _handleKtpUpload, _removeKtp, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter, migratePhotosFromLS,
     _pickFoto, _pickKtp,
-    _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, recalcAllHutang, _showLogDetail,
+    _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, recalcAllHutang, _showLogDetail, goLbPage, setLbPerPage,
     setFilter, sortBy, viewCard, filterCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
     // Absensi

@@ -5,6 +5,8 @@
 const APModule = (() => {
   let _ap = [];
   let _suppliers = [];
+  let _apPage = 1;
+  let _apPerPage = parseInt(localStorage.getItem('becca_ap_perPage')||'50');
 
   async function init() {
     const page = document.getElementById('page-ap');
@@ -207,8 +209,31 @@ const APModule = (() => {
     if (sup)    data = data.filter(r => r.supplier_id === sup || (r.vendor||'').toLowerCase().includes(sup.toLowerCase()));
     if (status) data = data.filter(r => r.status === status);
 
+    const total = data.length;
+    const totalPg = Math.max(1, Math.ceil(total / _apPerPage));
+    if (_apPage > totalPg) _apPage = totalPg;
+    const paged = data.slice((_apPage-1)*_apPerPage, _apPage*_apPerPage);
+
     const countEl = document.getElementById('ap-count');
-    if (countEl) countEl.textContent = data.length + ' transaksi';
+    if (countEl) countEl.textContent = total + ' transaksi';
+
+    // Pagination bar
+    let pgEl = document.getElementById('ap-pagination');
+    if (!pgEl) {
+      pgEl = document.createElement('div'); pgEl.id = 'ap-pagination';
+      pgEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3)';
+      const tbl = document.getElementById('ap-main-table');
+      if (tbl) tbl.parentNode.insertBefore(pgEl, tbl.nextSibling);
+    }
+    pgEl.innerHTML = `
+      <span>Hal ${_apPage}/${totalPg} &middot; ${total} baris</span>
+      <div style="display:flex;align-items:center;gap:4px">
+        <select onchange="APModule.setApPerPage(+this.value)" style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer">
+          ${[20,50,100,200].map(n=>`<option value="${n}" ${_apPerPage===n?'selected':''}>${n}/hal</option>`).join('')}
+        </select>
+        <button onclick="APModule.goApPage(${_apPage-1})" ${_apPage<=1?'disabled':''} style="padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);cursor:pointer;font-size:11px">&#8249;</button>
+        <button onclick="APModule.goApPage(${_apPage+1})" ${_apPage>=totalPg?'disabled':''} style="padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);cursor:pointer;font-size:11px">&#8250;</button>
+      </div>`;
 
     const tbody = document.getElementById('ap-tbody');
     if (!tbody) return;
@@ -230,7 +255,7 @@ const APModule = (() => {
       return p.length === 3 ? p[2]+'/'+p[1]+'/'+p[0] : d;
     };
 
-    tbody.innerHTML = data.map((r, i) => {
+    tbody.innerHTML = paged.map((r, i) => {
       const sisa = (r.status==='LUNAS'||r.status==='lunas') ? 0
                  : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
       const badgeC = r.status==='LUNAS' ? '#10b981' : '#ef4444';
@@ -280,8 +305,11 @@ const APModule = (() => {
     ['ap-fil-from','ap-fil-to','ap-fil-bulan','ap-fil-sup','ap-fil-status'].forEach(id=>{
       const el = document.getElementById(id); if(el) el.value='';
     });
+    _apPage = 1;
     applyFilter();
   }
+  function goApPage(p) { _apPage = Math.max(1,p); applyFilter(); }
+  function setApPerPage(n) { _apPerPage = n; localStorage.setItem('becca_ap_perPage',n); _apPage = 1; applyFilter(); }
 
 
   function openModal(editId = null) {
@@ -1536,6 +1564,6 @@ const APModule = (() => {
   }
 
 
-  return { init, render, filterBelum, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, apAddRow, _apKey };
+  return { init, render, filterBelum, applyFilter, resetFilter, goApPage, setApPerPage, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, apAddRow, _apKey };
 })();
 window.APModule = APModule;
