@@ -668,22 +668,26 @@ const InventoryModule = (() => {
       <td style="position:relative;min-width:150px">
         <input type="hidden" id="ivf-item-${r.id}" value="${r.itemId||''}" data-nama="${Utils.esc(curNama)}">
         <input class="iv-inp" id="ivf-item-txt-${r.id}" type="text" autocomplete="off"
-          placeholder="Cari barang..." value="${Utils.esc(curNama)}" style="min-width:140px">
+          placeholder="Cari barang..." value="${Utils.esc(curNama)}" style="min-width:140px"
+          onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')">
       </td>
-      <td><select class="iv-sel" id="ivf-jenis-${r.id}" 
+      <td><select class="iv-sel" id="ivf-jenis-${r.id}"
             onchange="InventoryModule._onJenisChange('${r.id}')"
+            onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"
             ${!r.itemId ? 'disabled style="opacity:.4;cursor:not-allowed" title=\"Pilih barang dulu\"' : ''}>${jenisOpts}</select></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.jumlah||0}" id="ivf-jumlah-${r.id}" style="text-align:right"
         oninput="InventoryModule._onQtyChange('${r.id}',this.value)"
         onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"></td>
       <td class="iv-num"><input class="iv-inp" type="number" min="0" value="${r.harga||0}" id="ivf-harga-${r.id}" style="text-align:right" onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"></td>
       <td><select class="iv-sel" id="ivf-kode-${r.id}"
-            onchange="InventoryModule._onKodeChange('${r.id}')">
+            onchange="InventoryModule._onKodeChange('${r.id}')"
+            onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')">
           ${['','SHIFT 1','SHIFT 2','SHIFT 3','RETUR / RUSAK','PENJUALAN','EVENT','STOCK IN','OPNAME'].map(k=>'<option value="'+k+'" '+(r.kodeAktivitas===k?'selected':'')+'>'+( k||'— Pilih —')+'</option>').join('')}
         </select></td>
       <td style="text-align:center;padding:0 4px">
         <select class="iv-sel" id="ivf-hpp-${r.id}" style="width:80px;font-size:11px"
-          onchange="InventoryModule._updateHPPBadge('${r.id}',this.value==='ya')">
+          onchange="InventoryModule._updateHPPBadge('${r.id}',this.value==='ya')"
+          onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')">
           <option value="" ${!r.hpp&&r.hpp!==false?'selected':''}>— AI —</option>
           <option value="ya" ${r.hpp===true||r.hpp==='ya'?'selected':''}>Ya</option>
           <option value="tidak" ${r.hpp===false||r.hpp==='tidak'?'selected':''}>Tidak</option>
