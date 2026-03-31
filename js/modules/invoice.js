@@ -1112,7 +1112,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
   }
 
   // Print window untuk invoice yang sudah ada
-  function _openInvPrintWin(inv, orderRec, orderList, addRows) {
+  function _openInvPrintWin(inv, orderRec, orderList, addRows, _returnHtml) {
     addRows = addRows || inv.addRows || [];
     const C = { NAVY:'#3B4E87', NAVY_D:'#2C3B65', NAVY_M:'#4A5E99',
                 BL:'#C9DAF8', BP:'#E8F0FE', SUB:'#ACC9FE',
@@ -1231,17 +1231,17 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         <th style="background:${C.NAVY};color:#fff;padding:5px;font-size:9px;font-weight:700;text-align:right">TOTAL</th>
       </tr>`;
       const dataRows = orderList.map((o,i) => {
-        const stripe = i%2===0?'#ffffff':'${C.BP}';
         const dd = o.tglOrder ? o.tglOrder.slice(8) : '';
         const mm = tgl1 ? Object.values(MONTHS_ID)[tgl1.getMonth()] : '';
-        const qty = activeCols.reduce((s,c)=>s+(Number(o[c.key])||0),0);
+        const qty = activeCols.reduce((s,col)=>s+(Number(o[col.key])||0),0);
+        const rowTotal = activeCols.reduce((s,col)=>s+(Number(o[col.key])||0)*_getHarga(col.key),0);
         return `<tr style="background:${i%2===0?'#ffffff':C.BP}">
           <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center;color:${C.GRY}">${i+1}</td>
           <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${dd}</td>
           <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center">${mm}</td>
-          ${activeCols.map(c=>`<td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center">${Number(o[c.key])||0||'–'}</td>`).join('')}
+          ${activeCols.map(col=>`<td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center">${Number(o[col.key])||0||'–'}</td>`).join('')}
           <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${qty||'–'}</td>
-          <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:right">${qty?rp(qty*_getHarga(c.key)):'–'}</td>
+          <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:right">${qty?rp(rowTotal):'–'}</td>
         </tr>`;
       }).join('');
       const subTots = activeCols.map(c => orderList.reduce((s,o)=>s+(Number(o[c.key])||0),0));
@@ -1430,7 +1430,8 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
 </body></html>`;
 
     // Return html jika dipanggil untuk preview, atau buka window
-    if (arguments[4] === 'returnHtml') return html;
+    // Jika dipanggil untuk preview, return HTML tanpa buka window
+    if (_returnHtml) return html;
 
     const blob = new Blob([html], { type: 'text/html' });
     const blobUrl = URL.createObjectURL(blob);
@@ -1760,7 +1761,15 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     const orderRec = {nomor, customer:cust, dari, sampai, orderIds:list.map(o=>o.id), totals:tots};
 
     // Generate print HTML via _openInvPrintWin (returnHtml mode)
-    const html = _openInvPrintWin(invPreview, orderRec, list, addRows, 'returnHtml');
+    let html;
+    try {
+      html = _openInvPrintWin(invPreview, orderRec, list, addRows, true);
+    } catch(e) {
+      console.error('[Invoice] Preview error:', e);
+      Notify.error('Gagal generate preview: ' + e.message);
+      return;
+    }
+    if (!html) { Notify.error('Gagal generate preview invoice'); return; }
 
     // Tampilkan di modal konfirmasi dengan iframe
     const _cfmMid = 'cfm-inv-' + Utils.uid();
