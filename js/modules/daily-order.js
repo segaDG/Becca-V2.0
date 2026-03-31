@@ -501,6 +501,8 @@ const DailyOrderModule = (() => {
                 color:${form.status==='final'?'#f59e0b':'#10b981'};font-size:12px;cursor:pointer;font-weight:600">
                 ${form.status==='final'?'↺ Buka Draft':'✓ Finalisasi'}
               </button>
+              <button onclick="DailyOrderModule.printForm()"
+                style="padding:6px 12px;border:1px solid rgba(99,102,241,.4);border-radius:7px;background:rgba(99,102,241,.08);color:#6366f1;font-size:12px;cursor:pointer;font-weight:600">Print</button>
               <button onclick="DailyOrderModule.deleteForm()"
                 style="padding:6px 12px;border:1px solid rgba(239,68,68,.3);border-radius:7px;background:rgba(239,68,68,.07);color:#ef4444;font-size:12px;cursor:pointer">Hapus</button>
             ` : `
@@ -1247,6 +1249,124 @@ const DailyOrderModule = (() => {
     } catch(e) { Notify.error('Gagal menyimpan'); }
   }
 
+  function printForm() {
+    const form = _currentForm();
+    if (!form || !form.items?.length) { Notify.warning('Tidak ada data untuk di-print'); return; }
+    const items = form.items;
+    const totalEst = items.reduce((s,it) => s + _n(it.estTotal), 0);
+    const totalAkt = items.reduce((s,it) => s + _n(it.aktTotal), 0);
+    const revenue  = _calcRevenue(_date, _shift);
+    const fcp = (form.foodCostPct != null ? _n(form.foodCostPct) : _defaultFcp(_shift));
+    const budgetVal = revenue > 0 ? revenue * fcp / 100 : _n(form.budgetBelanja);
+    const dateLabel = new Date(_date+'T00:00:00').toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+    const rp = n => n ? 'Rp '+Math.round(n).toLocaleString('id') : '-';
+
+    const rows = items.map((it,i) => {
+      const sumber = it.sumber || _calcSumber(_n(it.stokGudang), _n(it.aktQty));
+      return `<tr style="border-bottom:1px solid #ddd;${i%2?'background:#f8f9fa':''}">
+        <td style="padding:5px 6px;text-align:center;color:#999;font-size:10px">${i+1}</td>
+        <td style="padding:5px 6px;font-weight:600">${it.item||''}</td>
+        <td style="padding:5px 6px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
+        <td style="padding:5px 6px;text-align:center;color:#666">${it.satuan||''}</td>
+        <td style="padding:5px 6px;text-align:right;color:#666">${_n(it.hargaSatuan)?_n(it.hargaSatuan).toLocaleString('id'):'-'}</td>
+        <td style="padding:5px 6px;text-align:right;color:#6366f1">${_n(it.estTotal)?_n(it.estTotal).toLocaleString('id'):'-'}</td>
+        <td style="padding:5px 6px;text-align:right;color:#10b981;font-weight:600">${it.aktQty||'-'}</td>
+        <td style="padding:5px 6px;text-align:right;color:#10b981">${_n(it.aktTotal)?_n(it.aktTotal).toLocaleString('id'):'-'}</td>
+        <td style="padding:5px 6px;text-align:center"><span style="font-size:10px;padding:1px 6px;border-radius:10px;
+          background:${sumber==='PASAR'?'#fef2f2':'#f0fdf4'};color:${sumber==='PASAR'?'#ef4444':'#10b981'};font-weight:600">${sumber}</span></td>
+        <td style="padding:5px 6px;color:#999;font-size:10px">${it.catatan||''}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Form Produksi - ${dateLabel} - ${_shiftLabel(_shift)}</title>
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a2e;padding:20px}
+      @page{size:A4 landscape;margin:10mm}
+      @media print{.no-print{display:none!important}}
+      table{width:100%;border-collapse:collapse}
+      th{background:#3B4E87;color:#fff;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+    </style></head><body>
+    <button class="no-print" onclick="window.print()" style="position:fixed;top:10px;right:10px;padding:8px 20px;background:#3B4E87;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;z-index:99">Print</button>
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;border-bottom:3px solid #3B4E87;padding-bottom:12px">
+      <div>
+        <div style="font-size:18px;font-weight:900;color:#3B4E87">FORM PRODUKSI</div>
+        <div style="font-size:12px;color:#666;margin-top:2px">BOGA PANGAN SENTOSA - Industrial Catering Service</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:13px;font-weight:700">${dateLabel}</div>
+        <div style="font-size:12px;color:#3B4E87;font-weight:700">${_shiftLabel(_shift)}</div>
+        <div style="font-size:10px;color:#666;margin-top:2px">Status: ${form.status==='final'?'Final':'Draft'}</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="background:#f0f0ff;border:1px solid #ddd;border-radius:6px;padding:8px 14px;flex:1;min-width:120px">
+        <div style="font-size:9px;color:#666;font-weight:700;text-transform:uppercase">Budget</div>
+        <div style="font-size:14px;font-weight:800;color:#3B4E87">${rp(budgetVal)}</div>
+      </div>
+      <div style="background:#f0f0ff;border:1px solid #ddd;border-radius:6px;padding:8px 14px;flex:1;min-width:120px">
+        <div style="font-size:9px;color:#666;font-weight:700;text-transform:uppercase">Est HPP</div>
+        <div style="font-size:14px;font-weight:800;color:#6366f1">${rp(totalEst)}</div>
+      </div>
+      <div style="background:#f0fff4;border:1px solid #ddd;border-radius:6px;padding:8px 14px;flex:1;min-width:120px">
+        <div style="font-size:9px;color:#666;font-weight:700;text-transform:uppercase">Akt HPP</div>
+        <div style="font-size:14px;font-weight:800;color:#10b981">${rp(totalAkt)}</div>
+      </div>
+      <div style="background:${budgetVal-totalEst>=0?'#f0fff4':'#fff0f0'};border:1px solid #ddd;border-radius:6px;padding:8px 14px;flex:1;min-width:120px">
+        <div style="font-size:9px;color:#666;font-weight:700;text-transform:uppercase">Sisa Est</div>
+        <div style="font-size:14px;font-weight:800;color:${budgetVal-totalEst>=0?'#10b981':'#ef4444'}">${(budgetVal-totalEst>=0?'+':'')+rp(Math.abs(budgetVal-totalEst))}</div>
+      </div>
+      <div style="background:${budgetVal-totalAkt>=0?'#f0fff4':'#fff0f0'};border:1px solid #ddd;border-radius:6px;padding:8px 14px;flex:1;min-width:120px">
+        <div style="font-size:9px;color:#666;font-weight:700;text-transform:uppercase">Sisa Akt</div>
+        <div style="font-size:14px;font-weight:800;color:${budgetVal-totalAkt>=0?'#10b981':'#ef4444'}">${(budgetVal-totalAkt>=0?'+':'')+rp(Math.abs(budgetVal-totalAkt))}</div>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th style="width:24px">#</th>
+        <th style="text-align:left;min-width:140px">Item / Bahan</th>
+        <th style="text-align:right">Est Qty</th>
+        <th style="text-align:center">Sat</th>
+        <th style="text-align:right">Harga @</th>
+        <th style="text-align:right">Est Total</th>
+        <th style="text-align:right">Akt Qty</th>
+        <th style="text-align:right">Akt Total</th>
+        <th style="text-align:center">Sumber</th>
+        <th style="text-align:left">Catatan</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot>
+        <tr style="background:#e8eaf6;border-top:2px solid #3B4E87;font-weight:700">
+          <td colspan="5" style="padding:6px;text-align:right;color:#666;font-size:10px">TOTAL</td>
+          <td style="padding:6px;text-align:right;color:#6366f1">${totalEst.toLocaleString('id')}</td>
+          <td></td>
+          <td style="padding:6px;text-align:right;color:#10b981">${totalAkt.toLocaleString('id')}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div style="margin-top:24px;display:flex;justify-content:space-between">
+      <div style="text-align:center;min-width:150px">
+        <div style="font-size:10px;color:#666;margin-bottom:40px">Dibuat oleh,</div>
+        <div style="border-top:1px solid #333;padding-top:3px;font-size:9px;color:#666">Admin Produksi</div>
+      </div>
+      <div style="text-align:center;min-width:150px">
+        <div style="font-size:10px;color:#666;margin-bottom:40px">Disetujui oleh,</div>
+        <div style="border-top:1px solid #333;padding-top:3px;font-size:9px;color:#666">Manager Produksi</div>
+      </div>
+    </div>
+    </body></html>`;
+
+    const w = window.open('','_blank','width=1000,height=700');
+    if (w) { w.document.write(html); w.document.close(); }
+    else Notify.warning('Popup diblokir browser');
+  }
+
   async function createForm() {
     // Guard: don't create if already exists
     if (_currentForm()) { Notify.warning('Form sudah ada untuk tanggal dan shift ini'); return; }
@@ -1401,7 +1521,7 @@ const DailyOrderModule = (() => {
   return {
     init, setView, setDate, setShift, setMonth,
     setFormMonth, prevFormMonth, nextFormMonth,
-    createForm, copyEstToAkt, toggleStatus, deleteForm, updateFormMeta,
+    createForm, copyEstToAkt, printForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, goToDate,
     _saveEditRow, _cancelEdit, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
