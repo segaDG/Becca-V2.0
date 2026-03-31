@@ -443,10 +443,9 @@ const DailyOrderModule = (() => {
             const _badge = (label, v) => `<span style="background:${v>=0?'rgba(16,185,129,.15)':'rgba(239,68,68,.15)'};color:${v>=0?'#059669':'#ef4444'};padding:2px 8px;border-radius:12px;font-weight:700;font-size:10px;white-space:nowrap">${label} ${v>=0?'+':''}${_fmtRp(v)}</span>`;
             return `
             <div style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              <span>Omset: ${_fmtRp(revenue)} x ${fcp}%</span>
               <span style="background:${budgetOk?'rgba(16,185,129,.18)':'rgba(239,68,68,.18)'};
                 color:${budgetOk?'#10b981':'#ef4444'};padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px">
-                ${_fmtRp(budgetVal)}
+                Budget ${_fmtRp(budgetVal)}
               </span>
               <span>Est HPP: <strong style="color:var(--text)">${_fmtRp(totalEst)}</strong></span>
               ${_badge('Sisa Est', _sisaEst)}
