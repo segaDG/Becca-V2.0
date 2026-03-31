@@ -125,6 +125,7 @@ const KasModule = (() => {
       .ks-tbl tr.ks-editing td{background:rgba(99,102,241,.06)!important;outline:1px solid var(--primary);outline-offset:-1px;}
       .ks-inp{width:100%;height:100%;border:none;outline:none;padding:0 6px;background:transparent;
         color:var(--text);font-size:13px;font-family:var(--font);box-sizing:border-box;min-height:32px;}
+      .ks-inp:focus{background:rgba(99,102,241,.08)}
       .ks-sel{width:100%;height:32px;border:none;outline:none;padding:0 4px;background:var(--surface3);
         color:var(--text);font-size:12px;font-family:var(--font);cursor:pointer;}
       .ks-num{text-align:right;font-family:var(--font-mono);}
@@ -156,6 +157,12 @@ const KasModule = (() => {
       .ks-tbl td.ks-drag-over{background:rgba(99,102,241,.12)!important}
     `;
     document.head.appendChild(s);
+    // Auto-select text on focus for edit inputs
+    document.addEventListener('focusin', e => {
+      if (e.target.matches('.ks-inp,.iv-inp,[data-eid] input,[data-eid] select')) {
+        setTimeout(() => { if (e.target.select) e.target.select(); }, 0);
+      }
+    });
   }
 
   function _renderShell() {

@@ -509,6 +509,7 @@ const InventoryModule = (() => {
         .iv-tbl tr.iv-view:hover td{background:var(--surface2);cursor:pointer;}
         .iv-tbl tr.iv-editing td{background:rgba(99,102,241,.06)!important;outline:1px solid var(--primary);outline-offset:-1px;}
         .iv-inp{width:100%;height:32px;border:none;outline:none;padding:0 6px;background:transparent;color:var(--text);font-size:13px;font-family:var(--font);box-sizing:border-box;}
+        .iv-inp:focus{background:rgba(99,102,241,.08)}
         .iv-sel{width:100%;height:32px;border:none;outline:none;padding:0 4px;background:var(--surface3);color:var(--text);font-size:12px;font-family:var(--font);cursor:pointer;}
         .iv-num{text-align:right;font-family:var(--font-mono);}
         .iv-num .ivc{justify-content:flex-end;}
