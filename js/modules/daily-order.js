@@ -532,7 +532,7 @@ const DailyOrderModule = (() => {
                <div style="font-size:12px">Klik "+ Buat Form Produksi" untuk memulai</div>
              </div>`
           : `<div style="overflow-x:auto">
-              <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:700px">
+              <table id="do-grid" data-grid-select style="width:100%;border-collapse:collapse;font-size:11px;min-width:700px">
                 <thead>
                   <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600;width:30px">#</th>

@@ -150,11 +150,6 @@ const KasModule = (() => {
       .ks-tbl tr.ks-row-tbc td{background:rgba(245,158,11,.10)!important;}
       .ks-tbl tr.ks-row-tbc:hover td{background:rgba(245,158,11,.20)!important;}
       .ks-tbl tr.ks-row-tbc .badge-warning{background:#d97706!important;color:#fff!important;font-weight:700!important;}
-      /* Drag-copy (spreadsheet fill) */
-      .ks-tbl td.ks-selected{outline:2px solid var(--primary)!important;outline-offset:-2px;position:relative}
-      .ks-fill-handle{position:absolute;right:-4px;bottom:-4px;width:8px;height:8px;background:var(--primary);
-        border:1px solid #fff;cursor:crosshair;z-index:5;border-radius:1px}
-      .ks-tbl td.ks-drag-over{background:rgba(99,102,241,.12)!important}
     `;
     document.head.appendChild(s);
     // Auto-select text on focus for edit inputs
@@ -320,9 +315,9 @@ const KasModule = (() => {
         </div>
       </div>
     `;
-    // Refresh balance cards + init drag-copy
     _renderBalanceCards();
-    setTimeout(_initDragCopy, 50);
+    // Register fill-drag callback for kas table
+    if (window.GridSelect) GridSelect.onFill('kas-grid', _onGridFill);
   }
 
   /* ---- VIEW ROW ---- */
@@ -1456,129 +1451,30 @@ const KasModule = (() => {
     _doCommit(id, true); // skipValidation = true
   }
 
-  /* ── DRAG-COPY (Spreadsheet Fill Handle) ── */
-  let _dragSrc = null; // {rowId, field, colIdx, value}
-  let _dragTargets = []; // [{rowId, td}]
-
-  // Map data-field prefix to _kas object key
-  function _fieldToKey(fieldAttr) {
-    if (!fieldAttr) return null;
-    // fieldAttr = "ks-nama-abc123" → key = "nama"
-    const m = fieldAttr.match(/^ks-(\w+?)-/);
-    return m ? m[1] : null;
-  }
-
-  function _getCellValue(r, key) {
-    const map = {tgl:r.tgl, nama:r.nama, type:r.type, vendor:r.vendor,
-      qty:r.qty, sat:r.satuan, harga:r.hargaSatuan, jumlah:r.jumlah,
-      penerima:r.penerima, status:r.status};
-    return map[key] ?? '';
-  }
-  function _setCellValue(r, key, val) {
-    const set = {tgl:'tgl',nama:'nama',type:'type',vendor:'vendor',
-      qty:'qty',sat:'satuan',harga:'hargaSatuan',jumlah:'jumlah',
-      penerima:'penerima',status:'status'};
-    if (set[key]) r[set[key]] = key==='qty'||key==='harga'||key==='jumlah' ? parseFloat(val)||0 : val;
-  }
-
-  function _initDragCopy() {
-    const tbl = document.getElementById('kas-grid');
+  /* ── FILL-DRAG CALLBACK (via GridSelect) ── */
+  const _KAS_COL_MAP = ['','tgl','nama','type','vendor','qty','satuan','hargaSatuan','jumlah','penerima','status'];
+  function _onGridFill(tblId, colIdx, srcRow, targetRows, val) {
+    const tbl = document.getElementById(tblId);
     if (!tbl) return;
-
-    // Click on cell → select
-    tbl.addEventListener('click', e => {
-      const td = e.target.closest('td[data-field]');
-      if (!td || td.closest('.ks-editing')) return;
-      // Clear previous selection
-      tbl.querySelectorAll('.ks-selected').forEach(el => { el.classList.remove('ks-selected'); el.querySelector('.ks-fill-handle')?.remove(); });
-      const tr = td.closest('tr[data-id]');
-      if (!tr) return;
-      const rowId = tr.dataset.id;
-      if (_kasLocked.has(rowId)) return;
-      td.classList.add('ks-selected');
-      td.style.position = 'relative';
-      // Add fill handle
-      const handle = document.createElement('div');
-      handle.className = 'ks-fill-handle';
-      handle.addEventListener('mousedown', _startFillDrag);
-      td.appendChild(handle);
-    });
-  }
-
-  function _startFillDrag(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    const td = e.target.closest('td');
-    const tr = td?.closest('tr[data-id]');
-    if (!td || !tr) return;
-    const rowId = tr.dataset.id;
-    const field = td.dataset.field;
-    const key = _fieldToKey(field);
-    const row = _kas.find(r => r.id === rowId);
-    if (!key || !row) return;
-    const colIdx = Array.from(tr.children).indexOf(td);
-
-    _dragSrc = { rowId, field, key, colIdx, value: _getCellValue(row, key) };
-    _dragTargets = [];
-
-    document.addEventListener('mousemove', _onFillDrag);
-    document.addEventListener('mouseup', _endFillDrag);
-  }
-
-  function _onFillDrag(e) {
-    if (!_dragSrc) return;
-    const tbl = document.getElementById('kas-grid');
-    if (!tbl) return;
-    // Clear previous highlights
-    tbl.querySelectorAll('.ks-drag-over').forEach(el => el.classList.remove('ks-drag-over'));
-    _dragTargets = [];
-
-    // Find all view rows below source
-    const rows = Array.from(tbl.querySelectorAll('tr.ks-view[data-id]'));
-    const srcIdx = rows.findIndex(r => r.dataset.id === _dragSrc.rowId);
-    if (srcIdx < 0) return;
-
-    const mouseY = e.clientY;
-    for (let i = srcIdx + 1; i < rows.length; i++) {
-      const r = rows[i];
-      const rect = r.getBoundingClientRect();
-      if (rect.top > mouseY) break;
-      if (_kasLocked.has(r.dataset.id)) continue;
-      const td = r.children[_dragSrc.colIdx];
-      if (td) { td.classList.add('ks-drag-over'); _dragTargets.push({ rowId: r.dataset.id, td }); }
-    }
-  }
-
-  function _endFillDrag() {
-    document.removeEventListener('mousemove', _onFillDrag);
-    document.removeEventListener('mouseup', _endFillDrag);
-    if (!_dragSrc || !_dragTargets.length) { _dragSrc = null; _dragTargets = []; return; }
-
-    const key = _dragSrc.key;
-    const val = _dragSrc.value;
+    const tbody = tbl.querySelector('tbody');
+    if (!tbody) return;
+    const rows = Array.from(tbody.children);
+    const key = _KAS_COL_MAP[colIdx];
+    if (!key) return;
+    const isNum = key==='qty'||key==='hargaSatuan'||key==='jumlah';
+    const parsed = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
     let saved = 0;
-
-    _dragTargets.forEach(t => {
-      const row = _kas.find(r => r.id === t.rowId);
-      if (!row) return;
-      _setCellValue(row, key, val);
-      // Recalc jumlah if qty or harga changed
-      if (key === 'qty' || key === 'harga') row.jumlah = (row.qty||0) * (row.hargaSatuan||0);
-      DB.saveKas({...row}).catch(() => {});
+    targetRows.forEach(ri => {
+      const tr = rows[ri];
+      const id = tr?.dataset?.id;
+      const row = id ? _kas.find(r=>r.id===id) : null;
+      if (!row || _kasLocked.has(id)) return;
+      row[key] = parsed;
+      if (key==='qty'||key==='hargaSatuan') row.jumlah = (row.qty||0)*(row.hargaSatuan||0);
+      DB.saveKas({...row}).catch(()=>{});
       saved++;
     });
-
-    // Clear UI
-    const tbl = document.getElementById('kas-grid');
-    if (tbl) { tbl.querySelectorAll('.ks-drag-over,.ks-selected').forEach(el => { el.classList.remove('ks-drag-over','ks-selected'); el.querySelector('.ks-fill-handle')?.remove(); }); }
-
-    _dragSrc = null;
-    _dragTargets = [];
-
-    if (saved > 0) {
-      Notify.success(`${saved} baris diperbarui`);
-      renderTransaksi();
-    }
+    if (saved) { Notify.success(saved+' baris diperbarui'); renderTransaksi(); }
   }
 
   return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
