@@ -437,16 +437,22 @@ const DailyOrderModule = (() => {
               ${form.status==='final'?'✓ Final':'● Draft'}
             </span>` : ''}
           </div>
-          ${revenue > 0 && totalPortions > 0 ? `
+          ${revenue > 0 && totalPortions > 0 ? (() => {
+            const _sisaEst = budgetVal - totalEst;
+            const _sisaAkt = shiftSisaAkt;
+            const _badge = (label, v) => `<span style="background:${v>=0?'rgba(16,185,129,.15)':'rgba(239,68,68,.15)'};color:${v>=0?'#059669':'#ef4444'};padding:2px 8px;border-radius:12px;font-weight:700;font-size:10px;white-space:nowrap">${label} ${v>=0?'+':''}${_fmtRp(v)}</span>`;
+            return `
             <div style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              <span>Omset: ${_fmtRp(revenue)} × ${fcp}%</span>
+              <span>Omset: ${_fmtRp(revenue)} x ${fcp}%</span>
               <span style="background:${budgetOk?'rgba(16,185,129,.18)':'rgba(239,68,68,.18)'};
                 color:${budgetOk?'#10b981':'#ef4444'};padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px">
                 ${_fmtRp(budgetVal)}
               </span>
               <span>Est HPP: <strong style="color:var(--text)">${_fmtRp(totalEst)}</strong></span>
-            </div>
-          ` : ''}
+              ${_badge('Sisa Est', _sisaEst)}
+              ${_badge('Sisa Akt', _sisaAkt)}
+            </div>`;
+          })() : ''}
         </div>
         ${summary.length === 0
           ? `<div style="text-align:center;padding:16px;color:var(--text-3);font-size:13px">Tidak ada order untuk tanggal ini</div>`
@@ -475,38 +481,6 @@ const DailyOrderModule = (() => {
               ` : ''}
             </div>`
         }
-        ${budgetVal > 0 ? (() => {
-          const sisaEst = budgetVal - totalEst;
-          const sisaEstC = sisaEst >= 0 ? '#10b981' : '#ef4444';
-          const sisaAktC = shiftSisaAkt >= 0 ? '#10b981' : '#ef4444';
-          const estPct = totalEst > 0 ? (totalEst/budgetVal*100) : 0;
-          return `
-          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-            <div style="flex:1;min-width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
-              <div style="font-size:9px;font-weight:700;color:var(--text-3);letter-spacing:.04em;margin-bottom:4px">SISA EST (${_shiftLabel(_shift)})</div>
-              <div style="font-size:16px;font-weight:800;color:${sisaEstC};font-family:var(--font-mono)">
-                ${sisaEst>=0?'+':''}${_fmtRp(Math.abs(sisaEst))}
-              </div>
-              ${totalEst > 0 ? `
-              <div style="margin-top:4px;background:var(--border);height:4px;border-radius:2px;overflow:hidden">
-                <div style="height:100%;width:${Math.min(100,estPct).toFixed(1)}%;background:${budgetOk?'#10b981':'#ef4444'};border-radius:2px"></div>
-              </div>
-              <div style="font-size:9px;color:var(--text-3);margin-top:2px">${estPct.toFixed(1)}% terpakai</div>` : ''}
-            </div>
-            <div style="flex:1;min-width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
-              <div style="font-size:9px;font-weight:700;color:var(--text-3);letter-spacing:.04em;margin-bottom:4px">SISA AKT (${_shiftLabel(_shift)})</div>
-              <div style="font-size:16px;font-weight:800;color:${sisaAktC};font-family:var(--font-mono)">
-                ${shiftSisaAkt>=0?'+':''}${_fmtRp(Math.abs(shiftSisaAkt))}
-              </div>
-              ${totalAkt > 0 ? `
-              <div style="margin-top:4px;background:var(--border);height:4px;border-radius:2px;overflow:hidden">
-                <div style="height:100%;width:${Math.min(100,(totalAkt/budgetVal*100)).toFixed(1)}%;background:${shiftSisaAkt>=0?'#10b981':'#ef4444'};border-radius:2px"></div>
-              </div>
-              <div style="font-size:9px;color:var(--text-3);margin-top:2px">${(totalAkt/budgetVal*100).toFixed(1)}% terpakai</div>` :
-              '<div style="font-size:9px;color:var(--text-3);margin-top:4px">Belum ada data aktual</div>'}
-            </div>
-          </div>`;
-        })() : ''}
       </div>
 
       <!-- Form produksi table -->
