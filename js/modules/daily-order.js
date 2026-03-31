@@ -230,6 +230,10 @@ const DailyOrderModule = (() => {
       case 'selisih':  el.innerHTML = _htmlCekSelisih();   break;
       case 'summary':  el.innerHTML = _htmlSummary();      break;
     }
+    // Register paste callback for form produksi table
+    if (_view === 'form' && window.GridSelect) {
+      GridSelect.onPaste('do-grid', _onGridPaste);
+    }
   }
 
   /* ─── FORM PRODUKSI ─── */
@@ -1261,6 +1265,50 @@ const DailyOrderModule = (() => {
       _renderContent();
       Notify.success(`${copied} item: Est QTY → Akt QTY`);
     } catch(e) { Notify.error('Gagal menyimpan'); }
+  }
+
+  // Col map: 0=#, 1=item, 2=estQty, 3=satuan, 4=harga, 5=estTotal, 6=aktQty, 7=aktTotal, 8=sumber, 9=catatan
+  const _DO_COL_KEYS = [null,'item','estQty','satuan','hargaSatuan','estTotal','aktQty','aktTotal','sumber','catatan'];
+  const _DO_NUM_KEYS = new Set(['estQty','hargaSatuan','estTotal','aktQty','aktTotal']);
+
+  async function _onGridPaste(tblId, startRow, startCol, pasteRows) {
+    const form = _currentForm();
+    if (!form) return;
+    const items = form.items || [];
+    let changed = 0, created = 0;
+
+    pasteRows.forEach((cols, ri) => {
+      const itemIdx = startRow + ri;
+      // Auto-create new item if row doesn't exist
+      if (itemIdx >= items.length) {
+        items.push({ id: 'item_' + Utils.uid(), item:'', estQty:0, satuan:'', hargaSatuan:0,
+          aktQty:0, stokGudang:0, sumber:'STOK', catatan:'', estTotal:0, aktTotal:0 });
+        created++;
+      }
+      const it = items[itemIdx];
+      cols.forEach((val, ci) => {
+        const key = _DO_COL_KEYS[startCol + ci];
+        if (!key) return;
+        if (_DO_NUM_KEYS.has(key)) {
+          it[key] = parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0;
+        } else {
+          it[key] = val.trim();
+        }
+      });
+      // Recalc totals
+      it.estTotal = (it.estQty||0) * (it.hargaSatuan||0);
+      it.aktTotal = (it.aktQty||0) * (it.hargaSatuan||0);
+      it.sumber = _calcSumber(_n(it.stokGudang), _n(it.aktQty));
+      changed++;
+    });
+
+    form.items = items;
+    form.updatedAt = new Date().toISOString();
+    try {
+      await DB.saveDailyOrderForm(form);
+      _renderContent();
+      Notify.success(`${changed} baris di-paste${created?' ('+created+' baru)':''}`);
+    } catch(e) { Notify.error('Gagal paste'); }
   }
 
   function printForm() {
