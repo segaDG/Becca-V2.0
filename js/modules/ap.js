@@ -1186,8 +1186,17 @@ const APModule = (() => {
 
   function _apOutsideClick(e) {
     if (!_apEditId) return;
+    if (document.getElementById('_val-popup')) return;
     const tr = document.getElementById('ap-row-'+_apEditId);
-    if (tr && !tr.contains(e.target)) _apCommit(_apEditId);
+    if (tr && !tr.contains(e.target)) {
+      // Baris baru kosong → cancel
+      const row = _ap.find(r => r.id === _apEditId);
+      if (row && row._isNew && !(row.keterangan||'').trim()) {
+        _apCancel(_apEditId);
+        return;
+      }
+      _apCommit(_apEditId);
+    }
   }
 
   function apStartEdit(id) {
@@ -1266,6 +1275,8 @@ const APModule = (() => {
   }
 
   function _apCancel(id) {
+    document.removeEventListener('click', _apOutsideClick);
+    document.getElementById('_val-popup')?.remove();
     const row = _ap.find(r=>r.id===id);
     if (row && row._isNew && !(row.keterangan||'').trim()) {
       _apEditId = null;

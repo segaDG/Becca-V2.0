@@ -453,14 +453,19 @@ const InventoryModule = (() => {
   // FIX: named function so removeEventListener works correctly
   function _ivOutsideClick(e) {
     if (!_invEditId) return;
-    if (e.target.closest('.becca-combo-drop')) return; // ignore clicks inside combo dropdown
+    if (e.target.closest('.becca-combo-drop,.notify-popup,.notify-container')) return;
     const el = document.getElementById('iv-row-'+_invEditId);
     if (el && !el.contains(e.target)) {
       const id = _invEditId;
       document.removeEventListener('click', _ivOutsideClick);
+      // Jika baris baru kosong, cancel saja (bukan commit)
+      const row = _logs.find(r => r.id === id);
+      if (row && row._isNew && !row.itemId) {
+        cancelLogEdit(id);
+        return;
+      }
       const ok = _invCommit(id);
       if (ok) _invEditId = null;
-      // if !ok: _invEditId stays set, listener re-attached inside _invCommit
     }
   }
 
@@ -1081,9 +1086,12 @@ const InventoryModule = (() => {
   function cancelLogEdit(id) {
     if (_invEditId !== id) return;
     document.removeEventListener('click', _ivOutsideClick);
+    // Dismiss any validation popup
+    document.getElementById('_val-popup')?.remove();
     const row = _logs.find(r => r.id === id);
-    // If new empty row, delete it
-    if (row && row._isNew && !(row.itemNama||'').trim()) {
+    // If new empty row, delete it (check DOM value too, row data may be stale)
+    const domItem = document.getElementById('ivf-item-'+id)?.value || '';
+    if (row && row._isNew && !domItem && !(row.itemNama||'').trim()) {
       _invEditId = null;
       _logs = _logs.filter(r => r.id !== id);
       DB.deleteInventoryLog(id).catch(() => {});

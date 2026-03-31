@@ -428,15 +428,20 @@ const KasModule = (() => {
   // FIX: use a single named function for outside click so removeEventListener works
   function _handleOutsideClick(e) {
     if (!_editingId) return;
-    // Jika popup validasi sedang tampil, biarkan popup yang handle — jangan commit ulang
     if (document.getElementById('_val-popup')) return;
+    if (e.target.closest('.notify-popup,.notify-container')) return;
     const editingRow = document.getElementById('ks-row-'+_editingId);
     if (editingRow && !editingRow.contains(e.target)) {
       const id = _editingId;
       document.removeEventListener('click', _handleOutsideClick);
+      // Baris baru kosong → cancel, bukan commit
+      const row = _kas.find(r => r.id === id);
+      if (row && row._isNew && !(row.nama||'').trim()) {
+        cancelEdit(id);
+        return;
+      }
       const ok = _doCommit(id);
       if (ok) _editingId = null;
-      // if !ok: _editingId stays set, listener re-attached inside _doCommit
     }
   }
 
@@ -573,10 +578,11 @@ const KasModule = (() => {
   function cancelEdit(id) {
     if (_editingId !== id) return;
     document.removeEventListener('click', _handleOutsideClick);
+    document.getElementById('_val-popup')?.remove();
     const row = _kas.find(r => r.id === id);
-
-    // Cek apakah ini baris baru yang masih kosong (belum diisi nama)
-    if (row && row._isNew && !(row.nama||'').trim()) {
+    // Check DOM value too (row.nama may be stale)
+    const domNama = document.getElementById('ks-nama-'+id)?.value || '';
+    if (row && row._isNew && !domNama.trim() && !(row.nama||'').trim()) {
       _editingId = null;
       _kas = _kas.filter(r => r.id !== id);
       DB.deleteKas(id).catch(() => {});
