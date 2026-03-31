@@ -87,7 +87,7 @@ const KasModule = (() => {
     // lalu load di background dan re-render saat data tiba.
     const cachedKas   = DB.getCached('kas');
     const cachedMasuk = DB.getCached('kas_masuk');
-    if (cachedKas)   _kas   = cachedKas;
+    if (cachedKas)   { _kas = cachedKas; _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); }
     if (cachedMasuk) _masuk = cachedMasuk;
 
     // Render segera — fast jika cache warm, empty-state jika cold
@@ -101,6 +101,7 @@ const KasModule = (() => {
         cachedMasuk ? Promise.resolve(cachedMasuk) : DB.getKasMasuk(),
       ]);
       _kas   = freshKas;
+      _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
       _masuk = freshMasuk;
       if (_activeTab === 'transaksi') renderTransaksi();
       else switchTab(_activeTab);
@@ -194,19 +195,16 @@ const KasModule = (() => {
   }
 
   /* ===================== RENDER TRANSAKSI ===================== */
-  let _autoSort = true; // default: sort by date
-
   function reArrange() {
-    _autoSort = true;
+    // Sort source array _kas by date descending (persists across renders)
+    _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
     renderTransaksi();
     Notify.success('Data diurutkan berdasarkan tanggal');
   }
 
   function renderTransaksi() {
     const canEdit = Auth.can('kas','edit');
-    const filtered = _applyFilter(_kas);
-    if (_autoSort) filtered.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
-    _autoSort = false; // setelah render, jangan auto-sort lagi sampai user klik re-arrange
+    const filtered = _applyFilter(_kas); // preserves _kas order, no auto-sort
     const total    = filtered.length;
     const paged    = filtered.slice((_page-1)*_perPage, _page*_perPage);
     const totalPg  = Math.ceil(total/_perPage);
@@ -647,8 +645,8 @@ const KasModule = (() => {
       return true;
     });
   }
-  function setFilter(k,v){ if(_editingId)commitEdit(_editingId); _filter[k]=v; _page=1; _autoSort=true; renderTransaksi(); }
-  function resetFilter()  { if(_editingId)commitEdit(_editingId); _filter={}; _page=1; _autoSort=true; renderTransaksi(); }
+  function setFilter(k,v){ if(_editingId)commitEdit(_editingId); _filter[k]=v; _page=1; renderTransaksi(); }
+  function resetFilter()  { if(_editingId)commitEdit(_editingId); _filter={}; _page=1; renderTransaksi(); }
   function goPage(p)      { if(_editingId)commitEdit(_editingId); _page=p; renderTransaksi(); }
   function setPerPage(n)  { _perPage=n; localStorage.setItem('becca_kas_perPage',n); _page=1; renderTransaksi(); }
 
