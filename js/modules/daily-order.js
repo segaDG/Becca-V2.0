@@ -777,22 +777,50 @@ const DailyOrderModule = (() => {
     });
     const customers = Object.keys(custVol).sort((a,b) => custVol[b]-custVol[a]);
 
-    // Hitung omset & budget per hari (semua shift digabung)
+    // Pre-compute omset/budget/spent per hari (1 pass, bukan 180 scans)
     const SHIFTS = ['S1','S2','SNK1','SNK2','SNK3','SNK4'];
+    // Index forms by tanggal+shift for O(1) lookup
+    const _formIdx = {};
+    _forms.forEach(f => { if(f.tanggal) _formIdx[f.tanggal+'_'+f.shift] = f; });
+    // Pre-compute revenue per date (1 pass through orders)
+    const _revCache = {};
+    monthOrds.forEach(o => {
+      const d = o.tglOrder;
+      const resolved = _resolveName(o.namaPerusahaan);
+      const c = _customers.find(x => (x.nama||'').toLowerCase() === (resolved||'').toLowerCase()) || {};
+      // S1 revenue
+      let g1 = _n(o.breakfast)*_n(c.hargaBreakfast||c.hargaShift1) + _n(o.shift1)*_n(c.hargaShift1) + _n(o.spare1)*_n(c.hargaSpare1) + _n(o.ot1)*_n(c.hargaOT1||c.hargaShift1);
+      let q1 = _n(o.breakfast)+_n(o.shift1)+_n(o.spare1)+_n(o.ot1);
+      const pph1 = c.pph23 ? Math.round(g1*0.02) : 0;
+      const r1 = g1 - pph1 - _n(c.biayaBox)*q1 - _n(c.biayaLainnya)*q1;
+      // S2 revenue
+      let g2 = _n(o.shift2)*_n(c.hargaShift2) + _n(o.spare2)*_n(c.hargaSpare2) + _n(o.ot2)*_n(c.hargaOT2||c.hargaShift2) + _n(o.shift3)*_n(c.hargaShift3) + _n(o.spare3)*_n(c.hargaSpare3) + _n(o.ot3)*_n(c.hargaOT3||c.hargaShift3);
+      let q2 = _n(o.shift2)+_n(o.spare2)+_n(o.ot2)+_n(o.shift3)+_n(o.spare3)+_n(o.ot3);
+      const pph2 = c.pph23 ? Math.round(g2*0.02) : 0;
+      const r2 = g2 - pph2 - _n(c.biayaBox)*q2 - _n(c.biayaLainnya)*q2;
+      // Snacks
+      const sn1 = _n(o.snack1)*_n(c.hargaSnack1), sn2 = _n(o.snack2)*_n(c.hargaSnack2);
+      const sn3 = _n(o.snack3)*_n(c.hargaSnack3), sn4 = _n(o.snackBerat)*_n(c.hargaSnackBerat);
+      if(!_revCache[d]) _revCache[d] = {S1:0,S2:0,SNK1:0,SNK2:0,SNK3:0,SNK4:0};
+      _revCache[d].S1 += r1; _revCache[d].S2 += r2;
+      _revCache[d].SNK1 += sn1; _revCache[d].SNK2 += sn2; _revCache[d].SNK3 += sn3; _revCache[d].SNK4 += sn4;
+    });
     function _dayOmset(dateStr) {
-      return SHIFTS.reduce((s,sh) => s + _calcRevenue(dateStr, sh), 0);
+      const r = _revCache[dateStr]; if(!r) return 0;
+      return SHIFTS.reduce((s,sh) => s + (r[sh]||0), 0);
     }
     function _dayBudget(dateStr) {
+      const r = _revCache[dateStr]; if(!r) return 0;
       return SHIFTS.reduce((s,sh) => {
-        const frm = _forms.find(f => f.tanggal === dateStr && f.shift === sh);
-        const rev = _calcRevenue(dateStr, sh);
+        const frm = _formIdx[dateStr+'_'+sh];
+        const rev = r[sh]||0;
         const fcp = (frm?.foodCostPct != null ? _n(frm.foodCostPct) : _defaultFcp(sh));
         return s + (rev > 0 ? rev * fcp / 100 : _n(frm?.budgetBelanja));
       }, 0);
     }
     function _daySpent(dateStr) {
       return SHIFTS.reduce((s,sh) => {
-        const frm = _forms.find(f => f.tanggal === dateStr && f.shift === sh);
+        const frm = _formIdx[dateStr+'_'+sh];
         return s + (frm?.items||[]).reduce((a,it) => {
           return a + ((it.aktTotal !== null && it.aktTotal !== undefined && it.aktTotal !== '') ? _n(it.aktTotal) : _n(it.estTotal));
         }, 0);
@@ -802,7 +830,7 @@ const DailyOrderModule = (() => {
     function _dayActualSpent(dateStr) {
       let total = 0, allComplete = true, hasAnyForm = false;
       SHIFTS.forEach(sh => {
-        const frm = _forms.find(f => f.tanggal === dateStr && f.shift === sh);
+        const frm = _formIdx[dateStr+'_'+sh];
         if (!frm || !(frm.items||[]).length) return;
         hasAnyForm = true;
         const items = frm.items || [];

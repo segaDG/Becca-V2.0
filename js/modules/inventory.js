@@ -610,26 +610,30 @@ const InventoryModule = (() => {
     if (!_syncChecked[formId]) _syncChecked[formId] = new Set();
     const checked = _syncChecked[formId];
 
-    // Build preview rows with diff highlight
+    // Build preview rows with diff highlight + revisi qty
     const rows = aktItems.map((it, i) => {
       const invItem = _items.find(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase());
       const existing = syncedLogs.find(l => (l.itemNama||'').toLowerCase() === (it.item||'').toLowerCase());
       const isNew = !existing;
       const qtyChanged = existing && existing.jumlah !== it.aktQty;
-      const hrgChanged = existing && existing.harga !== it.hargaSatuan;
       const noMatch = !invItem;
       const isChecked = checked.has(i);
       const highlight = qtyChanged ? 'background:rgba(245,158,11,.12)' : isNew ? 'background:rgba(99,102,241,.06)' : '';
       return `<tr style="${highlight};border-bottom:1px solid var(--border)">
         <td style="padding:5px;text-align:center">
-          ${noMatch ? '<span style="color:#ef4444;font-size:9px" title="Item tidak ada di master stok">-</span>' :
+          ${noMatch ? '<span style="color:#ef4444;font-size:9px">-</span>' :
             `<input type="checkbox" ${isChecked?'checked':''} onchange="InventoryModule._toggleSyncCheck('${formId}',${i})"
               style="width:15px;height:15px;accent-color:#10b981;cursor:pointer">`}
         </td>
         <td style="padding:5px 6px;font-weight:600;font-size:11px${noMatch?';color:#ef4444;text-decoration:line-through':''}">${it.item||''}</td>
-        <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:700${qtyChanged?';color:#f59e0b':''}">${it.aktQty}${qtyChanged?' <span style="font-size:9px;color:var(--text-3);text-decoration:line-through">'+existing.jumlah+'</span>':''}</td>
+        <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:700">${it.aktQty}</td>
+        <td style="padding:4px 3px;text-align:center">
+          <input type="number" min="0" step="0.01" value="${it.aktQty}" data-sync-idx="${i}"
+            style="width:55px;padding:3px 4px;text-align:right;border:1px solid var(--border);border-radius:4px;
+            font-size:11px;font-family:var(--font-mono);background:var(--surface);color:var(--text)"
+            onfocus="this.select()">
+        </td>
         <td style="padding:5px 6px;text-align:center;font-size:10px;color:var(--text-3)">${it.satuan||''}</td>
-        <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-size:10px${hrgChanged?';color:#f59e0b':''}">${_n(it.hargaSatuan)?'Rp '+_n(it.hargaSatuan).toLocaleString('id'):'-'}</td>
         <td style="padding:5px 6px;text-align:center;font-size:9px">
           ${noMatch ? '<span style="color:#ef4444;font-weight:700">NO MATCH</span>' :
             isNew ? '<span style="color:#6366f1;font-weight:700">BARU</span>' :
@@ -667,8 +671,8 @@ const InventoryModule = (() => {
               <th style="padding:5px;width:30px"></th>
               <th style="padding:5px 6px;text-align:left;font-size:9px;font-weight:700;color:var(--text-3)">ITEM</th>
               <th style="padding:5px 6px;text-align:right;font-size:9px;font-weight:700;color:var(--text-3)">AKT QTY</th>
+              <th style="padding:5px 6px;text-align:center;font-size:9px;font-weight:700;color:#f59e0b">REVISI</th>
               <th style="padding:5px 6px;text-align:center;font-size:9px;font-weight:700;color:var(--text-3)">SAT</th>
-              <th style="padding:5px 6px;text-align:right;font-size:9px;font-weight:700;color:var(--text-3)">HARGA</th>
               <th style="padding:5px 6px;text-align:center;font-size:9px;font-weight:700;color:var(--text-3)">STATUS</th>
             </tr></thead>
             <tbody>${rows}</tbody>
@@ -717,20 +721,37 @@ const InventoryModule = (() => {
       {S1:'SHIFT 1',S2:'SHIFT 2',SNK1:'SHIFT 1',SNK2:'SHIFT 2',SNK3:'SHIFT 3',SNK4:'SHIFT 3'}[form.shift]||form.shift;
     const checked = _syncChecked[formId] || new Set();
     const aktItems = (form.items||[]).filter(it => it.aktQty > 0);
-    let synced = 0;
+    let synced = 0, revised = 0;
+
+    // Read revised QTY from DOM
+    const revInputs = document.querySelectorAll('[data-sync-idx]');
+    const revMap = {};
+    revInputs.forEach(inp => { revMap[inp.dataset.syncIdx] = parseFloat(inp.value)||0; });
 
     for (const [i, it] of aktItems.entries()) {
       if (!checked.has(i)) continue;
       const invItem = _items.find(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase());
       if (!invItem) continue;
 
+      // Gunakan revisi QTY jika berbeda
+      const revQty = revMap[i] !== undefined ? revMap[i] : _n(it.aktQty);
+      const qtyToSync = revQty;
+
+      // Update form produksi aktQty jika revisi berbeda
+      if (revQty !== _n(it.aktQty)) {
+        it.aktQty = revQty;
+        it.aktTotal = revQty * _n(it.hargaSatuan);
+        revised++;
+      }
+
       const existing = _logs.find(l => l.syncTag === syncTag && l.itemId === invItem.id);
       const logData = {
         id: existing?.id || undefined,
         tgl: form.tanggal, itemId: invItem.id, itemNama: invItem.nama,
-        jenis: 'KELUAR', jumlah: _n(it.aktQty), harga: _n(it.hargaSatuan),
+        jenis: 'KELUAR', jumlah: qtyToSync, harga: _n(it.hargaSatuan),
         kodeAktivitas: shiftCode, hpp: true,
-        pengambil: 'Form Produksi', penanggungJawab: 'Sync',
+        pengambil: 'Form Produksi',
+        penanggungJawab: (typeof Auth!=='undefined'&&Auth.currentUser()) ? (Auth.currentUser().nama||Auth.currentUser().username||'Sync') : 'Sync',
         catatan: '', syncTag,
       };
       try {
@@ -741,9 +762,21 @@ const InventoryModule = (() => {
       } catch(e) { console.warn('[Sync]', e); }
     }
 
+    // Save revised form produksi back to DB
+    if (revised > 0) {
+      form.updatedAt = new Date().toISOString();
+      try { await DB.saveDailyOrderForm(form); } catch(e) { console.warn('[Sync] save form:', e); }
+    }
+
+    // Log sync activity (#5: history tercatat)
+    DB.logActivity({type:'sync_inventory', detail:`Sync ${synced} item dari ${(form.shift||'').startsWith('EVT')?'Event':'Shift'} ${form.tanggal}${revised?' ('+revised+' revisi)':''}`,
+      snapshot:{syncTag, formId, synced, revised}});
+
     _syncChecked[formId] = new Set();
     Modal.close(window._syncPreviewMid);
-    Notify.success(synced + ' item di-sync ke Activity Line');
+    const msg = [synced + ' item di-sync'];
+    if (revised) msg.push(revised + ' revisi QTY');
+    Notify.success(msg.join(', '));
     renderTransaksi();
   }
 

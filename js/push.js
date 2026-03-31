@@ -93,7 +93,8 @@ const PushModule = (() => {
 
   // ── Kirim notif via Netlify Function ────────────────────
   async function _send({ tokens, title, body, data = {} }) {
-    if (!tokens?.length) return;
+    if (!tokens?.length) { console.warn('[Push] No tokens to send to'); return; }
+    console.log('[Push] Sending to', tokens.length, 'tokens:', title);
     try {
       const res = await fetch(SEND_URL, {
         method: 'POST',
