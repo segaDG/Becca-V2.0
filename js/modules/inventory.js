@@ -564,7 +564,7 @@ const InventoryModule = (() => {
     tableDiv.innerHTML = `
       ${canEdit ? '<div style="margin-bottom:8px"><span style="font-size:11px;color:var(--text-3);font-style:italic">Klik baris untuk edit · Enter untuk simpan · + untuk tambah baris baru</span></div>' : ''}
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;border:1px solid var(--border);border-radius:var(--r-lg)">
-        <table class="iv-tbl" id="inv-grid">
+        <table class="iv-tbl" id="inv-grid" data-grid-select>
           <thead><tr>
             <th style="width:32px;padding:0;text-align:center">
               ${canEdit

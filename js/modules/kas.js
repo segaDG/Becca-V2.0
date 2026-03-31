@@ -258,7 +258,7 @@ const KasModule = (() => {
         <div id="kas-balance-bar" style="text-align:right"></div>
       </div>
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;border:1px solid var(--border);border-radius:var(--r-lg)">
-        <table class="ks-tbl" id="kas-grid">
+        <table class="ks-tbl" id="kas-grid" data-grid-select>
           <thead><tr>
             <th style="width:32px;padding:0;text-align:center">
               ${canEdit
