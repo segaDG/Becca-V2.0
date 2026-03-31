@@ -526,7 +526,13 @@ const DailyOrderModule = (() => {
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600">SAT</th>
                     <th style="padding:7px 5px;text-align:right;color:var(--text-3);font-weight:600;white-space:nowrap">HARGA @</th>
                     <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600;white-space:nowrap">EST TOTAL</th>
-                    <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">AKT QTY</th>
+                    <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600;white-space:nowrap">AKT QTY
+                      ${items.length > 0 ? `<button onclick="DailyOrderModule.copyEstToAkt()" title="Copy semua Est QTY ke Akt QTY"
+                        style="margin-left:3px;padding:1px 5px;border:1px solid rgba(16,185,129,.4);border-radius:4px;background:rgba(16,185,129,.1);
+                          color:#10b981;font-size:8px;font-weight:700;cursor:pointer;vertical-align:middle"
+                        onmouseover="this.style.background='#10b981';this.style.color='#fff'"
+                        onmouseout="this.style.background='rgba(16,185,129,.1)';this.style.color='#10b981'">COPY EST</button>` : ''}
+                    </th>
                     <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600;white-space:nowrap">AKT TOTAL</th>
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600">SUMBER</th>
                     <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600">CATATAN</th>
@@ -1209,6 +1215,28 @@ const DailyOrderModule = (() => {
   }
   function setMonth(m) { _summaryMonth = m; _renderContent(); }
 
+  async function copyEstToAkt() {
+    const form = _currentForm();
+    if (!form || !form.items?.length) { Notify.warning('Tidak ada item untuk di-copy'); return; }
+    let copied = 0;
+    form.items.forEach(it => {
+      const est = _n(it.estQty);
+      if (est > 0) {
+        it.aktQty = est;
+        it.aktTotal = est * _n(it.hargaSatuan);
+        it.sumber = _calcSumber(_n(it.stokGudang), est);
+        copied++;
+      }
+    });
+    if (!copied) { Notify.warning('Tidak ada Est QTY untuk di-copy'); return; }
+    form.updatedAt = new Date().toISOString();
+    try {
+      await DB.saveDailyOrderForm(form);
+      _renderContent();
+      Notify.success(`${copied} item: Est QTY → Akt QTY`);
+    } catch(e) { Notify.error('Gagal menyimpan'); }
+  }
+
   async function createForm() {
     // Guard: don't create if already exists
     if (_currentForm()) { Notify.warning('Form sudah ada untuk tanggal dan shift ini'); return; }
@@ -1363,7 +1391,7 @@ const DailyOrderModule = (() => {
   return {
     init, setView, setDate, setShift, setMonth,
     setFormMonth, prevFormMonth, nextFormMonth,
-    createForm, toggleStatus, deleteForm, updateFormMeta,
+    createForm, copyEstToAkt, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, goToDate,
     _saveEditRow, _cancelEdit, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
