@@ -447,7 +447,7 @@ const DailyOrderModule = (() => {
                 color:${budgetOk?'#10b981':'#ef4444'};padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px">
                 Budget ${_fmtRp(budgetVal)}
               </span>
-              <span>Est HPP: <strong style="color:var(--text)">${_fmtRp(totalEst)}</strong></span>
+              <span style="background:rgba(99,102,241,.15);color:#6366f1;padding:3px 10px;border-radius:20px;font-weight:700;font-size:11px">Est HPP ${_fmtRp(totalEst)}</span>
               ${_badge('Sisa Est', _sisaEst)}
               ${_badge('Sisa Akt', _sisaAkt)}
             </div>`;
