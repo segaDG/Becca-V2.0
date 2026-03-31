@@ -78,20 +78,20 @@ const CustomerModule = (() => {
             qtyPendamping:  c.qtyPendamping   || c.qty_pendamping  || 0,
             potonganAyam:   c.potonganAyam   || 0,
             potonganDaging: c.potonganDaging || 0,
-            hargaBreakfast: cp.breakfast  || c.hargaBreakfast  || 0,
-            hargaShift1:    cp.shift1     || c.hargaShift1     || c.harga_shift1 || 0,
-            hargaSpare1:    cp.spare1     || c.hargaSpare1     || 0,
-            hargaOT1:       cp.ot1        || c.hargaOT1        || c.harga_ot1    || 0,
-            hargaSnack1:    cp.snack1     || c.hargaSnack1     || 0,
-            hargaShift2:    cp.shift2     || c.hargaShift2     || 0,
-            hargaSpare2:    cp.spare2     || c.hargaSpare2     || 0,
-            hargaOT2:       cp.ot2        || c.hargaOT2        || 0,
-            hargaSnack2:    cp.snack2     || c.hargaSnack2     || 0,
-            hargaShift3:    cp.shift3     || c.hargaShift3     || 0,
-            hargaSpare3:    cp.spare3     || c.hargaSpare3     || 0,
-            hargaOT3:       cp.ot3        || c.hargaOT3        || 0,
-            hargaSnack3:    cp.snack3     || c.hargaSnack3     || 0,
-            hargaSnackBerat:cp.snakBerat  || c.hargaSnackBerat || 0,
+            hargaBreakfast: c.hargaBreakfast  ?? cp.breakfast  ?? 0,
+            hargaShift1:    c.hargaShift1     ?? c.harga_shift1 ?? cp.shift1  ?? 0,
+            hargaSpare1:    c.hargaSpare1     ?? cp.spare1     ?? 0,
+            hargaOT1:       c.hargaOT1        ?? c.harga_ot1   ?? cp.ot1     ?? 0,
+            hargaSnack1:    c.hargaSnack1     ?? cp.snack1     ?? 0,
+            hargaShift2:    c.hargaShift2     ?? cp.shift2     ?? 0,
+            hargaSpare2:    c.hargaSpare2     ?? cp.spare2     ?? 0,
+            hargaOT2:       c.hargaOT2        ?? cp.ot2        ?? 0,
+            hargaSnack2:    c.hargaSnack2     ?? cp.snack2     ?? 0,
+            hargaShift3:    c.hargaShift3     ?? cp.shift3     ?? 0,
+            hargaSpare3:    c.hargaSpare3     ?? cp.spare3     ?? 0,
+            hargaOT3:       c.hargaOT3        ?? cp.ot3        ?? 0,
+            hargaSnack3:    c.hargaSnack3     ?? cp.snack3     ?? 0,
+            hargaSnackBerat:c.hargaSnackBerat ?? cp.snakBerat  ?? 0,
             pb1:   c.pb1  ?? null,
             pph23: c.pph23 ?? null,
           };
@@ -245,7 +245,7 @@ const CustomerModule = (() => {
       ? _data.filter(c => (c.status||'AKTIF') === 'NON-AKTIF')
       : _data.filter(c => (c.status||'AKTIF') === 'AKTIF');
     let list = q
-      ? tabData.filter(c => (c.nama||'').toLowerCase().includes(q) || (c.jenisPelayanan||'').toLowerCase().includes(q) || (c.kota||'').toLowerCase().includes(q))
+      ? tabData.filter(c => (c.nama||'').toLowerCase().includes(q) || (c.namaShort||'').toLowerCase().includes(q) || (c.jenisPelayanan||'').toLowerCase().includes(q) || (c.kota||'').toLowerCase().includes(q))
       : [...tabData];
 
     if (_sortCol) {
