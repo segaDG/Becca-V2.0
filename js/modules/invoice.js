@@ -1429,6 +1429,9 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
 
 </body></html>`;
 
+    // Return html jika dipanggil untuk preview, atau buka window
+    if (arguments[4] === 'returnHtml') return html;
+
     const blob = new Blob([html], { type: 'text/html' });
     const blobUrl = URL.createObjectURL(blob);
     const w = window.open(blobUrl, '_blank');
@@ -1566,7 +1569,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         </div>
         <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:10px">
           <button class="btn btn-ghost" onclick="Modal.close(window._icCreateMid)">Batal</button>
-          <button class="btn btn-primary" onclick="InvoiceModule._createInvoice()" style="padding:8px 22px;font-size:13px">
+          <button class="btn btn-primary" onclick="InvoiceModule._showConfirmPreview()" style="padding:8px 22px;font-size:13px">
             + Create Invoice
           </button>
         </div>`,
@@ -1707,6 +1710,91 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     return result;
   }
 
+  function _showConfirmPreview() {
+    const cust   = document.getElementById('ic-cust')?.value;
+    const dari   = document.getElementById('ic-dari')?.value;
+    const sampai = document.getElementById('ic-sampai')?.value;
+    const nomor  = (document.getElementById('ic-nomor')?.value||'').trim();
+
+    if (!cust)  { Notify.warning('Pilih nama perusahaan'); return; }
+    if (!nomor) { Notify.warning('Nomor invoice wajib diisi'); return; }
+
+    const allOrders = _getOrders();
+    let list = allOrders.filter(o => o.namaPerusahaan===cust && !o.invoiced);
+    if (dari)   list = list.filter(o => o.tglOrder >= dari);
+    if (sampai) list = list.filter(o => o.tglOrder <= sampai);
+    list.sort((a,b) => a.tglOrder.localeCompare(b.tglOrder));
+
+    if (!list.length) { Notify.warning('Tidak ada order untuk di-invoice'); return; }
+
+    const includeAdd = document.getElementById('ic-add-chk')?.checked || false;
+    const addRows = includeAdd ? _getAdditionalRows() : [];
+
+    // Hitung totals
+    const tots = {};
+    _ORDER_COLS.forEach(c => { tots[c.key] = list.reduce((s,o)=>s+(Number(o[c.key])||0),0); });
+
+    // Hitung subtotal + pajak
+    const custs = _getCustomers();
+    const c = custs.find(x => x.nama === cust) || {};
+    const gh = k => {
+      const map = {
+        breakfast:c.hargaBreakfast||17500, shift1:c.hargaShift1||17500,
+        spare1:c.hargaSpare1||17500,       ot1:c.hargaOT1||17500,
+        snack1:c.hargaSnack1||17500,       shift2:c.hargaShift2||17500,
+        spare2:c.hargaSpare2||17500,       ot2:c.hargaOT2||17500,
+        snack2:c.hargaSnack2||17500,       shift3:c.hargaShift3||17500,
+        spare3:c.hargaSpare3||17500,       ot3:c.hargaOT3||17500,
+        snack3:c.hargaSnack3||17500,       snackBerat:c.hargaSnackBerat||17500,
+      };
+      return map[k] ?? 17500;
+    };
+    const subtotal = _ORDER_COLS.reduce((s,col) => s + (tots[col.key]||0) * gh(col.key), 0);
+    const invDate = new Date().toISOString().slice(0,10);
+
+    // Build dummy inv object for preview
+    const invPreview = {
+      invoiceNum: nomor, customer: cust, customerId: c.customerId || '',
+      tglInvoice: invDate, tglBayar: '', total: subtotal, dari, sampai,
+    };
+    const orderRec = {nomor, customer:cust, dari, sampai, orderIds:list.map(o=>o.id), totals:tots};
+
+    // Generate print HTML via _openInvPrintWin (returnHtml mode)
+    const html = _openInvPrintWin(invPreview, orderRec, list, addRows, 'returnHtml');
+
+    // Tampilkan di modal konfirmasi dengan iframe
+    const _cfmMid = 'cfm-inv-' + Utils.uid();
+    window._icConfirmMid = _cfmMid;
+    Modal.open({
+      id: _cfmMid,
+      title: 'Preview Invoice & Rekapitulasi',
+      size: 'modal-xl',
+      body: `
+        <style>.modal-xl{max-width:960px!important}</style>
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">
+          <iframe id="inv-preview-frame" style="width:100%;height:70vh;border:none"></iframe>
+        </div>
+        <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:10px">
+          <button class="btn btn-ghost" onclick="Modal.close(window._icConfirmMid)">Kembali</button>
+          <button class="btn btn-primary" onclick="InvoiceModule._createInvoice()" style="padding:8px 22px;font-size:13px">
+            Konfirmasi & Cetak
+          </button>
+        </div>`,
+      buttons: []
+    });
+
+    // Write HTML ke iframe setelah modal terbuka
+    setTimeout(() => {
+      const iframe = document.getElementById('inv-preview-frame');
+      if (iframe) {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(html);
+        doc.close();
+      }
+    }, 100);
+  }
+
   async function _createInvoice() {
     const cust   = document.getElementById('ic-cust')?.value;
     const dari   = document.getElementById('ic-dari')?.value;
@@ -1800,6 +1888,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     // Simpan addRows ke invObj agar bisa diprint ulang dari detail
     if (addRows.length) invObj.addRows = addRows;
 
+    if (window._icConfirmMid) Modal.close(window._icConfirmMid);
     Modal.close(window._icCreateMid);
     Notify.success(`Invoice ${nomor} berhasil — ${list.length} order ditandai`);
     setTimeout(() => _renderFull(), 50);
@@ -1876,7 +1965,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _createInvoice, _toggleAdditional, _addAdditionalRow, _calcAddRowTotal };
+  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _showConfirmPreview, _createInvoice, _toggleAdditional, _addAdditionalRow, _calcAddRowTotal };
 })();
 
 window.InvoiceModule = InvoiceModule;
