@@ -1189,7 +1189,7 @@ const InventoryModule = (() => {
     const trEl = document.getElementById('iv-row-'+id);
     if (!row || !trEl) { _invEditId = null; return; }
     // Save original for change detection
-    row._original = JSON.stringify({tgl:row.tgl,itemId:row.itemId,jenis:row.jenis,
+    row._original = JSON.stringify({tgl:row.tgl,itemId:row.itemId,itemNama:row.itemNama,jenis:row.jenis,
       jumlah:row.jumlah,harga:row.harga,kodeAktivitas:row.kodeAktivitas,
       hpp:row.hpp,pengambil:row.pengambil,penanggungJawab:row.penanggungJawab,catatan:row.catatan});
     const tbody   = document.getElementById('inv-tbody');
@@ -1217,7 +1217,7 @@ const InventoryModule = (() => {
     }, 50);
   }
 
-  function _invCommit(id, skipValidation = false) {
+  async function _invCommit(id, skipValidation = false) {
     const row = _logs.find(r=>r.id===id);
     if (!row) return true;
     const vals = _ivReadDOM(id);
@@ -1246,7 +1246,7 @@ const InventoryModule = (() => {
     }
     const origStr = row._original || '{}';
     Object.assign(row, vals);
-    const newStr = JSON.stringify({tgl:row.tgl,itemId:row.itemId,jenis:row.jenis,jumlah:row.jumlah,harga:row.harga,kodeAktivitas:row.kodeAktivitas,hpp:row.hpp,pengambil:row.pengambil,penanggungJawab:row.penanggungJawab,catatan:row.catatan});
+    const newStr = JSON.stringify({tgl:row.tgl,itemId:row.itemId,itemNama:row.itemNama,jenis:row.jenis,jumlah:row.jumlah,harga:row.harga,kodeAktivitas:row.kodeAktivitas,hpp:row.hpp,pengambil:row.pengambil,penanggungJawab:row.penanggungJawab,catatan:row.catatan});
     row._hasChanged = origStr !== newStr;
     const trEl = document.getElementById('iv-row-'+id);
     if (trEl) {
@@ -1267,20 +1267,18 @@ const InventoryModule = (() => {
       render: () => renderTransaksi()
     });
     delete row._original; delete row._hasChanged; delete row._isNew;
-    DB.saveInventoryLog(row).then(() => {
+    // AWAIT save — mencegah race condition saat switch tab
+    try {
+      await DB.saveInventoryLog(row);
       _recalcStok();
-      // Update item hargaSatuan if MASUK and harga provided
       if (row.jenis==='MASUK' && row.harga>0 && row.itemId) {
         const item = _items.find(i=>i.id===row.itemId);
-        if (item) {
-          item.hargaSatuan = row.harga;
-          DB.saveInventoryItem(item).catch(()=>{});
-        }
+        if (item) { item.hargaSatuan = row.harga; DB.saveInventoryItem(item).catch(()=>{}); }
       }
       DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), snapshot:{after: {...row}}});
       const newTr = document.getElementById('iv-row-'+id);
       if (newTr) { newTr.classList.add('iv-saved'); setTimeout(()=>newTr.classList.remove('iv-saved'),500); }
-    }).catch(e => Notify.error('Gagal simpan', e.message));
+    } catch(e) { Notify.error('Gagal simpan', e.message); }
     return true;
   }
 

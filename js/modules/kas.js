@@ -497,7 +497,7 @@ const KasModule = (() => {
     };
   }
 
-  function _doCommit(id, skipValidation = false) {
+  async function _doCommit(id, skipValidation = false) {
     const row = _kas.find(r=>r.id===id);
     if (!row) return true;
     const origStr = row._original || '{}';
@@ -543,14 +543,15 @@ const KasModule = (() => {
       render: () => renderTransaksi()
     }); } catch(e){}
 
-    // Save to DB async
-    DB.saveKas(row).then(() => {
+    // AWAIT save — mencegah race condition saat switch tab
+    try {
+      await DB.saveKas(row);
       const logType = wasNew ? 'add_kas' : 'edit_kas';
       const logDetail = wasNew ? 'Baris baru: '+(row.nama||id) : 'Edit: '+(row.nama||id);
       DB.logActivity({type:logType, detail:logDetail, snapshot:{after:{nama:row.nama,type:row.type,jumlah:row.jumlah,vendor:row.vendor,tgl:row.tgl,status:row.status}}});
       const newTr = document.getElementById('ks-row-'+id);
       if (newTr) { newTr.classList.add('ks-saved'); setTimeout(()=>newTr.classList.remove('ks-saved'),500); }
-    }).catch(e => Notify.error('Gagal simpan', e.message));
+    } catch(e) { Notify.error('Gagal simpan', e.message); }
     return true;
   }
 

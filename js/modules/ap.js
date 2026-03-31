@@ -1224,7 +1224,7 @@ const APModule = (() => {
     if (!_apEditId) apAddRow();
   }
 
-  function _apCommit(id) {
+  async function _apCommit(id) {
     if (!id) return;
     document.removeEventListener('click', _apOutsideClick);
     const tr = document.getElementById('ap-row-'+id);
@@ -1271,7 +1271,11 @@ const APModule = (() => {
       });
     }
     _apEditId = null;
-    DB.saveAP(row).then(()=>{ if (!_apEditId) applyFilter(); Notify.success('AP disimpan!'); }).catch(e=>Notify.error('Gagal',e.message));
+    try {
+      await DB.saveAP(row);
+      if (!_apEditId) applyFilter();
+      Notify.success('AP disimpan!');
+    } catch(e) { Notify.error('Gagal', e.message); }
   }
 
   function _apCancel(id) {
