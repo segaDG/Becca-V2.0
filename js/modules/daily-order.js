@@ -69,6 +69,12 @@ const DailyOrderModule = (() => {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   }
 
+  // Lookup nama singkat customer (fallback ke nama lengkap)
+  function _shortName(fullName) {
+    const c = _customers.find(x => (x.nama||'').toLowerCase() === (fullName||'').toLowerCase());
+    return c?.namaShort || fullName || '-';
+  }
+
   /* ─── ORDER SUMMARY ─── */
   function _getOrderSummary(date, shift) {
     const dayOrds = _orders.filter(o => o.tglOrder === date);
@@ -433,7 +439,7 @@ const DailyOrderModule = (() => {
                   : c.snacks > 0 ? `${c.snacks} snack` : 'pax';
                 return `
                 <div style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 9px;min-width:60px">
-                  <div style="font-size:9px;color:var(--text-3);font-weight:600;white-space:nowrap">${c.nama}</div>
+                  <div style="font-size:9px;color:var(--text-3);font-weight:600;white-space:nowrap" title="${c.nama}">${_shortName(c.nama)}</div>
                   <div style="font-size:13px;font-weight:700;color:var(--text);line-height:1.3">${c.total.toLocaleString('id-ID')}</div>
                   <div style="font-size:9px;color:var(--text-3)">${sub}</div>
                 </div>`;
@@ -805,7 +811,7 @@ const DailyOrderModule = (() => {
             <thead>
               <tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
                 <th style="padding:7px 8px;text-align:left;color:var(--text-3);font-weight:700;white-space:nowrap;border-right:1px solid var(--border)">TANGGAL</th>
-                ${customers.map(c => `<th style="padding:7px 5px;text-align:right;color:var(--primary);font-weight:600;white-space:nowrap;font-size:10px">${c}</th>`).join('')}
+                ${customers.map(c => `<th style="padding:7px 5px;text-align:right;color:var(--primary);font-weight:600;white-space:nowrap;font-size:10px" title="${c}">${_shortName(c)}</th>`).join('')}
                 <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:700;white-space:nowrap;border-left:1px solid var(--border)">JUMLAH<br><span style="font-size:9px;font-weight:400">(Makan+Snack)</span></th>
                 <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:700;white-space:nowrap">JUMLAH<br><span style="font-size:9px;font-weight:400">(Makanan)</span></th>
               </tr>

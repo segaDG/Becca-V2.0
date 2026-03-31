@@ -351,6 +351,7 @@ const CustomerModule = (() => {
               ${_th('#','','center','36px','cst-s0')}
               ${_th('ID','','center','52px','cst-s1')}
               ${_thS('nama','Nama Perusahaan','220px','left','cst-s2')}
+              ${_thS('namaShort','Nama Singkat','100px','left')}
               ${_thS('jenisPelayanan','Jenis Pelayanan','110px','center')}
               ${_thS('hargaPerPax','Harga / Pax','90px','right')}
               ${_thS('biayaBox','Biaya Box','80px','right')}
@@ -421,6 +422,7 @@ const CustomerModule = (() => {
                   </span>
                 </td>
                 <td class="cst-s2" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap">${c.nama||'-'}</td>
+                <td style="padding:8px 10px;font-size:11px;color:var(--text-2);white-space:nowrap">${c.namaShort||'-'}</td>
                 <td style="padding:8px 10px;text-align:center">${_badge(c.jenisPelayanan)}</td>
                 ${_tdRp(c.hargaPerPax)}
                 ${_tdRp(c.biayaBox)}
@@ -638,10 +640,14 @@ const CustomerModule = (() => {
         </style>
 
         <div class="cf-section">Info Umum</div>
-        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:var(--s3)">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:var(--s3)">
           <div class="form-group">
             <label class="form-label">Nama Perusahaan <span style="color:var(--danger)">*</span></label>
             <input class="form-control" id="cf-nama" value="${fv('nama')}" placeholder="PT. ...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nama Singkat</label>
+            <input class="form-control" id="cf-namaShort" value="${fv('namaShort')}" placeholder="AICC, IFF, ...">
           </div>
           <div class="form-group">
             <label class="form-label">Jenis Pelayanan</label>
@@ -749,7 +755,7 @@ const CustomerModule = (() => {
 
     const obj = {
       id: id || Utils.uid(),
-      nama,
+      nama, namaShort: g('cf-namaShort'),
       pic: g('cf-pic'), noHp: g('cf-noHp'), kota: g('cf-kota'),
       status: g('cf-status'), alamat: g('cf-alamat'), email: g('cf-email'),
       jenisPelayanan: g('cf-jenis'), catatan: g('cf-catatan'),
@@ -770,7 +776,8 @@ const CustomerModule = (() => {
 
     if (id) {
       const i = _data.findIndex(c=>c.id===id || String(c.id)===String(id));
-      if (i>=0) _data[i]=obj; else _data.push(obj);
+      if (i>=0) { obj.customerId = _data[i].customerId || ''; _data[i]=obj; }
+      else _data.push(obj);
     } else {
       _data.push(obj);
     }
