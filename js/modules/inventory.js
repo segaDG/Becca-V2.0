@@ -491,16 +491,18 @@ const InventoryModule = (() => {
   /* ═══ SYNC FORM PRODUKSI → ACTIVITY LINE ═══ */
   let _syncChecked = {}; // formId → Set of checked item indices
 
-  function _renderSyncDashboard(tab) {
+  async function _renderSyncDashboard(tab) {
     let el = document.getElementById('inv-sync-dash');
     if (!el) {
       el = document.createElement('div'); el.id = 'inv-sync-dash';
       el.style.cssText = 'margin-bottom:12px';
       tab.insertBefore(el, tab.firstChild);
     }
-    // Load all daily order forms
+    // Load daily order forms dari DB (cross-device)
     let forms = [];
-    try { forms = JSON.parse(localStorage.getItem('becca_daily_order_forms')||'[]'); } catch {}
+    try { forms = await DB.getDailyOrderForms(); } catch(e) {
+      try { forms = JSON.parse(localStorage.getItem('becca_daily_order_forms')||'[]'); } catch {}
+    }
     if (!forms.length) { el.innerHTML = ''; return; }
 
     const today = new Date().toISOString().slice(0,10);
@@ -554,7 +556,9 @@ const InventoryModule = (() => {
 
   async function syncFormProduksi(formId) {
     let forms = [];
-    try { forms = JSON.parse(localStorage.getItem('becca_daily_order_forms')||'[]'); } catch {}
+    try { forms = await DB.getDailyOrderForms(); } catch(e) {
+      try { forms = JSON.parse(localStorage.getItem('becca_daily_order_forms')||'[]'); } catch {}
+    }
     const form = forms.find(f => f.id === formId);
     if (!form || !form.items?.length) { Notify.warning('Form tidak ditemukan'); return; }
 
@@ -658,7 +662,9 @@ const InventoryModule = (() => {
 
   async function _confirmSync(formId) {
     let forms = [];
-    try { forms = JSON.parse(localStorage.getItem('becca_daily_order_forms')||'[]'); } catch {}
+    try { forms = await DB.getDailyOrderForms(); } catch(e) {
+      try { forms = JSON.parse(localStorage.getItem('becca_daily_order_forms')||'[]'); } catch {}
+    }
     const form = forms.find(f => f.id === formId);
     if (!form) return;
 
