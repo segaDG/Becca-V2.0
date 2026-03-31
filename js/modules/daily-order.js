@@ -69,9 +69,26 @@ const DailyOrderModule = (() => {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   }
 
+  // Resolve nama order ke nama customer (handle mismatch seperti SUPER STEEL KARAWANG vs PT. Super Steel Karawang)
+  function _resolveName(orderName) {
+    if (!orderName) return orderName;
+    const low = orderName.toLowerCase();
+    // Exact match
+    let c = _customers.find(x => (x.nama||'').toLowerCase() === low);
+    if (c) return c.nama;
+    // Contains match (order name is substring of customer name or vice versa)
+    c = _customers.find(x => (x.nama||'').toLowerCase().includes(low) || low.includes((x.nama||'').toLowerCase()));
+    if (c) return c.nama;
+    // Match via namaShort
+    c = _customers.find(x => (x.namaShort||'').toLowerCase() === low);
+    if (c) return c.nama;
+    return orderName;
+  }
+
   // Lookup nama singkat customer (fallback ke nama lengkap)
   function _shortName(fullName) {
-    const c = _customers.find(x => (x.nama||'').toLowerCase() === (fullName||'').toLowerCase());
+    const resolved = _resolveName(fullName);
+    const c = _customers.find(x => (x.nama||'').toLowerCase() === (resolved||'').toLowerCase());
     return c?.namaShort || fullName || '-';
   }
 
@@ -87,7 +104,7 @@ const DailyOrderModule = (() => {
       else if (shift === 'SNK2') { snacks = _n(o.snack2); }
       else if (shift === 'SNK3') { snacks = _n(o.snack3); }
       else if (shift === 'SNK4') { snacks = _n(o.snackBerat); }
-      if (meals + snacks > 0) out.push({ nama: o.namaPerusahaan, meals, snacks, total: meals + snacks });
+      if (meals + snacks > 0) out.push({ nama: _resolveName(o.namaPerusahaan), meals, snacks, total: meals + snacks });
     });
     return out.sort((a,b) => b.total - a.total);
   }
@@ -97,8 +114,8 @@ const DailyOrderModule = (() => {
     const dayOrds = _orders.filter(o => o.tglOrder === date);
     let total = 0;
     dayOrds.forEach(o => {
-      const cname = (o.namaPerusahaan||'').toLowerCase();
-      const c = _customers.find(x => (x.nama||x.namaPerusahaan||'').toLowerCase() === cname) || {};
+      const resolved = _resolveName(o.namaPerusahaan);
+      const c = _customers.find(x => (x.nama||'').toLowerCase() === (resolved||'').toLowerCase()) || {};
       let gross = 0;
       let qty = 0;
       if (shift === 'S1') {
@@ -223,8 +240,8 @@ const DailyOrderModule = (() => {
     let totalLauk = 0, totalPendamping = 0;
     if (!_isSnack(_shift)) {
       _dayOrds.forEach(o => {
-        const cname = (o.namaPerusahaan||'').toLowerCase();
-        const c = _customers.find(x => (x.nama||x.namaPerusahaan||'').toLowerCase() === cname) || {};
+        const resolved = _resolveName(o.namaPerusahaan);
+        const c = _customers.find(x => (x.nama||'').toLowerCase() === (resolved||'').toLowerCase()) || {};
         const qL = _n(c.qtyLauk), qP = _n(c.qtyPendamping);
         const pax = _shift === 'S1'
           ? _n(o.breakfast) + _n(o.shift1) + _n(o.spare1) + _n(o.ot1)
@@ -740,7 +757,8 @@ const DailyOrderModule = (() => {
 
     const custVol = {};
     monthOrds.forEach(o => {
-      custVol[o.namaPerusahaan] = (custVol[o.namaPerusahaan]||0) + _ordMeals(o) + _ordSnacks(o);
+      const nm = _resolveName(o.namaPerusahaan);
+      custVol[nm] = (custVol[nm]||0) + _ordMeals(o) + _ordSnacks(o);
     });
     const customers = Object.keys(custVol).sort((a,b) => custVol[b]-custVol[a]);
 
@@ -752,7 +770,8 @@ const DailyOrderModule = (() => {
       let totMeals = 0, totSnacks = 0;
       dayOrds.forEach(o => {
         const m = _ordMeals(o), s = _ordSnacks(o);
-        cells[o.namaPerusahaan] = (cells[o.namaPerusahaan]||0) + m + s;
+        const nm = _resolveName(o.namaPerusahaan);
+        cells[nm] = (cells[nm]||0) + m + s;
         totMeals += m; totSnacks += s;
       });
       rows.push({dateStr, d, cells, totMeals, totSnacks, hasData: dayOrds.length > 0});
