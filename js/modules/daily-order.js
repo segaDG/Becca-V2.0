@@ -520,8 +520,6 @@ const DailyOrderModule = (() => {
               </button>
               <button onclick="DailyOrderModule.openCopyFormModal()"
                 style="padding:6px 12px;border:1px solid rgba(139,92,246,.4);border-radius:7px;background:rgba(139,92,246,.08);color:#8b5cf6;font-size:12px;cursor:pointer;font-weight:600">Copy Form</button>
-              <button onclick="DailyOrderModule.syncToInventory()"
-                style="padding:6px 12px;border:1px solid rgba(16,185,129,.4);border-radius:7px;background:rgba(16,185,129,.08);color:#10b981;font-size:12px;cursor:pointer;font-weight:600">Sync Inventory</button>
               <button onclick="DailyOrderModule.printForm()"
                 style="padding:6px 12px;border:1px solid rgba(99,102,241,.4);border-radius:7px;background:rgba(99,102,241,.08);color:#6366f1;font-size:12px;cursor:pointer;font-weight:600">Print</button>
               <button onclick="DailyOrderModule.deleteForm()"

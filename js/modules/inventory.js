@@ -488,6 +488,217 @@ const InventoryModule = (() => {
   function setLogFilterTgl(v)  { _logFilterTgl  = v; _invLogPage = 1; renderTransaksi(); }
   function clearLogFilter()    { _logFilterNama = ''; _logFilterTgl = ''; _invLogPage = 1; renderTransaksi(); }
 
+  /* ═══ SYNC FORM PRODUKSI → ACTIVITY LINE ═══ */
+  let _syncChecked = {}; // formId → Set of checked item indices
+
+  function _renderSyncDashboard(tab) {
+    let el = document.getElementById('inv-sync-dash');
+    if (!el) {
+      el = document.createElement('div'); el.id = 'inv-sync-dash';
+      el.style.cssText = 'margin-bottom:12px';
+      tab.insertBefore(el, tab.firstChild);
+    }
+    // Load all daily order forms
+    let forms = [];
+    try { forms = JSON.parse(localStorage.getItem('becca_daily_order_forms')||'[]'); } catch {}
+    if (!forms.length) { el.innerHTML = ''; return; }
+
+    const today = new Date().toISOString().slice(0,10);
+    // Show forms with aktual data from last 3 days + today
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-3);
+    const cutoffStr = cutoff.toISOString().slice(0,10);
+    const relevant = forms.filter(f => f.tanggal >= cutoffStr && (f.items||[]).some(it => it.aktQty > 0));
+    if (!relevant.length) { el.innerHTML = ''; return; }
+
+    // Check sync status for each form
+    const cards = relevant.sort((a,b) => (b.tanggal||'').localeCompare(a.tanggal||'')).map(f => {
+      const syncTag = 'do_' + (f.tanggal||'').replace(/-/g,'') + '_' + f.shift;
+      const syncedLogs = _logs.filter(l => l.syncTag === syncTag);
+      const aktItems = (f.items||[]).filter(it => it.aktQty > 0);
+      const totalItems = aktItems.length;
+      const syncedCount = syncedLogs.length;
+      const needsUpdate = aktItems.some(it => {
+        const log = syncedLogs.find(l => (l.itemNama||'').toLowerCase() === (it.item||'').toLowerCase());
+        return log && log.jumlah !== it.aktQty;
+      });
+      const isFullSync = syncedCount >= totalItems && !needsUpdate;
+      const shiftLabel = (f.shift||'').startsWith('EVT') ? 'C'+(f.shift||'').replace('EVT','') :
+        {S1:'Shift 1',S2:'Shift 2&3',SNK1:'Snack 1',SNK2:'Snack 2',SNK3:'Snack 3',SNK4:'Snack Brt'}[f.shift]||f.shift;
+      const dateLabel = new Date(f.tanggal+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'short'});
+      const statusColor = isFullSync ? '#10b981' : syncedCount > 0 ? '#f59e0b' : 'var(--text-3)';
+      const statusText = isFullSync ? 'Synced' : syncedCount > 0 ? (needsUpdate ? 'Update' : 'Partial') : 'Belum';
+      const statusBg = isFullSync ? 'rgba(16,185,129,.1)' : syncedCount > 0 ? 'rgba(245,158,11,.1)' : 'var(--surface2)';
+
+      return `<button onclick="InventoryModule.syncFormProduksi('${f.id}')" title="${f.tanggal} ${shiftLabel}"
+        style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
+        border:1px solid ${isFullSync?'rgba(16,185,129,.3)':syncedCount>0?'rgba(245,158,11,.3)':'var(--border)'};
+        border-radius:8px;background:${statusBg};cursor:pointer;min-width:70px;transition:.15s"
+        onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'"
+        onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <span style="font-size:9px;font-weight:700;color:var(--text-3)">${dateLabel}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--text)">${shiftLabel}</span>
+        <span style="font-size:9px;font-weight:700;color:${statusColor}">${statusText}</span>
+        <span style="font-size:8px;color:var(--text-3)">${syncedCount}/${totalItems}</span>
+      </button>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+          Sync Form Produksi
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${cards}</div>
+      </div>`;
+  }
+
+  async function syncFormProduksi(formId) {
+    let forms = [];
+    try { forms = JSON.parse(localStorage.getItem('becca_daily_order_forms')||'[]'); } catch {}
+    const form = forms.find(f => f.id === formId);
+    if (!form || !form.items?.length) { Notify.warning('Form tidak ditemukan'); return; }
+
+    const syncTag = 'do_' + (form.tanggal||'').replace(/-/g,'') + '_' + form.shift;
+    const syncedLogs = _logs.filter(l => l.syncTag === syncTag);
+    const aktItems = (form.items||[]).filter(it => it.aktQty > 0);
+    const shiftLabel = (form.shift||'').startsWith('EVT') ? 'Event C'+(form.shift||'').replace('EVT','') :
+      {S1:'SHIFT 1',S2:'SHIFT 2',SNK1:'SHIFT 1',SNK2:'SHIFT 2',SNK3:'SHIFT 3',SNK4:'SHIFT 3'}[form.shift]||form.shift;
+    const dateLabel = new Date(form.tanggal+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+
+    // Init checked state
+    if (!_syncChecked[formId]) _syncChecked[formId] = new Set();
+    const checked = _syncChecked[formId];
+
+    // Build preview rows with diff highlight
+    const rows = aktItems.map((it, i) => {
+      const invItem = _items.find(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase());
+      const existing = syncedLogs.find(l => (l.itemNama||'').toLowerCase() === (it.item||'').toLowerCase());
+      const isNew = !existing;
+      const qtyChanged = existing && existing.jumlah !== it.aktQty;
+      const hrgChanged = existing && existing.harga !== it.hargaSatuan;
+      const noMatch = !invItem;
+      const isChecked = checked.has(i);
+      const highlight = qtyChanged ? 'background:rgba(245,158,11,.12)' : isNew ? 'background:rgba(99,102,241,.06)' : '';
+      return `<tr style="${highlight};border-bottom:1px solid var(--border)">
+        <td style="padding:5px;text-align:center">
+          ${noMatch ? '<span style="color:#ef4444;font-size:9px" title="Item tidak ada di master stok">-</span>' :
+            `<input type="checkbox" ${isChecked?'checked':''} onchange="InventoryModule._toggleSyncCheck('${formId}',${i})"
+              style="width:15px;height:15px;accent-color:#10b981;cursor:pointer">`}
+        </td>
+        <td style="padding:5px 6px;font-weight:600;font-size:11px${noMatch?';color:#ef4444;text-decoration:line-through':''}">${it.item||''}</td>
+        <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:700${qtyChanged?';color:#f59e0b':''}">${it.aktQty}${qtyChanged?' <span style="font-size:9px;color:var(--text-3);text-decoration:line-through">'+existing.jumlah+'</span>':''}</td>
+        <td style="padding:5px 6px;text-align:center;font-size:10px;color:var(--text-3)">${it.satuan||''}</td>
+        <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-size:10px${hrgChanged?';color:#f59e0b':''}">${_n(it.hargaSatuan)?'Rp '+_n(it.hargaSatuan).toLocaleString('id'):'-'}</td>
+        <td style="padding:5px 6px;text-align:center;font-size:9px">
+          ${noMatch ? '<span style="color:#ef4444;font-weight:700">NO MATCH</span>' :
+            isNew ? '<span style="color:#6366f1;font-weight:700">BARU</span>' :
+            qtyChanged ? '<span style="color:#f59e0b;font-weight:700">UPDATE</span>' :
+            '<span style="color:#10b981">OK</span>'}
+        </td>
+      </tr>`;
+    }).join('');
+
+    const checkedCount = checked.size;
+    const syncableCount = aktItems.filter((it,i) => _items.some(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase())).length;
+
+    const mid = 'sync-preview-' + Utils.uid();
+    window._syncPreviewMid = mid;
+    Modal.open({
+      id: mid, title: 'Sync Form Produksi → Activity Line', size: 'modal-xl',
+      body: `
+        <style>.modal-xl{max-width:750px!important}</style>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div>
+            <div style="font-size:14px;font-weight:700">${dateLabel}</div>
+            <div style="font-size:12px;color:var(--primary);font-weight:600">${shiftLabel}</div>
+          </div>
+          <div style="text-align:right;font-size:11px;color:var(--text-3)">
+            ${aktItems.length} item aktual &middot; ${syncedLogs.length} sudah sync
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--text-3);margin-bottom:6px;display:flex;gap:12px">
+          <span><span style="display:inline-block;width:10px;height:10px;background:rgba(99,102,241,.15);border-radius:2px;margin-right:3px;vertical-align:middle"></span>Baru</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:rgba(245,158,11,.15);border-radius:2px;margin-right:3px;vertical-align:middle"></span>Qty berubah</span>
+        </div>
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:var(--surface2)">
+              <th style="padding:5px;width:30px"></th>
+              <th style="padding:5px 6px;text-align:left;font-size:9px;font-weight:700;color:var(--text-3)">ITEM</th>
+              <th style="padding:5px 6px;text-align:right;font-size:9px;font-weight:700;color:var(--text-3)">AKT QTY</th>
+              <th style="padding:5px 6px;text-align:center;font-size:9px;font-weight:700;color:var(--text-3)">SAT</th>
+              <th style="padding:5px 6px;text-align:right;font-size:9px;font-weight:700;color:var(--text-3)">HARGA</th>
+              <th style="padding:5px 6px;text-align:center;font-size:9px;font-weight:700;color:var(--text-3)">STATUS</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:11px;color:var(--text-3)">${checkedCount} / ${syncableCount} item dicentang</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" onclick="Modal.close(window._syncPreviewMid)">Batal</button>
+            <button class="btn btn-primary" onclick="InventoryModule._confirmSync('${formId}')"
+              style="background:#10b981;border-color:#10b981;${checkedCount?'':'opacity:.4;pointer-events:none'}">
+              Sync ${checkedCount} Item
+            </button>
+          </div>
+        </div>`,
+      buttons: []
+    });
+  }
+
+  function _toggleSyncCheck(formId, idx) {
+    if (!_syncChecked[formId]) _syncChecked[formId] = new Set();
+    const s = _syncChecked[formId];
+    if (s.has(idx)) s.delete(idx); else s.add(idx);
+    // Re-open modal to refresh
+    Modal.close(window._syncPreviewMid);
+    setTimeout(() => syncFormProduksi(formId), 50);
+  }
+
+  async function _confirmSync(formId) {
+    let forms = [];
+    try { forms = JSON.parse(localStorage.getItem('becca_daily_order_forms')||'[]'); } catch {}
+    const form = forms.find(f => f.id === formId);
+    if (!form) return;
+
+    const syncTag = 'do_' + (form.tanggal||'').replace(/-/g,'') + '_' + form.shift;
+    const shiftCode = (form.shift||'').startsWith('EVT') ? 'EVENT' :
+      {S1:'SHIFT 1',S2:'SHIFT 2',SNK1:'SHIFT 1',SNK2:'SHIFT 2',SNK3:'SHIFT 3',SNK4:'SHIFT 3'}[form.shift]||form.shift;
+    const checked = _syncChecked[formId] || new Set();
+    const aktItems = (form.items||[]).filter(it => it.aktQty > 0);
+    let synced = 0;
+
+    for (const [i, it] of aktItems.entries()) {
+      if (!checked.has(i)) continue;
+      const invItem = _items.find(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase());
+      if (!invItem) continue;
+
+      const existing = _logs.find(l => l.syncTag === syncTag && l.itemId === invItem.id);
+      const logData = {
+        id: existing?.id || undefined,
+        tgl: form.tanggal, itemId: invItem.id, itemNama: invItem.nama,
+        jenis: 'KELUAR', jumlah: _n(it.aktQty), harga: _n(it.hargaSatuan),
+        kodeAktivitas: shiftCode, hpp: true,
+        pengambil: 'Form Produksi', penanggungJawab: 'Sync',
+        catatan: '', syncTag,
+      };
+      try {
+        const saved = await DB.saveInventoryLog(logData);
+        if (existing) { Object.assign(existing, saved); }
+        else { _logs.unshift(saved); }
+        synced++;
+      } catch(e) { console.warn('[Sync]', e); }
+    }
+
+    _syncChecked[formId] = new Set();
+    Modal.close(window._syncPreviewMid);
+    Notify.success(synced + ' item di-sync ke Activity Line');
+    renderTransaksi();
+  }
+
+  function _n(v) { return Number(v)||0; }
+
   function renderTransaksi() {
     const canEdit = Auth.can('inventory','edit');
     const sorted  = [..._logs]
@@ -527,6 +738,9 @@ const InventoryModule = (() => {
 
     const tab = document.getElementById('inv-tab-transaksi');
     if (!tab) return;
+
+    // ── Sync Dashboard ──
+    _renderSyncDashboard(tab);
 
     // ── Filter bar: only inject once so typing doesn't lose focus ──
     if (!document.getElementById('inv-log-filter')) {
@@ -2225,6 +2439,7 @@ const InventoryModule = (() => {
     renderLaporanBulanan,
     renderSummary,
     setLogFilterNama, setLogFilterTgl, clearLogFilter,
+    syncFormProduksi, _toggleSyncCheck, _confirmSync,
   };
 
 })();
