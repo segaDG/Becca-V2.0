@@ -499,6 +499,12 @@ const SettingsModule = (() => {
 
   /* ===================== TAB: PRIVILEGE ===================== */
   async function renderPrivilege() {
+    // Sync privileges dari DB dulu agar selalu up-to-date
+    try {
+      const settings = await DB.getSettings();
+      if (settings?._privileges) localStorage.setItem('becca_privileges', JSON.stringify(settings._privileges));
+      if (settings?._customRoles) localStorage.setItem('becca_custom_roles', JSON.stringify(settings._customRoles));
+    } catch(e) { console.warn('[Settings] sync privileges:', e); }
     let custom = {};
     try { custom = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
     const privs  = {};
@@ -576,7 +582,7 @@ const SettingsModule = (() => {
     return m[f]||f;
   }
 
-  function savePrivileges() {
+  async function savePrivileges() {
     const custom = {};
     _getRoles().filter(r=>r!=='superadmin').forEach(role => {
       custom[role] = {};
@@ -588,11 +594,22 @@ const SettingsModule = (() => {
         else                      custom[role][feat] = '';
       });
     });
-    // Simpan ke localStorage dengan key langsung (bukan via Utils.ls agar tidak double-prefix)
+    // Simpan ke localStorage
     localStorage.setItem('becca_privileges', JSON.stringify(custom));
-    // Sync ke Supabase agar berlaku di semua device
-    DB.saveSettings({ _privileges: custom });
-    Notify.success('Hak akses disimpan! Refresh untuk menerapkan.');
+    // AWAIT sync ke Supabase — mencegah data hilang
+    try {
+      await DB.saveSettings({ _privileges: custom });
+      // Verifikasi: baca ulang dari DB dan sync ke localStorage
+      const settings = await DB.getSettings();
+      if (settings?._privileges) {
+        localStorage.setItem('becca_privileges', JSON.stringify(settings._privileges));
+      }
+      Notify.success('Hak akses disimpan!');
+    } catch(e) {
+      console.error('[Settings] savePrivileges error:', e);
+      Notify.error('Gagal menyimpan ke server — coba lagi');
+      return;
+    }
     DB.logActivity({type:'update_privileges', detail:'Hak akses diperbarui'});
     // Visual feedback langsung di tombol
     const saveBtn = document.querySelector('[onclick="SettingsModule.savePrivileges()"]');
@@ -672,9 +689,9 @@ const SettingsModule = (() => {
     } catch {}
     customRoles.push(name);
     localStorage.setItem('becca_custom_roles', JSON.stringify(customRoles));
-    // Sync ke Supabase agar berlaku di semua device
+    // Sync ke Supabase — await
     const allPrivs = JSON.parse(localStorage.getItem('becca_privileges') || '{}');
-    DB.saveSettings({ _customRoles: customRoles, _privileges: allPrivs }).catch(() => {});
+    DB.saveSettings({ _customRoles: customRoles, _privileges: allPrivs }).catch(e => console.warn('[Settings] saveNewRole:', e));
     Modal.close(mid);
     Notify.success('Role "'+name+'" ditambahkan!');
     renderPrivilege();
@@ -696,8 +713,8 @@ const SettingsModule = (() => {
       try { privs = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
       delete privs[roleName];
       localStorage.setItem('becca_privileges', JSON.stringify(privs));
-      // Sync ke Supabase agar berlaku di semua device
-      DB.saveSettings({ _customRoles: updatedRoles, _privileges: privs }).catch(() => {});
+      // Sync ke Supabase
+      DB.saveSettings({ _customRoles: updatedRoles, _privileges: privs }).catch(e => console.warn('[Settings] deleteRole:', e));
       Notify.success('Role "'+roleName+'" dihapus');
       renderPrivilege();
     });
