@@ -912,32 +912,45 @@ const SettingsModule = (() => {
     return t.includes('kas') || t.includes('inventory') || t.includes('ap');
   }
 
-  function _goToRow(modalId, idx) {
+  async function _goToRow(modalId, idx) {
     const log = window._activityLogs?.[idx];
     if (!log) return;
     Modal.close(modalId);
     const t = log.type||'';
     const rowId = log.rowId || log.snapshot?.after?.id || log.data?.snapshot?.after?.id;
     if (!rowId) return;
-    let page='', prefix='';
-    if (t.includes('kas'))       { page='kas'; prefix='ks-row-'; }
-    if (t.includes('inventory')) { page='inventory'; prefix='iv-row-'; }
-    if (t.includes('ap'))        { page='ap'; prefix='ap-row-'; }
+    let page='', prefix='', switchTab=null;
+    if (t.includes('kas'))       { page='kas'; prefix='ks-row-'; switchTab=()=>window.KasModule?.switchTab?.('transaksi'); }
+    if (t.includes('inventory')) { page='inventory'; prefix='iv-row-'; switchTab=()=>window.InventoryModule?.switchTab?.('transaksi'); }
+    if (t.includes('ap'))        { page='ap'; prefix='ap-row-'; switchTab=()=>window.APModule?.switchTab?.('list'); }
     if (!page) return;
-    if (typeof App !== 'undefined' && App.navigate) App.navigate(page);
-    setTimeout(() => {
+
+    // Navigate ke halaman
+    if (typeof App !== 'undefined' && App.navigate) await App.navigate(page);
+    // Switch ke tab yang benar
+    if (switchTab) switchTab();
+
+    // Tunggu render selesai, lalu scroll + flash
+    const _tryFind = (attempts) => {
       const el = document.getElementById(prefix + rowId);
       if (el) {
         el.scrollIntoView({ behavior:'smooth', block:'center' });
-        // Flash animation
-        el.style.transition = 'box-shadow .3s, background .3s';
-        el.style.background = 'rgba(99,102,241,.2)';
-        el.style.boxShadow = '0 0 0 2px #6366f1';
-        setTimeout(() => { el.style.background = ''; el.style.boxShadow = ''; }, 2500);
+        // Inject flash CSS jika belum ada
+        if (!document.getElementById('go-flash-css')) {
+          const s = document.createElement('style'); s.id = 'go-flash-css';
+          s.textContent = `@keyframes goFlash{0%{background:rgba(99,102,241,.35);box-shadow:0 0 0 3px #6366f1}50%{background:rgba(99,102,241,.2);box-shadow:0 0 0 2px rgba(99,102,241,.5)}100%{background:transparent;box-shadow:none}}
+            .go-flash td{animation:goFlash 2.5s ease forwards!important}`;
+          document.head.appendChild(s);
+        }
+        el.classList.add('go-flash');
+        setTimeout(() => el.classList.remove('go-flash'), 3000);
+      } else if (attempts > 0) {
+        setTimeout(() => _tryFind(attempts - 1), 300);
       } else {
-        Notify.info('Baris tidak ditemukan di halaman ini');
+        Notify.info('Baris tidak ditemukan (mungkin di halaman pagination lain)');
       }
-    }, 600);
+    };
+    setTimeout(() => _tryFind(5), 300);
   }
 
   // Parse activity log detail string menjadi key-value rows untuk tabel Objek

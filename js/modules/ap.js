@@ -1303,6 +1303,9 @@ const APModule = (() => {
     _apEditId = null;
     try {
       await DB.saveAP(row);
+      const logType = row._wasNew ? 'add_ap' : 'edit_ap';
+      DB.logActivity({type:logType, detail:(row._wasNew?'AP baru: ':'Edit AP: ')+(row.keterangan||id), rowId:id,
+        snapshot:{before:origData, after:{id,tgl:row.tgl,supplier:row.supplier,keterangan:row.keterangan,qty:row.qty,satuan:row.satuan,hargaSatuan:row.hargaSatuan,total:row.total,status:row.status}}});
       if (!_apEditId) applyFilter();
       Notify.success('AP disimpan!');
     } catch(e) { Notify.error('Gagal', e.message); }

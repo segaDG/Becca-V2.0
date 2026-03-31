@@ -1324,7 +1324,8 @@ const InventoryModule = (() => {
         const item = _items.find(i=>i.id===row.itemId);
         if (item) { item.hargaSatuan = row.harga; DB.saveInventoryItem(item).catch(()=>{}); }
       }
-      DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), rowId:id, snapshot:{after: {...row}}});
+      const _ivBefore = (()=>{ try{return JSON.parse(origStr)}catch{return null} })();
+      DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), rowId:id, snapshot:{before:_ivBefore, after:{id:row.id,tgl:row.tgl,itemId:row.itemId,itemNama:row.itemNama,jenis:row.jenis,jumlah:row.jumlah,harga:row.harga,kodeAktivitas:row.kodeAktivitas,pengambil:row.pengambil,penanggungJawab:row.penanggungJawab,catatan:row.catatan}}});
       const newTr = document.getElementById('iv-row-'+id);
       if (newTr) { newTr.classList.add('iv-saved'); setTimeout(()=>newTr.classList.remove('iv-saved'),500); }
     } catch(e) { Notify.error('Gagal simpan', e.message); }
