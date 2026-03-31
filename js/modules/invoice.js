@@ -70,10 +70,15 @@ const InvoiceModule = (() => {
 
   /* ─── COMPUTED: Client contribution (dari _invoices) ─── */
   function _computeClients() {
+    const custs = _getCustomers();
     const map = {};
     _invoices.forEach(inv => {
       const key = inv.customer || 'Unknown';
-      if (!map[key]) map[key] = { nama:key, omzet:0, customerId:inv.customerId||'' };
+      if (!map[key]) {
+        // Lookup customerId dari data customer (lebih akurat dari invoice)
+        const c = custs.find(x => (x.nama||'').toLowerCase() === key.toLowerCase());
+        map[key] = { nama:key, omzet:0, customerId: c?.customerId || inv.customerId || '' };
+      }
       map[key].omzet += inv.total || 0;
     });
     return Object.values(map).sort((a,b) => b.omzet - a.omzet);

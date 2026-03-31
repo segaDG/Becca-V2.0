@@ -341,10 +341,14 @@ const CustomerModule = (() => {
         [data-theme="dark"] tbody tr:hover .cst-s0,
         [data-theme="dark"] tbody tr:hover .cst-s1,
         [data-theme="dark"] tbody tr:hover .cst-s2 { background:#1e2040!important; }
-        /* Mobile: hide # and ID cols, Nama sticks at left:0 */
+        /* Desktop: show full name, hide short */
+        .cst-short { display:none; }
+        /* Mobile: hide # and ID cols, Nama sticks at left:0, show short name */
         @media (max-width: 768px) {
           .cst-s0, .cst-s1 { display:none!important; }
           .cst-s2 { left:0px!important; box-shadow:3px 0 5px -2px rgba(0,0,0,.12); }
+          .cst-full { display:none!important; }
+          .cst-short { display:inline!important; }
         }
       </style>
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
@@ -425,7 +429,10 @@ const CustomerModule = (() => {
                     </svg>
                   </span>
                 </td>
-                <td class="cst-s2" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap">${c.nama||'-'}</td>
+                <td class="cst-s2" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap">
+                  <span class="cst-full">${c.nama||'-'}</span>
+                  <span class="cst-short">${c.namaShort||c.nama||'-'}</span>
+                </td>
                 <td style="padding:8px 10px;font-size:11px;color:var(--text-2);white-space:nowrap">${c.namaShort||'-'}</td>
                 <td style="padding:8px 10px;text-align:center">${_badge(c.jenisPelayanan)}</td>
                 ${_tdRp(c.hargaPerPax)}
