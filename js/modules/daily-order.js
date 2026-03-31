@@ -520,6 +520,8 @@ const DailyOrderModule = (() => {
               </button>
               <button onclick="DailyOrderModule.openCopyFormModal()"
                 style="padding:6px 12px;border:1px solid rgba(139,92,246,.4);border-radius:7px;background:rgba(139,92,246,.08);color:#8b5cf6;font-size:12px;cursor:pointer;font-weight:600">Copy Form</button>
+              <button onclick="DailyOrderModule.syncToInventory()"
+                style="padding:6px 12px;border:1px solid rgba(16,185,129,.4);border-radius:7px;background:rgba(16,185,129,.08);color:#10b981;font-size:12px;cursor:pointer;font-weight:600">Sync Inventory</button>
               <button onclick="DailyOrderModule.printForm()"
                 style="padding:6px 12px;border:1px solid rgba(99,102,241,.4);border-radius:7px;background:rgba(99,102,241,.08);color:#6366f1;font-size:12px;cursor:pointer;font-weight:600">Print</button>
               <button onclick="DailyOrderModule.deleteForm()"
@@ -1269,6 +1271,84 @@ const DailyOrderModule = (() => {
     } catch(e) { Notify.error('Gagal menyimpan'); }
   }
 
+  /* ── SYNC AKTUAL ke Inventory Activity Line ── */
+  async function syncToInventory() {
+    const form = _currentForm();
+    if (!form || !form.items?.length) { Notify.warning('Tidak ada item untuk di-sync'); return; }
+
+    // Hanya sync item yang punya aktQty > 0
+    const toSync = form.items.filter(it => _n(it.aktQty) > 0);
+    if (!toSync.length) { Notify.warning('Belum ada data aktual yang bisa di-sync'); return; }
+
+    const shiftCode = _isEvent(_shift) ? 'EVENT' : {S1:'SHIFT 1',S2:'SHIFT 2',SNK1:'SHIFT 1',SNK2:'SHIFT 2',SNK3:'SHIFT 3',SNK4:'SHIFT 3'}[_shift] || _shift;
+    const syncTag = 'do_' + _date.replace(/-/g,'') + '_' + _shift; // unique tag per form
+
+    const ok = await Modal.confirm({
+      title: 'Sync ke Inventory',
+      message: `<p style="font-size:13px;margin-bottom:8px">Sync <strong>${toSync.length} item aktual</strong> dari form ini ke Activity Line Inventory?</p>
+        <div style="font-size:11px;color:var(--text-3);background:var(--surface2);padding:8px 12px;border-radius:6px">
+          Tanggal: <strong>${_date}</strong> &middot; Shift: <strong>${shiftCode}</strong><br>
+          Jenis: <strong>KELUAR</strong> &middot; Tag: <code>${syncTag}</code><br><br>
+          Item yang sudah di-sync sebelumnya akan di-<strong>update</strong> qty-nya, bukan duplikat.
+        </div>`,
+      confirmText: 'Sync',
+    });
+    if (!ok) return;
+
+    // Load existing inventory logs to find previously synced entries
+    let existingLogs = [];
+    try { existingLogs = await DB.getInventory(); } catch(e) {
+      try { existingLogs = JSON.parse(localStorage.getItem('becca_inv_activities')||'[]'); } catch {}
+    }
+
+    // Find inventory items for matching
+    let invItems = [];
+    try { invItems = await DB.getInventoryItems(); } catch(e) {
+      try { invItems = JSON.parse(localStorage.getItem('becca_inv_products')||'[]'); } catch {}
+    }
+
+    let synced = 0, created = 0, updated = 0, skipped = 0;
+
+    for (const it of toSync) {
+      // Match item by name (case-insensitive)
+      const invItem = invItems.find(i => (i.nama||'').toLowerCase() === (it.item||'').toLowerCase());
+      if (!invItem) { skipped++; continue; }
+
+      // Check if already synced (same syncTag + itemId)
+      const existing = existingLogs.find(l =>
+        l.syncTag === syncTag && l.itemId === invItem.id
+      );
+
+      const logData = {
+        id: existing?.id || undefined,
+        tgl: _date,
+        itemId: invItem.id,
+        itemNama: invItem.nama,
+        jenis: 'KELUAR',
+        jumlah: _n(it.aktQty),
+        harga: _n(it.hargaSatuan),
+        kodeAktivitas: shiftCode,
+        hpp: true,
+        pengambil: 'Form Produksi',
+        penanggungJawab: 'Auto Sync',
+        catatan: 'Sync dari ' + _shiftLabel(_shift) + ' ' + _date,
+        syncTag: syncTag,
+      };
+
+      try {
+        await DB.saveInventoryLog(logData);
+        if (existing) updated++; else created++;
+        synced++;
+      } catch(e) { console.warn('[Sync] error:', it.item, e); }
+    }
+
+    const msg = [];
+    if (created) msg.push(created + ' baru');
+    if (updated) msg.push(updated + ' diupdate');
+    if (skipped) msg.push(skipped + ' dilewati (item tidak ada di stok)');
+    Notify.success('Sync: ' + synced + ' item → Inventory' + (msg.length ? ' (' + msg.join(', ') + ')' : ''));
+  }
+
   /* ── COPY FORM ke shift/tanggal lain ── */
   function openCopyFormModal() {
     const form = _currentForm();
@@ -1783,7 +1863,7 @@ const DailyOrderModule = (() => {
   return {
     init, setView, setDate, setShift, setMonth,
     setFormMonth, prevFormMonth, nextFormMonth,
-    createForm, addEvent, saveEventMeta, copyEstToAkt, openCopyFormModal, doCopyForm, printForm, toggleStatus, deleteForm, updateFormMeta,
+    createForm, addEvent, saveEventMeta, copyEstToAkt, syncToInventory, openCopyFormModal, doCopyForm, printForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, goToDate,
     _saveEditRow, _cancelEdit, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
