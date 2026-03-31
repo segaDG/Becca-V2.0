@@ -900,8 +900,44 @@ const SettingsModule = (() => {
         <!-- Snapshot / Before-After Section -->
         ${_renderActivitySnapshot(log)}
       `,
-      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+      footer: `${_canGoToRow(log) ? `<button class="btn btn-primary" onclick="SettingsModule._goToRow('${mid}',${idx})" style="font-size:12px">Lihat Data →</button>` : ''}
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
     });
+  }
+
+  function _canGoToRow(log) {
+    const t = log.type||'';
+    const rid = log.rowId || log.snapshot?.after?.id || log.data?.snapshot?.after?.id;
+    if (!rid) return false;
+    return t.includes('kas') || t.includes('inventory') || t.includes('ap');
+  }
+
+  function _goToRow(modalId, idx) {
+    const log = window._activityLogs?.[idx];
+    if (!log) return;
+    Modal.close(modalId);
+    const t = log.type||'';
+    const rowId = log.rowId || log.snapshot?.after?.id || log.data?.snapshot?.after?.id;
+    if (!rowId) return;
+    let page='', prefix='';
+    if (t.includes('kas'))       { page='kas'; prefix='ks-row-'; }
+    if (t.includes('inventory')) { page='inventory'; prefix='iv-row-'; }
+    if (t.includes('ap'))        { page='ap'; prefix='ap-row-'; }
+    if (!page) return;
+    if (typeof App !== 'undefined' && App.navigate) App.navigate(page);
+    setTimeout(() => {
+      const el = document.getElementById(prefix + rowId);
+      if (el) {
+        el.scrollIntoView({ behavior:'smooth', block:'center' });
+        // Flash animation
+        el.style.transition = 'box-shadow .3s, background .3s';
+        el.style.background = 'rgba(99,102,241,.2)';
+        el.style.boxShadow = '0 0 0 2px #6366f1';
+        setTimeout(() => { el.style.background = ''; el.style.boxShadow = ''; }, 2500);
+      } else {
+        Notify.info('Baris tidak ditemukan di halaman ini');
+      }
+    }, 600);
   }
 
   // Parse activity log detail string menjadi key-value rows untuk tabel Objek
@@ -2283,7 +2319,7 @@ const SettingsModule = (() => {
     saveGeneralSettings, _handleLogoUpload, _removeLogo, openChangePasswordModal, _changePassword,
     renderUsers, openUserModal, _submitUser, toggleUser, deleteUser,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
-    renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
+    renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData,
     clearInventoryData, clearOpnameData, clearOrdersData, clearInvoicesData,
     importOrdersExcel, _doImportOrdersExcel, importInvoicesExcel, _doImportInvoicesExcel,

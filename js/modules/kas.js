@@ -548,7 +548,7 @@ const KasModule = (() => {
       await DB.saveKas(row);
       const logType = wasNew ? 'add_kas' : 'edit_kas';
       const logDetail = wasNew ? 'Baris baru: '+(row.nama||id) : 'Edit: '+(row.nama||id);
-      DB.logActivity({type:logType, detail:logDetail, snapshot:{after:{nama:row.nama,type:row.type,jumlah:row.jumlah,vendor:row.vendor,tgl:row.tgl,status:row.status}}});
+      DB.logActivity({type:logType, detail:logDetail, rowId:id, snapshot:{after:{id,nama:row.nama,type:row.type,jumlah:row.jumlah,vendor:row.vendor,tgl:row.tgl,status:row.status}}});
       const newTr = document.getElementById('ks-row-'+id);
       if (newTr) { newTr.classList.add('ks-saved'); setTimeout(()=>newTr.classList.remove('ks-saved'),500); }
     } catch(e) { Notify.error('Gagal simpan', e.message); }
