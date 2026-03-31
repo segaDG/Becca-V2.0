@@ -559,18 +559,18 @@ const CustomerModule = (() => {
     if (!newId) { errShow('ID tidak boleh kosong'); return; }
 
     // Cek duplikat — tidak boleh sama dengan customer lain
-    const isDuplicate = _data.some(c => c.id !== custId && c.customerId === newId);
+    const isDuplicate = _data.some(c => String(c.id) !== String(custId) && c.customerId === newId);
     if (isDuplicate) {
-      const existing = _data.find(c => c.id !== custId && c.customerId === newId);
+      const existing = _data.find(c => String(c.id) !== String(custId) && c.customerId === newId);
       errShow(`ID "${newId}" sudah digunakan oleh ${existing?.nama || 'customer lain'}`);
       return;
     }
 
     // Simpan ke Supabase + local
-    const idx = _data.findIndex(c => c.id === custId);
+    const idx = _data.findIndex(c => c.id === custId || String(c.id) === String(custId));
     if (idx < 0) return;
     _data[idx].customerId = newId;
-    // Save ke Supabase
+    localStorage.setItem('becca_customers', JSON.stringify(_data));
     DB.saveCustomer({..._data[idx], customer_id: newId}).catch(e => console.warn('save customerId:', e));
 
     Modal.close(window._beccaEditIdModalId);
