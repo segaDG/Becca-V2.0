@@ -251,6 +251,11 @@ const InvoiceModule = (() => {
         <h2>Account Receivable (AR)</h2>
         <p>Piutang & monitoring invoice</p>
       </div>
+      <div class="page-header-right">
+        <button class="btn btn-primary" onclick="InvoiceModule.openCreateModal()" style="font-size:12px">
+          + Create Invoice
+        </button>
+      </div>
     </div>
 
     <div class="inv-stats">
@@ -649,8 +654,10 @@ const InvoiceModule = (() => {
       shift2:'Shift II',spare2:'Spare II',ot2:'OT2',snack2:'Snk2',
       shift3:'Shift III',spare3:'Spare III',ot3:'OT3',snack3:'Snk3',snackBerat:'SnkBrt'};
 
-    // Kolom yang aktif (ada datanya)
+    // Kolom yang aktif (ada datanya) — spare selalu ditampilkan
+    const _spareKeysD = new Set(['spare1','spare2','spare3']);
     const activeCols = ALL_KEYS.filter(k =>
+      _spareKeysD.has(k) ||
       orderList.some(o => Number(o[k]) > 0) ||
       (orderRec?.totals && (orderRec.totals[k]||0) > 0)
     ).map(k => ({key:k, label:ALL_LABELS[k]||k}));
@@ -1139,15 +1146,16 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
       shift3:'Shift III',spare3:'Spare III',ot3:'OT3',snack3:'Snk3',snackBerat:'SnkBrt'
     };
 
-    // Hitung kolom aktif dari orderRec.totals atau orderList
+    // Hitung kolom aktif dari orderRec.totals atau orderList — spare selalu ditampilkan
+    const _spareKeysP = new Set(['spare1','spare2','spare3']);
     let activeCols = [];
     if (orderRec?.totals) {
       activeCols = ALL_COLS_KEYS
-        .filter(k => (orderRec.totals[k]||0) > 0)
+        .filter(k => _spareKeysP.has(k) || (orderRec.totals[k]||0) > 0)
         .map(k => ({ key: k, label: ALL_COLS_LABEL[k] || k }));
     } else if (orderList.length) {
       activeCols = ALL_COLS_KEYS
-        .filter(k => orderList.some(o => Number(o[k]) > 0))
+        .filter(k => _spareKeysP.has(k) || orderList.some(o => Number(o[k]) > 0))
         .map(k => ({ key: k, label: ALL_COLS_LABEL[k] || k }));
     }
 
@@ -1423,6 +1431,329 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     if (!w) Notify.warning('Popup diblokir browser. Izinkan popup untuk halaman ini lalu coba lagi.');
   }
 
+  /* ═══════════════════════════════════════
+     CREATE INVOICE (dari data Order)
+  ═══════════════════════════════════════ */
+  const _ORDER_COLS = [
+    {key:'breakfast', label:'BF'},   {key:'shift1',  label:'S1'},
+    {key:'spare1',    label:'Sp1'},  {key:'ot1',     label:'OT1'},
+    {key:'snack1',    label:'Snk1'}, {key:'shift2',  label:'S2'},
+    {key:'spare2',    label:'Sp2'},  {key:'ot2',     label:'OT2'},
+    {key:'snack2',    label:'Snk2'}, {key:'shift3',  label:'S3'},
+    {key:'spare3',    label:'Sp3'},  {key:'ot3',     label:'OT3'},
+    {key:'snack3',    label:'Snk3'}, {key:'snackBerat',label:'SnkBrt'},
+  ];
+
+  function _getOrders() {
+    try { return JSON.parse(localStorage.getItem('becca_orders')||'[]'); } catch(e){ return []; }
+  }
+  function _getCustomers() {
+    try { return JSON.parse(localStorage.getItem('becca_customers')||'[]'); } catch(e){ return []; }
+  }
+
+  /* ─── AUTO GENERATE NOMOR INVOICE ───
+     Format: CustID(3) + TglAwal(2) + TglAkhir(2) + TahunAwal(2) + BulanAwal(2)
+     Contoh: NICI (id=10), 16-31 Jan 2026 => 01016312601
+     Revisi: 01016312601R, 01016312601RR, dst
+  */
+  function _genInvNo(custName, dari, sampai) {
+    const custs = _getCustomers();
+    const cust = custs.find(c => c.nama === custName);
+    const cidRaw = cust && cust.customerId ? String(cust.customerId) : '0';
+    const cidNum = parseInt(cidRaw.replace(/[^0-9]/g,'')) || 0;
+    const cid = String(cidNum).padStart(3, '0');
+
+    if (!dari || !sampai) return cid + '000000000';
+
+    const d1 = new Date(dari);
+    const d2 = new Date(sampai);
+    const dd = String(d1.getDate()).padStart(2, '0');
+    const ss = String(d2.getDate()).padStart(2, '0');
+    const yy = String(d1.getFullYear()).slice(-2);
+    const bb = String(d1.getMonth() + 1).padStart(2, '0');
+
+    const base = cid + dd + ss + yy + bb;
+
+    // Cek apakah sudah ada invoice dengan nomor ini
+    const existing = _invoices.filter(i => i.invoiceNum && (i.invoiceNum === base || i.invoiceNum.startsWith(base)));
+    if (existing.length === 0) return base;
+    return base + 'R'.repeat(existing.length);
+  }
+
+  function openCreateModal() {
+    const orders = _getOrders();
+    const custAvail = [...new Set(orders.filter(o=>!o.invoiced).map(o=>o.namaPerusahaan).filter(Boolean))].sort();
+    if (!custAvail.length) { Notify.warning('Tidak ada order yang belum di-invoice'); return; }
+
+    const _icMid = 'ic-create-' + Utils.uid();
+    window._icCreateMid = _icMid;
+    Modal.open({
+      id: _icMid,
+      title: '+ Create Invoice',
+      size: 'modal-xl',
+      body: `
+        <style>.modal-xl{max-width:900px!important}</style>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--s3)">
+          <div class="form-group">
+            <label class="form-label">Nama Perusahaan *</label>
+            <select class="form-control" id="ic-cust" onchange="InvoiceModule._previewCreate()">
+              <option value="">— Pilih Customer —</option>
+              ${custAvail.map(n=>`<option value="${n}">${n}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Dari Tanggal <span style="font-size:10px;color:var(--text-3)">(opsional)</span></label>
+            <input class="form-control" type="date" id="ic-dari" value="" onchange="InvoiceModule._previewCreate()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sampai Tanggal <span style="font-size:10px;color:var(--text-3)">(opsional)</span></label>
+            <input class="form-control" type="date" id="ic-sampai" value="" onchange="InvoiceModule._previewCreate()">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">
+            Nomor Invoice
+            <span style="font-size:10px;color:var(--text-3);font-weight:400"> — otomatis dari Customer ID + periode</span>
+          </label>
+          <input class="form-control" id="ic-nomor" value="" placeholder="Pilih customer & periode untuk generate otomatis"
+            style="font-family:var(--font-mono);font-size:14px;font-weight:700;letter-spacing:.04em">
+        </div>
+        <div id="ic-preview" style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:20px;min-height:80px;background:var(--surface2);color:var(--text-3);text-align:center">
+          Pilih customer dan periode untuk melihat preview
+        </div>
+        <div style="margin-top:12px;display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+          <input type="checkbox" id="ic-add-chk" style="width:16px;height:16px;cursor:pointer;accent-color:#3B4E87"
+            onchange="InvoiceModule._toggleAdditional(this.checked)">
+          <label for="ic-add-chk" style="font-size:12px;font-weight:600;cursor:pointer;color:var(--text)">
+            Additional Order
+            <span style="font-size:11px;font-weight:400;color:var(--text-3);margin-left:4px">— centang untuk tambahkan section additional order yang bisa diedit</span>
+          </label>
+        </div>
+        <div id="ic-additional" style="display:none;margin-top:8px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+          <div style="font-size:11px;font-weight:700;color:#1A7340;margin-bottom:8px">+ Additional Order Rows</div>
+          <div id="ic-add-rows"></div>
+          <button onclick="InvoiceModule._addAdditionalRow()" style="margin-top:8px;padding:5px 12px;font-size:11px;background:#1A7340;color:#fff;border:none;border-radius:5px;cursor:pointer">+ Tambah Baris</button>
+        </div>
+        <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:10px">
+          <button class="btn btn-ghost" onclick="Modal.close(window._icCreateMid)">Batal</button>
+          <button class="btn btn-primary" onclick="InvoiceModule._createInvoice()" style="padding:8px 22px;font-size:13px">
+            + Create Invoice
+          </button>
+        </div>`,
+      buttons: []
+    });
+  }
+
+  function _previewCreate() {
+    const cust   = document.getElementById('ic-cust')?.value;
+    const dari   = document.getElementById('ic-dari')?.value;
+    const sampai = document.getElementById('ic-sampai')?.value;
+    const area   = document.getElementById('ic-preview');
+    if (!area) return;
+
+    if (!cust) {
+      area.innerHTML = '<div style="color:var(--text-3);text-align:center;padding:20px">Pilih customer terlebih dahulu</div>';
+      return;
+    }
+
+    const orders = _getOrders();
+    let list = orders.filter(o => o.namaPerusahaan===cust && !o.invoiced);
+    if (dari)   list = list.filter(o => o.tglOrder >= dari);
+    if (sampai) list = list.filter(o => o.tglOrder <= sampai);
+    list.sort((a,b) => a.tglOrder.localeCompare(b.tglOrder));
+
+    if (!list.length) {
+      area.innerHTML = '<div style="color:#f59e0b;text-align:center;padding:20px">⚠ Tidak ada order yang belum di-invoice untuk filter ini</div>';
+      return;
+    }
+
+    // Auto-generate nomor invoice
+    const nomorEl = document.getElementById('ic-nomor');
+    if (nomorEl) {
+      const actualDari   = dari   || list[0].tglOrder;
+      const actualSampai = sampai || list[list.length - 1].tglOrder;
+      nomorEl.value = _genInvNo(cust, actualDari, actualSampai);
+    }
+
+    const tots = {};
+    _ORDER_COLS.forEach(c => { tots[c.key] = list.reduce((s,o)=>s+(Number(o[c.key])||0),0); });
+
+    area.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <strong style="font-size:12px;color:var(--text)">${list.length} order — <span style="color:#6366f1">${cust}</span></strong>
+        <span style="font-size:11px;color:var(--text-3)">${dari?_fmtDate(dari):'--'} s/d ${sampai?_fmtDate(sampai):'--'}</span>
+      </div>
+      <div style="overflow-x:auto;border-radius:6px;border:1px solid var(--border)">
+        <table style="width:100%;border-collapse:collapse;font-size:10px">
+          <thead>
+            <tr style="background:var(--primary-h)">
+              <th style="padding:6px 8px;color:#fff;font-weight:700;text-align:left">Tgl Order</th>
+              ${_ORDER_COLS.map(c=>`<th style="padding:6px 5px;color:#fff;font-weight:700;text-align:center">${c.label}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map((o,i)=>`
+              <tr style="background:${i%2===0?'var(--surface)':'var(--surface2)'};border-bottom:1px solid var(--border)">
+                <td style="padding:5px 8px;font-weight:600">${_fmtDate(o.tglOrder)}</td>
+                ${_ORDER_COLS.map(c=>`<td style="padding:5px;text-align:center">${(o[c.key]||0)>0?`<b>${o[c.key]}</b>`:'<span style="color:var(--border2)">-</span>'}</td>`).join('')}
+              </tr>`).join('')}
+            <tr style="background:rgba(99,102,241,.1);border-top:2px solid var(--border);font-weight:700">
+              <td style="padding:6px 8px;color:#6366f1">TOTAL (${list.length})</td>
+              ${_ORDER_COLS.map(c=>`<td style="padding:6px 5px;text-align:center;color:${tots[c.key]>0?'#6366f1':'var(--text-3)'}">${tots[c.key]||'-'}</td>`).join('')}
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function _toggleAdditional(checked) {
+    const el = document.getElementById('ic-additional');
+    if (el) el.style.display = checked ? 'block' : 'none';
+    if (checked) {
+      const rows = document.getElementById('ic-add-rows');
+      if (rows && !rows.children.length) _addAdditionalRow();
+    }
+  }
+  function _addAdditionalRow() {
+    const rows = document.getElementById('ic-add-rows');
+    if (!rows) return;
+    const idx = rows.children.length;
+    const today = new Date().toISOString().slice(0,10);
+    const colInputs = _ORDER_COLS.map(col => `
+      <td style="padding:3px">
+        <input type="number" min="0" value="0"
+          data-add="${idx}" data-key="${col.key}"
+          style="width:52px;padding:3px 5px;text-align:center;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px;font-family:var(--font-mono)">
+      </td>`).join('');
+    const row = document.createElement('div');
+    row.style.cssText = 'margin-bottom:4px';
+    row.innerHTML = `<table style="width:100%;font-size:11px;border-collapse:collapse">
+      <tr>
+        <td style="padding:3px;font-size:10px;color:var(--text-3);width:22px">${idx+1}</td>
+        <td style="padding:3px">
+          <input type="date" value="${today}" data-add="${idx}" data-key="tglOrder"
+            style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:11px">
+        </td>
+        ${colInputs}
+        <td style="padding:3px">
+          <button onclick="this.closest('div').remove()" style="padding:2px 7px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);border-radius:4px;color:#ef4444;cursor:pointer;font-size:10px">x</button>
+        </td>
+      </tr>
+    </table>`;
+    rows.appendChild(row);
+  }
+  function _getAdditionalRows() {
+    const rows = document.getElementById('ic-add-rows');
+    if (!rows) return [];
+    const result = [];
+    rows.querySelectorAll('[data-add]').forEach(inp => {
+      const idx = inp.dataset.add;
+      if (!result[idx]) result[idx] = {};
+      result[idx][inp.dataset.key] = inp.value;
+    });
+    return result.filter(Boolean);
+  }
+
+  async function _createInvoice() {
+    const cust   = document.getElementById('ic-cust')?.value;
+    const dari   = document.getElementById('ic-dari')?.value;
+    const sampai = document.getElementById('ic-sampai')?.value;
+    const nomor  = (document.getElementById('ic-nomor')?.value||'').trim();
+
+    if (!cust)  { Notify.warning('Pilih nama perusahaan'); return; }
+    if (!nomor) { Notify.warning('Nomor invoice wajib diisi'); return; }
+
+    const allOrders = _getOrders();
+    let list = allOrders.filter(o => o.namaPerusahaan===cust && !o.invoiced);
+    if (dari)   list = list.filter(o => o.tglOrder >= dari);
+    if (sampai) list = list.filter(o => o.tglOrder <= sampai);
+    list.sort((a,b) => a.tglOrder.localeCompare(b.tglOrder));
+
+    if (!list.length) { Notify.warning('Tidak ada order untuk di-invoice'); return; }
+
+    // Tandai orders sebagai invoiced
+    const invDate = new Date().toISOString().slice(0,10);
+    const ids = list.map(o=>o.id);
+    allOrders.forEach(o => {
+      if (ids.includes(o.id)) { o.invoiced=true; o.invoiceRef=nomor; o.invoiceDate=invDate; }
+    });
+    localStorage.setItem('becca_orders', JSON.stringify(allOrders));
+
+    // Sync ke DB
+    await Promise.all(
+      allOrders.filter(o=>ids.includes(o.id)).map(o=>DB.saveOrder({...o}).catch(e=>console.warn('[Inv] sync order:', e)))
+    );
+
+    // Hitung totals
+    const tots = {};
+    _ORDER_COLS.forEach(c => { tots[c.key] = list.reduce((s,o)=>s+(Number(o[c.key])||0),0); });
+
+    // Simpan ke becca_order_invoices
+    const invRecs = JSON.parse(localStorage.getItem('becca_order_invoices')||'[]');
+    invRecs.push({nomor, customer:cust, dari, sampai, invoiceDate:invDate, orderCount:list.length, orderIds:ids, totals:tots});
+    localStorage.setItem('becca_order_invoices', JSON.stringify(invRecs));
+
+    // Hitung subtotal + pajak dari becca_customers
+    const custs = _getCustomers();
+    const c = custs.find(x => x.nama === cust) || {};
+    const gh = k => {
+      const map = {
+        breakfast:c.hargaBreakfast||17500, shift1:c.hargaShift1||17500,
+        spare1:c.hargaSpare1||17500,       ot1:c.hargaOT1||17500,
+        snack1:c.hargaSnack1||17500,       shift2:c.hargaShift2||17500,
+        spare2:c.hargaSpare2||17500,       ot2:c.hargaOT2||17500,
+        snack2:c.hargaSnack2||17500,       shift3:c.hargaShift3||17500,
+        spare3:c.hargaSpare3||17500,       ot3:c.hargaOT3||17500,
+        snack3:c.hargaSnack3||17500,       snackBerat:c.hargaSnackBerat||17500,
+      };
+      return map[k] ?? 17500;
+    };
+    const subtotal = _ORDER_COLS.reduce((s,col) => s + (tots[col.key]||0) * gh(col.key), 0);
+    const grand = subtotal + (c.pb1 ? Math.round(subtotal*0.10) : 0) - (c.pph23 ? Math.round(subtotal*0.02) : 0);
+
+    // Buat object invoice
+    const invObj = {
+      id:            'ord_' + nomor,
+      customerId:    c.customerId || '',
+      customer:      cust,
+      po:            '',
+      invoiceNum:    nomor,
+      tglInvoice:    invDate,
+      tglBayar:      '',
+      total:         subtotal,
+      afterPph:      grand,
+      totalTerbayar: 0,
+      tglTerbayar:   '',
+      lamaTerbayar:  '',
+      sisa:          subtotal,
+      status:        'Unpaid',
+      dari, sampai,
+      orderIds:      ids,
+      totals:        tots,
+      source:        'order',
+    };
+
+    // Simpan ke DB + tambah ke _invoices
+    try { await DB.saveInvoice({...invObj}); } catch(e) { console.warn('[Inv] DB.saveInvoice:', e); }
+    _invoices.unshift(invObj);
+    _invoices.forEach((inv, i) => { inv.no = i + 1; });
+
+    // Refresh OrderModule in-memory
+    if (window.OrderModule?.refreshFromStorage) window.OrderModule.refreshFromStorage();
+
+    // Cetak
+    const includeAdd = document.getElementById('ic-add-chk')?.checked || false;
+    const addRows = includeAdd ? _getAdditionalRows() : [];
+
+    Modal.close(window._icCreateMid);
+    Notify.success(`Invoice ${nomor} berhasil — ${list.length} order ditandai`);
+    setTimeout(() => _renderFull(), 50);
+
+    // Buka print window
+    const orderRec = {nomor, customer:cust, dari, sampai, orderIds:ids, totals:tots};
+    _openInvPrintWin(invObj, orderRec, list);
+  }
+
   /* ─── HAPUS INVOICE ─── */
   async function deleteInv(key) {
     const inv = _findInv(key);
@@ -1490,7 +1821,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail, deleteInv };
+  return { init, switchTab, setSearch, setFilter, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _createInvoice, _toggleAdditional, _addAdditionalRow };
 })();
 
 window.InvoiceModule = InvoiceModule;
