@@ -549,11 +549,10 @@ const DailyOrderModule = (() => {
                 </tbody>
                 ${items.length > 0 ? (() => {
                   const _sumEst = f => (f?.items||[]).reduce((s,it) => s + _n(it.estTotal), 0);
-                  const _sumAkt = f => (f?.items||[]).reduce((s,it) => s + _n(it.aktTotal), 0);
                   const totEstAll = _sumEst(formS1) + _sumEst(formS2) + _sumEst(formSNK1) + _sumEst(formSNK2) + _sumEst(formSNK3) + _sumEst(formSNK4);
-                  const totAktAll = _sumAkt(formS1) + _sumAkt(formS2) + _sumAkt(formSNK1) + _sumAkt(formSNK2) + _sumAkt(formSNK3) + _sumAkt(formSNK4);
+                  // totSpent sudah menghitung aktTotal ?? estTotal (blended)
                   const selEst = totBudget > 0 ? totBudget - totEstAll : null;
-                  const selAkt = totBudget > 0 ? totBudget - totAktAll : null;
+                  const selAkt = totBudget > 0 ? totBudget - totSpent : null;
                   const _selCell = (v, label) => v === null ? `<td style="padding:9px 5px"></td>` : `
                     <td style="padding:9px 5px;text-align:right;white-space:nowrap">
                       <div style="font-size:9px;color:var(--text-3);font-weight:600">${label}</div>
@@ -785,6 +784,22 @@ const DailyOrderModule = (() => {
         }, 0);
       }, 0);
     }
+    // Actual spending HANYA dari shift yang aktualnya sudah lengkap
+    function _dayActualSpent(dateStr) {
+      let total = 0, allComplete = true, hasAnyForm = false;
+      SHIFTS.forEach(sh => {
+        const frm = _forms.find(f => f.tanggal === dateStr && f.shift === sh);
+        if (!frm || !(frm.items||[]).length) return;
+        hasAnyForm = true;
+        const items = frm.items || [];
+        const shiftComplete = items.every(it => it.aktTotal !== null && it.aktTotal !== undefined && it.aktTotal !== '');
+        if (!shiftComplete) allComplete = false;
+        total += items.reduce((a,it) => {
+          return a + ((it.aktTotal !== null && it.aktTotal !== undefined && it.aktTotal !== '') ? _n(it.aktTotal) : 0);
+        }, 0);
+      });
+      return { spent: total, complete: hasAnyForm && allComplete, hasForm: hasAnyForm };
+    }
 
     const rows = [];
     for (let d = 1; d <= daysInMonth; d++) {
@@ -801,7 +816,9 @@ const DailyOrderModule = (() => {
       const omset  = dayOrds.length ? _dayOmset(dateStr) : 0;
       const budget = dayOrds.length ? _dayBudget(dateStr) : 0;
       const spent  = dayOrds.length ? _daySpent(dateStr) : 0;
-      rows.push({dateStr, d, cells, totMeals, totSnacks, hasData: dayOrds.length > 0, omset, budget, spent});
+      const actual = _dayActualSpent(dateStr);
+      rows.push({dateStr, d, cells, totMeals, totSnacks, hasData: dayOrds.length > 0, omset, budget, spent,
+        aktSpent: actual.spent, aktComplete: actual.complete, hasForm: actual.hasForm});
     }
 
     const custTotals = {};
@@ -874,18 +891,21 @@ const DailyOrderModule = (() => {
         .sm-fin{font-family:var(--font-mono);font-size:10px}
       </style>
       <div class="sm-card">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+          <div style="font-size:14px;font-weight:800;color:var(--text)">Daily Order Summary</div>
+        </div>
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
           <table class="sm-tbl">
             <thead>
               <tr>
                 <th style="text-align:left;padding-left:10px;min-width:90px">Tanggal</th>
-                ${customers.map(c => `<th style="text-align:right;color:var(--primary)" title="${c}">${_shortName(c)}</th>`).join('')}
-                <th class="sm-grp" style="text-align:right;color:#10b981">Porsi</th>
-                <th style="text-align:right;color:#8b5cf6">Omset</th>
-                <th class="sm-grp" style="text-align:right;color:#f59e0b">Budget</th>
-                <th style="text-align:right;color:#ec4899">Realisasi</th>
+                ${customers.map(c => `<th style="text-align:right" title="${c}">${_shortName(c)}</th>`).join('')}
+                <th class="sm-grp" style="text-align:right">Porsi</th>
+                <th style="text-align:right">Omset</th>
+                <th class="sm-grp" style="text-align:right">Budget</th>
+                <th style="text-align:right">Realisasi</th>
                 <th style="text-align:right;min-width:80px">Selisih</th>
-                <th style="text-align:right;min-width:40px">%</th>
+                <th style="text-align:right;min-width:50px">FC%</th>
               </tr>
             </thead>
             <tbody>
@@ -894,9 +914,11 @@ const DailyOrderModule = (() => {
                 const dow = new Date(r.dateStr+'T00:00:00').toLocaleDateString('id-ID',{weekday:'short'});
                 const isSun = new Date(r.dateStr+'T00:00:00').getDay() === 0;
                 const sel = r.budget - r.spent;
-                const pct = r.budget > 0 ? (r.spent / r.budget * 100) : 0;
                 const selC = sel >= 0 ? '#10b981' : '#ef4444';
-                const bg = isToday ? 'background:rgba(99,102,241,.05);' : isSun ? 'background:rgba(239,68,68,.02);' : i%2 ? 'background:rgba(0,0,0,.012);' : '';
+                // FC% = aktual spent / omset (hanya jika aktual lengkap)
+                const fcPct = (r.aktComplete && r.omset > 0) ? (r.aktSpent / r.omset * 100) : 0;
+                const showSel = r.hasData && r.aktSpent > 0;
+                const bg = isToday ? 'background:rgba(99,102,241,.05);' : isSun ? 'background:rgba(239,68,68,.02);' : i%2 ? 'background:rgba(0,0,0,.015);' : '';
                 return `
                 <tr style="${bg}">
                   <td class="sm-td" style="padding-left:10px;white-space:nowrap;color:${isSun?'#ef4444':'var(--text)'}">
@@ -905,23 +927,27 @@ const DailyOrderModule = (() => {
                     ${isToday?'<span style="font-size:8px;background:rgba(99,102,241,.15);color:var(--primary);padding:1px 4px;border-radius:6px;margin-left:3px;font-weight:700">NOW</span>':''}
                   </td>
                   ${customers.map(c => cell(r.cells[c]||0)).join('')}
-                  <td class="sm-td sm-grp" style="text-align:right;font-weight:700;color:${r.hasData?'#10b981':'var(--border2)'}">
+                  <td class="sm-td sm-grp" style="text-align:right;font-weight:700;color:${r.hasData?'#059669':'var(--border2)'}">
                     ${r.hasData?(r.totMeals+r.totSnacks).toLocaleString('id-ID'):'-'}
                   </td>
-                  <td class="sm-td sm-fin" style="text-align:right;color:${r.hasData?'#8b5cf6':'var(--border2)'}">
+                  <td class="sm-td sm-fin" style="text-align:right;color:${r.hasData?'#7c3aed':'var(--border2)'}">
                     ${r.hasData?rp0(r.omset):'-'}
                   </td>
-                  <td class="sm-td sm-grp sm-fin" style="text-align:right;color:${r.hasData?'#f59e0b':'var(--border2)'}">
+                  <td class="sm-td sm-grp sm-fin" style="text-align:right;color:${r.hasData?'#d97706':'var(--border2)'}">
                     ${r.hasData?rp0(r.budget):'-'}
                   </td>
-                  <td class="sm-td sm-fin" style="text-align:right;color:${r.hasData?'#ec4899':'var(--border2)'}">
+                  <td class="sm-td sm-fin" style="text-align:right;color:${r.hasData?'#be185d':'var(--border2)'}">
                     ${r.hasData?rp0(r.spent):'-'}
                   </td>
-                  <td class="sm-td sm-fin" style="text-align:right;font-weight:700;color:${r.hasData?selC:'var(--border2)'}">
-                    ${r.hasData?(sel>=0?'+':'')+rp0(Math.abs(sel)):'-'}
+                  <td class="sm-td sm-fin" style="text-align:right;font-weight:700;color:${showSel?selC:'var(--border2)'}">
+                    ${showSel?(sel>=0?'+':'')+rp0(Math.abs(sel)):'-'}
                   </td>
-                  <td class="sm-td sm-fin" style="text-align:right;color:${r.hasData?(pct>100?'#ef4444':'var(--text-3)'):'var(--border2)'}">
-                    ${r.hasData?pct.toFixed(0)+'%':'-'}
+                  <td class="sm-td sm-fin" style="text-align:right">
+                    ${r.aktComplete && r.omset > 0
+                      ? `<span style="color:${fcPct>60?'#ef4444':fcPct>50?'#d97706':'#059669'};font-weight:700">${fcPct.toFixed(1)}%</span>`
+                      : r.hasForm && !r.aktComplete
+                        ? '<span style="color:#f59e0b;font-size:9px" title="Ada shift yang belum lengkap aktualnya">~</span>'
+                        : '<span style="color:var(--border2)">-</span>'}
                   </td>
                 </tr>`;
               }).join('')}
@@ -930,12 +956,12 @@ const DailyOrderModule = (() => {
               <tr>
                 <td style="padding-left:10px;color:var(--text);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em">TOTAL</td>
                 ${customers.map(c => `<td style="text-align:right;color:var(--primary);font-weight:800">${custTotals[c]?custTotals[c].toLocaleString('id-ID'):'-'}</td>`).join('')}
-                <td class="sm-grp" style="text-align:right;color:#10b981;font-weight:800">${(grandMeals+grandSnacks).toLocaleString('id-ID')}</td>
-                <td class="sm-fin" style="text-align:right;color:#8b5cf6">${rp0(grandOmset)}</td>
-                <td class="sm-grp sm-fin" style="text-align:right;color:#f59e0b">${rp0(grandBudget)}</td>
-                <td class="sm-fin" style="text-align:right;color:#ec4899">${rp0(grandSpent)}</td>
-                <td class="sm-fin" style="text-align:right;font-weight:800;color:${grandSelisih>=0?'#10b981':'#ef4444'}">${(grandSelisih>=0?'+':'')+rp0(Math.abs(grandSelisih))}</td>
-                <td class="sm-fin" style="text-align:right;color:var(--text-3)">${grandBudget>0?(grandSpent/grandBudget*100).toFixed(0)+'%':'-'}</td>
+                <td class="sm-grp" style="text-align:right;color:#059669;font-weight:800">${(grandMeals+grandSnacks).toLocaleString('id-ID')}</td>
+                <td class="sm-fin" style="text-align:right;color:#7c3aed">${rp0(grandOmset)}</td>
+                <td class="sm-grp sm-fin" style="text-align:right;color:#d97706">${rp0(grandBudget)}</td>
+                <td class="sm-fin" style="text-align:right;color:#be185d">${rp0(grandSpent)}</td>
+                <td class="sm-fin" style="text-align:right;font-weight:800;color:${grandSelisih>=0?'#059669':'#ef4444'}">${grandSpent>0?(grandSelisih>=0?'+':'')+rp0(Math.abs(grandSelisih)):'-'}</td>
+                <td class="sm-fin" style="text-align:right;color:var(--text);font-weight:700">${grandOmset>0?(grandSpent/grandOmset*100).toFixed(1)+'%':'-'}</td>
               </tr>
             </tfoot>
           </table>
