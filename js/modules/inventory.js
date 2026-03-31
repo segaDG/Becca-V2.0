@@ -246,6 +246,7 @@ const InventoryModule = (() => {
       if (tabBtn) tabBtn.classList.toggle('active', t === tab);
     });
     if (tab === 'transaksi') {
+      UndoRedo.setActive('inv');
       // Reload logs (MASUK/KELUAR only) - OPNAME ada di tab sendiri
       DB.getInventory().then(freshLogs => {
         _logs = freshLogs;
@@ -533,6 +534,8 @@ const InventoryModule = (() => {
         <input id="inv-log-date" type="date"
           onchange="InventoryModule.setLogFilterTgl(this.value)"
           style="padding:7px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px">
+        <button onclick="UndoRedo.undo('inv')" title="Undo (Ctrl+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canUndo('inv')?'':'opacity:.3;pointer-events:none'}">↩</button>
+        <button onclick="UndoRedo.redo('inv')" title="Redo (Ctrl+Shift+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canRedo('inv')?'':'opacity:.3;pointer-events:none'}">↪</button>
         <button id="inv-log-reset" onclick="InventoryModule.clearLogFilter()"
           style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:12px;cursor:pointer;display:none">✕ Reset</button>
         <span id="inv-log-count" style="font-size:11px;color:var(--text-3);margin-left:auto"></span>
@@ -1033,6 +1036,12 @@ const InventoryModule = (() => {
       delete row._original; delete row._hasChanged; delete row._isNew;
       return true;
     }
+    const origData = JSON.parse(origStr);
+    UndoRedo.push('inv', {
+      id, before: origData, after: {...row},
+      save: async (data) => { const r = _logs.find(x=>x.id===id); if(r) { Object.assign(r,data); await DB.saveInventoryLog({...r}); } },
+      render: () => renderTransaksi()
+    });
     delete row._original; delete row._hasChanged; delete row._isNew;
     DB.saveInventoryLog(row).then(() => {
       _recalcStok();

@@ -68,7 +68,7 @@ const APModule = (() => {
         hdr.innerHTML = '';
       }
     }
-    if (tab === 'list')     render();
+    if (tab === 'list')     { UndoRedo.setActive('ap'); render(); }
     if (tab === 'payment')  renderVAP();
     if (tab === 'summary')  renderSummaryAP();
     if (tab === 'supplier') renderSuppliers();
@@ -145,6 +145,8 @@ const APModule = (() => {
           <option value="BELUM">⏳ Belum Bayar</option>
         </select>
         <button onclick="APModule.resetFilter()" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:11px;color:var(--text-3);white-space:nowrap">↺ Reset</button>
+        <button onclick="UndoRedo.undo('ap')" title="Undo (Ctrl+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canUndo('ap')?'':'opacity:.3;pointer-events:none'}">↩</button>
+        <button onclick="UndoRedo.redo('ap')" title="Redo (Ctrl+Shift+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canRedo('ap')?'':'opacity:.3;pointer-events:none'}">↪</button>
         <span id="ap-count-label" style="margin-left:auto;font-size:11px;color:var(--text-3);white-space:nowrap"></span>
       </div>
       </div>
@@ -1249,8 +1251,16 @@ const APModule = (() => {
       jatuhTempo:g('jatuhTempo')||row.jatuhTempo,
       kodeAktivitas:kode,
     });
+    const origData = row._orig ? JSON.parse(row._orig) : null;
     delete row._orig;
     delete row._isNew;
+    if (origData) {
+      UndoRedo.push('ap', {
+        id, before: origData, after: {...row},
+        save: async (data) => { const r = _ap.find(x=>x.id===id); if(r) { Object.assign(r,data); await DB.saveAP({...r}); } },
+        render: () => applyFilter()
+      });
+    }
     _apEditId = null;
     DB.saveAP(row).then(()=>{ if (!_apEditId) applyFilter(); Notify.success('AP disimpan!'); }).catch(e=>Notify.error('Gagal',e.message));
   }

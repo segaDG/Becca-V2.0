@@ -80,6 +80,7 @@ const KasModule = (() => {
     try { _kasLocked = new Set(JSON.parse(localStorage.getItem(_KAS_LOCK_KEY)||'[]')); } catch { _kasLocked = new Set(); }
     _editingId = null;
     _pendingChanges = {};
+    UndoRedo.setActive('kas');
 
     // Level 4 — Progressive loading:
     // Jika cache warm (dalam 5 menit), langsung render.
@@ -188,7 +189,7 @@ const KasModule = (() => {
       ? `<button class="btn btn-ghost btn-sm" onclick="KasModule.importExcel()" title="Import data dari file Excel (.xlsx)">Import Excel</button>
          <button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>`
       : '';
-    if (tab==='transaksi') { renderTransaksi(); _renderBalanceCards(); }
+    if (tab==='transaksi') { UndoRedo.setActive('kas'); renderTransaksi(); _renderBalanceCards(); }
     else if (tab==='summary')  renderSummary();
     else if (tab==='monthly')  renderMonthly();
     else if (tab==='cashflow') renderCashflow();
@@ -237,6 +238,12 @@ const KasModule = (() => {
                  color:var(--text-2);font-size:18px;transition:all .15s;"
           onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'"
           onmouseout="this.style.background='transparent';this.style.color='var(--text-2)'">↺</button>
+        <button onclick="UndoRedo.undo('kas')" title="Undo (Ctrl+Z)"
+          style="height:34px;width:34px;min-width:34px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:14px;transition:all .15s;${UndoRedo.canUndo('kas')?'':'opacity:.3;pointer-events:none'}"
+          onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">↩</button>
+        <button onclick="UndoRedo.redo('kas')" title="Redo (Ctrl+Shift+Z)"
+          style="height:34px;width:34px;min-width:34px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:14px;transition:all .15s;${UndoRedo.canRedo('kas')?'':'opacity:.3;pointer-events:none'}"
+          onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">↪</button>
         <button onclick="KasModule.reArrange()" title="Urutkan berdasarkan tanggal"
           style="height:34px;padding:0 10px;border-radius:var(--r-sm);
                  border:1px solid var(--border2);background:transparent;
@@ -519,6 +526,14 @@ const KasModule = (() => {
     }
     if (!hasChanged) return true;  // Nothing changed - skip save+log
 
+    // Track undo
+    try { const origData = JSON.parse(origStr);
+    UndoRedo.push('kas', {
+      id, before: origData, after: {...row, _original:undefined, _isNew:undefined},
+      save: async (data) => { const r = _kas.find(x=>x.id===id); if(r) { Object.assign(r,data); await DB.saveKas({...r}); } },
+      render: () => renderTransaksi()
+    }); } catch(e){}
+
     // Save to DB async
     DB.saveKas(row).then(() => {
       const logType = wasNew ? 'add_kas' : 'edit_kas';
@@ -617,6 +632,11 @@ const KasModule = (() => {
     const deleted = _kas.find(r=>r.id===id);
     if (!deleted) return;
     _kas = _kas.filter(r=>r.id!==id);
+    UndoRedo.push('kas', {
+      id, before: deleted, after: null,
+      save: async (data) => { if(data) { _kas.push(data); _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); await DB.saveKas({...data}); } else { _kas=_kas.filter(r=>r.id!==id); await DB.deleteKas(id); } },
+      render: () => renderTransaksi()
+    });
     renderTransaksi();
     const t = setTimeout(() => {
       DB.deleteKas(id).catch(()=>{});
