@@ -389,7 +389,7 @@ const CustomerModule = (() => {
           </thead>
 
           <tbody>
-          ${!list.length ? `<tr><td colspan="31" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data customer.</td></tr>` :
+          ${!list.length ? `<tr><td colspan="33" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data customer.</td></tr>` :
             list.map((c, i) => {
               const ak = (c.status||'AKTIF')==='AKTIF';
               // Solid backgrounds for sticky columns (no transparent!)
@@ -623,7 +623,7 @@ const CustomerModule = (() => {
   function openModal(id) {
     const c = id ? (_data.find(x=>x.id===id) || _data.find(x=>String(x.id)===String(id))) : null;
     const fv = (f) => c?.[f] ?? '';
-    const nv = (f) => c?.[f] || 0;
+    const nv = (f) => c?.[f] ?? 0;
 
     const numRow = (fields) => `<div style="display:grid;grid-template-columns:${fields.map(()=>'1fr').join(' ')};gap:var(--s3)">
       ${fields.map(([field,label]) => `<div class="form-group">
@@ -827,7 +827,7 @@ const CustomerModule = (() => {
   async function _bulkRecalcPrices() {
     // Preview: semua harga shift = harga/pax
     const sample = _data.slice(0, 3).map(c => {
-      const h = c.hargaPerPax || 0;
+      const h = c.hargaPerPax ?? 0;
       return `<tr><td style="padding:4px 8px;font-size:12px">${c.nama}</td>
         <td style="padding:4px 8px;text-align:right;font-family:var(--font-mono);font-size:12px">${h.toLocaleString()}</td>
         <td style="padding:4px 8px;text-align:right;font-family:var(--font-mono);font-size:12px;font-weight:700;color:#10b981">${h.toLocaleString()}</td></tr>`;
@@ -850,7 +850,7 @@ const CustomerModule = (() => {
     });
     if (!ok) return;
     _data.forEach(c => {
-      const h = c.hargaPerPax || 0;
+      const h = c.hargaPerPax ?? 0;
       c.hargaBreakfast = h;
       c.hargaShift1  = h; c.hargaSpare1  = 0; c.hargaOT1    = h; c.hargaSnack1  = h;
       c.hargaShift2  = h; c.hargaSpare2  = 0; c.hargaOT2    = h; c.hargaSnack2  = h;

@@ -71,7 +71,7 @@ const DailyOrderModule = (() => {
 
   // Resolve nama order ke nama customer (handle mismatch seperti SUPER STEEL KARAWANG vs PT. Super Steel Karawang)
   function _resolveName(orderName) {
-    if (!orderName) return orderName;
+    orderName = (orderName||'').trim(); if (!orderName) return orderName;
     const low = orderName.toLowerCase();
     // Exact match
     let c = _customers.find(x => (x.nama||'').toLowerCase() === low);
@@ -89,7 +89,7 @@ const DailyOrderModule = (() => {
   function _shortName(fullName) {
     const resolved = _resolveName(fullName);
     const c = _customers.find(x => (x.nama||'').toLowerCase() === (resolved||'').toLowerCase());
-    return c?.namaShort || fullName || '-';
+    return c?.namaShort || resolved || '-';
   }
 
   /* ─── ORDER SUMMARY ─── */
@@ -272,7 +272,7 @@ const DailyOrderModule = (() => {
     const formSNK4   = _forms.find(f => f.tanggal === _date && f.shift === 'SNK4');
     const _fcpRev = (frm, sh) => {
       const rev = _calcRevenue(_date, sh);
-      const fcp = _n(frm?.foodCostPct) || _defaultFcp(sh);
+      const fcp = (frm?.foodCostPct != null ? _n(frm.foodCostPct) : _defaultFcp(sh));
       return rev > 0 ? rev * fcp / 100 : _n(frm?.budgetBelanja);
     };
     const totBudget  = _fcpRev(formS1,'S1') + _fcpRev(formS2,'S2') +
@@ -772,7 +772,7 @@ const DailyOrderModule = (() => {
       return SHIFTS.reduce((s,sh) => {
         const frm = _forms.find(f => f.tanggal === dateStr && f.shift === sh);
         const rev = _calcRevenue(dateStr, sh);
-        const fcp = _n(frm?.foodCostPct) || _defaultFcp(sh);
+        const fcp = (frm?.foodCostPct != null ? _n(frm.foodCostPct) : _defaultFcp(sh));
         return s + (rev > 0 ? rev * fcp / 100 : _n(frm?.budgetBelanja));
       }, 0);
     }
@@ -799,7 +799,7 @@ const DailyOrderModule = (() => {
       });
       const omset  = dayOrds.length ? _dayOmset(dateStr) : 0;
       const budget = dayOrds.length ? _dayBudget(dateStr) : 0;
-      const spent  = _daySpent(dateStr);
+      const spent  = dayOrds.length ? _daySpent(dateStr) : 0;
       rows.push({dateStr, d, cells, totMeals, totSnacks, hasData: dayOrds.length > 0, omset, budget, spent});
     }
 
@@ -906,20 +906,20 @@ const DailyOrderModule = (() => {
                   <td class="sm-td sm-grp" style="text-align:right;font-weight:700;color:${r.hasData?'#10b981':'var(--border2)'}">
                     ${r.hasData?(r.totMeals+r.totSnacks).toLocaleString('id-ID'):'-'}
                   </td>
-                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.omset?'#8b5cf6':'var(--border2)'}">
-                    ${r.omset?rp(r.omset):'-'}
+                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.hasData?'#8b5cf6':'var(--border2)'}">
+                    ${r.hasData?rp(r.omset):'-'}
                   </td>
-                  <td class="sm-td sm-grp" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.budget?'#f59e0b':'var(--border2)'}">
-                    ${r.budget?rp(r.budget):'-'}
+                  <td class="sm-td sm-grp" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.hasData?'#f59e0b':'var(--border2)'}">
+                    ${r.hasData?rp(r.budget):'-'}
                   </td>
-                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.spent?'#ec4899':'var(--border2)'}">
-                    ${r.spent?rp(r.spent):'-'}
+                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.hasData?'#ec4899':'var(--border2)'}">
+                    ${r.hasData?rp(r.spent):'-'}
                   </td>
-                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;font-weight:700;color:${r.budget?selC:'var(--border2)'}">
-                    ${r.budget?(sel>=0?'+':'')+rp(Math.abs(sel)):'-'}
+                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;font-weight:700;color:${r.hasData?selC:'var(--border2)'}">
+                    ${r.hasData?(sel>=0?'+':'')+rp(Math.abs(sel)):'-'}
                   </td>
-                  <td class="sm-td" style="text-align:right;font-size:10px;color:${r.budget?(pct>100?'#ef4444':'var(--text-3)'):'var(--border2)'}">
-                    ${r.budget?pct.toFixed(0)+'%':'-'}
+                  <td class="sm-td" style="text-align:right;font-size:10px;color:${r.hasData?(pct>100?'#ef4444':'var(--text-3)'):'var(--border2)'}">
+                    ${r.hasData?pct.toFixed(0)+'%':'-'}
                   </td>
                 </tr>`;
               }).join('')}

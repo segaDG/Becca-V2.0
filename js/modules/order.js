@@ -50,9 +50,10 @@ const OrderModule = (() => {
     } catch(e) { return s; }
   }
   function _c(v) {
-    return (v && Number(v) > 0)
+    if (v === null || v === undefined || v === '') return `<span style="color:var(--border2)">-</span>`;
+    return Number(v) > 0
       ? `<span style="font-weight:600">${v}</span>`
-      : `<span style="color:var(--border2)">-</span>`;
+      : `${v}`;
   }
   function _jenisBadge(cat) {
     if (!cat) return '';
@@ -688,7 +689,7 @@ const OrderModule = (() => {
     const btn  = document.getElementById('of-save-' + mid);
     if (!btn) return;
     const cust = document.getElementById('of-cust')?.value || '';
-    const hasQty = [...document.querySelectorAll('.of-num')].some(el => parseInt(el.value) > 0);
+    const hasQty = [...document.querySelectorAll('.of-num')].some(el => parseInt(el.value, 10) > 0);
     const ok = !!cust && hasQty;
     btn.disabled = !ok;
     btn.style.opacity  = ok ? '1'   : '.45';
@@ -697,7 +698,7 @@ const OrderModule = (() => {
 
   function _submitOrder(mid) {
     const g = id => document.getElementById(id)?.value?.trim()||'';
-    const n = id => parseInt(document.getElementById(id)?.value)||0;
+    const n = id => parseInt(document.getElementById(id)?.value, 10)||0;
     const tgl = g('of-tgl'), cust = g('of-cust');
     if (!tgl)  { Notify.warning('Tanggal order wajib diisi'); return; }
     if (!cust) { Notify.warning('Pilih nama perusahaan'); return; }

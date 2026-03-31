@@ -113,6 +113,23 @@ const InvoiceModule = (() => {
   function _hov() {
     return `onmouseenter="this.querySelectorAll('td').forEach(function(t){t.dataset.ori=t.style.background;t.style.background='${HOV}'})" onmouseleave="this.querySelectorAll('td').forEach(function(t){t.style.background=t.dataset.ori})"`;
   }
+  /** Lookup harga catering per customer + key (shift1, ot1, …). Default 17500. */
+  function _custHarga(custName, key) {
+    try {
+      const custs = JSON.parse(localStorage.getItem('becca_customers')||'[]');
+      const c = custs.find(x => x.nama === custName) || {};
+      const map = {
+        breakfast:c.hargaBreakfast||17500, shift1:c.hargaShift1||17500,
+        spare1:c.hargaSpare1||17500,       ot1:c.hargaOT1||17500,
+        snack1:c.hargaSnack1||17500,       shift2:c.hargaShift2||17500,
+        spare2:c.hargaSpare2||17500,       ot2:c.hargaOT2||17500,
+        snack2:c.hargaSnack2||17500,       shift3:c.hargaShift3||17500,
+        spare3:c.hargaSpare3||17500,       ot3:c.hargaOT3||17500,
+        snack3:c.hargaSnack3||17500,       snackBerat:c.hargaSnackBerat||17500,
+      };
+      return map[key] ?? 17500;
+    } catch(e) { return 17500; }
+  }
 
   /* ─── INIT ─── */
   // Konversi record dari becca_order_invoices ke format _invoices
@@ -904,9 +921,7 @@ const InvoiceModule = (() => {
     // Sync ke DB: changed orders + invoice dengan nomor baru
     try {
       const changedOrderIds = new Set(Object.keys(changes));
-      allOrders.forEach(o => {
-        if (changedOrderIds.has(o.id)) DB.saveOrder(Object.assign({}, o)).catch(()=>{});
-      });
+      await Promise.all(allOrders.filter(o => changedOrderIds.has(o.id)).map(o => DB.saveOrder(Object.assign({}, o)).catch(()=>{})));
       await DB.saveInvoice(Object.assign({}, inv));
     } catch(e) { console.warn('[InvoiceModule] reviseInv DB sync error:', e); }
 
@@ -1149,6 +1164,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     }
 
     // Lookup harga + pajak per customer dari becca_customers
+    const _getHarga = key => _custHarga(inv.customer, key);
     const _custData = (() => {
       try {
         const custs = JSON.parse(localStorage.getItem('becca_customers')||'[]');
@@ -1157,16 +1173,6 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
             || null;
       } catch(e){ return null; }
     })();
-    const _custHargaMap = _custData ? {
-      breakfast:_custData.hargaBreakfast||17500, shift1:_custData.hargaShift1||17500,
-      spare1:_custData.hargaSpare1||17500,       ot1:_custData.hargaOT1||17500,
-      snack1:_custData.hargaSnack1||17500,       shift2:_custData.hargaShift2||17500,
-      spare2:_custData.hargaSpare2||17500,       ot2:_custData.hargaOT2||17500,
-      snack2:_custData.hargaSnack2||17500,       shift3:_custData.hargaShift3||17500,
-      spare3:_custData.hargaSpare3||17500,       ot3:_custData.hargaOT3||17500,
-      snack3:_custData.hargaSnack3||17500,       snackBerat:_custData.hargaSnackBerat||17500,
-    } : null;
-    const _getHarga = key => _custHargaMap?.[key] ?? 17500;
     const hasPb1    = !!_custData?.pb1;
     const hasPph23  = !!_custData?.pph23;
     const pb1Rate   = 0.10, pph23Rate = 0.02;
@@ -1239,7 +1245,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
           <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center;color:${C.GRY}">${i+1}</td>
           <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${dd}</td>
           <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center">${mm}</td>
-          ${activeCols.map(col=>`<td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center">${Number(o[col.key])||0||'–'}</td>`).join('')}
+          ${activeCols.map(col=>`<td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center">${Number(o[col.key]) > 0 ? Number(o[col.key]) : '–'}</td>`).join('')}
           <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${qty||'–'}</td>
           <td style="padding:4px 5px;border:1px solid #dde3f0;font-size:9px;text-align:right">${qty?rp(rowTotal):'–'}</td>
         </tr>`;
@@ -1738,19 +1744,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     // Hitung subtotal + pajak
     const custs = _getCustomers();
     const c = custs.find(x => x.nama === cust) || {};
-    const gh = k => {
-      const map = {
-        breakfast:c.hargaBreakfast||17500, shift1:c.hargaShift1||17500,
-        spare1:c.hargaSpare1||17500,       ot1:c.hargaOT1||17500,
-        snack1:c.hargaSnack1||17500,       shift2:c.hargaShift2||17500,
-        spare2:c.hargaSpare2||17500,       ot2:c.hargaOT2||17500,
-        snack2:c.hargaSnack2||17500,       shift3:c.hargaShift3||17500,
-        spare3:c.hargaSpare3||17500,       ot3:c.hargaOT3||17500,
-        snack3:c.hargaSnack3||17500,       snackBerat:c.hargaSnackBerat||17500,
-      };
-      return map[k] ?? 17500;
-    };
-    const subtotal = _ORDER_COLS.reduce((s,col) => s + (tots[col.key]||0) * gh(col.key), 0);
+    const subtotal = _ORDER_COLS.reduce((s,col) => s + (tots[col.key]||0) * _custHarga(cust, col.key), 0);
     const invDate = new Date().toISOString().slice(0,10);
 
     // Build dummy inv object for preview
@@ -1846,19 +1840,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     // Hitung subtotal + pajak dari becca_customers
     const custs = _getCustomers();
     const c = custs.find(x => x.nama === cust) || {};
-    const gh = k => {
-      const map = {
-        breakfast:c.hargaBreakfast||17500, shift1:c.hargaShift1||17500,
-        spare1:c.hargaSpare1||17500,       ot1:c.hargaOT1||17500,
-        snack1:c.hargaSnack1||17500,       shift2:c.hargaShift2||17500,
-        spare2:c.hargaSpare2||17500,       ot2:c.hargaOT2||17500,
-        snack2:c.hargaSnack2||17500,       shift3:c.hargaShift3||17500,
-        spare3:c.hargaSpare3||17500,       ot3:c.hargaOT3||17500,
-        snack3:c.hargaSnack3||17500,       snackBerat:c.hargaSnackBerat||17500,
-      };
-      return map[k] ?? 17500;
-    };
-    const subtotal = _ORDER_COLS.reduce((s,col) => s + (tots[col.key]||0) * gh(col.key), 0);
+    const subtotal = _ORDER_COLS.reduce((s,col) => s + (tots[col.key]||0) * _custHarga(cust, col.key), 0);
     const grand = subtotal + (c.pb1 ? Math.round(subtotal*0.10) : 0) - (c.pph23 ? Math.round(subtotal*0.02) : 0);
 
     // Buat object invoice
