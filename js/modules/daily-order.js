@@ -1185,7 +1185,17 @@ const DailyOrderModule = (() => {
     }
   }
 
-  function _cancelEdit() { _editingItemId = null; _renderContent(); }
+  function _cancelEdit() {
+    if (_editingItemId === 'new') {
+      // Keluar dari mode tambah baris baru
+      _editingItemId = null;
+      _renderContent();
+      Notify.info('Baris baru dibatalkan');
+      return;
+    }
+    _editingItemId = null;
+    _renderContent();
+  }
 
   /* ─── ACTIONS ─── */
   function setView(v) {

@@ -1173,7 +1173,7 @@ const APModule = (() => {
     const k   = event.key;
     const eid = event.target?.dataset?.eid;
     if (!eid) return;
-    if (k === 'Enter')  { event.preventDefault(); APModule._apCommit(eid); }
+    if (k === 'Enter')  { event.preventDefault(); APModule._apCommitAndAdd(eid); }
     if (k === 'Escape') { APModule._apCancel(eid); }
   }
 
@@ -1201,6 +1201,16 @@ const APModule = (() => {
     tr.outerHTML = _apRowEdit(row);
     document.getElementById('ap-row-'+id)?.querySelector('input,select')?.focus();
     setTimeout(() => document.addEventListener('click', _apOutsideClick), 50);
+  }
+
+  function _apCommitAndAdd(id) {
+    if (!id) return;
+    document.removeEventListener('click', _apOutsideClick);
+    // Save current, then add new row
+    const origEditId = _apEditId;
+    _apCommit(id);
+    // If commit succeeded (_apEditId is now null), add new row
+    if (!_apEditId) apAddRow();
   }
 
   function _apCommit(id) {
@@ -1240,14 +1250,23 @@ const APModule = (() => {
       kodeAktivitas:kode,
     });
     delete row._orig;
+    delete row._isNew;
     _apEditId = null;
     DB.saveAP(row).then(()=>{ if (!_apEditId) applyFilter(); Notify.success('AP disimpan!'); }).catch(e=>Notify.error('Gagal',e.message));
   }
 
   function _apCancel(id) {
+    const row = _ap.find(r=>r.id===id);
+    if (row && row._isNew && !(row.keterangan||'').trim()) {
+      _apEditId = null;
+      _ap = _ap.filter(r => r.id !== id);
+      DB.deleteAP(id).catch(() => {});
+      applyFilter();
+      Notify.info('Baris baru dibatalkan');
+      return;
+    }
     document.removeEventListener('click', _apOutsideClick);
     _apEditId = null;
-    const row = _ap.find(r=>r.id===id);
     if (row && row._orig) { const orig=JSON.parse(row._orig); Object.keys(orig).forEach(k=>{ row[k]=orig[k]; }); delete row._orig; }
     applyFilter();
   }
@@ -1285,6 +1304,7 @@ const APModule = (() => {
     try {
       const saved = await DB.saveAP(newRow);
       _ap.unshift(saved);
+      saved._isNew = true;
       applyFilter();
       setTimeout(()=>apStartEdit(saved.id), 60);
     } catch(e) { Notify.error('Gagal',e.message); }
@@ -1491,6 +1511,6 @@ const APModule = (() => {
   }
 
 
-  return { init, render, filterBelum, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCancel, apAddRow, _apKey };
+  return { init, render, filterBelum, applyFilter, resetFilter, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, apAddRow, _apKey };
 })();
 window.APModule = APModule;

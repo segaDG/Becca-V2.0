@@ -1068,6 +1068,15 @@ const InventoryModule = (() => {
     if (_invEditId !== id) return;
     document.removeEventListener('click', _ivOutsideClick);
     const row = _logs.find(r => r.id === id);
+    // If new empty row, delete it
+    if (row && row._isNew && !(row.itemNama||'').trim()) {
+      _invEditId = null;
+      _logs = _logs.filter(r => r.id !== id);
+      DB.deleteInventoryLog(id).catch(() => {});
+      _renderActivityLog();
+      Notify.info('Baris baru dibatalkan');
+      return;
+    }
     if (row?._original) {
       try { Object.assign(row, JSON.parse(row._original)); } catch {}
     }
