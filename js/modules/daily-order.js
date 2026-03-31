@@ -93,30 +93,40 @@ const DailyOrderModule = (() => {
     dayOrds.forEach(o => {
       const cname = (o.namaPerusahaan||'').toLowerCase();
       const c = _customers.find(x => (x.nama||x.namaPerusahaan||'').toLowerCase() === cname) || {};
-      if (!Object.keys(c).length) {
-        console.warn('[DO] _calcRevenue: no customer match for', o.namaPerusahaan);
-      }
+      let gross = 0;
+      let qty = 0;
       if (shift === 'S1') {
-        total += _n(o.breakfast) * _n(c.hargaBreakfast || c.hargaShift1);
-        total += _n(o.shift1)    * _n(c.hargaShift1);
-        total += _n(o.spare1)    * _n(c.hargaSpare1);   // spare = 0, tidak ada harga
-        total += _n(o.ot1)       * _n(c.hargaOT1      || c.hargaShift1);
+        gross += _n(o.breakfast) * _n(c.hargaBreakfast || c.hargaShift1);
+        gross += _n(o.shift1)   * _n(c.hargaShift1);
+        gross += _n(o.spare1)   * _n(c.hargaSpare1);
+        gross += _n(o.ot1)      * _n(c.hargaOT1 || c.hargaShift1);
+        qty = _n(o.breakfast) + _n(o.shift1) + _n(o.spare1) + _n(o.ot1);
       } else if (shift === 'S2') {
-        total += _n(o.shift2)    * _n(c.hargaShift2);
-        total += _n(o.spare2)    * _n(c.hargaSpare2);   // spare = 0, tidak ada harga
-        total += _n(o.ot2)       * _n(c.hargaOT2      || c.hargaShift2);
-        total += _n(o.shift3)    * _n(c.hargaShift3);
-        total += _n(o.spare3)    * _n(c.hargaSpare3);   // spare = 0, tidak ada harga
-        total += _n(o.ot3)       * _n(c.hargaOT3      || c.hargaShift3);
+        gross += _n(o.shift2)   * _n(c.hargaShift2);
+        gross += _n(o.spare2)   * _n(c.hargaSpare2);
+        gross += _n(o.ot2)      * _n(c.hargaOT2 || c.hargaShift2);
+        gross += _n(o.shift3)   * _n(c.hargaShift3);
+        gross += _n(o.spare3)   * _n(c.hargaSpare3);
+        gross += _n(o.ot3)      * _n(c.hargaOT3 || c.hargaShift3);
+        qty = _n(o.shift2) + _n(o.spare2) + _n(o.ot2) + _n(o.shift3) + _n(o.spare3) + _n(o.ot3);
       } else if (shift === 'SNK1') {
-        total += _n(o.snack1)    * _n(c.hargaSnack1);
+        gross += _n(o.snack1)   * _n(c.hargaSnack1);
+        qty = _n(o.snack1);
       } else if (shift === 'SNK2') {
-        total += _n(o.snack2)    * _n(c.hargaSnack2);
+        gross += _n(o.snack2)   * _n(c.hargaSnack2);
+        qty = _n(o.snack2);
       } else if (shift === 'SNK3') {
-        total += _n(o.snack3)    * _n(c.hargaSnack3);
+        gross += _n(o.snack3)   * _n(c.hargaSnack3);
+        qty = _n(o.snack3);
       } else if (shift === 'SNK4') {
-        total += _n(o.snackBerat)* _n(c.hargaSnackBerat);
+        gross += _n(o.snackBerat) * _n(c.hargaSnackBerat);
+        qty = _n(o.snackBerat);
       }
+      // Potongan per customer: PPH23(2%), biaya box, biaya lainnya × QTY
+      const pphDed   = c.pph23 ? Math.round(gross * 0.02) : 0;
+      const boxDed   = _n(c.biayaBox) * qty;
+      const otherDed = _n(c.biayaLainnya) * qty;
+      total += gross - pphDed - boxDed - otherDed;
     });
     return total;
   }
