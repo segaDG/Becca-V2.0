@@ -749,7 +749,8 @@ const DailyOrderModule = (() => {
     const daysInMonth = new Date(yr, mo, 0).getDate();
     const prevM = _adjMonth(_summaryMonth,-1);
     const nextM = _adjMonth(_summaryMonth,+1);
-    const rp = n => n ? 'Rp'+Math.round(n).toLocaleString('id') : '-';
+    const rp = n => (n !== null && n !== undefined) ? 'Rp'+Math.round(n).toLocaleString('id') : '-';
+    const rp0 = n => 'Rp'+Math.round(n||0).toLocaleString('id'); // always show, even 0
 
     const monthOrds = _orders.filter(o => o.tglOrder && o.tglOrder.slice(0,7) === _summaryMonth);
 
@@ -839,7 +840,18 @@ const DailyOrderModule = (() => {
         `).join('')}
       </div>`;
 
-    if (customers.length === 0) return statsHtml + `
+    // Navigation bar — selalu tampil
+    const navHtml = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+        <button onclick="DailyOrderModule.setMonth('${prevM}')" style="padding:6px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;transition:.15s">&#8249; Bulan Sebelumnya</button>
+        <div style="text-align:center">
+          <div style="font-size:18px;font-weight:800;color:var(--primary)">${monthLabel}</div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:2px">${activeDays} hari aktif &middot; ${customers.length} customer</div>
+        </div>
+        <button onclick="DailyOrderModule.setMonth('${nextM}')" style="padding:6px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;transition:.15s">Bulan Berikutnya &#8250;</button>
+      </div>`;
+
+    if (customers.length === 0) return navHtml + statsHtml + `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:48px;text-align:center;color:var(--text-3)">
         <div style="font-size:14px;font-weight:600">Tidak ada order untuk bulan ini</div>
       </div>`;
@@ -848,30 +860,20 @@ const DailyOrderModule = (() => {
       ? `<td class="sm-td" style="text-align:right;font-weight:600">${v.toLocaleString('id-ID')}</td>`
       : `<td class="sm-td" style="text-align:center;color:var(--border2)">-</td>`;
 
-    return statsHtml + `
+    return navHtml + statsHtml + `
       <style>
         .sm-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-        .sm-hdr{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-        .sm-nav{display:flex;align-items:center;gap:6px}
-        .sm-nav button{padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;transition:.15s}
-        .sm-nav button:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
         .sm-tbl{width:100%;border-collapse:collapse;font-size:11px;min-width:900px}
-        .sm-tbl thead th{padding:6px 5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;color:var(--text-3);border-bottom:2px solid var(--border)}
-        .sm-td{padding:5px 5px;border-bottom:1px solid rgba(0,0,0,.04)}
-        .sm-tbl tbody tr:hover td{background:rgba(99,102,241,.04)!important}
-        .sm-tbl tfoot td{padding:8px 5px;font-weight:700;border-top:2px solid var(--border);background:var(--surface2)}
-        .sm-grp{border-left:2px solid var(--border)}
+        .sm-tbl thead th{padding:7px 6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;background:linear-gradient(135deg,#3B4E87,#4A5E99);color:#fff}
+        .sm-tbl thead th:first-child{border-radius:0}
+        .sm-td{padding:5px 6px;border-bottom:1px solid rgba(0,0,0,.05)}
+        .sm-tbl tbody tr{transition:background .1s}
+        .sm-tbl tbody tr:hover td{background:rgba(99,102,241,.06)!important}
+        .sm-tbl tfoot td{padding:8px 6px;font-weight:700;border-top:2px solid var(--primary);background:rgba(99,102,241,.04)}
+        .sm-grp{border-left:2px solid rgba(99,102,241,.2)}
+        .sm-fin{font-family:var(--font-mono);font-size:10px}
       </style>
       <div class="sm-card">
-        <div class="sm-hdr">
-          <div style="font-size:14px;font-weight:800;color:var(--text)">Daily Order Summary</div>
-          <div class="sm-nav">
-            <button onclick="DailyOrderModule.setMonth('${prevM}')">&#8249; Prev</button>
-            <span style="font-size:13px;font-weight:700;min-width:130px;text-align:center;color:var(--primary)">${monthLabel}</span>
-            <button onclick="DailyOrderModule.setMonth('${nextM}')">Next &#8250;</button>
-          </div>
-          <div style="font-size:10px;color:var(--text-3)">${activeDays} hari aktif &middot; ${customers.length} customer</div>
-        </div>
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
           <table class="sm-tbl">
             <thead>
@@ -906,19 +908,19 @@ const DailyOrderModule = (() => {
                   <td class="sm-td sm-grp" style="text-align:right;font-weight:700;color:${r.hasData?'#10b981':'var(--border2)'}">
                     ${r.hasData?(r.totMeals+r.totSnacks).toLocaleString('id-ID'):'-'}
                   </td>
-                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.hasData?'#8b5cf6':'var(--border2)'}">
-                    ${r.hasData?rp(r.omset):'-'}
+                  <td class="sm-td sm-fin" style="text-align:right;color:${r.hasData?'#8b5cf6':'var(--border2)'}">
+                    ${r.hasData?rp0(r.omset):'-'}
                   </td>
-                  <td class="sm-td sm-grp" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.hasData?'#f59e0b':'var(--border2)'}">
-                    ${r.hasData?rp(r.budget):'-'}
+                  <td class="sm-td sm-grp sm-fin" style="text-align:right;color:${r.hasData?'#f59e0b':'var(--border2)'}">
+                    ${r.hasData?rp0(r.budget):'-'}
                   </td>
-                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.hasData?'#ec4899':'var(--border2)'}">
-                    ${r.hasData?rp(r.spent):'-'}
+                  <td class="sm-td sm-fin" style="text-align:right;color:${r.hasData?'#ec4899':'var(--border2)'}">
+                    ${r.hasData?rp0(r.spent):'-'}
                   </td>
-                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;font-weight:700;color:${r.hasData?selC:'var(--border2)'}">
-                    ${r.hasData?(sel>=0?'+':'')+rp(Math.abs(sel)):'-'}
+                  <td class="sm-td sm-fin" style="text-align:right;font-weight:700;color:${r.hasData?selC:'var(--border2)'}">
+                    ${r.hasData?(sel>=0?'+':'')+rp0(Math.abs(sel)):'-'}
                   </td>
-                  <td class="sm-td" style="text-align:right;font-size:10px;color:${r.hasData?(pct>100?'#ef4444':'var(--text-3)'):'var(--border2)'}">
+                  <td class="sm-td sm-fin" style="text-align:right;color:${r.hasData?(pct>100?'#ef4444':'var(--text-3)'):'var(--border2)'}">
                     ${r.hasData?pct.toFixed(0)+'%':'-'}
                   </td>
                 </tr>`;
@@ -926,14 +928,14 @@ const DailyOrderModule = (() => {
             </tbody>
             <tfoot>
               <tr>
-                <td style="padding-left:10px;color:var(--text-3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Total</td>
-                ${customers.map(c => `<td style="text-align:right;color:var(--primary)">${custTotals[c]?custTotals[c].toLocaleString('id-ID'):'-'}</td>`).join('')}
-                <td class="sm-grp" style="text-align:right;color:#10b981">${(grandMeals+grandSnacks).toLocaleString('id-ID')}</td>
-                <td style="text-align:right;color:#8b5cf6;font-family:var(--font-mono);font-size:10px">${rp(grandOmset)}</td>
-                <td class="sm-grp" style="text-align:right;color:#f59e0b;font-family:var(--font-mono);font-size:10px">${rp(grandBudget)}</td>
-                <td style="text-align:right;color:#ec4899;font-family:var(--font-mono);font-size:10px">${rp(grandSpent)}</td>
-                <td style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${grandSelisih>=0?'#10b981':'#ef4444'}">${(grandSelisih>=0?'+':'')+rp(Math.abs(grandSelisih))}</td>
-                <td style="text-align:right;font-size:10px;color:var(--text-3)">${grandBudget>0?(grandSpent/grandBudget*100).toFixed(0)+'%':'-'}</td>
+                <td style="padding-left:10px;color:var(--text);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em">TOTAL</td>
+                ${customers.map(c => `<td style="text-align:right;color:var(--primary);font-weight:800">${custTotals[c]?custTotals[c].toLocaleString('id-ID'):'-'}</td>`).join('')}
+                <td class="sm-grp" style="text-align:right;color:#10b981;font-weight:800">${(grandMeals+grandSnacks).toLocaleString('id-ID')}</td>
+                <td class="sm-fin" style="text-align:right;color:#8b5cf6">${rp0(grandOmset)}</td>
+                <td class="sm-grp sm-fin" style="text-align:right;color:#f59e0b">${rp0(grandBudget)}</td>
+                <td class="sm-fin" style="text-align:right;color:#ec4899">${rp0(grandSpent)}</td>
+                <td class="sm-fin" style="text-align:right;font-weight:800;color:${grandSelisih>=0?'#10b981':'#ef4444'}">${(grandSelisih>=0?'+':'')+rp0(Math.abs(grandSelisih))}</td>
+                <td class="sm-fin" style="text-align:right;color:var(--text-3)">${grandBudget>0?(grandSpent/grandBudget*100).toFixed(0)+'%':'-'}</td>
               </tr>
             </tfoot>
           </table>
