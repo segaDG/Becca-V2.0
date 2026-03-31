@@ -108,6 +108,21 @@ const CustomerModule = (() => {
       _data = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(_defaultData));
     }
 
+    // Filter out customers yang sudah dihapus tapi masih ada di DB
+    const _deletedIds = _getDeletedIds();
+    if (_deletedIds.length) {
+      const beforeLen = _data.length;
+      _data = _data.filter(c => !_deletedIds.includes(c.id));
+      if (_data.length < beforeLen) {
+        console.log('[Customer] Filtered out', beforeLen - _data.length, 'deleted customers from DB');
+        // Retry DB deletion untuk ID yang masih pending
+        _deletedIds.forEach(id => DB.deleteCustomer(id).then(() => {
+          const ids = _getDeletedIds().filter(x => x !== id);
+          localStorage.setItem(_DELETED_KEY, JSON.stringify(ids));
+        }).catch(() => {}));
+      }
+    }
+
     // Migrate: rename old names to canonical full names
     const _RENAME_MAP = {
       'PT. NICI':           'PT. NUGRAHA INDAH CITARASA INDONESIA',
@@ -801,6 +816,16 @@ const CustomerModule = (() => {
     _render();
   }
 
+  // Daftar ID customer yang sudah dihapus (persist agar tidak muncul lagi dari DB)
+  const _DELETED_KEY = 'becca_customers_deleted';
+  function _getDeletedIds() {
+    try { return JSON.parse(localStorage.getItem(_DELETED_KEY) || '[]'); } catch { return []; }
+  }
+  function _addDeletedId(id) {
+    const ids = _getDeletedIds();
+    if (!ids.includes(id)) { ids.push(id); localStorage.setItem(_DELETED_KEY, JSON.stringify(ids)); }
+  }
+
   async function deleteCustomer(id) {
     const cust = _data.find(c=>c.id===id) || _data.find(c=>String(c.id)===String(id));
     if (!cust) return;
@@ -813,10 +838,33 @@ const CustomerModule = (() => {
     if (!ok) return;
     const i = _data.findIndex(c=>c.id===id || String(c.id)===String(id));
     if (i < 0) return;
+
+    // 1. Simpan ID ke daftar deleted (persist, tidak hilang meski DB gagal)
+    _addDeletedId(id);
+
+    // 2. Hapus dari memory + localStorage
     _data.splice(i, 1);
     localStorage.setItem('becca_customers', JSON.stringify(_data));
-    try { await DB.deleteCustomer(id); }
-    catch(e) { console.warn('deleteCustomer DB error:', e); }
+
+    // 3. Hapus dari DB (retry jika gagal)
+    let dbOk = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await DB.deleteCustomer(id);
+        dbOk = true;
+        break;
+      } catch(e) {
+        console.warn(`deleteCustomer DB attempt ${attempt+1}:`, e);
+        if (attempt < 2) await new Promise(r => setTimeout(r, 500));
+      }
+    }
+
+    if (dbOk) {
+      // Berhasil hapus dari DB → bersihkan dari daftar deleted
+      const ids = _getDeletedIds().filter(x => x !== id);
+      localStorage.setItem(_DELETED_KEY, JSON.stringify(ids));
+    }
+
     Notify.success('Customer dihapus', cust.nama);
     _render();
   }
