@@ -277,15 +277,16 @@ const DailyOrderModule = (() => {
     };
     const totBudget  = _fcpRev(formS1,'S1') + _fcpRev(formS2,'S2') +
                        _fcpRev(formSNK1,'SNK1') + _fcpRev(formSNK2,'SNK2') + _fcpRev(formSNK3,'SNK3') + _fcpRev(formSNK4,'SNK4');
-    const _spentOf   = f => (f?.items||[]).reduce((s,it) => {
-      const v = (it.aktTotal !== null && it.aktTotal !== undefined && it.aktTotal !== '')
-        ? _n(it.aktTotal) : _n(it.estTotal);
-      return s + v;
+    // Sum aktTotal SAJA (tanpa fallback ke estTotal)
+    const _aktOf = f => (f?.items||[]).reduce((s,it) => {
+      return s + ((it.aktTotal !== null && it.aktTotal !== undefined && it.aktTotal !== '') ? _n(it.aktTotal) : 0);
     }, 0);
-    const totSpent   = _spentOf(formS1) + _spentOf(formS2) +
-                       _spentOf(formSNK1) + _spentOf(formSNK2) + _spentOf(formSNK3) + _spentOf(formSNK4);
-    const totSelisih = totBudget - totSpent;          // positive = surplus
-    const totPct     = totBudget > 0 ? totSpent / totBudget * 100 : 0;
+    const totAktOnly = _aktOf(formS1) + _aktOf(formS2) +
+                       _aktOf(formSNK1) + _aktOf(formSNK2) + _aktOf(formSNK3) + _aktOf(formSNK4);
+    const totSelisih = totBudget - totAktOnly;        // positive = surplus (sisa budget)
+    const totPct     = totBudget > 0 ? totAktOnly / totBudget * 100 : 0;
+    // Sisa AKT per shift = budget shift - aktTotal shift
+    const shiftSisaAkt = budgetVal - totalAkt;
     const hasDayData = (formS1 || formS2 || formSNK1 || formSNK2 || formSNK3 || formSNK4) && totBudget > 0;
 
     // ── Mini date cards ──
@@ -405,7 +406,7 @@ const DailyOrderModule = (() => {
           <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:5px">
             <div>
               <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">TERPAKAI</div>
-              <div style="font-size:12px;font-weight:700;color:var(--text)">${_fmtRp(totSpent)}</div>
+              <div style="font-size:12px;font-weight:700;color:var(--text)">${_fmtRp(totAktOnly)}</div>
             </div>
             <div style="text-align:right">
               <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">SELISIH</div>
@@ -547,35 +548,22 @@ const DailyOrderModule = (() => {
                       (_editingItemId === 'new' ? _htmlEditRow(null, items.length) : '')
                   }
                 </tbody>
-                ${items.length > 0 ? (() => {
-                  const _sumEst = f => (f?.items||[]).reduce((s,it) => s + _n(it.estTotal), 0);
-                  const _sumAkt = f => (f?.items||[]).reduce((s,it) => {
-                    return s + ((it.aktTotal !== null && it.aktTotal !== undefined && it.aktTotal !== '') ? _n(it.aktTotal) : 0);
-                  }, 0);
-                  const totEstAll = _sumEst(formS1) + _sumEst(formS2) + _sumEst(formSNK1) + _sumEst(formSNK2) + _sumEst(formSNK3) + _sumEst(formSNK4);
-                  const totAktAll = _sumAkt(formS1) + _sumAkt(formS2) + _sumAkt(formSNK1) + _sumAkt(formSNK2) + _sumAkt(formSNK3) + _sumAkt(formSNK4);
-                  const selEst = totBudget > 0 ? totBudget - totEstAll : null;
-                  const selAkt = totBudget > 0 ? totBudget - totAktAll : null;
-                  const _selCell = (v, label) => v === null ? `<td style="padding:9px 5px"></td>` : `
-                    <td style="padding:9px 5px;text-align:right;white-space:nowrap">
-                      <div style="font-size:9px;color:var(--text-3);font-weight:600">${label}</div>
-                      <div style="font-size:11px;font-weight:700;color:${v>=0?'#10b981':'#ef4444'}">
-                        ${v>=0?'+':''}${v.toLocaleString('id-ID')}
-                      </div>
-                    </td>`;
-                  return `
+                ${items.length > 0 ? `
                   <tfoot>
                     <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:700">
                       <td colspan="5" style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px;letter-spacing:.03em">TOTAL ESTIMASI</td>
                       <td style="padding:9px 5px;text-align:right;color:#6366f1">${totalEst.toLocaleString('id-ID')}</td>
                       <td style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px">AKTUAL</td>
                       <td style="padding:9px 5px;text-align:right;color:#10b981">${totalAkt.toLocaleString('id-ID')}</td>
-                      <td style="padding:9px 5px"></td>
-                      ${_selCell(selEst, 'SISA EST')}
-                      ${_selCell(selAkt, 'SISA AKT')}
+                      <td colspan="2"></td>
+                      <td style="padding:9px 5px;text-align:right;white-space:nowrap">
+                        <div style="font-size:9px;color:var(--text-3);font-weight:600">SISA AKT (${_shiftLabel(_shift)})</div>
+                        <div style="font-size:12px;font-weight:800;color:${shiftSisaAkt>=0?'#10b981':'#ef4444'}">
+                          ${shiftSisaAkt>=0?'+':''}${Math.round(shiftSisaAkt).toLocaleString('id-ID')}
+                        </div>
+                      </td>
                     </tr>
-                  </tfoot>`;
-                })() : ''}
+                  </tfoot>` : ''}
               </table>
             </div>`
         }
