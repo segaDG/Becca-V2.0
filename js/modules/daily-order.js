@@ -549,10 +549,13 @@ const DailyOrderModule = (() => {
                 </tbody>
                 ${items.length > 0 ? (() => {
                   const _sumEst = f => (f?.items||[]).reduce((s,it) => s + _n(it.estTotal), 0);
+                  const _sumAkt = f => (f?.items||[]).reduce((s,it) => {
+                    return s + ((it.aktTotal !== null && it.aktTotal !== undefined && it.aktTotal !== '') ? _n(it.aktTotal) : 0);
+                  }, 0);
                   const totEstAll = _sumEst(formS1) + _sumEst(formS2) + _sumEst(formSNK1) + _sumEst(formSNK2) + _sumEst(formSNK3) + _sumEst(formSNK4);
-                  // totSpent sudah menghitung aktTotal ?? estTotal (blended)
+                  const totAktAll = _sumAkt(formS1) + _sumAkt(formS2) + _sumAkt(formSNK1) + _sumAkt(formSNK2) + _sumAkt(formSNK3) + _sumAkt(formSNK4);
                   const selEst = totBudget > 0 ? totBudget - totEstAll : null;
-                  const selAkt = totBudget > 0 ? totBudget - totSpent : null;
+                  const selAkt = totBudget > 0 ? totBudget - totAktAll : null;
                   const _selCell = (v, label) => v === null ? `<td style="padding:9px 5px"></td>` : `
                     <td style="padding:9px 5px;text-align:right;white-space:nowrap">
                       <div style="font-size:9px;color:var(--text-3);font-weight:600">${label}</div>
