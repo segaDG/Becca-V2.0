@@ -749,6 +749,7 @@ const DailyOrderModule = (() => {
     const daysInMonth = new Date(yr, mo, 0).getDate();
     const prevM = _adjMonth(_summaryMonth,-1);
     const nextM = _adjMonth(_summaryMonth,+1);
+    const rp = n => n ? 'Rp'+Math.round(n).toLocaleString('id') : '-';
 
     const monthOrds = _orders.filter(o => o.tglOrder && o.tglOrder.slice(0,7) === _summaryMonth);
 
@@ -762,6 +763,28 @@ const DailyOrderModule = (() => {
     });
     const customers = Object.keys(custVol).sort((a,b) => custVol[b]-custVol[a]);
 
+    // Hitung omset & budget per hari (semua shift digabung)
+    const SHIFTS = ['S1','S2','SNK1','SNK2','SNK3','SNK4'];
+    function _dayOmset(dateStr) {
+      return SHIFTS.reduce((s,sh) => s + _calcRevenue(dateStr, sh), 0);
+    }
+    function _dayBudget(dateStr) {
+      return SHIFTS.reduce((s,sh) => {
+        const frm = _forms.find(f => f.tanggal === dateStr && f.shift === sh);
+        const rev = _calcRevenue(dateStr, sh);
+        const fcp = _n(frm?.foodCostPct) || _defaultFcp(sh);
+        return s + (rev > 0 ? rev * fcp / 100 : _n(frm?.budgetBelanja));
+      }, 0);
+    }
+    function _daySpent(dateStr) {
+      return SHIFTS.reduce((s,sh) => {
+        const frm = _forms.find(f => f.tanggal === dateStr && f.shift === sh);
+        return s + (frm?.items||[]).reduce((a,it) => {
+          return a + ((it.aktTotal !== null && it.aktTotal !== undefined && it.aktTotal !== '') ? _n(it.aktTotal) : _n(it.estTotal));
+        }, 0);
+      }, 0);
+    }
+
     const rows = [];
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${_summaryMonth}-${String(d).padStart(2,'0')}`;
@@ -774,65 +797,93 @@ const DailyOrderModule = (() => {
         cells[nm] = (cells[nm]||0) + m + s;
         totMeals += m; totSnacks += s;
       });
-      rows.push({dateStr, d, cells, totMeals, totSnacks, hasData: dayOrds.length > 0});
+      const omset  = dayOrds.length ? _dayOmset(dateStr) : 0;
+      const budget = dayOrds.length ? _dayBudget(dateStr) : 0;
+      const spent  = _daySpent(dateStr);
+      rows.push({dateStr, d, cells, totMeals, totSnacks, hasData: dayOrds.length > 0, omset, budget, spent});
     }
 
     const custTotals = {};
-    let grandMeals = 0, grandSnacks = 0;
+    let grandMeals = 0, grandSnacks = 0, grandOmset = 0, grandBudget = 0, grandSpent = 0;
     rows.forEach(r => {
       customers.forEach(c => { custTotals[c] = (custTotals[c]||0) + (r.cells[c]||0); });
       grandMeals  += r.totMeals;
       grandSnacks += r.totSnacks;
+      grandOmset  += r.omset;
+      grandBudget += r.budget;
+      grandSpent  += r.spent;
     });
     const activeDays = rows.filter(r => r.hasData).length;
+    const grandSelisih = grandBudget - grandSpent;
 
+    // Stats cards
     const statsHtml = `
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s3);margin-bottom:var(--s4)">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:10px;margin-bottom:16px">
         ${[
-          {label:'Hari Aktif',    value:activeDays,                                       unit:'hari',  color:'#6366f1'},
-          {label:'Total Porsi',   value:(grandMeals+grandSnacks).toLocaleString('id-ID'), unit:'porsi', color:'#10b981'},
-          {label:'Total Makanan', value:grandMeals.toLocaleString('id-ID'),               unit:'porsi', color:'#8b5cf6'},
-          {label:'Total Snack',   value:grandSnacks.toLocaleString('id-ID'),              unit:'porsi', color:'#f59e0b'},
+          {l:'Hari Aktif',     v:activeDays,                                      u:'hari',  c:'#6366f1', ic:'M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4'},
+          {l:'Total Porsi',    v:(grandMeals+grandSnacks).toLocaleString('id-ID'),u:'porsi', c:'#10b981', ic:'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'},
+          {l:'Total Omset',    v:rp(grandOmset),                                  u:'',      c:'#8b5cf6', ic:'M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6'},
+          {l:'Budget (FC)',    v:rp(grandBudget),                                  u:'',      c:'#f59e0b', ic:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'},
+          {l:'Realisasi',      v:rp(grandSpent),                                   u:'',      c:'#ec4899', ic:'M3 3h18v18H3zM3 9h18M9 21V9'},
+          {l:'Selisih',        v:(grandSelisih>=0?'+':'')+rp(Math.abs(grandSelisih)),u:grandSelisih>=0?'Surplus':'Defisit', c:grandSelisih>=0?'#10b981':'#ef4444', ic:'M22 12h-4l-3 9L9 3l-3 9H2'},
         ].map(s => `
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4)">
-            <div style="font-size:11px;color:var(--text-3);font-weight:600">${s.label}</div>
-            <div style="font-size:20px;font-weight:700;color:${s.color};margin-top:4px">${s.value}</div>
-            ${s.unit ? `<div style="font-size:11px;color:var(--text-3)">${s.unit}</div>` : ''}
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;position:relative;overflow:hidden">
+            <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:${s.c}"></div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="${s.c}" stroke-width="2" width="13" height="13" style="opacity:.7"><path d="${s.ic}"/></svg>
+              <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)">${s.l}</span>
+            </div>
+            <div style="font-size:18px;font-weight:800;color:${s.c};font-family:var(--font-mono);line-height:1.2">${s.v}</div>
+            ${s.u?`<div style="font-size:10px;color:var(--text-3);margin-top:1px">${s.u}</div>`:''}
           </div>
         `).join('')}
       </div>`;
 
     if (customers.length === 0) return statsHtml + `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:48px;text-align:center;color:var(--text-3)">
-        <div style="font-size:32px;margin-bottom:10px">📅</div>
-        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Tidak ada order untuk bulan ini</div>
+        <div style="font-size:14px;font-weight:600">Tidak ada order untuk bulan ini</div>
       </div>`;
 
     const cell = v => v
-      ? `<td style="padding:6px 5px;text-align:right;font-weight:600">${v.toLocaleString('id-ID')}</td>`
-      : `<td style="padding:6px 5px;text-align:center;color:var(--border)">-</td>`;
+      ? `<td class="sm-td" style="text-align:right;font-weight:600">${v.toLocaleString('id-ID')}</td>`
+      : `<td class="sm-td" style="text-align:center;color:var(--border2)">-</td>`;
 
     return statsHtml + `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-        <div style="padding:var(--s3) var(--s4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">
-          <div style="font-size:13px;font-weight:700">Daily Order Summary</div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <button onclick="DailyOrderModule.setMonth('${prevM}')"
-              style="padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">‹ Prev</button>
-            <span style="font-size:13px;font-weight:700;min-width:140px;text-align:center">${monthLabel}</span>
-            <button onclick="DailyOrderModule.setMonth('${nextM}')"
-              style="padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">Next ›</button>
+      <style>
+        .sm-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+        .sm-hdr{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+        .sm-nav{display:flex;align-items:center;gap:6px}
+        .sm-nav button{padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;transition:.15s}
+        .sm-nav button:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+        .sm-tbl{width:100%;border-collapse:collapse;font-size:11px;min-width:900px}
+        .sm-tbl thead th{padding:6px 5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;color:var(--text-3);border-bottom:2px solid var(--border)}
+        .sm-td{padding:5px 5px;border-bottom:1px solid rgba(0,0,0,.04)}
+        .sm-tbl tbody tr:hover td{background:rgba(99,102,241,.04)!important}
+        .sm-tbl tfoot td{padding:8px 5px;font-weight:700;border-top:2px solid var(--border);background:var(--surface2)}
+        .sm-grp{border-left:2px solid var(--border)}
+      </style>
+      <div class="sm-card">
+        <div class="sm-hdr">
+          <div style="font-size:14px;font-weight:800;color:var(--text)">Daily Order Summary</div>
+          <div class="sm-nav">
+            <button onclick="DailyOrderModule.setMonth('${prevM}')">&#8249; Prev</button>
+            <span style="font-size:13px;font-weight:700;min-width:130px;text-align:center;color:var(--primary)">${monthLabel}</span>
+            <button onclick="DailyOrderModule.setMonth('${nextM}')">Next &#8250;</button>
           </div>
-          <span style="font-size:11px;color:var(--text-3)">${activeDays} hari aktif / ${customers.length} customer</span>
+          <div style="font-size:10px;color:var(--text-3)">${activeDays} hari aktif &middot; ${customers.length} customer</div>
         </div>
-        <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+          <table class="sm-tbl">
             <thead>
-              <tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
-                <th style="padding:7px 8px;text-align:left;color:var(--text-3);font-weight:700;white-space:nowrap;border-right:1px solid var(--border)">TANGGAL</th>
-                ${customers.map(c => `<th style="padding:7px 5px;text-align:right;color:var(--primary);font-weight:600;white-space:nowrap;font-size:10px" title="${c}">${_shortName(c)}</th>`).join('')}
-                <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:700;white-space:nowrap;border-left:1px solid var(--border)">JUMLAH<br><span style="font-size:9px;font-weight:400">(Makan+Snack)</span></th>
-                <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:700;white-space:nowrap">JUMLAH<br><span style="font-size:9px;font-weight:400">(Makanan)</span></th>
+              <tr>
+                <th style="text-align:left;padding-left:10px;min-width:90px">Tanggal</th>
+                ${customers.map(c => `<th style="text-align:right;color:var(--primary)" title="${c}">${_shortName(c)}</th>`).join('')}
+                <th class="sm-grp" style="text-align:right;color:#10b981">Porsi</th>
+                <th style="text-align:right;color:#8b5cf6">Omset</th>
+                <th class="sm-grp" style="text-align:right;color:#f59e0b">Budget</th>
+                <th style="text-align:right;color:#ec4899">Realisasi</th>
+                <th style="text-align:right;min-width:80px">Selisih</th>
+                <th style="text-align:right;min-width:40px">%</th>
               </tr>
             </thead>
             <tbody>
@@ -840,30 +891,49 @@ const DailyOrderModule = (() => {
                 const isToday = r.dateStr === _today();
                 const dow = new Date(r.dateStr+'T00:00:00').toLocaleDateString('id-ID',{weekday:'short'});
                 const isSun = new Date(r.dateStr+'T00:00:00').getDay() === 0;
+                const sel = r.budget - r.spent;
+                const pct = r.budget > 0 ? (r.spent / r.budget * 100) : 0;
+                const selC = sel >= 0 ? '#10b981' : '#ef4444';
+                const bg = isToday ? 'background:rgba(99,102,241,.05);' : isSun ? 'background:rgba(239,68,68,.02);' : i%2 ? 'background:rgba(0,0,0,.012);' : '';
                 return `
-                <tr style="border-bottom:1px solid var(--border);
-                  ${isToday?'background:rgba(99,102,241,.06);font-weight:700;':isSun?'background:rgba(239,68,68,.03);':i%2?'background:rgba(0,0,0,.015)':''}">
-                  <td style="padding:6px 8px;font-size:11px;white-space:nowrap;border-right:1px solid var(--border);color:${isSun?'#ef4444':'var(--text)'}">
+                <tr style="${bg}">
+                  <td class="sm-td" style="padding-left:10px;white-space:nowrap;color:${isSun?'#ef4444':'var(--text)'}">
                     <strong style="color:${isToday?'var(--primary)':'inherit'}">${String(r.d).padStart(2,'0')}</strong>
-                    <span style="color:var(--text-3);margin-left:4px;font-size:10px">${dow}</span>
-                    ${isToday?`<span style="font-size:9px;background:rgba(99,102,241,.15);color:var(--primary);padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700">HARI INI</span>`:''}
+                    <span style="color:var(--text-3);margin-left:3px;font-size:10px">${dow}</span>
+                    ${isToday?'<span style="font-size:8px;background:rgba(99,102,241,.15);color:var(--primary);padding:1px 4px;border-radius:6px;margin-left:3px;font-weight:700">NOW</span>':''}
                   </td>
                   ${customers.map(c => cell(r.cells[c]||0)).join('')}
-                  <td style="padding:6px 5px;text-align:right;font-weight:700;border-left:1px solid var(--border);color:${r.hasData?'#10b981':'var(--border)'}">
+                  <td class="sm-td sm-grp" style="text-align:right;font-weight:700;color:${r.hasData?'#10b981':'var(--border2)'}">
                     ${r.hasData?(r.totMeals+r.totSnacks).toLocaleString('id-ID'):'-'}
                   </td>
-                  <td style="padding:6px 5px;text-align:right;font-weight:700;color:${r.hasData?'#6366f1':'var(--border)'}">
-                    ${r.hasData?r.totMeals.toLocaleString('id-ID'):'-'}
+                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.omset?'#8b5cf6':'var(--border2)'}">
+                    ${r.omset?rp(r.omset):'-'}
+                  </td>
+                  <td class="sm-td sm-grp" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.budget?'#f59e0b':'var(--border2)'}">
+                    ${r.budget?rp(r.budget):'-'}
+                  </td>
+                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${r.spent?'#ec4899':'var(--border2)'}">
+                    ${r.spent?rp(r.spent):'-'}
+                  </td>
+                  <td class="sm-td" style="text-align:right;font-family:var(--font-mono);font-size:10px;font-weight:700;color:${r.budget?selC:'var(--border2)'}">
+                    ${r.budget?(sel>=0?'+':'')+rp(Math.abs(sel)):'-'}
+                  </td>
+                  <td class="sm-td" style="text-align:right;font-size:10px;color:${r.budget?(pct>100?'#ef4444':'var(--text-3)'):'var(--border2)'}">
+                    ${r.budget?pct.toFixed(0)+'%':'-'}
                   </td>
                 </tr>`;
               }).join('')}
             </tbody>
             <tfoot>
-              <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:700">
-                <td style="padding:8px;color:var(--text-3);font-size:11px;border-right:1px solid var(--border)">TOTAL</td>
-                ${customers.map(c => `<td style="padding:8px 5px;text-align:right;color:var(--primary)">${custTotals[c]?custTotals[c].toLocaleString('id-ID'):'-'}</td>`).join('')}
-                <td style="padding:8px 5px;text-align:right;color:#10b981;border-left:1px solid var(--border)">${(grandMeals+grandSnacks).toLocaleString('id-ID')}</td>
-                <td style="padding:8px 5px;text-align:right;color:#6366f1">${grandMeals.toLocaleString('id-ID')}</td>
+              <tr>
+                <td style="padding-left:10px;color:var(--text-3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Total</td>
+                ${customers.map(c => `<td style="text-align:right;color:var(--primary)">${custTotals[c]?custTotals[c].toLocaleString('id-ID'):'-'}</td>`).join('')}
+                <td class="sm-grp" style="text-align:right;color:#10b981">${(grandMeals+grandSnacks).toLocaleString('id-ID')}</td>
+                <td style="text-align:right;color:#8b5cf6;font-family:var(--font-mono);font-size:10px">${rp(grandOmset)}</td>
+                <td class="sm-grp" style="text-align:right;color:#f59e0b;font-family:var(--font-mono);font-size:10px">${rp(grandBudget)}</td>
+                <td style="text-align:right;color:#ec4899;font-family:var(--font-mono);font-size:10px">${rp(grandSpent)}</td>
+                <td style="text-align:right;font-family:var(--font-mono);font-size:10px;color:${grandSelisih>=0?'#10b981':'#ef4444'}">${(grandSelisih>=0?'+':'')+rp(Math.abs(grandSelisih))}</td>
+                <td style="text-align:right;font-size:10px;color:var(--text-3)">${grandBudget>0?(grandSpent/grandBudget*100).toFixed(0)+'%':'-'}</td>
               </tr>
             </tfoot>
           </table>
