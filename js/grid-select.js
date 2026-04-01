@@ -168,7 +168,12 @@ const GridSelect = (() => {
     document.removeEventListener('mouseup', _fillEnd);
     if (!_fill || !_fill.targets.length) { _fill = null; return; }
     const cb = _fillCbs[_fill.tbl.id];
-    if (cb) cb(_fill.tbl.id, _fill.srcCol, _fill.srcRow, _fill.targets.map(t => t.rowIdx), _fill.value);
+    // Auto-convert displayed date DD-MM-YYYY → YYYY-MM-DD for DB
+    let fillVal = _fill.value;
+    if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(fillVal)) {
+      const p = fillVal.split(/[-/]/); fillVal = p[2]+'-'+p[1]+'-'+p[0];
+    }
+    if (cb) cb(_fill.tbl.id, _fill.srcCol, _fill.srcRow, _fill.targets.map(t => t.rowIdx), fillVal);
     _fill.tbl.querySelectorAll('.gs-fill,.gs-sel').forEach(el => { el.classList.remove('gs-fill','gs-sel'); el.querySelector('.gs-handle')?.remove(); });
     _fill = null;
   }
@@ -207,7 +212,9 @@ const GridSelect = (() => {
     let text = '';
     try { text = await navigator.clipboard.readText(); } catch { return; }
     if (!text.trim()) return;
-    const pasteRows = text.split('\n').map(line => line.split('\t'));
+    // Auto-convert pasted dates DD-MM-YYYY or DD/MM/YYYY → YYYY-MM-DD
+    const _normDate = v => /^\d{2}[-/]\d{2}[-/]\d{4}$/.test(v) ? (p=>p[2]+'-'+p[1]+'-'+p[0])(v.split(/[-/]/)) : v;
+    const pasteRows = text.split('\n').map(line => line.split('\t').map(_normDate));
     const startR = Math.min(_sel.startRow, _sel.endRow);
     const startC = Math.min(_sel.startCol, _sel.endCol);
     const cb = _pasteCbs[tbl.id];
