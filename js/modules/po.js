@@ -70,6 +70,7 @@ else { window.POModule = (() => {
       <div class="tabs" style="margin-bottom:var(--s4)">
         <button class="tab-btn active" onclick="POModule.switchTab('active')">Aktif</button>
         <button class="tab-btn" onclick="POModule.switchTab('arsip')">Arsip</button>
+        <button class="tab-btn" onclick="POModule.switchTab('belanja-pasar')">Belanja Pasar</button>
       </div>
       <div id="po-content"></div>`;
     _renderList('active');
@@ -77,9 +78,27 @@ else { window.POModule = (() => {
 
   function switchTab(tab) {
     document.querySelectorAll('.tabs .tab-btn').forEach((b,i) => {
-      b.classList.toggle('active', (i===0&&tab==='active')||(i===1&&tab==='arsip'));
+      b.classList.toggle('active', (i===0&&tab==='active')||(i===1&&tab==='arsip')||(i===2&&tab==='belanja-pasar'));
     });
+    if (tab === 'belanja-pasar') { _loadBelanjaPasar(); return; }
     _renderList(tab);
+  }
+
+  async function _loadBelanjaPasar() {
+    const el = document.getElementById('po-content');
+    if (!el) return;
+    el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)">Memuat...</div>';
+    if (typeof POBelanjaPasarModule === 'undefined') {
+      await new Promise((resolve, reject) => {
+        const base = 'js/modules/po-belanja-pasar.js';
+        if (document.querySelector(`script[src^="${base}"]`)) { resolve(); return; }
+        const s = document.createElement('script');
+        s.src = base + '?v=20260401a';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    if (typeof POBelanjaPasarModule !== 'undefined') POBelanjaPasarModule.init(el);
   }
 
   /* ── Card list ─────────────────────────────── */

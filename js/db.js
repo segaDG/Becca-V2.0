@@ -484,6 +484,11 @@ const DB = (() => {
   const savePO   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('po_anggaran', data); };
   const deletePO = (id)   => _delete('po_anggaran', id);
 
+  // ── BELANJA PASAR ─────────────────────────────────────────
+  const getBelanjaPasar    = ()     => _get('po_belanja_pasar');
+  const saveBelanjaPasar   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('po_belanja_pasar', data); };
+  const deleteBelanjaPasar = (id)   => _delete('po_belanja_pasar', id);
+
   // ── INVENTORY ─────────────────────────────────────────────
   const getInventory      = ()     => _get('inv_activities');
   const saveInventory     = (data) => {
@@ -1009,6 +1014,7 @@ const DB = (() => {
     // Kas
     getKas, saveKas, deleteKas,
     getPO, savePO, deletePO,
+    getBelanjaPasar, saveBelanjaPasar, deleteBelanjaPasar,
     getKasMasuk, saveKasMasuk, deleteKasMasuk,
     // Inventory
     getInventory, saveInventory,
