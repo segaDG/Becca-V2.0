@@ -898,8 +898,7 @@ const InventoryModule = (() => {
         <button onclick="UndoRedo.undo('inv')" title="Undo (Ctrl+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canUndo('inv')?'':'opacity:.3;pointer-events:none'}">↩</button>
         <button onclick="UndoRedo.redo('inv')" title="Redo (Ctrl+Shift+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canRedo('inv')?'':'opacity:.3;pointer-events:none'}">↪</button>
         <button onclick="InventoryModule.reArrangeInv()" title="Urutkan berdasarkan tanggal" style="height:30px;padding:0 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;gap:4px;color:var(--text-2);font-size:11px;font-weight:600;white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 6h18M3 12h12M3 18h6"/></svg>Re-arrange</button>
-        <button id="inv-log-reset" onclick="InventoryModule.clearLogFilter()"
-          style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:12px;cursor:pointer;display:none">✕ Reset</button>
+        <button id="inv-log-reset" class="filter-reset-btn" onclick="InventoryModule.clearLogFilter()">↺</button>
         <span id="inv-log-count" style="font-size:11px;color:var(--text-3);margin-left:auto"></span>
       `;
       tab.insertBefore(bar, tab.firstChild);
@@ -915,11 +914,9 @@ const InventoryModule = (() => {
       if (d) d.value = _logFilterTgl;
     }
     const resetBtn = document.getElementById('inv-log-reset');
-    const hasInvFilter = _logFilterNama || _logFilterTgl;
     if (resetBtn) {
-      resetBtn.style.display = hasInvFilter ? '' : 'none';
-      if (hasInvFilter) { resetBtn.className = 'filter-active-reset'; resetBtn.textContent = '✕ Reset Filter'; }
-      else { resetBtn.className = ''; resetBtn.textContent = '✕ Reset'; }
+      if (_logFilterNama || _logFilterTgl) resetBtn.classList.add('active');
+      else resetBtn.classList.remove('active');
     }
     const countEl = document.getElementById('inv-log-count');
     if (countEl) countEl.textContent = sorted.length + ' baris';

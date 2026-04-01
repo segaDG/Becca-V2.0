@@ -147,7 +147,7 @@ const APModule = (() => {
           <option value="LUNAS">✅ Lunas</option>
           <option value="BELUM">⏳ Belum Bayar</option>
         </select>
-        <button onclick="APModule.resetFilter()" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:11px;color:var(--text-3);white-space:nowrap">↺ Reset</button>
+        <button onclick="APModule.resetFilter()" class="filter-reset-btn" id="ap-reset-btn">↺</button>
         <button onclick="APModule.reArrangeAP()" title="Urutkan" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 6h18M3 12h12M3 18h6"/></svg>Re-arrange</button>
         <button onclick="UndoRedo.undo('ap')" title="Undo (Ctrl+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canUndo('ap')?'':'opacity:.3;pointer-events:none'}">↩</button>
         <button onclick="UndoRedo.redo('ap')" title="Redo (Ctrl+Shift+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;${UndoRedo.canRedo('ap')?'':'opacity:.3;pointer-events:none'}">↪</button>
@@ -218,13 +218,8 @@ const APModule = (() => {
 
     const countEl = document.getElementById('ap-count');
     if (countEl) countEl.textContent = total + ' transaksi';
-    // Toggle reset button style
-    const hasApFilter = from||to||bulan||sup||status;
-    const apReset = document.querySelector('[onclick*="APModule.resetFilter"]');
-    if (apReset) {
-      if (hasApFilter) { apReset.className = 'filter-active-reset'; apReset.innerHTML = '✕ Reset Filter'; apReset.style.cssText='border-radius:6px;cursor:pointer'; }
-      else { apReset.className = ''; apReset.innerHTML = '↺ Reset'; apReset.style.cssText='height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:11px;color:var(--text-3);white-space:nowrap'; }
-    }
+    const apReset = document.getElementById('ap-reset-btn');
+    if (apReset) { if (from||to||bulan||sup||status) apReset.classList.add('active'); else apReset.classList.remove('active'); }
 
     // Pagination bar
     let pgEl = document.getElementById('ap-pagination');
