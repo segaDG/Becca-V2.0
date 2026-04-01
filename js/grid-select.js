@@ -146,10 +146,21 @@ const GridSelect = (() => {
     _fill.targets = [];
     const rows = Array.from(_fill.tbl.querySelector('tbody')?.children || []);
     const mouseY = e.clientY;
-    for (let i = _fill.srcRow + 1; i < rows.length; i++) {
-      if (rows[i].getBoundingClientRect().top > mouseY) break;
-      const td = rows[i].children[_fill.srcCol];
-      if (td) { td.classList.add('gs-fill'); _fill.targets.push({ td, rowIdx: i }); }
+    const srcRect = rows[_fill.srcRow]?.getBoundingClientRect();
+    if (!srcRect) return;
+    const goDown = mouseY > srcRect.bottom;
+    if (goDown) {
+      for (let i = _fill.srcRow + 1; i < rows.length; i++) {
+        if (rows[i].getBoundingClientRect().top > mouseY) break;
+        const td = rows[i].children[_fill.srcCol];
+        if (td) { td.classList.add('gs-fill'); _fill.targets.push({ td, rowIdx: i }); }
+      }
+    } else {
+      for (let i = _fill.srcRow - 1; i >= 0; i--) {
+        if (rows[i].getBoundingClientRect().bottom < mouseY) break;
+        const td = rows[i].children[_fill.srcCol];
+        if (td) { td.classList.add('gs-fill'); _fill.targets.push({ td, rowIdx: i }); }
+      }
     }
   }
   function _fillEnd() {
