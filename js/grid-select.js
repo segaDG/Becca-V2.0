@@ -33,6 +33,12 @@ const GridSelect = (() => {
       .gs-ctx-item{padding:6px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--text,#333)}
       .gs-ctx-item:hover{background:rgba(99,102,241,.08)}
       .gs-ctx-item kbd{font-size:10px;color:var(--text-3,#999);margin-left:auto;font-family:var(--font-mono,monospace)}
+      /* Filter-active reset button animation */
+      .filter-active-reset{animation:filterPulse 1.5s ease infinite!important;
+        background:#ef4444!important;color:#fff!important;border-color:#ef4444!important;
+        font-weight:700!important;padding:7px 16px!important;font-size:13px!important;
+        box-shadow:0 2px 8px rgba(239,68,68,.3)!important;transition:all .2s!important}
+      @keyframes filterPulse{0%,100%{box-shadow:0 2px 8px rgba(239,68,68,.3)}50%{box-shadow:0 2px 16px rgba(239,68,68,.5)}}
     `;
     document.head.appendChild(s);
   }

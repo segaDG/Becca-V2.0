@@ -233,13 +233,12 @@ const KasModule = (() => {
           <option value="TBC"  ${_filter.status==='TBC' ?'selected':''}>TBC</option>
           <option value="-"    ${_filter.status==='-'   ?'selected':''}>- (Kosong)</option>
         </select>
-        <button onclick="KasModule.resetFilter()" title="Reset Filter"
-          style="height:34px;width:34px;min-width:34px;border-radius:var(--r-sm);
-                 border:1px solid var(--border2);background:transparent;
-                 cursor:pointer;display:flex;align-items:center;justify-content:center;
-                 color:var(--text-2);font-size:18px;transition:all .15s;"
-          onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'"
-          onmouseout="this.style.background='transparent';this.style.color='var(--text-2)'">↺</button>
+        ${(()=>{
+          const hasFilter = _filter.dateFrom||_filter.dateTo||_filter.bulan||_filter.type||_filter.status;
+          return hasFilter
+            ? `<button onclick="KasModule.resetFilter()" class="filter-active-reset" style="border-radius:var(--r-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px">✕ Reset Filter</button>`
+            : `<button onclick="KasModule.resetFilter()" title="Reset Filter" style="height:34px;width:34px;min-width:34px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:18px">↺</button>`;
+        })()}
         <button onclick="UndoRedo.undo('kas')" title="Undo (Ctrl+Z)"
           style="height:34px;width:34px;min-width:34px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:14px;transition:all .15s;${UndoRedo.canUndo('kas')?'':'opacity:.3;pointer-events:none'}"
           onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">↩</button>

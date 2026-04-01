@@ -915,7 +915,12 @@ const InventoryModule = (() => {
       if (d) d.value = _logFilterTgl;
     }
     const resetBtn = document.getElementById('inv-log-reset');
-    if (resetBtn) resetBtn.style.display = (_logFilterNama || _logFilterTgl) ? '' : 'none';
+    const hasInvFilter = _logFilterNama || _logFilterTgl;
+    if (resetBtn) {
+      resetBtn.style.display = hasInvFilter ? '' : 'none';
+      if (hasInvFilter) { resetBtn.className = 'filter-active-reset'; resetBtn.textContent = '✕ Reset Filter'; }
+      else { resetBtn.className = ''; resetBtn.textContent = '✕ Reset'; }
+    }
     const countEl = document.getElementById('inv-log-count');
     if (countEl) countEl.textContent = sorted.length + ' baris';
     // Update undo/redo button state

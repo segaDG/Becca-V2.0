@@ -218,6 +218,13 @@ const APModule = (() => {
 
     const countEl = document.getElementById('ap-count');
     if (countEl) countEl.textContent = total + ' transaksi';
+    // Toggle reset button style
+    const hasApFilter = from||to||bulan||sup||status;
+    const apReset = document.querySelector('[onclick*="APModule.resetFilter"]');
+    if (apReset) {
+      if (hasApFilter) { apReset.className = 'filter-active-reset'; apReset.innerHTML = '✕ Reset Filter'; apReset.style.cssText='border-radius:6px;cursor:pointer'; }
+      else { apReset.className = ''; apReset.innerHTML = '↺ Reset'; apReset.style.cssText='height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:11px;color:var(--text-3);white-space:nowrap'; }
+    }
 
     // Pagination bar
     let pgEl = document.getElementById('ap-pagination');
