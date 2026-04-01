@@ -233,8 +233,7 @@ const KasModule = (() => {
           <option value="TBC"  ${_filter.status==='TBC' ?'selected':''}>TBC</option>
           <option value="-"    ${_filter.status==='-'   ?'selected':''}>- (Kosong)</option>
         </select>
-        <button onclick="KasModule.resetFilter()" title="Reset Filter"
-          class="filter-reset-btn ${(_filter.dateFrom||_filter.dateTo||_filter.bulan||_filter.type||_filter.status)?'active':''}">↺</button>
+        <button id="kas-reset-btn" onclick="KasModule.resetFilter()" title="Reset Filter" class="filter-reset-btn">↺</button>
         <button onclick="UndoRedo.undo('kas')" title="Undo (Ctrl+Z)"
           style="height:34px;width:34px;min-width:34px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:14px;transition:all .15s;${UndoRedo.canUndo('kas')?'':'opacity:.3;pointer-events:none'}"
           onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">↩</button>
@@ -315,6 +314,11 @@ const KasModule = (() => {
       GridSelect.onFill('kas-grid', _onGridFill);
       GridSelect.onPaste('kas-grid', _onGridPaste);
     }
+    // Toggle reset button animation — double rAF to ensure browser painted inactive state first
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const rb = document.getElementById('kas-reset-btn');
+      if (rb) { if (_filter.dateFrom||_filter.dateTo||_filter.bulan||_filter.type||_filter.status) rb.classList.add('active'); else rb.classList.remove('active'); }
+    }));
   }
 
   /* ---- VIEW ROW ---- */

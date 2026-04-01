@@ -34,13 +34,16 @@ const GridSelect = (() => {
       .gs-ctx-item:hover{background:rgba(99,102,241,.08)}
       .gs-ctx-item kbd{font-size:10px;color:var(--text-3,#999);margin-left:auto;font-family:var(--font-mono,monospace)}
       /* Filter reset button — icon rotates when filter active */
-      .filter-reset-btn{width:34px;height:34px;min-width:34px;border-radius:var(--r-sm,6px);border:1px solid var(--border2,#ddd);
-        background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;
-        color:var(--text-2,#999);font-size:18px;transition:all 1.5s cubic-bezier(.4,0,.2,1)}
+      .filter-reset-btn{width:30px;height:30px;min-width:30px;border-radius:6px;border:1px solid var(--border2,#ddd);
+        background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+        color:var(--text-3,#aaa);font-size:14px;transition:transform 1.2s cubic-bezier(.4,0,.2,1),background .6s,color .6s,border-color .6s,box-shadow .6s;
+        padding:0;line-height:1}
+      .filter-reset-btn:hover{background:var(--surface2,#f5f5f5);color:var(--text,#333)}
       .filter-reset-btn.active{background:#ef4444;color:#fff;border-color:#ef4444;
-        transform:rotate(-180deg);box-shadow:0 2px 12px rgba(239,68,68,.4);
+        transform:rotate(-180deg);box-shadow:0 2px 10px rgba(239,68,68,.35);
         animation:filterGlow 2s ease infinite}
-      @keyframes filterGlow{0%,100%{box-shadow:0 2px 12px rgba(239,68,68,.4)}50%{box-shadow:0 2px 20px rgba(239,68,68,.6)}}
+      .filter-reset-btn.active:hover{background:#dc2626;box-shadow:0 2px 14px rgba(239,68,68,.5)}
+      @keyframes filterGlow{0%,100%{box-shadow:0 2px 10px rgba(239,68,68,.35)}50%{box-shadow:0 3px 16px rgba(239,68,68,.55)}}
     `;
     document.head.appendChild(s);
   }
