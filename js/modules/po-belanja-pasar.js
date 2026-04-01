@@ -1,15 +1,15 @@
 /* ============================================
    BECCA V2.0 — Belanja Pasar Module
    Sub-module of Purchase Order.
-   Workflow: Select dates → Pick form produksi → Pembagian lokasi → Per-shift breakdown → Print
+   Workflow: Pick form produksi → Pembagian lokasi → Per-shift breakdown → Print
 ============================================ */
 if (typeof window.POBelanjaPasarModule !== 'undefined') { console.warn('[BP] Already loaded'); }
 else { window.POBelanjaPasarModule = (() => {
-  let _data = [];     // saved belanja pasar docs
-  let _forms = [];    // daily_order_forms from DB
-  let _el = null;     // container element (#po-content)
-  let _doc = null;    // currently open/editing doc
-  let _step = 0;      // 0=list, 1=dates, 2=forms, 3=lokasi, 4=breakdown
+  let _data = [];
+  let _forms = [];
+  let _el = null;
+  let _doc = null;
+  let _step = 0; // 0=list, 1=pick forms, 3=lokasi, 4=breakdown
 
   const DAY_LABELS = 'ABCDEFG'.split('');
 
@@ -60,7 +60,7 @@ else { window.POBelanjaPasarModule = (() => {
           }).join('')}</div>`}`;
   }
 
-  /* ── New document ──────────────────────────── */
+  /* ── New document → straight to form picker ── */
   function newDoc() {
     const cu = Auth.currentUser();
     _doc = {
@@ -72,7 +72,7 @@ else { window.POBelanjaPasarModule = (() => {
       createdAt: new Date().toISOString(),
     };
     _step = 1;
-    _renderStep1();
+    _renderFormPicker();
   }
 
   /* ── Open existing ─────────────────────────── */
@@ -83,113 +83,116 @@ else { window.POBelanjaPasarModule = (() => {
     _renderStep3();
   }
 
-  /* ── Step 1: Date range ────────────────────── */
-  function _renderStep1() {
+  /* ── Form picker (replaces old Step 1+2) ───── */
+  function _renderFormPicker() {
     if (!_el) return;
-    _el.innerHTML = `
-      <div style="margin-bottom:12px"><button onclick="POBelanjaPasarModule.backToList()" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">← Kembali</button></div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:500px;margin:0 auto">
-        <h3 style="margin-bottom:16px;font-size:16px">Step 1: Pilih Periode</h3>
-        <p style="color:var(--text-2);font-size:13px;margin-bottom:16px">Tentukan tanggal awal dan akhir belanja pasar. Setiap hari akan diberi label A, B, C, dst.</p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-          <div class="form-group"><label class="form-label">Tanggal Mulai</label>
-            <input type="date" class="form-control" id="bp-date-start" value="${_doc.dates?.[0]||''}"></div>
-          <div class="form-group"><label class="form-label">Tanggal Akhir</label>
-            <input type="date" class="form-control" id="bp-date-end" value="${_doc.dates?.at(-1)||''}"></div>
-        </div>
-        <div id="bp-date-preview" style="margin-bottom:16px"></div>
-        <button class="btn btn-primary" onclick="POBelanjaPasarModule._onStep1Next()" style="width:100%">Lanjut → Pilih Form Produksi</button>
-      </div>`;
-    // Auto-preview on change
-    const upd = () => {
-      const s = document.getElementById('bp-date-start')?.value;
-      const e = document.getElementById('bp-date-end')?.value;
-      const pv = document.getElementById('bp-date-preview');
-      if (!s || !e || !pv) return;
-      const dates = _dateRange(s, e);
-      if (!dates.length) { pv.innerHTML = '<span style="color:var(--danger);font-size:12px">Tanggal tidak valid</span>'; return; }
-      pv.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap">${dates.map((d,i) => `<span style="background:rgba(5,150,105,.08);color:#059669;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600">${DAY_LABELS[i]||i+1} — ${_fmtDate(d)}</span>`).join('')}</div>`;
-    };
-    document.getElementById('bp-date-start')?.addEventListener('change', upd);
-    document.getElementById('bp-date-end')?.addEventListener('change', upd);
-    upd();
-  }
+    // Group available forms by date, from yesterday backwards
+    const today = new Date();
+    today.setDate(today.getDate() - 1);
+    const todayStr = today.toISOString().split('T')[0];
 
-  function _onStep1Next() {
-    const s = document.getElementById('bp-date-start')?.value;
-    const e = document.getElementById('bp-date-end')?.value;
-    if (!s || !e) { Notify.warning('Pilih tanggal mulai dan akhir'); return; }
-    const dates = _dateRange(s, e);
-    if (!dates.length || dates.length > 7) { Notify.warning('Periode maksimal 7 hari'); return; }
-    _doc.dates = dates;
-    _doc.dayLabels = {};
-    dates.forEach((d, i) => { _doc.dayLabels[d] = DAY_LABELS[i] || String(i+1); });
-    _doc.periode = _fmtDate(dates[0]) + ' - ' + _fmtDate(dates.at(-1));
-    _step = 2;
-    _renderStep2();
-  }
+    // Get all unique dates from forms, sorted newest first
+    const dateSet = new Set();
+    _forms.forEach(f => { if (f.tanggal) dateSet.add(f.tanggal); });
+    const allDates = [...dateSet]
+      .filter(d => d <= todayStr)
+      .sort((a,b) => b.localeCompare(a)); // newest first
 
-  /* ── Step 2: Form selection ────────────────── */
-  function _renderStep2() {
-    if (!_el) return;
-    // Find matching forms
-    const matched = [];
-    _doc.dates.forEach(d => {
-      ['S1','S2'].forEach(shift => {
-        const f = _forms.find(f => f.tanggal === d && f.shift === shift);
-        const label = _doc.dayLabels[d] || '';
-        const shiftLabel = shift === 'S1' ? 'Shift 1' : 'Shift 2&3';
-        const itemCount = f ? (f.items||[]).filter(it=>it.item).length : 0;
-        const selected = _doc.selectedForms?.some(sf => sf.tanggal === d && sf.shift === shift) ?? !!f;
-        matched.push({ tanggal: d, shift, label, shiftLabel, formId: f?.id || null, itemCount, available: !!f, selected });
-      });
+    // Build grouped list
+    let groupHtml = '';
+    allDates.forEach(d => {
+      const s1 = _forms.find(f => f.tanggal === d && f.shift === 'S1');
+      const s2 = _forms.find(f => f.tanggal === d && f.shift === 'S2');
+      if (!s1 && !s2) return;
+      const s1Count = s1 ? (s1.items||[]).filter(it=>it.item).length : 0;
+      const s2Count = s2 ? (s2.items||[]).filter(it=>it.item).length : 0;
+      const alreadySelected = (_doc.selectedForms||[]).some(sf => sf.tanggal === d);
+
+      groupHtml += `
+        <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:6px">
+          <div style="background:var(--surface2);padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">
+            <input type="checkbox" class="bp-date-chk" data-date="${d}"
+              ${alreadySelected?'checked':''}
+              onchange="POBelanjaPasarModule._onDateToggle('${d}',this.checked)"
+              style="width:16px;height:16px;accent-color:#059669">
+            <span style="font-size:13px;font-weight:700">${_fmtDateFull(d)}</span>
+            <span style="font-size:11px;color:var(--text-3)">${_dayName(d)}</span>
+          </div>
+          <div style="padding:6px 12px;display:flex;gap:12px" id="bp-shifts-${d}">
+            ${s1 ? `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 0">
+              <input type="checkbox" class="bp-form-chk" data-tanggal="${d}" data-shift="S1" data-fid="${s1.id}"
+                ${alreadySelected?'checked':''} style="width:14px;height:14px;accent-color:#059669">
+              <span style="font-size:12px">Shift 1</span>
+              <span style="font-size:10px;color:var(--text-3);font-weight:600">${s1Count} items</span>
+            </label>` : '<span style="font-size:11px;color:var(--text-3);padding:4px 0">Shift 1: —</span>'}
+            ${s2 ? `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 0">
+              <input type="checkbox" class="bp-form-chk" data-tanggal="${d}" data-shift="S2" data-fid="${s2.id}"
+                ${alreadySelected?'checked':''} style="width:14px;height:14px;accent-color:#059669">
+              <span style="font-size:12px">Shift 2&3</span>
+              <span style="font-size:10px;color:var(--text-3);font-weight:600">${s2Count} items</span>
+            </label>` : '<span style="font-size:11px;color:var(--text-3);padding:4px 0">Shift 2&3: —</span>'}
+          </div>
+        </div>`;
     });
-    // Auto-select all available by default if no prior selection
-    if (!_doc.selectedForms?.length) matched.forEach(m => { if (m.available) m.selected = true; });
 
     _el.innerHTML = `
-      <div style="margin-bottom:12px;display:flex;gap:6px">
-        <button onclick="POBelanjaPasarModule._goStep(1)" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">← Ubah Tanggal</button>
-        <span style="font-size:12px;color:var(--text-3);display:flex;align-items:center;gap:4px">🛒 ${_doc.periode}</span>
+      <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <button onclick="POBelanjaPasarModule.backToList()" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">← Kembali</button>
+        <h3 style="font-size:15px;margin:0">Pilih Form Produksi</h3>
+        <span style="font-size:11px;color:var(--text-3)">Centang tanggal & shift yang ingin dimasukkan</span>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;max-width:600px;margin:0 auto">
-        <h3 style="margin-bottom:8px;font-size:16px">Step 2: Pilih Form Produksi</h3>
-        <p style="color:var(--text-2);font-size:13px;margin-bottom:16px">Centang form produksi yang ingin dimasukkan ke belanja pasar.</p>
-        <div style="margin-bottom:12px">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--primary)">
-            <input type="checkbox" id="bp-select-all" onchange="POBelanjaPasarModule._toggleAll(this.checked)" style="width:16px;height:16px;accent-color:var(--primary)" checked> Pilih Semua
-          </label>
-        </div>
-        <div style="display:grid;gap:6px" id="bp-form-list">
-          ${matched.map((m, i) => `
-            <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid ${m.available?'var(--border)':'rgba(239,68,68,.2)'};border-radius:8px;cursor:${m.available?'pointer':'default'};${m.available?'':'opacity:.5;background:rgba(239,68,68,.03)'}">
-              <input type="checkbox" data-idx="${i}" data-tanggal="${m.tanggal}" data-shift="${m.shift}"
-                ${m.selected && m.available ? 'checked' : ''} ${m.available?'':'disabled'}
-                style="width:16px;height:16px;accent-color:#059669">
-              <span style="font-size:11px;font-weight:800;color:#059669;background:rgba(5,150,105,.08);padding:2px 8px;border-radius:4px">${m.label}</span>
-              <span style="font-size:13px;font-weight:600">${_fmtDate(m.tanggal)} — ${m.shiftLabel}</span>
-              <span style="margin-left:auto;font-size:11px;color:${m.available?'var(--text-2)':'#ef4444'};font-weight:600">${m.available ? m.itemCount+' items' : 'Tidak ada form'}</span>
-            </label>
-          `).join('')}
-        </div>
-        <button class="btn btn-primary" onclick="POBelanjaPasarModule._onStep2Next()" style="width:100%;margin-top:16px">Lanjut → Pembagian Lokasi</button>
-      </div>`;
+      <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--primary)">
+          <input type="checkbox" id="bp-select-all" onchange="POBelanjaPasarModule._toggleAll(this.checked)" style="width:16px;height:16px;accent-color:var(--primary)"> Pilih Semua
+        </label>
+        <span id="bp-selected-count" style="font-size:11px;color:var(--text-3);margin-left:auto">0 form dipilih</span>
+      </div>
+      <div id="bp-form-list" style="max-height:60vh;overflow-y:auto">
+        ${groupHtml || '<div style="text-align:center;padding:32px;color:var(--text-3)">Tidak ada form produksi yang tersedia</div>'}
+      </div>
+      <button class="btn btn-primary" onclick="POBelanjaPasarModule._onPickDone()" style="width:100%;margin-top:12px">Lanjut → Pembagian Lokasi</button>`;
+    _updateCount();
+  }
+
+  function _onDateToggle(date, checked) {
+    document.querySelectorAll(`.bp-form-chk[data-tanggal="${date}"]`).forEach(cb => { cb.checked = checked; });
+    _updateCount();
   }
 
   function _toggleAll(checked) {
-    document.querySelectorAll('#bp-form-list input[type="checkbox"]:not(:disabled)').forEach(cb => { cb.checked = checked; });
+    document.querySelectorAll('.bp-date-chk, .bp-form-chk').forEach(cb => { cb.checked = checked; });
+    _updateCount();
   }
 
-  function _onStep2Next() {
+  function _updateCount() {
+    const n = document.querySelectorAll('.bp-form-chk:checked').length;
+    const el = document.getElementById('bp-selected-count');
+    if (el) el.textContent = n + ' form dipilih';
+  }
+
+  function _onPickDone() {
     const selected = [];
-    document.querySelectorAll('#bp-form-list input[type="checkbox"]:checked').forEach(cb => {
+    const dateSet = new Set();
+    document.querySelectorAll('.bp-form-chk:checked').forEach(cb => {
       const tanggal = cb.dataset.tanggal;
       const shift = cb.dataset.shift;
-      const f = _forms.find(f => f.tanggal === tanggal && f.shift === shift);
-      if (f) selected.push({ formId: f.id, tanggal, shift, itemCount: (f.items||[]).filter(it=>it.item).length });
+      const fid = cb.dataset.fid;
+      const f = _forms.find(f => f.id === fid);
+      if (f) {
+        selected.push({ formId: f.id, tanggal, shift, itemCount: (f.items||[]).filter(it=>it.item).length });
+        dateSet.add(tanggal);
+      }
     });
     if (!selected.length) { Notify.warning('Pilih minimal satu form'); return; }
+
+    // Build dates + dayLabels from selection
+    const dates = [...dateSet].sort();
     _doc.selectedForms = selected;
+    _doc.dates = dates;
+    _doc.dayLabels = {};
+    dates.forEach((d, i) => { _doc.dayLabels[d] = DAY_LABELS[i] || String(i+1); });
+    _doc.periode = _fmtDateFull(dates[0]) + ' - ' + _fmtDateFull(dates.at(-1));
+
     _mergeItems();
     _step = 3;
     _renderStep3();
@@ -197,27 +200,22 @@ else { window.POBelanjaPasarModule = (() => {
 
   /* ── Merge items across selected forms ─────── */
   function _mergeItems() {
-    const map = {}; // key = item name lowercase
+    const map = {};
     _doc.selectedForms.forEach(sf => {
       const f = _forms.find(f => f.id === sf.formId);
       if (!f || !f.items) return;
       f.items.forEach(it => {
         if (!it.item) return;
         const key = it.item.toLowerCase().trim();
-        if (!map[key]) {
-          map[key] = { item: it.item, satuan: it.satuan || '', totalQty: 0, qtyCikopo: 0, qtyPsKarawang: 0 };
-        }
+        if (!map[key]) map[key] = { item: it.item, satuan: it.satuan || '', totalQty: 0, qtyCikopo: 0, qtyPsKarawang: 0 };
         map[key].totalQty += Number(it.aktQty) || Number(it.estQty) || 0;
       });
     });
-    // Preserve existing assignments if re-merging
     const oldItems = _doc.items || [];
     const merged = Object.values(map).sort((a,b) => a.item.localeCompare(b.item));
     merged.forEach(m => {
       const old = oldItems.find(o => o.item.toLowerCase().trim() === m.item.toLowerCase().trim());
-      if (old) {
-        m.qtyCikopo = Math.min(old.qtyCikopo || 0, m.totalQty);
-      }
+      if (old) m.qtyCikopo = Math.min(old.qtyCikopo || 0, m.totalQty);
       m.qtyPsKarawang = Math.round((m.totalQty - m.qtyCikopo) * 100) / 100;
     });
     _doc.items = merged;
@@ -231,12 +229,12 @@ else { window.POBelanjaPasarModule = (() => {
 
     _el.innerHTML = `
       <div style="margin-bottom:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        ${_step >= 2 ? `<button onclick="POBelanjaPasarModule._goStep(2)" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">← Ubah Form</button>` : ''}
+        <button onclick="POBelanjaPasarModule._goStep(1)" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">← Ubah Form</button>
         <button onclick="POBelanjaPasarModule.backToList()" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">← Daftar</button>
         <span style="font-size:12px;font-weight:700;color:#059669">🛒 ${_doc.periode}</span>
-        <span style="font-size:11px;color:var(--text-3)">${(items).length} items dari ${(_doc.selectedForms||[]).length} form</span>
+        <span style="font-size:11px;color:var(--text-3)">${items.length} items dari ${(_doc.selectedForms||[]).length} form</span>
         <div style="margin-left:auto;display:flex;gap:6px">
-          ${!locked ? `<button onclick="POBelanjaPasarModule._saveDoc()" style="padding:6px 14px;border:none;border-radius:7px;background:#059669;color:#fff;font-size:12px;cursor:pointer;font-weight:700">💾 Simpan</button>` : ''}
+          ${!locked ? `<button onclick="POBelanjaPasarModule._saveDoc()" style="padding:6px 14px;border:none;border-radius:7px;background:#059669;color:#fff;font-size:12px;cursor:pointer;font-weight:700">Simpan</button>` : ''}
           ${!locked ? `<button onclick="POBelanjaPasarModule._selesaikan()" style="padding:6px 12px;border:1px solid rgba(100,116,139,.4);border-radius:7px;background:rgba(100,116,139,.08);color:#64748b;font-size:12px;cursor:pointer;font-weight:600">Selesaikan</button>` : ''}
           ${locked ? `<button onclick="POBelanjaPasarModule._reopen()" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">Buka Kembali</button>` : ''}
           <button onclick="POBelanjaPasarModule._deleteDoc()" style="padding:6px 12px;border:1px solid rgba(239,68,68,.3);border-radius:7px;background:rgba(239,68,68,.07);color:#ef4444;font-size:12px;cursor:pointer">Hapus</button>
@@ -292,16 +290,13 @@ else { window.POBelanjaPasarModule = (() => {
     const it = _doc.items[idx];
     it.qtyCikopo = Math.min(val, it.totalQty);
     it.qtyPsKarawang = Math.round((it.totalQty - it.qtyCikopo) * 100) / 100;
-    // Update sisa cell
     const sisaEl = document.getElementById('bp-sisa-'+idx);
     if (sisaEl) { sisaEl.textContent = _n2(it.qtyPsKarawang); sisaEl.style.color = it.qtyPsKarawang > 0 ? '#6366f1' : 'var(--text-3)'; }
-    // Update totals
     const items = _doc.items;
     const tcEl = document.getElementById('bp-total-cikopo');
     const tkEl = document.getElementById('bp-total-krw');
     if (tcEl) tcEl.textContent = _n2(items.reduce((s,i) => s + (i.qtyCikopo||0), 0));
     if (tkEl) tkEl.textContent = _n2(items.reduce((s,i) => s + (i.totalQty - (i.qtyCikopo||0)), 0));
-    // Validate
     const inp = document.querySelector(`input[data-idx="${idx}"]`);
     if (inp) inp.style.borderColor = val > it.totalQty ? '#ef4444' : 'var(--border)';
   }
@@ -309,8 +304,7 @@ else { window.POBelanjaPasarModule = (() => {
   /* ── Step 4: Per-shift breakdown ───────────── */
   function _goStep(n) {
     _step = n;
-    if (n === 1) _renderStep1();
-    else if (n === 2) _renderStep2();
+    if (n === 1) _renderFormPicker();
     else if (n === 3) _renderStep3();
     else if (n === 4) { _computePerShift(); _renderStep4(); }
   }
@@ -322,8 +316,7 @@ else { window.POBelanjaPasarModule = (() => {
       const f = _forms.find(f => f.id === sf.formId);
       if (!f || !f.items) return;
       const key = sf.tanggal + '_' + sf.shift;
-      const cikopo = [];
-      const karawang = [];
+      const cikopo = [], karawang = [];
       f.items.forEach(fi => {
         if (!fi.item) return;
         const qty = Number(fi.aktQty) || Number(fi.estQty) || 0;
@@ -331,9 +324,8 @@ else { window.POBelanjaPasarModule = (() => {
         const merged = (_doc.items||[]).find(m => m.item.toLowerCase().trim() === fi.item.toLowerCase().trim());
         if (!merged || !merged.totalQty) return;
         const ratioC = (merged.qtyCikopo || 0) / merged.totalQty;
-        const ratioK = 1 - ratioC;
         const qC = Math.round(qty * ratioC * 100) / 100;
-        const qK = Math.round(qty * ratioK * 100) / 100;
+        const qK = Math.round(qty * (1 - ratioC) * 100) / 100;
         if (qC > 0) cikopo.push({ item: fi.item, qty: qC, satuan: fi.satuan || merged.satuan || '' });
         if (qK > 0) karawang.push({ item: fi.item, qty: qK, satuan: fi.satuan || merged.satuan || '' });
       });
@@ -365,11 +357,9 @@ else { window.POBelanjaPasarModule = (() => {
         const shiftLabel = shift === 'S1' ? 'Shift 1' : 'Shift 2&3';
         html += `
           <div style="margin-bottom:12px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
-            <div style="background:var(--surface2);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="font-size:11px;font-weight:800;color:#fff;background:#059669;padding:2px 8px;border-radius:4px">${label}</span>
-                <span style="font-size:13px;font-weight:600">${_fmtDate(d)} — ${shiftLabel}</span>
-              </div>
+            <div style="background:var(--surface2);padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">
+              <span style="font-size:11px;font-weight:800;color:#fff;background:#059669;padding:2px 8px;border-radius:4px">${label}</span>
+              <span style="font-size:13px;font-weight:600">${_fmtDateFull(d)} — ${shiftLabel}</span>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
               <div style="border-right:1px solid var(--border);padding:10px">
@@ -415,7 +405,7 @@ else { window.POBelanjaPasarModule = (() => {
         const shiftLabel = shift === 'S1' ? 'Shift 1' : 'Shift 2&3';
         tables += `
           <div style="margin-bottom:16px;page-break-inside:avoid">
-            <div style="font-size:12px;font-weight:700;margin-bottom:4px;color:${color}">${label} — ${_fmtDate(d)} — ${shiftLabel}</div>
+            <div style="font-size:12px;font-weight:700;margin-bottom:4px;color:${color}">${label} — ${_fmtDateFull(d)} — ${shiftLabel}</div>
             <table><thead><tr style="background:${color};color:#fff">
               <th style="padding:5px;font-size:9px;width:25px">NO</th>
               <th style="padding:5px;font-size:9px;text-align:left">ITEM</th>
@@ -490,24 +480,18 @@ else { window.POBelanjaPasarModule = (() => {
   function backToList() { _renderList(); }
 
   /* ── Helpers ───────────────────────────────── */
-  function _dateRange(start, end) {
-    const out = [];
-    const d = new Date(start + 'T00:00:00');
-    const e = new Date(end + 'T00:00:00');
-    while (d <= e) {
-      out.push(d.toISOString().split('T')[0]);
-      d.setDate(d.getDate() + 1);
-    }
-    return out;
-  }
-  function _fmtDate(d) {
+  function _fmtDateFull(d) {
     if (!d) return '-';
     const dt = new Date(d + 'T00:00:00');
-    return dt.toLocaleDateString('id', { day: 'numeric', month: 'short' });
+    return dt.toLocaleDateString('id', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function _dayName(d) {
+    if (!d) return '';
+    return new Date(d + 'T00:00:00').toLocaleDateString('id', { weekday: 'long' });
   }
   function _n2(n) { const v = Number(n)||0; return v === Math.floor(v) ? String(v) : v.toFixed(1); }
 
   return { init, newDoc, openDoc, backToList,
-    _onStep1Next, _onStep2Next, _toggleAll, _onCikopoChange,
+    _onDateToggle, _toggleAll, _updateCount, _onPickDone, _onCikopoChange,
     _goStep, _printAll, _saveDoc, _deleteDoc, _selesaikan, _reopen };
 })(); }
