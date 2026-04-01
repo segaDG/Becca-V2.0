@@ -111,13 +111,41 @@ const PushModule = (() => {
     }
   }
 
-  // ── Test: kirim ke diri sendiri ─────────────────────────
+  // ── Test: diagnosa + kirim ke diri sendiri ──────────────
   async function testPush() {
-    const token = localStorage.getItem('becca_push_token');
-    if (!token) { console.error('[Push] Belum ada token — login dulu dan izinkan notifikasi'); return; }
-    console.log('[Push] Testing with token:', token.slice(0,20)+'...');
-    const result = await _send({ tokens:[token], title:'BECCA Test', body:'Push notification berhasil!', data:{test:true} });
-    console.log('[Push] Test result:', result);
+    console.log('=== PUSH NOTIFICATION DIAGNOSTIC ===');
+    console.log('1. Notification API:', 'Notification' in window ? 'OK' : 'NOT AVAILABLE');
+    console.log('2. ServiceWorker:', 'serviceWorker' in navigator ? 'OK' : 'NOT AVAILABLE');
+    console.log('3. Permission:', typeof Notification !== 'undefined' ? Notification.permission : 'N/A');
+    console.log('4. Firebase ready:', _ready);
+    console.log('5. Messaging:', _messaging ? 'OK' : 'NULL');
+    console.log('6. Stored token:', localStorage.getItem('becca_push_token') ? 'EXISTS' : 'EMPTY');
+
+    // Coba register dulu jika belum ada token
+    let token = localStorage.getItem('becca_push_token');
+    if (!token) {
+      console.log('\n→ Mencoba register token...');
+      const user = typeof Auth !== 'undefined' ? Auth.currentUser() : null;
+      token = await requestAndRegister(user);
+      if (!token) {
+        console.error('→ GAGAL register token. Cek:');
+        console.error('  - Apakah notification permission di-allow?');
+        console.error('  - Apakah service worker terdaftar?');
+        console.error('  - Coba klik icon gembok di address bar → izinkan notifikasi');
+        return { error: 'Token registration failed' };
+      }
+    }
+
+    console.log('\n→ Mengirim test notification...');
+    const result = await _send({ tokens:[token], title:'BECCA Test', body:'Push notification berhasil! ' + new Date().toLocaleTimeString(), data:{test:true} });
+    console.log('→ Result:', result);
+
+    if (result?.error) {
+      console.error('→ GAGAL kirim. Kemungkinan:');
+      console.error('  - Edge Function belum deploy');
+      console.error('  - Token expired / invalid');
+      console.error('  - FCM server key belum dikonfigurasi di Edge Function');
+    }
     return result;
   }
 

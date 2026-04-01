@@ -1227,38 +1227,30 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
       </div>`;
 
     const _signDate = inv._signDate || periodeStr;
-    const _signLine = (label, sub) => `
-      <div style="text-align:center;min-width:130px">
-        <div style="margin-top:46px;border-top:1px solid #333;padding-top:3px">
-          <div style="font-weight:700;font-size:9px">${label}</div>
-          ${sub?`<div style="font-size:7px;color:${C.GRY}">${sub}</div>`:''}
-        </div>
-      </div>`;
     const signAreaRekap = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px;flex-wrap:wrap;gap:10px">
-        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:130px">
-          <div style="font-size:10px;color:#333;margin-bottom:46px">${_signDate}</div>
-          <div style="border-top:1px solid #333;width:130px;padding-top:3px;font-size:8px;color:${C.GRY}">Admin Invoice</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
+        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:180px">
+          <div style="font-size:10px;color:#333;margin-bottom:80px">${_signDate}</div>
+          <div style="border-top:1px solid #333;width:160px;padding-top:3px;font-size:9px;color:${C.GRY}">Admin / Pembuat Invoice</div>
         </div>
-        ${_signLine('Mengetahui','')}
-        ${_signLine('Gudang','')}
-        ${_signLine('Produksi','')}
-        ${_signLine('Manager / PIC', inv.customer)}
+        <div style="text-align:center;min-width:160px">
+          <div style="margin-top:80px;border-top:1px solid #333;padding-top:3px">
+            <div style="font-weight:700;font-size:10px">Manager / PIC</div>
+            <div style="font-size:8px;color:${C.GRY}">${inv.customer}</div>
+          </div>
+        </div>
       </div>`;
     const signAreaInvoice = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px;flex-wrap:wrap;gap:10px">
-        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:130px">
-          <div style="font-size:10px;color:#333;margin-bottom:46px">${_signDate}</div>
-          <div style="border-top:1px solid #333;width:130px;padding-top:3px;font-size:8px;color:${C.GRY}">Admin Invoice</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
+        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:180px">
+          <div style="font-size:10px;color:#333;margin-bottom:80px">${_signDate}</div>
+          <div style="border-top:1px solid #333;width:160px;padding-top:3px;font-size:9px;color:${C.GRY}">Admin / Pembuat Invoice</div>
         </div>
-        ${_signLine('Mengetahui','')}
-        ${_signLine('Gudang','')}
-        ${_signLine('Produksi','')}
-        <div style="text-align:center;min-width:130px">
-          <div style="font-size:7px;color:#ccc;margin-bottom:34px">Materai Rp 10.000</div>
+        <div style="text-align:center;min-width:160px">
+          <div style="font-size:8px;color:#ccc;margin-bottom:64px">Materai Rp 10.000</div>
           <div style="border-top:1px solid #333;padding-top:3px">
-            <div style="font-weight:700;font-size:9px">Manager / PIC</div>
-            <div style="font-size:7px;color:${C.GRY}">${inv.customer}</div>
+            <div style="font-weight:700;font-size:10px">Manager / PIC</div>
+            <div style="font-size:8px;color:${C.GRY}">${inv.customer}</div>
           </div>
         </div>
       </div>`;
@@ -1465,7 +1457,6 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
       <div style="font-weight:700;color:#333;font-size:9px;margin-bottom:2px">Make all checks payable to <span style="color:${C.NAVY_D}">PT. BOGA PANGAN SENTOSA</span></div>
       Bank Mandiri KC Karawang 17300 • No. Rekening : <strong style="color:#333">173-00-0153197-0</strong>
     </div>
-    <div style="border:1px dashed #bbb;width:86px;height:52px;display:flex;align-items:center;justify-content:center;font-size:8px;color:#bbb;border-radius:4px;background:#f8f8f8">MATERAI</div>
   </div>
   <div style="background:${C.NAVY};color:#fff;text-align:center;padding:8px;font-size:13px;font-weight:700;margin-top:12px">Thank You For Your Business! 🙏</div>
   <div style="text-align:center;font-size:8px;color:${C.GRY};padding:4px 0 0">If you have any questions, please contact &nbsp;Mr. Somat &nbsp;•&nbsp; +62 822-1033-8880 &nbsp;•&nbsp; umad@pangansentosa.com</div>
