@@ -49,12 +49,85 @@ const DailyOrderModule = (() => {
     return _DEFAULT_FCP;
   }
 
-  /* Determine sumber: STOK / PASAR / PARTIAL */
+  /* ── Sumber: compare accumulated demand vs inventory stock ── */
+  // _remainingStock is a map: itemName(lower) → remaining stock after all forms' demand
+  // Built once per init/render cycle, reflects global inventory state
+  let _remainingStock = {}; // { "ayam potong": 50, "beras": -10, ... }
+
+  function _buildRemainingStock() {
+    // 1. Build inventory stock map from _inventory
+    const stockMap = {};
+    _inventory.forEach(inv => {
+      stockMap[inv.nama.toLowerCase().trim()] = inv._stok || 0;
+    });
+
+    // 2. Accumulate total demand across ALL forms (all dates, all shifts)
+    // Process forms in chronological order so earlier forms deplete stock first
+    const sorted = [..._forms].sort((a,b) => {
+      const d = (a.tanggal||'').localeCompare(b.tanggal||'');
+      return d !== 0 ? d : (a.shift||'').localeCompare(b.shift||'');
+    });
+
+    // remaining = starting stock
+    const remaining = {};
+    Object.keys(stockMap).forEach(k => { remaining[k] = stockMap[k]; });
+
+    // For each form, subtract demand
+    sorted.forEach(form => {
+      (form.items || []).forEach(it => {
+        if (!it.item) return;
+        const key = it.item.toLowerCase().trim();
+        const qty = Number(it.aktQty) || 0;
+        if (qty <= 0) return;
+        if (!(key in remaining)) remaining[key] = 0;
+        remaining[key] -= qty;
+      });
+
+      // Tag each item in this form with its sumber based on stock AT THIS POINT
+      // We need per-form remaining, so we track cumulatively
+    });
+
+    _remainingStock = remaining;
+  }
+
+  // Per-form sumber: uses a running stock tracker
+  function _calcAllSumber() {
+    const stockMap = {};
+    _inventory.forEach(inv => {
+      stockMap[inv.nama.toLowerCase().trim()] = inv._stok || 0;
+    });
+    const running = {};
+    Object.keys(stockMap).forEach(k => { running[k] = stockMap[k]; });
+
+    const sorted = [..._forms].sort((a,b) => {
+      const d = (a.tanggal||'').localeCompare(b.tanggal||'');
+      return d !== 0 ? d : (a.shift||'').localeCompare(b.shift||'');
+    });
+
+    sorted.forEach(form => {
+      (form.items || []).forEach(it => {
+        if (!it.item) return;
+        const key = it.item.toLowerCase().trim();
+        const qty = Number(it.aktQty) || 0;
+        if (qty <= 0) { it.sumber = 'STOK'; return; }
+        if (!(key in running)) running[key] = 0;
+        const avail = running[key];
+        if (avail <= 0)       it.sumber = 'PASAR';
+        else if (avail >= qty) it.sumber = 'STOK';
+        else                   it.sumber = 'PARTIAL';
+        // Also store how much comes from stock vs pasar
+        it.stokGudang = Math.max(0, avail);
+        running[key] -= qty;
+      });
+    });
+  }
+
+  // Simple version for single-item quick check (used in edit row live preview)
   function _calcSumber(stokGudang, aktQty) {
     if (!aktQty || aktQty <= 0) return 'STOK';
     if (!stokGudang || stokGudang <= 0) return 'PASAR';
     if (stokGudang >= aktQty) return 'STOK';
-    return 'PARTIAL'; // stok ada tapi tidak cukup
+    return 'PARTIAL';
   }
 
   function _currentForm() {
@@ -183,6 +256,8 @@ const DailyOrderModule = (() => {
         it._stok = ls.reduce((a,l) => l.jenis==='MASUK' ? a+(l.jumlah||0) : l.jenis==='KELUAR' ? a-(l.jumlah||0) : a, 0);
       });
       _inventory = items;
+      // Compute sumber for ALL items across ALL forms (accumulated stock)
+      _calcAllSumber();
     } catch(e) {
       console.error('[DO] init error:', e);
       _forms = []; _orders = [];
@@ -1068,8 +1143,8 @@ const DailyOrderModule = (() => {
         <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?_fmtRp(it.aktTotal):'-'}</td>
         <td data-field="di-aktqty" style="padding:7px 5px;text-align:center">
           <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;
-            background:${sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)'};
-            color:${sumber==='PASAR'?'#ef4444':'#10b981'}">${sumber}</span>
+            background:${sumber==='PASAR'?'rgba(239,68,68,.1)':sumber==='PARTIAL'?'rgba(245,158,11,.1)':'rgba(16,185,129,.1)'};
+            color:${sumber==='PASAR'?'#ef4444':sumber==='PARTIAL'?'#f59e0b':'#10b981'}">${sumber}</span>
         </td>
         <td data-field="di-catatan" style="padding:7px 5px;color:var(--text-3);font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis">${it.catatan||''}</td>
         <td style="padding:7px 5px;text-align:center;white-space:nowrap">
@@ -1153,13 +1228,14 @@ const DailyOrderModule = (() => {
     const stok   = parseFloat(document.getElementById('di-stok')?.value||0)||0;
     const harga  = parseFloat(document.getElementById('di-harga')?.value||0)||0;
     const sumber = _calcSumber(stok, aktQty);
+    const sColor = sumber==='PASAR'?'#ef4444':sumber==='PARTIAL'?'#f59e0b':'#10b981';
     const $ = id => document.getElementById(id);
     if ($('di-esttot-d')) $('di-esttot-d').textContent = estQty&&harga ? (estQty*harga).toLocaleString('id-ID') : '-';
     if ($('di-akttot-d')) $('di-akttot-d').textContent = aktQty&&harga ? (aktQty*harga).toLocaleString('id-ID') : '-';
     if ($('di-sumb-d'))   {
-      $('di-sumb-d').textContent         = sumber;
-      $('di-sumb-d').style.background    = sumber==='PASAR'?'rgba(239,68,68,.1)':'rgba(16,185,129,.1)';
-      $('di-sumb-d').style.color         = sumber==='PASAR'?'#ef4444':'#10b981';
+      $('di-sumb-d').textContent  = sumber;
+      $('di-sumb-d').style.background = sumber==='PASAR'?'rgba(239,68,68,.1)':sumber==='PARTIAL'?'rgba(245,158,11,.1)':'rgba(16,185,129,.1)';
+      $('di-sumb-d').style.color = sColor;
     }
   }
 
@@ -1260,6 +1336,8 @@ const DailyOrderModule = (() => {
         const preserveKeys = new Set(['items']);
         Object.keys(savedForm).forEach(k => { if (!preserveKeys.has(k)) form[k] = savedForm[k]; });
       }
+      // Recalculate sumber for ALL forms (stock depleted by this save)
+      _calcAllSumber();
       // After saving existing item → return to view; after adding new → stay in 'new' mode
       _editingItemId = wasNew ? 'new' : null;
       _renderContent();

@@ -92,7 +92,7 @@ else { window.POModule = (() => {
     el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)">Memuat...</div>';
     await new Promise((resolve, reject) => {
       const base = 'js/modules/po-belanja-pasar.js';
-      const ver = '?v=20260402a';
+      const ver = '?v=20260402b';
       // Remove old script tag if exists (force reload fresh version)
       const old = document.querySelector(`script[src^="${base}"]`);
       if (old) old.remove();
@@ -200,6 +200,7 @@ else { window.POModule = (() => {
         <span style="font-size:10px;font-weight:800;color:#fff;background:${isSelesai?'#64748b':'#dc2626'};padding:2px 8px;border-radius:4px;font-family:var(--font-mono)">Anggaran #${chainIdx+1}</span>
         <button onclick="POModule.printAnggaran('${id}')" style="padding:6px 12px;border:1px solid rgba(99,102,241,.4);border-radius:7px;background:rgba(99,102,241,.08);color:#6366f1;font-size:12px;cursor:pointer;font-weight:600">Print</button>
         <button onclick="POModule.kirimWA('${id}')" style="padding:6px 12px;border:1px solid rgba(37,211,102,.4);border-radius:7px;background:rgba(37,211,102,.08);color:#25d366;font-size:12px;cursor:pointer;font-weight:600">Kirim WA</button>
+        ${canEdit && !locked ? `<button onclick="POModule.importBelanjaPasar('${id}')" style="padding:6px 12px;border:1px solid rgba(5,150,105,.4);border-radius:7px;background:rgba(5,150,105,.08);color:#059669;font-size:12px;cursor:pointer;font-weight:600">Import Belanja Pasar</button>` : ''}
         ${canEdit ? `<button onclick="POModule.duplikatAnggaran('${id}')" style="padding:6px 12px;border:1px solid rgba(99,102,241,.3);border-radius:7px;background:var(--surface2);color:var(--text-2);font-size:12px;cursor:pointer">Duplikat</button>` : ''}
         ${canEdit && !locked ? `<button onclick="POModule.selesaikan('${id}')" style="padding:6px 12px;border:1px solid rgba(100,116,139,.4);border-radius:7px;background:rgba(100,116,139,.08);color:#64748b;font-size:12px;cursor:pointer;font-weight:600">Selesaikan</button>` : ''}
         ${canEdit && isSelesai ? `<button onclick="POModule.reopenAnggaran('${id}')" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">Buka Kembali</button>` : ''}
@@ -657,6 +658,92 @@ else { window.POModule = (() => {
     }
   }
 
+  /* ── Import dari Belanja Pasar ──────────────── */
+  async function importBelanjaPasar(id) {
+    const doc = _data.find(d => d.id === id);
+    if (!doc) return;
+    // Load belanja pasar data
+    let bpList = [];
+    try { bpList = await DB.getBelanjaPasar(); } catch {
+      try { bpList = JSON.parse(localStorage.getItem('becca_po_belanja_pasar')||'[]'); } catch { bpList = []; }
+    }
+    bpList = bpList.filter(bp => (bp.items||[]).some(it => it.item));
+    if (!bpList.length) { Notify.warning('Belum ada Form Belanja Pasar yang tersedia'); return; }
+
+    // Show picker modal
+    const mid = Utils.uid();
+    Modal.open({ id: mid,
+      title: 'Import dari Belanja Pasar',
+      size: 'modal-md',
+      body: `<p style="color:var(--text-2);font-size:13px;margin-bottom:12px">Pilih form belanja pasar untuk diimport ke anggaran ini. Item akan ditambahkan ke tabel anggaran.</p>
+        <div style="display:grid;gap:8px">
+          ${bpList.map(bp => {
+            const n = (bp.items||[]).filter(it=>it.item).length;
+            const total = (bp.items||[]).reduce((s,it) => s + (it.totalQty||0) * (it.harga||0), 0);
+            return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;cursor:pointer">
+              <input type="radio" name="bp-pick" value="${bp.id}" style="accent-color:#059669;width:16px;height:16px">
+              <div>
+                <div style="font-weight:600;font-size:13px">🛒 ${bp.periode||'-'}</div>
+                <div style="font-size:11px;color:var(--text-3)">${n} items · Total ${rp(total)} · ${bp.namaPetugas||'-'}</div>
+              </div>
+            </label>`;
+          }).join('')}
+        </div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+               <button class="btn btn-primary" onclick="POModule._doImportBP('${id}','${mid}')">Import</button>`,
+    });
+  }
+
+  function _doImportBP(docId, mid) {
+    const picked = document.querySelector('input[name="bp-pick"]:checked')?.value;
+    if (!picked) { Notify.warning('Pilih satu form belanja pasar'); return; }
+    let bpList = [];
+    try { bpList = JSON.parse(localStorage.getItem('becca_po_belanja_pasar')||'[]'); } catch {}
+    // Try memory first (BP module may have it)
+    if (typeof POBelanjaPasarModule !== 'undefined' && POBelanjaPasarModule._data) {
+      bpList = POBelanjaPasarModule._data;
+    }
+    const bp = bpList.find(b => b.id === picked);
+    if (!bp || !bp.items?.length) { Notify.warning('Form belanja pasar kosong'); return; }
+
+    const doc = _data.find(d => d.id === docId);
+    if (!doc) return;
+
+    // Map BP items to anggaran rows
+    let added = 0;
+    bp.items.forEach(bpItem => {
+      if (!bpItem.item || !bpItem.totalQty) return;
+      // Check if item already exists in anggaran
+      const existing = doc.items.find(row => row.namaBarang && row.namaBarang.toLowerCase().trim() === bpItem.item.toLowerCase().trim());
+      if (existing) {
+        // Update existing row
+        existing.qty = (Number(existing.qty)||0) + bpItem.totalQty;
+        existing.harga = existing.harga || bpItem.harga || 0;
+        existing.totalHarga = (Number(existing.qty)||0) * (Number(existing.harga)||0);
+        existing.keterangan = (existing.keterangan ? existing.keterangan + ' ' : '') + 'BP';
+      } else {
+        // Find first empty row
+        let emptyRow = doc.items.find(row => !row.namaBarang);
+        if (!emptyRow) {
+          emptyRow = {namaBarang:'',qty:'',satuan:'',keterangan:'',harga:'',totalHarga:0,alokasiDanaReal:''};
+          doc.items.push(emptyRow);
+        }
+        emptyRow.namaBarang = bpItem.item;
+        emptyRow.qty = bpItem.totalQty;
+        emptyRow.satuan = bpItem.satuan || '';
+        emptyRow.harga = bpItem.harga || 0;
+        emptyRow.totalHarga = bpItem.totalQty * (bpItem.harga || 0);
+        emptyRow.keterangan = 'BP';
+      }
+      added++;
+    });
+
+    DB.savePO(doc).catch(() => {});
+    Modal.close(mid);
+    Notify.success(added + ' item diimport dari Belanja Pasar');
+    openAnggaran(docId);
+  }
+
   /* ── Duplikat ──────────────────────────────── */
   async function duplikatAnggaran(id) {
     const src = _data.find(d => d.id === id);
@@ -812,7 +899,8 @@ else { window.POModule = (() => {
   }
 
   return { init, switchTab, addAnggaran, openAnggaran, backToList, arsipkan, unarsip,
-    selesaikan, reopenAnggaran, confirmAnggaran, ajukanFinance, duplikatAnggaran, deleteAnggaran,
+    selesaikan, reopenAnggaran, confirmAnggaran, ajukanFinance, importBelanjaPasar, _doImportBP,
+    duplikatAnggaran, deleteAnggaran,
     printAnggaran, kirimWA, _startEdit, _onEditKey, _liveCalc, _saveMeta, _addRows, _updateFooter,
     flushPendingEdit };
 })(); }
