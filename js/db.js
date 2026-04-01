@@ -741,8 +741,8 @@ const DB = (() => {
 
         subscribe(table, payload => {
           cb({ table, ...payload });
-          // Invalidate localStorage cache untuk force refresh
-          _get(table).catch(() => {});
+          // Invalidate memory cache so next _get() fetches fresh from Supabase
+          delete _memCache[table];
         });
       });
 

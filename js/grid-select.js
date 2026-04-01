@@ -80,7 +80,7 @@ const GridSelect = (() => {
   function _showBar(cells) {
     if (_bar) { _bar.remove(); _bar = null; }
     const nums = [];
-    cells.forEach(td => { const n = _num((td.innerText||'').trim()); if (!isNaN(n) && n !== 0) nums.push(n); });
+    cells.forEach(td => { const n = _num((td.textContent||'').trim()); if (!isNaN(n) && n !== 0) nums.push(n); });
     if (!nums.length && cells.length <= 1) return;
     const fmt = n => 'Rp '+Math.round(n).toLocaleString('id');
     let h = `<div class="gs-bar-item"><span class="gs-bar-label">Sel</span><span class="gs-bar-val" style="color:var(--text,#333)">${cells.length}</span></div>`;
@@ -111,9 +111,14 @@ const GridSelect = (() => {
     const h = document.createElement('div'); h.className = 'gs-handle';
     h.addEventListener('mousedown', _fillStart); td.appendChild(h);
     _sel = { tbl, startRow: pos.row, startCol: pos.col, endRow: pos.row, endCol: pos.col, cells: [td] };
-    document.addEventListener('mousemove', _onMove);
+    document.addEventListener('mousemove', _onMoveThrottled);
     document.addEventListener('mouseup', _onUp);
     e.preventDefault();
+  }
+  let _selRaf = 0;
+  function _onMoveThrottled(e) {
+    if (_selRaf) return;
+    _selRaf = requestAnimationFrame(() => { _onMove(e); _selRaf = 0; });
   }
   function _onMove(e) {
     if (!_sel) return;
@@ -126,19 +131,24 @@ const GridSelect = (() => {
     _sel.cells = cells; _sel.endRow = pos.row; _sel.endCol = pos.col;
   }
   function _onUp() {
-    document.removeEventListener('mousemove', _onMove);
+    document.removeEventListener('mousemove', _onMoveThrottled);
     document.removeEventListener('mouseup', _onUp);
     if (_sel && _sel.cells.length > 0) _showBar(_sel.cells);
   }
 
   // ── FILL DRAG ──
+  let _fillRaf = 0;
   function _fillStart(e) {
     e.preventDefault(); e.stopPropagation();
     const td = e.target.closest('td'), tbl = td?.closest('table[data-grid-select]'), pos = _rc(td);
     if (!td || !tbl || !pos) return;
-    _fill = { tbl, srcRow: pos.row, srcCol: pos.col, value: (td.innerText||'').trim(), targets: [] };
-    document.addEventListener('mousemove', _fillMove);
+    _fill = { tbl, srcRow: pos.row, srcCol: pos.col, value: (td.textContent||'').trim(), targets: [] };
+    document.addEventListener('mousemove', _fillMoveThrottled);
     document.addEventListener('mouseup', _fillEnd);
+  }
+  function _fillMoveThrottled(e) {
+    if (_fillRaf) return;
+    _fillRaf = requestAnimationFrame(() => { _fillMove(e); _fillRaf = 0; });
   }
   function _fillMove(e) {
     if (!_fill) return;
@@ -164,7 +174,7 @@ const GridSelect = (() => {
     }
   }
   function _fillEnd() {
-    document.removeEventListener('mousemove', _fillMove);
+    document.removeEventListener('mousemove', _fillMoveThrottled);
     document.removeEventListener('mouseup', _fillEnd);
     if (!_fill || !_fill.targets.length) { _fill = null; return; }
     const cb = _fillCbs[_fill.tbl.id];
@@ -190,7 +200,7 @@ const GridSelect = (() => {
     for (let r = r1; r <= r2; r++) {
       const tds = rows[r] ? Array.from(rows[r].children) : [];
       const row = [];
-      for (let c = c1; c <= c2; c++) row.push((tds[c]?.innerText || '').trim());
+      for (let c = c1; c <= c2; c++) row.push((tds[c]?.textContent || '').trim());
       data.push(row);
     }
     _copied = { rows: data, startCol: c1, numCols: c2-c1+1, numRows: r2-r1+1 };

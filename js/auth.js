@@ -122,17 +122,26 @@ const Auth = {
     return false;
   },
 
+  _privCache: null,
+  _privCacheTs: 0,
+
   _getPrivileges(role) {
-    // Baca langsung dari localStorage (bukan via Utils.ls agar tidak double-prefix 'becca_becca_')
+    const now = Date.now();
+    // Cache privileges for 30s — avoid parsing localStorage on every .can() call
+    if (!this._privCache || now - this._privCacheTs > 30000) {
+      try { this._privCache = JSON.parse(localStorage.getItem('becca_privileges') || 'null'); } catch {}
+      this._privCacheTs = now;
+    }
     const defaults = this._defaultPrivileges[role] || this._defaultPrivileges['operator'];
-    let custom = null;
-    try { custom = JSON.parse(localStorage.getItem('becca_privileges') || 'null'); } catch {}
-    // Merge: defaults jadi base, custom override per-feature — sehingga fitur baru tetap tampil
+    const custom = this._privCache;
     if (custom && custom[role] && Object.keys(custom[role]).length > 0) {
       return { ...defaults, ...custom[role] };
     }
     return defaults;
   },
+
+  // Call after saving privileges to bust cache immediately
+  _bustPrivCache() { this._privCache = null; this._privCacheTs = 0; },
 
   /* ===================== RENDER LOGIN ===================== */
   renderLogin() {

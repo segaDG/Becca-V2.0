@@ -558,7 +558,7 @@ const APModule = (() => {
     if (!nama) return;
     const saved = await DB.saveSupplier({ nama });
     _suppliers.push(saved);
-    document.getElementById('sup-list-wrap').innerHTML += `
+    document.getElementById('sup-list-wrap')?.insertAdjacentHTML('beforeend', `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
         <span>${saved.nama}</span>
         <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="APModule._deleteSupplier('${saved.id}')">Hapus</button>

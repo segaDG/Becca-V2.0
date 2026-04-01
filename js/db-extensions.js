@@ -72,37 +72,42 @@ const DBExtensions = (() => {
   }
 
   /* ── Realtime: auto-refresh modul saat data berubah ──────── */
+  // Debounce: prevent multiple rapid reinits when several rows change at once
+  const _rtTimers = {};
+  function _rtDebounce(key, fn, ms = 500) {
+    clearTimeout(_rtTimers[key]);
+    _rtTimers[key] = setTimeout(fn, ms);
+  }
+
   function _setupRealtime() {
     DB.setupRealtime({
       orders: ({ eventType }) => {
         _notify('order', eventType);
         if (window.App?._currentPage === 'order') {
-          setTimeout(() => OrderModule?.init?.(), 300);
+          _rtDebounce('order', () => OrderModule?.init?.());
         }
-        // Update dashboard stats
         if (window.App?._currentPage === 'dashboard') {
-          setTimeout(() => DashboardModule?.init?.(), 300);
+          _rtDebounce('dash', () => DashboardModule?.init?.());
         }
       },
 
       invoices: ({ eventType }) => {
         _notify('invoice', eventType);
         if (window.App?._currentPage === 'invoice') {
-          setTimeout(() => InvoiceModule?.init?.(), 300);
+          _rtDebounce('invoice', () => InvoiceModule?.init?.());
         }
       },
 
       tasks: ({ eventType, new: newRow }) => {
         if (window.App?._currentPage === 'task') {
-          setTimeout(() => TaskModule?.render?.(), 200);
+          _rtDebounce('task', () => TaskModule?.render?.());
         }
-        // Notif jika task di-assign ke user ini
         _checkTaskNotif(newRow, eventType);
       },
 
       customers: ({ eventType }) => {
         if (window.App?._currentPage === 'customer') {
-          setTimeout(() => CustomerModule?.init?.(), 300);
+          _rtDebounce('customer', () => CustomerModule?.init?.());
         }
       },
 
@@ -122,20 +127,18 @@ const DBExtensions = (() => {
 
       emp_absensi: ({ eventType, new: newRow }) => {
         if (eventType !== 'INSERT' || !newRow) return;
-        // _fsHandleRemote deduplicates (skips if this device saved it)
         if (window.FaceAttendanceModule) FaceAttendanceModule._fsHandleRemote(newRow);
-        // Refresh employee absensi tab if open
         if (window.App?._currentPage === 'employee' && window.EmployeeModule) {
-          setTimeout(() => EmployeeModule.renderAbsensi?.(), 200);
+          _rtDebounce('emp', () => EmployeeModule.renderAbsensi?.());
         }
       },
 
       activity_logs: () => {
         if (window.App?._currentPage === 'settings') {
-          const tab = document.querySelector('[onclick*="activity"]');
-          if (tab?.classList?.contains('active')) {
-            setTimeout(() => SettingsModule?.switchTab?.('activity'), 200);
-          }
+          _rtDebounce('activity', () => {
+            const tab = document.querySelector('[onclick*="activity"]');
+            if (tab?.classList?.contains('active')) SettingsModule?.switchTab?.('activity');
+          });
         }
       },
     });

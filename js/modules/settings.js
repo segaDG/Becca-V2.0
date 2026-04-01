@@ -609,6 +609,7 @@ else { window.SettingsModule = (() => {
     });
     // Simpan ke localStorage + DB (keduanya wajib)
     localStorage.setItem('becca_privileges', JSON.stringify(custom));
+    if (Auth._bustPrivCache) Auth._bustPrivCache();
     const saveBtn = document.querySelector('[onclick="SettingsModule.savePrivileges()"]');
     if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '⏳ Menyimpan...'; }
     try {
