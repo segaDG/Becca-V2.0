@@ -122,18 +122,18 @@ const InvoiceModule = (() => {
   function _custHarga(custName, key) {
     try {
       const custs = JSON.parse(localStorage.getItem('becca_customers')||'[]');
-      const c = custs.find(x => x.nama === custName) || {};
+      const c = custs.find(x => (x.nama||'').toLowerCase() === (custName||'').toLowerCase()) || {};
       const map = {
-        breakfast:c.hargaBreakfast||17500, shift1:c.hargaShift1||17500,
-        spare1:c.hargaSpare1||17500,       ot1:c.hargaOT1||17500,
-        snack1:c.hargaSnack1||17500,       shift2:c.hargaShift2||17500,
-        spare2:c.hargaSpare2||17500,       ot2:c.hargaOT2||17500,
-        snack2:c.hargaSnack2||17500,       shift3:c.hargaShift3||17500,
-        spare3:c.hargaSpare3||17500,       ot3:c.hargaOT3||17500,
-        snack3:c.hargaSnack3||17500,       snackBerat:c.hargaSnackBerat||17500,
+        breakfast:c.hargaBreakfast??0, shift1:c.hargaShift1??0,
+        spare1:c.hargaSpare1??0,       ot1:c.hargaOT1??0,
+        snack1:c.hargaSnack1??0,       shift2:c.hargaShift2??0,
+        spare2:c.hargaSpare2??0,       ot2:c.hargaOT2??0,
+        snack2:c.hargaSnack2??0,       shift3:c.hargaShift3??0,
+        spare3:c.hargaSpare3??0,       ot3:c.hargaOT3??0,
+        snack3:c.hargaSnack3??0,       snackBerat:c.hargaSnackBerat??0,
       };
-      return map[key] ?? 17500;
-    } catch(e) { return 17500; }
+      return map[key] ?? 0;
+    } catch(e) { return 0; }
   }
 
   /* ─── INIT ─── */
@@ -141,9 +141,9 @@ const InvoiceModule = (() => {
   function _convertOrderInv(rec, idx) {
     const today = new Date();
     const tglInv = rec.invoiceDate || today.toISOString().slice(0,10);
-    // Hitung total dari totals object
-    const totalQty = Object.values(rec.totals||{}).reduce((s,v)=>s+(Number(v)||0),0);
-    const totalAmt = totalQty * 17500;
+    // Hitung total dari totals × harga customer
+    const tots = rec.totals || {};
+    const totalAmt = Object.keys(tots).reduce((s,k) => s + (Number(tots[k])||0) * _custHarga(rec.customer, k), 0);
     return {
       id: 'order_inv_' + (rec.nomor||idx),
       no: idx + 1,
@@ -1348,8 +1348,8 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
       }).join('');
     }
 
-    // Pad to minimum 8 rows
-    const _rowCount = (invItemsHtml.match(/<tr/g)||[]).length;
+    // Pad to minimum 8 rows (count data rows, not all <tr>)
+    const _rowCount = (activeCols.length ? activeCols.filter(c => (orderRec?.totals?.[c.key]||0) > 0).length : 0) + (addRows?.length||0);
     for (let _r = _rowCount; _r < 8; _r++) {
       const bg = _r%2===0?'#ffffff':C.BP;
       invItemsHtml += `<tr style="background:${bg}">

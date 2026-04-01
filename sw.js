@@ -40,7 +40,7 @@ self.addEventListener('notificationclick', e => {
 });
 
 // ── Static Cache ──────────────────────────────────────────
-const CACHE_NAME = 'becca-static-v3';
+const CACHE_NAME = 'becca-static-v4';
 
 const PRECACHE = [
   '/css/base.css',
