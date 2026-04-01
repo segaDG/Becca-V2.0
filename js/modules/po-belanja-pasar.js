@@ -3,8 +3,8 @@
    Sub-module of Purchase Order.
    Workflow: Pick form produksi → Pembagian lokasi → Per-shift breakdown → Print
 ============================================ */
-if (typeof window.POBelanjaPasarModule !== 'undefined') { console.warn('[BP] Already loaded'); }
-else { window.POBelanjaPasarModule = (() => {
+// v2 — always re-assign to pick up fixes
+window.POBelanjaPasarModule = (() => {
   let _data = [];
   let _forms = [];
   let _el = null;
@@ -494,4 +494,4 @@ else { window.POBelanjaPasarModule = (() => {
   return { init, newDoc, openDoc, backToList,
     _onDateToggle, _toggleAll, _updateCount, _onPickDone, _onCikopoChange,
     _goStep, _printAll, _saveDoc, _deleteDoc, _selesaikan, _reopen };
-})(); }
+})();

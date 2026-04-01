@@ -88,16 +88,17 @@ else { window.POModule = (() => {
     const el = document.getElementById('po-content');
     if (!el) return;
     el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)">Memuat...</div>';
-    if (typeof POBelanjaPasarModule === 'undefined') {
-      await new Promise((resolve, reject) => {
-        const base = 'js/modules/po-belanja-pasar.js';
-        if (document.querySelector(`script[src^="${base}"]`)) { resolve(); return; }
-        const s = document.createElement('script');
-        s.src = base + '?v=20260401b';
-        s.onload = resolve; s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
+    await new Promise((resolve, reject) => {
+      const base = 'js/modules/po-belanja-pasar.js';
+      const ver = '?v=20260401c';
+      // Remove old script tag if exists (force reload fresh version)
+      const old = document.querySelector(`script[src^="${base}"]`);
+      if (old) old.remove();
+      const s = document.createElement('script');
+      s.src = base + ver;
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
     if (typeof POBelanjaPasarModule !== 'undefined') POBelanjaPasarModule.init(el);
   }
 
