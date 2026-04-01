@@ -93,7 +93,7 @@ else { window.POModule = (() => {
         const base = 'js/modules/po-belanja-pasar.js';
         if (document.querySelector(`script[src^="${base}"]`)) { resolve(); return; }
         const s = document.createElement('script');
-        s.src = base + '?v=20260401a';
+        s.src = base + '?v=20260401b';
         s.onload = resolve; s.onerror = reject;
         document.head.appendChild(s);
       });
