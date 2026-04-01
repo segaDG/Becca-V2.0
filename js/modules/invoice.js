@@ -1209,6 +1209,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         <div style="text-align:right">
           <div style="font-size:28px;font-weight:900;color:${C.NAVY}">${docTitle}</div>
           <div style="font-size:11px;font-weight:700;color:${C.NAVY_D};background:${C.BP};padding:3px 8px;border-radius:3px;margin-top:4px">#${docNum}</div>
+          ${inv.po ? `<div style="font-size:9px;color:${C.GRY};margin-top:3px">PO: <strong>${inv.po}</strong></div>` : ''}
         </div>
       </div>`;
 
@@ -1232,7 +1233,9 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
           <div style="border-top:1px solid #333;width:160px;padding-top:3px;font-size:9px;color:${C.GRY}">Admin / Pembuat Invoice</div>
         </div>
         <div style="text-align:center;min-width:160px">
-          <div style="margin-top:46px;border-top:1px solid #333;padding-top:3px">
+          <div style="font-size:10px;color:#333;margin-bottom:6px">Materai</div>
+          <div style="margin-bottom:6px;font-size:8px;color:${C.GRY}">Rp 10.000</div>
+          <div style="border-top:1px solid #333;width:160px;padding-top:3px">
             <div style="font-weight:700;font-size:10px">Manager / PIC</div>
             <div style="font-size:8px;color:${C.GRY}">${inv.customer}</div>
           </div>
@@ -1559,6 +1562,15 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
           <input class="form-control" id="ic-nomor" value="" placeholder="Pilih customer & periode untuk generate otomatis"
             style="font-family:var(--font-mono);font-size:14px;font-weight:700;letter-spacing:.04em">
         </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <input type="checkbox" id="ic-po-chk" style="width:15px;height:15px;accent-color:var(--primary);cursor:pointer"
+            onchange="document.getElementById('ic-po-wrap').style.display=this.checked?'block':'none'">
+          <label for="ic-po-chk" style="font-size:12px;color:var(--text-2);cursor:pointer;font-weight:600">Nomor PO</label>
+        </div>
+        <div id="ic-po-wrap" style="display:none;margin-bottom:8px">
+          <input class="form-control" id="ic-po" value="" placeholder="No. PO / Purchase Order"
+            style="font-family:var(--font-mono);font-size:13px;font-weight:600">
+        </div>
         <div id="ic-preview" style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:20px;min-height:80px;background:var(--surface2);color:var(--text-3);text-align:center">
           Pilih customer dan periode untuk melihat preview
         </div>
@@ -1862,7 +1874,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
       id:            'ord_' + nomor,
       customerId:    c.customerId || '',
       customer:      cust,
-      po:            '',
+      po:            (document.getElementById('ic-po')?.value||'').trim(),
       invoiceNum:    nomor,
       tglInvoice:    invDate,
       tglBayar:      '',

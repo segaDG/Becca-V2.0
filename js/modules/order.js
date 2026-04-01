@@ -641,14 +641,18 @@ const OrderModule = (() => {
     _ofCheck(mid);
     const q = inp.value.toLowerCase();
     const custs = _getCustomers();
-    const filtered = q ? custs.filter(c => c.nama.toLowerCase().includes(q)) : custs;
+    const filtered = q ? custs.filter(c => c.nama.toLowerCase().includes(q) || (c.namaShort||'').toLowerCase().includes(q)) : custs;
     dd.innerHTML = filtered.length
       ? filtered.map(c => {
           const safe = c.nama.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-          return `<div style="padding:9px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border)"
+          const short = c.namaShort || '';
+          return `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px"
             onmousedown="OrderModule._ofCustSelect('${mid}','${safe}')"
             onmouseover="this.style.background='var(--surface2)'"
-            onmouseout="this.style.background=''">${c.nama}</div>`;
+            onmouseout="this.style.background=''">
+            ${short ? `<span style="font-size:12px;font-weight:700;color:var(--primary);min-width:50px">${short}</span>` : ''}
+            <span style="font-size:12px;color:var(--text)">${c.nama}</span>
+          </div>`;
         }).join('')
       : `<div style="padding:9px 12px;color:var(--text-3);font-size:14px">Tidak ada hasil</div>`;
     dd.style.display = 'block';
@@ -708,7 +712,7 @@ const OrderModule = (() => {
     const newOrder = {
       id:'ord_'+Date.now(), timestamp:ts,
       pelapor:g('of-pelapor'), tglOrder:tgl, namaPerusahaan:cust,
-      catatan:g('of-jenis'),
+      catatan:g('of-jenis') || 'real orderan',
       breakfast:n('of-bf'),
       shift1:n('of-s1'), spare1:n('of-sp1'), ot1:n('of-ot1'), snack1:n('of-snk1'),
       shift2:n('of-s2'), spare2:n('of-sp2'), ot2:n('of-ot2'), snack2:n('of-snk2'),
