@@ -726,6 +726,7 @@ const App = {
     if (!ok) return;
     clearInterval(this._presenceInterval);
     clearInterval(this._onlineUsersInterval);
+    if (typeof DBExtensions !== 'undefined') DBExtensions.stop();
     await Auth.logout();
     location.reload();
   },

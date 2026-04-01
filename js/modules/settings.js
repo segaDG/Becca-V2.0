@@ -518,6 +518,7 @@ else { window.SettingsModule = (() => {
       }
       if (settings?._customRoles) localStorage.setItem('becca_custom_roles', JSON.stringify(settings._customRoles));
     } catch(e) { console.warn('[Settings] sync privileges:', e); }
+    if (Auth._bustPrivCache) Auth._bustPrivCache();
     let custom = {};
     try { custom = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
     const privs  = {};
@@ -669,12 +670,11 @@ else { window.SettingsModule = (() => {
     setTimeout(()=>document.getElementById('new-role-inp')?.focus(), 100);
   }
 
-  function _saveNewRole(mid) {
+  async function _saveNewRole(mid) {
     const name = (document.getElementById('new-role-inp')?.value||'').trim().toLowerCase().replace(/\s+/g,'_');
     if (!name) { Notify.warning('Nama role tidak boleh kosong'); return; }
     if (_getRoles().includes(name)) { Notify.warning('Role "'+name+'" sudah ada'); return; }
     if (!/^[a-z][a-z0-9_]*$/.test(name)) { Notify.warning('Hanya huruf kecil, angka, underscore'); return; }
-    // Copy privileges from existing role if selected
     const copyFrom = document.getElementById('copy-from-role')?.value;
     let existing = {};
     try { existing = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
@@ -682,17 +682,15 @@ else { window.SettingsModule = (() => {
       existing[name] = {...existing[copyFrom]};
       localStorage.setItem('becca_privileges', JSON.stringify(existing));
     }
-    // Save to custom roles list
     let customRoles = [];
-    try {
-      const _p = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]');
-      if (Array.isArray(_p)) customRoles = _p;
-    } catch {}
+    try { const _p = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]'); if (Array.isArray(_p)) customRoles = _p; } catch {}
     customRoles.push(name);
     localStorage.setItem('becca_custom_roles', JSON.stringify(customRoles));
-    // Sync ke Supabase — await
+    if (Auth._bustPrivCache) Auth._bustPrivCache();
     const allPrivs = JSON.parse(localStorage.getItem('becca_privileges') || '{}');
-    DB.saveSettings({ _customRoles: customRoles, _privileges: allPrivs }).catch(e => console.warn('[Settings] saveNewRole:', e));
+    try {
+      await DB.saveSettings({ _customRoles: customRoles, _privileges: allPrivs });
+    } catch(e) { Notify.error('Gagal sync role ke server: '+(e.message||'')); }
     Modal.close(mid);
     Notify.success('Role "'+name+'" ditambahkan!');
     renderPrivilege();
@@ -701,21 +699,20 @@ else { window.SettingsModule = (() => {
 
   function deleteCustomRole(roleName) {
     if (_DEFAULT_ROLES.includes(roleName)) { Notify.warning('Role default tidak bisa dihapus'); return; }
-    Modal.confirm({title:'Hapus Role',message:'Role "'+roleName+'" akan dihapus permanen.',danger:true,confirmText:'Hapus'}).then(ok=>{
+    Modal.confirm({title:'Hapus Role',message:'Role "'+roleName+'" akan dihapus permanen.',danger:true,confirmText:'Hapus'}).then(async ok=>{
       if (!ok) return;
       let custom = [];
-      try {
-        const _p = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]');
-        if (Array.isArray(_p)) custom = _p;
-      } catch {}
+      try { const _p = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]'); if (Array.isArray(_p)) custom = _p; } catch {}
       const updatedRoles = custom.filter(r=>r!==roleName);
       localStorage.setItem('becca_custom_roles', JSON.stringify(updatedRoles));
       let privs = {};
       try { privs = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
       delete privs[roleName];
       localStorage.setItem('becca_privileges', JSON.stringify(privs));
-      // Sync ke Supabase
-      DB.saveSettings({ _customRoles: updatedRoles, _privileges: privs }).catch(e => console.warn('[Settings] deleteRole:', e));
+      if (Auth._bustPrivCache) Auth._bustPrivCache();
+      try {
+        await DB.saveSettings({ _customRoles: updatedRoles, _privileges: privs });
+      } catch(e) { Notify.error('Gagal sync ke server: '+(e.message||'')); }
       Notify.success('Role "'+roleName+'" dihapus');
       renderPrivilege();
     });

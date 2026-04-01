@@ -740,9 +740,9 @@ const DB = (() => {
         if (!cb) return;
 
         subscribe(table, payload => {
-          cb({ table, ...payload });
-          // Invalidate memory cache so next _get() fetches fresh from Supabase
+          // Invalidate BEFORE callback so modules get fresh data
           delete _memCache[table];
+          cb({ table, ...payload });
         });
       });
 

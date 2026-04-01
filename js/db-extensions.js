@@ -117,8 +117,15 @@ const DBExtensions = (() => {
       },
 
       settings: ({ eventType }) => {
-        // Settings berubah di device lain
-        console.log('[RT] Settings changed:', eventType);
+        // Settings berubah di device lain — sync privileges + customRoles
+        _rtDebounce('settings', async () => {
+          try {
+            const s = await DB.getSettings();
+            if (s?._privileges) { if (Auth._bustPrivCache) Auth._bustPrivCache(); }
+          } catch {}
+          // Refresh settings tab if open
+          if (window.App?._currentPage === 'settings') SettingsModule?.renderPrivilege?.();
+        });
       },
 
       presence: () => {
@@ -140,6 +147,29 @@ const DBExtensions = (() => {
             if (tab?.classList?.contains('active')) SettingsModule?.switchTab?.('activity');
           });
         }
+      },
+
+      // ── Key tables for cross-device sync ──
+      inv_activities: () => {
+        if (window.App?._currentPage === 'inventory') _rtDebounce('inv', () => InventoryModule?.init?.());
+      },
+      ap: () => {
+        if (window.App?._currentPage === 'ap') _rtDebounce('ap', () => APModule?.init?.());
+      },
+      kas: () => {
+        if (window.App?._currentPage === 'kas') _rtDebounce('kas', () => KasModule?.init?.());
+      },
+      daily_order_forms: () => {
+        if (window.App?._currentPage === 'daily-order') _rtDebounce('do', () => DailyOrderModule?.init?.());
+      },
+      news: () => {
+        if (window.App?._currentPage === 'news') _rtDebounce('news', () => NewsModule?.init?.());
+      },
+      po_anggaran: () => {
+        if (window.App?._currentPage === 'po') _rtDebounce('po', () => POModule?.init?.());
+      },
+      employees: () => {
+        if (window.App?._currentPage === 'employee') _rtDebounce('employee', () => EmployeeModule?.init?.());
       },
     });
   }
@@ -191,6 +221,9 @@ const DBExtensions = (() => {
   /* ── Stop presence ketika logout / halaman ditutup ──────── */
   function stop() {
     if (_presenceInterval) clearInterval(_presenceInterval);
+    // Clear all debounced realtime timers
+    Object.values(_rtTimers).forEach(t => clearTimeout(t));
+    Object.keys(_rtTimers).forEach(k => delete _rtTimers[k]);
     DB.unsubscribeAll();
     _initialized = false;
   }
