@@ -24,6 +24,10 @@ const App = {
 
   _loadScript(src) {
     return new Promise((resolve, reject) => {
+      // Prevent duplicate: check if script with same base path (ignoring ?v=) already loaded
+      const basePath = src.split('?')[0];
+      const existing = document.querySelector(`script[src^="${basePath}"]`);
+      if (existing) { resolve(); return; }
       const s = document.createElement('script');
       s.src = src;
       s.onload = resolve;
