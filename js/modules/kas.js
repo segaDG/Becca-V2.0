@@ -1547,7 +1547,11 @@ const KasModule = (() => {
     const key = _KAS_COL_MAP[colIdx];
     if (!key) return;
     const isNum = key==='qty'||key==='hargaSatuan'||key==='jumlah';
-    const parsed = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
+    let parsed = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
+    // Konversi tanggal display (DD-MM-YYYY) → DB format (YYYY-MM-DD)
+    if (key==='tgl' && /^\d{2}-\d{2}-\d{4}$/.test(parsed)) {
+      const p = parsed.split('-'); parsed = p[2]+'-'+p[1]+'-'+p[0];
+    }
     let saved = 0;
     targetRows.forEach(ri => {
       const tr = rows[ri];
@@ -1578,7 +1582,9 @@ const KasModule = (() => {
         const key = _KAS_COL_MAP[startCol + ci];
         if (!key) return;
         const isNum = key==='qty'||key==='hargaSatuan'||key==='jumlah';
-        row[key] = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
+        let v = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
+        if (key==='tgl' && /^\d{2}-\d{2}-\d{4}$/.test(v)) { const p=v.split('-'); v=p[2]+'-'+p[1]+'-'+p[0]; }
+        row[key] = v;
       });
       row.jumlah = (row.qty||0)*(row.hargaSatuan||0);
       DB.saveKas({...row}).catch(()=>{});
