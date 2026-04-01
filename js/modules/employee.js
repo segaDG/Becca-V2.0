@@ -149,6 +149,8 @@ const EmployeeModule = (() => {
     let filtered = active;
     if (_filterStatus) filtered = filtered.filter(e=>e.status===_filterStatus);
     if (_filterDept)   filtered = filtered.filter(e=>(e.divisi||e.departemen)===_filterDept);
+    if (_filterKtp==='missing') filtered = filtered.filter(e=>!e.ktpUrl);
+    if (_filterFace==='missing') filtered = filtered.filter(e=>!e.faceDescriptors?.length);
     if (_filterGrup === '__none__') filtered = filtered.filter(e => !e.grupGajian);
     else if (_filterGrup) filtered = filtered.filter(e => e.grupGajian === _filterGrup);
     if (_searchQ) {
@@ -207,6 +209,22 @@ const EmployeeModule = (() => {
           <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Tanpa Divisi</div>
           <div style="font-size:18px;font-weight:700;color:var(--text-2);font-family:var(--font-mono)">${active.filter(e=>!(e.divisi||e.departemen)).length}</div>
         </div>
+        ${(()=>{
+          const hasKtp = active.filter(e=>e.ktpUrl).length;
+          const hasFace = active.filter(e=>e.faceDescriptors?.length).length;
+          const total = active.length;
+          return `
+          <div style="background:var(--surface);border:1px solid ${hasKtp<total?'rgba(245,158,11,.3)':'rgba(16,185,129,.3)'};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer"
+            onclick="EmployeeModule.setFilter('ktp','missing')" title="Filter: belum punya KTP">
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">🪪 KTP</div>
+            <div style="font-size:18px;font-weight:700;color:${hasKtp<total?'#f59e0b':'#10b981'};font-family:var(--font-mono)">${hasKtp}/${total}</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid ${hasFace<total?'rgba(245,158,11,.3)':'rgba(99,102,241,.3)'};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer"
+            onclick="EmployeeModule.setFilter('face','missing')" title="Filter: belum daftar wajah">
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">📷 Face</div>
+            <div style="font-size:18px;font-weight:700;color:${hasFace<total?'#f59e0b':'#6366f1'};font-family:var(--font-mono)">${hasFace}/${total}</div>
+          </div>`;
+        })()}
       </div>
 
 
@@ -287,6 +305,7 @@ const EmployeeModule = (() => {
                         <div style="display:flex;align-items:center;gap:5px">
                           <span style="font-weight:600">${emp.nama||''}</span>
                           ${emp.ktpUrl ? `<span title="KTP tersedia" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.25);flex-shrink:0">🪪 KTP</span>` : ''}
+                          ${emp.faceDescriptors?.length ? `<span title="Wajah terdaftar" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(99,102,241,.12);color:#6366f1;border:1px solid rgba(99,102,241,.25);flex-shrink:0">📷 Face</span>` : ''}
                         </div>
                         ${emp.noHp ? `<div class="text-small text-muted">${emp.noHp}</div>` : ''}
                       </div>
@@ -331,11 +350,15 @@ const EmployeeModule = (() => {
     _renderDataTable();
   }
 
+  let _filterKtp = '';
+  let _filterFace = '';
   function setFilter(key, val) {
     if (key==='status') _filterStatus = val;
     else if (key==='dept') _filterDept = val;
     else if (key==='grup') _filterGrup = val;
-    else if (key==='reset') { _filterStatus=''; _filterDept=''; _filterGrup=''; }
+    else if (key==='ktp') _filterKtp = _filterKtp===val ? '' : val;
+    else if (key==='face') _filterFace = _filterFace===val ? '' : val;
+    else if (key==='reset') { _filterStatus=''; _filterDept=''; _filterGrup=''; _filterKtp=''; _filterFace=''; }
     renderData();
   }
 
