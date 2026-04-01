@@ -277,14 +277,14 @@ else { window.POModule = (() => {
     const a = Number(it.alokasiDanaReal)||0;
     const dbl = locked ? '' : `ondblclick="POModule._startEdit('${docId}',${i},event)"`;
     return `<tr data-idx="${i}" ${dbl} style="border-bottom:1px solid var(--border);${bg};${locked?'':'cursor:pointer'}">
-      <td style="padding:4px 6px;text-align:center;color:var(--text-3);font-size:10px">${it.namaBarang?i+1:''}</td>
-      <td style="padding:4px 5px;font-size:12px">${it.namaBarang||''}</td>
-      <td style="padding:4px 5px;font-size:12px;text-align:right;font-family:var(--font-mono)">${it.qty||''}</td>
-      <td style="padding:4px 5px;font-size:12px">${it.satuan||''}</td>
-      <td style="padding:4px 5px;font-size:12px;color:var(--text-2)">${it.keterangan||''}</td>
-      <td style="padding:4px 5px;font-size:12px;text-align:right;font-family:var(--font-mono)">${h ? rp(h) : ''}</td>
-      <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-weight:600;font-size:11px;background:rgba(71,85,105,.07);color:${t?'var(--text)':'var(--text-3)'}">${t ? rp(t) : ''}</td>
-      <td style="padding:4px 5px;font-size:12px;text-align:right;font-family:var(--font-mono);background:rgba(244,63,94,.05)">${a ? rp(a) : ''}</td>
+      <td style="padding:12px 6px;text-align:center;color:var(--text-3);font-size:10px">${it.namaBarang?i+1:''}</td>
+      <td style="padding:12px 8px;font-size:12px">${it.namaBarang||''}</td>
+      <td style="padding:12px 8px;font-size:12px;text-align:right;font-family:var(--font-mono)">${it.qty||''}</td>
+      <td style="padding:12px 8px;font-size:12px">${it.satuan||''}</td>
+      <td style="padding:12px 8px;font-size:12px;color:var(--text-2)">${it.keterangan||''}</td>
+      <td style="padding:12px 8px;font-size:12px;text-align:right;font-family:var(--font-mono)">${h ? rp(h) : ''}</td>
+      <td style="padding:12px 8px;text-align:right;font-family:var(--font-mono);font-weight:600;font-size:11px;background:rgba(71,85,105,.07);color:${t?'var(--text)':'var(--text-3)'}">${t ? rp(t) : ''}</td>
+      <td style="padding:12px 8px;font-size:12px;text-align:right;font-family:var(--font-mono);background:rgba(244,63,94,.05)">${a ? rp(a) : ''}</td>
     </tr>`;
   }
 
@@ -293,17 +293,17 @@ else { window.POModule = (() => {
     const bg = i%2 ? 'background:rgba(0,0,0,.012)' : '';
     const esc = v => String(v||'').replace(/"/g,'&quot;');
     const kd = `onkeydown="POModule._onEditKey(event)"`;
-    const ist = 'width:100%;border:none;background:rgba(220,38,38,.03);padding:4px 5px;font-size:12px;color:var(--text);outline:none;border-radius:3px';
+    const ist = 'width:100%;border:none;background:rgba(220,38,38,.03);padding:10px 8px;font-size:12px;color:var(--text);outline:none;border-radius:3px';
     const nst = ist+';text-align:right;font-family:var(--font-mono)';
     return `<tr class="po-editing" data-idx="${i}" style="border-bottom:1px solid var(--border);${bg};outline:2px solid rgba(99,102,241,.4);outline-offset:-2px;position:relative;z-index:1">
-      <td style="padding:4px 6px;text-align:center;color:var(--text-3);font-size:10px">${it.namaBarang?i+1:''}</td>
-      <td style="padding:2px 3px" data-key="namaBarang"><input value="${esc(it.namaBarang)}" ${kd} style="${ist}"></td>
-      <td style="padding:2px 3px" data-key="qty"><input type="number" min="0" step="1" value="${it.qty||''}" ${kd} oninput="POModule._liveCalc(this)" style="${nst}" onfocus="this.select()"></td>
-      <td style="padding:2px 3px" data-key="satuan"><input value="${esc(it.satuan)}" ${kd} style="${ist}"></td>
-      <td style="padding:2px 3px" data-key="keterangan"><input value="${esc(it.keterangan)}" ${kd} style="${ist}"></td>
-      <td style="padding:2px 3px" data-key="harga"><input type="number" min="0" step="1" value="${it.harga||''}" ${kd} oninput="POModule._liveCalc(this)" style="${nst}" onfocus="this.select()"></td>
-      <td class="po-total-cell" style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-weight:600;font-size:11px;background:rgba(71,85,105,.07);color:${it.totalHarga?'var(--text)':'var(--text-3)'}">${it.totalHarga ? rp(it.totalHarga) : ''}</td>
-      <td style="padding:2px 3px;background:rgba(244,63,94,.05)" data-key="alokasiDanaReal"><input type="number" min="0" step="1" value="${it.alokasiDanaReal||''}" ${kd} style="${nst};background:rgba(244,63,94,.03)" onfocus="this.select()"></td>
+      <td style="padding:12px 6px;text-align:center;color:var(--text-3);font-size:10px">${it.namaBarang?i+1:''}</td>
+      <td style="padding:4px" data-key="namaBarang"><input value="${esc(it.namaBarang)}" ${kd} style="${ist}"></td>
+      <td style="padding:4px" data-key="qty"><input type="number" min="0" step="1" value="${it.qty||''}" ${kd} oninput="POModule._liveCalc(this)" style="${nst}" onfocus="this.select()"></td>
+      <td style="padding:4px" data-key="satuan"><input value="${esc(it.satuan)}" ${kd} style="${ist}"></td>
+      <td style="padding:4px" data-key="keterangan"><input value="${esc(it.keterangan)}" ${kd} style="${ist}"></td>
+      <td style="padding:4px" data-key="harga"><input type="number" min="0" step="1" value="${it.harga||''}" ${kd} oninput="POModule._liveCalc(this)" style="${nst}" onfocus="this.select()"></td>
+      <td class="po-total-cell" style="padding:12px 8px;text-align:right;font-family:var(--font-mono);font-weight:600;font-size:11px;background:rgba(71,85,105,.07);color:${it.totalHarga?'var(--text)':'var(--text-3)'}">${it.totalHarga ? rp(it.totalHarga) : ''}</td>
+      <td style="padding:4px;background:rgba(244,63,94,.05)" data-key="alokasiDanaReal"><input type="number" min="0" step="1" value="${it.alokasiDanaReal||''}" ${kd} style="${nst};background:rgba(244,63,94,.03)" onfocus="this.select()"></td>
     </tr>`;
   }
 
