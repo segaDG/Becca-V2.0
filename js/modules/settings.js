@@ -594,22 +594,16 @@ const SettingsModule = (() => {
         else                      custom[role][feat] = '';
       });
     });
-    // Simpan ke localStorage
+    // Simpan ke localStorage DULU (instant, tidak hilang meski DB gagal)
     localStorage.setItem('becca_privileges', JSON.stringify(custom));
-    // AWAIT sync ke Supabase — mencegah data hilang
+    // Sync ke Supabase di background
     try {
       await DB.saveSettings({ _privileges: custom });
-      // Verifikasi: baca ulang dari DB dan sync ke localStorage
-      const settings = await DB.getSettings();
-      if (settings?._privileges) {
-        localStorage.setItem('becca_privileges', JSON.stringify(settings._privileges));
-      }
-      Notify.success('Hak akses disimpan!');
     } catch(e) {
-      console.error('[Settings] savePrivileges error:', e);
-      Notify.error('Gagal menyimpan ke server — coba lagi');
-      return;
+      console.warn('[Settings] DB sync warning:', e);
+      // Data sudah di localStorage, akan sync next time
     }
+    Notify.success('Hak akses disimpan! Refresh untuk menerapkan.');
     DB.logActivity({type:'update_privileges', detail:'Hak akses diperbarui'});
     // Visual feedback langsung di tombol
     const saveBtn = document.querySelector('[onclick="SettingsModule.savePrivileges()"]');

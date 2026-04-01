@@ -140,11 +140,16 @@ const PushModule = (() => {
     const result = await _send({ tokens:[token], title:'BECCA Test', body:'Push notification berhasil! ' + new Date().toLocaleTimeString(), data:{test:true} });
     console.log('→ Result:', result);
 
-    if (result?.error) {
-      console.error('→ GAGAL kirim. Kemungkinan:');
-      console.error('  - Edge Function belum deploy');
-      console.error('  - Token expired / invalid');
-      console.error('  - FCM server key belum dikonfigurasi di Edge Function');
+    if (result?.failed > 0 && result?.errors?.length) {
+      console.error('→ FCM rejected token(s):');
+      result.errors.forEach(e => console.error('  Token:', e.token, '→', e.error));
+      console.error('');
+      console.error('Kemungkinan fix:');
+      console.error('  - "NOT_FOUND" / "UNREGISTERED": Token expired → logout, clear cache, login ulang');
+      console.error('  - "INVALID_ARGUMENT": VAPID key mismatch → cek Project Settings > Cloud Messaging');
+      console.error('  - "SENDER_ID_MISMATCH": Firebase project berbeda antara client dan server');
+    } else if (result?.error) {
+      console.error('→ Server error:', result.error);
     }
     return result;
   }
