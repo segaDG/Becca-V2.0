@@ -439,6 +439,33 @@ const DailyOrderModule = (() => {
           </div>
         </div>`;
         })() : ''}
+
+        ${budgetVal > 0 ? (() => {
+          const _sbc = shiftSisaAkt>=0 ? '#10b981' : '#ef4444';
+          const _sbl = shiftSisaAkt>=0 ? '▲ Surplus' : '▼ Defisit';
+          const _spct = budgetVal > 0 ? totalAkt / budgetVal * 100 : 0;
+          return `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;min-width:220px">
+          <div style="font-size:9px;font-weight:700;color:var(--primary);letter-spacing:.05em;margin-bottom:5px">BUDGET ${_shiftLabel(_shift).toUpperCase()}</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:5px">
+            <div>
+              <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">TERPAKAI</div>
+              <div style="font-size:12px;font-weight:700;color:var(--text)">${_fmtRp(totalAkt)}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">SISA</div>
+              <div style="font-size:14px;font-weight:700;color:${_sbc}">${shiftSisaAkt>=0?'+':''}${_fmtRp(Math.abs(shiftSisaAkt))}</div>
+            </div>
+          </div>
+          <div style="position:relative;background:var(--surface2);height:18px;border-radius:4px;overflow:hidden">
+            <div style="position:absolute;inset:0 auto 0 0;width:${Math.min(100,_spct).toFixed(1)}%;background:${_sbc};border-radius:4px;transition:width .3s"></div>
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 7px;pointer-events:none">
+              <span style="font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)">${_sbl}</span>
+              <span style="font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)">${_spct.toFixed(1)}%</span>
+            </div>
+          </div>
+        </div>`;
+        })() : ''}
       </div>
 
       ${_isEvent(_shift) ? _htmlEventForm() : ''}

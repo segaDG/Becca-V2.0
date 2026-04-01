@@ -664,19 +664,22 @@ const InventoryModule = (() => {
         <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
           ${(()=>{
             const aktTotal = aktItems.reduce((s,it)=>s+_n(it.aktQty)*_n(it.hargaSatuan),0);
+            const budgetShift = _n(form.budgetBelanja) || _n(form.foodCostPct ? aktTotal * 100 / form.foodCostPct : 0);
+            const sisaAkt = budgetShift - aktTotal;
             const rp = n => 'Rp '+Math.round(n).toLocaleString('id');
             return `
-            <div style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+            <div style="flex:1;min-width:100px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
               <div style="font-size:8px;font-weight:700;color:var(--text-3)">AKT TOTAL</div>
               <div style="font-size:13px;font-weight:800;color:#6366f1;font-family:var(--font-mono)">${rp(aktTotal)}</div>
             </div>
-            <div style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+            <div style="flex:1;min-width:100px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
               <div style="font-size:8px;font-weight:700;color:#f59e0b">REVISI TOTAL</div>
               <div style="font-size:13px;font-weight:800;color:#f59e0b;font-family:var(--font-mono)" id="sync-revisi-total">${rp(aktTotal)}</div>
             </div>
-            <div style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
-              <div style="font-size:8px;font-weight:700;color:var(--text-3)">SELISIH</div>
-              <div style="font-size:13px;font-weight:800;color:#10b981;font-family:var(--font-mono)" id="sync-selisih-total">Rp 0</div>
+            <div style="flex:1;min-width:100px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+              <div style="font-size:8px;font-weight:700;color:${sisaAkt>=0?'#10b981':'#ef4444'}">SISA AKT</div>
+              <div style="font-size:13px;font-weight:800;font-family:var(--font-mono)" id="sync-sisa-total" style="color:${sisaAkt>=0?'#10b981':'#ef4444'}">${sisaAkt>=0?'+':''}${rp(Math.abs(sisaAkt))}</div>
+              <div style="font-size:8px;color:var(--text-3)" id="sync-sisa-label">dari budget shift</div>
             </div>`;
           })()}
         </div>
@@ -736,14 +739,22 @@ const InventoryModule = (() => {
       const orig = parseFloat(inp.dataset.orig)||0;
       revTotal += qty * harga;
       origTotal += orig * harga;
-      // Highlight border jika berubah
       inp.style.borderColor = qty !== orig ? '#f59e0b' : 'var(--border)';
     });
-    const selisih = revTotal - origTotal;
+    // Update Revisi Total
     const revEl = document.getElementById('sync-revisi-total');
-    const selEl = document.getElementById('sync-selisih-total');
     if (revEl) revEl.textContent = rp(revTotal);
-    if (selEl) { selEl.textContent = (selisih>=0?'+':'')+rp(Math.abs(selisih)); selEl.style.color = selisih>=0?'#10b981':'#ef4444'; }
+    // Update Sisa AKT — budget dikurangi revisi total (bukan akt total asli)
+    const sisaEl = document.getElementById('sync-sisa-total');
+    const sisaLbl = document.getElementById('sync-sisa-label');
+    if (sisaEl) {
+      // Hitung sisa dari perbedaan: sisa asli + (origTotal - revTotal)
+      // Sisa berubah seiring revisi
+      const delta = origTotal - revTotal; // positif = lebih hemat, negatif = lebih mahal
+      sisaEl.textContent = (delta>=0?'+':'')+rp(Math.abs(delta))+' dari asli';
+      sisaEl.style.color = delta>=0?'#10b981':'#ef4444';
+      if (sisaLbl) sisaLbl.textContent = delta>=0?'lebih hemat':'lebih mahal';
+    }
   }
 
   async function _confirmSync(formId) {
