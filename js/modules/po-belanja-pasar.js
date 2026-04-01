@@ -86,16 +86,16 @@ else { window.POBelanjaPasarModule = (() => {
   /* ── Form picker (replaces old Step 1+2) ───── */
   function _renderFormPicker() {
     if (!_el) return;
-    // Group available forms by date, from yesterday backwards
-    const today = new Date();
-    today.setDate(today.getDate() - 1);
-    const todayStr = today.toISOString().split('T')[0];
+    // Only show forms from yesterday (Today()-1) backwards
+    const now = new Date();
+    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const yStr = yesterday.getFullYear() + '-' + String(yesterday.getMonth()+1).padStart(2,'0') + '-' + String(yesterday.getDate()).padStart(2,'0');
 
     // Get all unique dates from forms, sorted newest first
     const dateSet = new Set();
     _forms.forEach(f => { if (f.tanggal) dateSet.add(f.tanggal); });
     const allDates = [...dateSet]
-      .filter(d => d <= todayStr)
+      .filter(d => d <= yStr)
       .sort((a,b) => b.localeCompare(a)); // newest first
 
     // Build grouped list
