@@ -49,9 +49,12 @@ const DailyOrderModule = (() => {
     return _DEFAULT_FCP;
   }
 
-  /* Determine PASAR vs STOK — single source of truth */
+  /* Determine sumber: STOK / PASAR / PARTIAL */
   function _calcSumber(stokGudang, aktQty) {
-    return (stokGudang > 0 && aktQty > stokGudang) ? 'PASAR' : 'STOK';
+    if (!aktQty || aktQty <= 0) return 'STOK';
+    if (!stokGudang || stokGudang <= 0) return 'PASAR';
+    if (stokGudang >= aktQty) return 'STOK';
+    return 'PARTIAL'; // stok ada tapi tidak cukup
   }
 
   function _currentForm() {

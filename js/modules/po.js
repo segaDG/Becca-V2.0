@@ -77,6 +77,8 @@ else { window.POModule = (() => {
   }
 
   function switchTab(tab) {
+    // Auto-save belanja pasar when switching away
+    if (typeof POBelanjaPasarModule !== 'undefined') POBelanjaPasarModule.autoSave?.();
     document.querySelectorAll('.tabs .tab-btn').forEach((b,i) => {
       b.classList.toggle('active', (i===0&&tab==='active')||(i===1&&tab==='arsip')||(i===2&&tab==='belanja-pasar'));
     });
@@ -90,7 +92,7 @@ else { window.POModule = (() => {
     el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)">Memuat...</div>';
     await new Promise((resolve, reject) => {
       const base = 'js/modules/po-belanja-pasar.js';
-      const ver = '?v=20260401e';
+      const ver = '?v=20260402a';
       // Remove old script tag if exists (force reload fresh version)
       const old = document.querySelector(`script[src^="${base}"]`);
       if (old) old.remove();
@@ -689,7 +691,11 @@ else { window.POModule = (() => {
 
   /* ── Navigation ────────────────────────────── */
   function backToList() { if (_editState) _commitEdit(); _render(); }
-  function flushPendingEdit() { if (_editState) _commitEdit(); }
+  function flushPendingEdit() {
+    if (_editState) _commitEdit();
+    // Auto-save belanja pasar when leaving PO page
+    if (typeof POBelanjaPasarModule !== 'undefined') POBelanjaPasarModule.autoSave?.();
+  }
 
   /* ── Print ─────────────────────────────────── */
   function printAnggaran(id) {
