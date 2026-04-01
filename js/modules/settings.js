@@ -3,7 +3,8 @@
    User Management, Privilege, Activity Log,
    Notifikasi, Export/Import Data
 ============================================ */
-const SettingsModule = (() => {
+if (typeof window.SettingsModule !== 'undefined') { console.warn('[Settings] Already loaded, skipping'); }
+else { window.SettingsModule = (() => {
 
   // Cache merged user list for openUserModal (avoids re-fetching from DB)
   let _usersCache = [];
@@ -2328,5 +2329,4 @@ const SettingsModule = (() => {
     importActivityExcel, _doImportActivityExcel,
     _syncAuthJs, _downloadAuthJs, _saveGithubToken
   };
-})();
-window.SettingsModule = SettingsModule;
+})(); }

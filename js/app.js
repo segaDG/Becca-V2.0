@@ -19,7 +19,7 @@ const App = {
     ap        : 'js/modules/ap.js?v=20260331f',
     task      : 'js/modules/task.js?v=20260330i',
     report    : 'js/modules/report.js?v=20260326r',
-    settings  : 'js/modules/settings.js?v=20260401a',
+    settings  : 'js/modules/settings.js?v=20260401b',
   },
 
   _loadScript(src) {
