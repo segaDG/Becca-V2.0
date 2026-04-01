@@ -605,22 +605,13 @@ const SettingsModule = (() => {
       console.error('[Settings] savePrivileges error:', e);
       Notify.error('Gagal menyimpan ke server: ' + (e.message||'timeout'));
     }
-    if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '💾 Simpan'; }
-    DB.logActivity({type:'update_privileges', detail:'Hak akses diperbarui'});
-    // Visual feedback langsung di tombol
-    const saveBtn = document.querySelector('[onclick="SettingsModule.savePrivileges()"]');
     if (saveBtn) {
-      const origText = saveBtn.innerHTML;
-      const origBg   = saveBtn.style.background;
+      saveBtn.disabled = false;
       saveBtn.innerHTML = '✅ Tersimpan!';
       saveBtn.style.background = 'var(--success)';
-      saveBtn.disabled = true;
-      setTimeout(() => {
-        saveBtn.innerHTML  = origText;
-        saveBtn.style.background = origBg;
-        saveBtn.disabled = false;
-      }, 2500);
+      setTimeout(() => { saveBtn.innerHTML = '💾 Simpan'; saveBtn.style.background = ''; }, 2500);
     }
+    DB.logActivity({type:'update_privileges', detail:'Hak akses diperbarui'});
   }
 
   function resetPrivileges() {

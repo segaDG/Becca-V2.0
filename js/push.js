@@ -95,11 +95,14 @@ const PushModule = (() => {
   async function _send({ tokens, title, body, data = {} }) {
     if (!tokens?.length) { console.warn('[Push] No tokens to send to'); return { error: 'No tokens' }; }
     console.log('[Push] Sending to', tokens.length, 'tokens:', title);
+    // FCM V1 requires ALL data values to be strings
+    const safeData = {};
+    Object.entries(data).forEach(([k,v]) => { safeData[k] = String(v); });
     try {
       const res = await fetch(SEND_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tokens, title, body, data }),
+        body: JSON.stringify({ tokens, title, body, data: safeData }),
       });
       const result = await res.json();
       if (!res.ok) console.error('[Push] Server error:', res.status, result);
@@ -137,7 +140,7 @@ const PushModule = (() => {
     }
 
     console.log('\n→ Mengirim test notification...');
-    const result = await _send({ tokens:[token], title:'BECCA Test', body:'Push notification berhasil! ' + new Date().toLocaleTimeString(), data:{test:true} });
+    const result = await _send({ tokens:[token], title:'BECCA Test', body:'Push notification berhasil! ' + new Date().toLocaleTimeString(), data:{test:'true'} });
     console.log('→ Result:', result);
 
     if (result?.failed > 0 && result?.errors?.length) {
