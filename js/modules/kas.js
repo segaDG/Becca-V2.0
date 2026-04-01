@@ -500,7 +500,7 @@ const KasModule = (() => {
 
   /* ===================== EDIT LOGIC ===================== */
   // FIX: use a single named function for outside click so removeEventListener works
-  function _handleOutsideClick(e) {
+  async function _handleOutsideClick(e) {
     if (!_editingId) return;
     if (document.getElementById('_val-popup')) return;
     if (e.target.closest('.notify-popup,.notify-container')) return;
