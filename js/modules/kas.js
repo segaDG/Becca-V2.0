@@ -682,8 +682,11 @@ const KasModule = (() => {
   }
 
   function _rowKeyDown(e, id) {
+    // Jika autocomplete dropdown aktif, biarkan dropdown handle arrow/enter
+    const acDrop = document.getElementById('ks-ac-drop');
+    if (acDrop && (e.key==='ArrowDown'||e.key==='ArrowUp'||(e.key==='Enter'&&_acIdx>=0))) return;
     if (e.key === 'Enter')       { e.preventDefault(); commitAndAddRow(id); }
-    else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(id); }
+    else if (e.key === 'Escape') { e.preventDefault(); if(acDrop){acDrop.remove();return;} cancelEdit(id); }
   }
 
   /* ===================== ADD / DELETE ===================== */

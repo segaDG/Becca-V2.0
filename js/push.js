@@ -93,7 +93,7 @@ const PushModule = (() => {
 
   // ── Kirim notif via Netlify Function ────────────────────
   async function _send({ tokens, title, body, data = {} }) {
-    if (!tokens?.length) { console.warn('[Push] No tokens to send to'); return; }
+    if (!tokens?.length) { console.warn('[Push] No tokens to send to'); return { error: 'No tokens' }; }
     console.log('[Push] Sending to', tokens.length, 'tokens:', title);
     try {
       const res = await fetch(SEND_URL, {
@@ -101,10 +101,24 @@ const PushModule = (() => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tokens, title, body, data }),
       });
-      return await res.json();
+      const result = await res.json();
+      if (!res.ok) console.error('[Push] Server error:', res.status, result);
+      else console.log('[Push] Sent OK:', result);
+      return result;
     } catch(e) {
-      console.warn('[Push] Send gagal:', e.message);
+      console.error('[Push] Send gagal:', e.message);
+      return { error: e.message };
     }
+  }
+
+  // ── Test: kirim ke diri sendiri ─────────────────────────
+  async function testPush() {
+    const token = localStorage.getItem('becca_push_token');
+    if (!token) { console.error('[Push] Belum ada token — login dulu dan izinkan notifikasi'); return; }
+    console.log('[Push] Testing with token:', token.slice(0,20)+'...');
+    const result = await _send({ tokens:[token], title:'BECCA Test', body:'Push notification berhasil!', data:{test:true} });
+    console.log('[Push] Test result:', result);
+    return result;
   }
 
   // ── Kirim ke user tertentu (by username/nama) ────────────
@@ -146,7 +160,7 @@ const PushModule = (() => {
     }
   }
 
-  return { init, requestAndRegister, sendToUser, broadcast, sendToGroup, sendTaskReminder };
+  return { init, requestAndRegister, sendToUser, broadcast, sendToGroup, sendTaskReminder, testPush };
 })();
 
 window.PushModule = PushModule;
