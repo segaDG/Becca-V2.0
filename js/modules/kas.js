@@ -403,13 +403,91 @@ const KasModule = (() => {
     </tr>`;
   }
 
-  /* ---- AI: nama input → suggest type ---- */
+  /* ---- AI: nama input → suggest type + autocomplete dropdown ---- */
+  let _acIdx = -1; // active suggestion index
+
   function _onNamaInput(id, val) {
+    // AI type suggestion
     const suggested = _suggestType(val);
     if (suggested) {
       const sel = document.getElementById('ks-type-'+id);
       if (sel) sel.value = suggested;
     }
+    // Autocomplete dropdown
+    _showNamaSuggestions(id, val);
+  }
+
+  function _showNamaSuggestions(id, val) {
+    const inp = document.getElementById('ks-nama-'+id);
+    if (!inp) return;
+    // Remove existing dropdown
+    document.getElementById('ks-ac-drop')?.remove();
+    _acIdx = -1;
+    if (!val || val.length < 1) return;
+
+    const q = val.toLowerCase();
+    // Collect unique names from _kas, sorted by frequency
+    const freq = {};
+    _kas.forEach(r => { if (r.nama) freq[r.nama] = (freq[r.nama]||0)+1; });
+    const matches = Object.keys(freq)
+      .filter(n => n.toLowerCase().includes(q) && n.toLowerCase() !== q)
+      .sort((a,b) => freq[b]-freq[a])
+      .slice(0, 8);
+    if (!matches.length) return;
+
+    const rect = inp.getBoundingClientRect();
+    const drop = document.createElement('div');
+    drop.id = 'ks-ac-drop';
+    drop.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.bottom+2}px;width:${Math.max(rect.width,200)}px;
+      background:var(--surface,#fff);border:1px solid var(--border,#ddd);border-radius:8px;
+      box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:9999;max-height:200px;overflow-y:auto;padding:4px 0`;
+    drop.innerHTML = matches.map((n,i) => {
+      // Highlight matching part
+      const idx = n.toLowerCase().indexOf(q);
+      const before = n.slice(0, idx);
+      const match = n.slice(idx, idx+q.length);
+      const after = n.slice(idx+q.length);
+      return `<div class="ks-ac-item" data-idx="${i}" data-val="${n.replace(/"/g,'&quot;')}"
+        style="padding:6px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .1s"
+        onmousedown="KasModule._selectNamaSuggestion('${id}',this.dataset.val)"
+        onmouseenter="this.style.background='rgba(99,102,241,.08)'"
+        onmouseleave="this.style.background=''">
+        <span style="flex:1">${before}<strong style="color:var(--primary)">${match}</strong>${after}</span>
+        <span style="font-size:9px;color:var(--text-3)">${freq[n]}x</span>
+      </div>`;
+    }).join('');
+    document.body.appendChild(drop);
+
+    // Arrow key navigation
+    inp._acKeyHandler = (e) => {
+      const items = drop.querySelectorAll('.ks-ac-item');
+      if (e.key === 'ArrowDown') { e.preventDefault(); _acIdx = Math.min(_acIdx+1, items.length-1); _highlightAc(items); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); _acIdx = Math.max(_acIdx-1, -1); _highlightAc(items); }
+      else if (e.key === 'Enter' && _acIdx >= 0 && items[_acIdx]) { e.preventDefault(); _selectNamaSuggestion(id, items[_acIdx].dataset.val); }
+      else if (e.key === 'Escape') { drop.remove(); }
+    };
+    inp.addEventListener('keydown', inp._acKeyHandler);
+
+    // Close on blur (delayed to allow mousedown)
+    inp._acBlur = () => setTimeout(() => { drop.remove(); inp.removeEventListener('keydown', inp._acKeyHandler); }, 150);
+    inp.addEventListener('blur', inp._acBlur, {once:true});
+  }
+
+  function _highlightAc(items) {
+    items.forEach((it,i) => { it.style.background = i===_acIdx ? 'rgba(99,102,241,.1)' : ''; });
+    if (_acIdx >= 0 && items[_acIdx]) items[_acIdx].scrollIntoView({block:'nearest'});
+  }
+
+  function _selectNamaSuggestion(id, val) {
+    const inp = document.getElementById('ks-nama-'+id);
+    if (inp) { inp.value = val; inp.dispatchEvent(new Event('input')); }
+    document.getElementById('ks-ac-drop')?.remove();
+    // Also trigger type suggestion
+    const suggested = _suggestType(val);
+    if (suggested) { const sel = document.getElementById('ks-type-'+id); if (sel) sel.value = suggested; }
+    // Also fill vendor if known
+    const prevRow = _kas.find(r => r.nama === val && r.vendor);
+    if (prevRow) { const v = document.getElementById('ks-vendor-'+id); if (v && !v.value) v.value = prevRow.vendor; }
   }
 
   /* ---- CALC TOTAL ---- */
@@ -1506,6 +1584,6 @@ const KasModule = (() => {
     if (saved) { Notify.success(saved+' baris di-paste'); renderTransaksi(); }
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _calcTotal, deleteRow, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
+  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
 })();
 window.KasModule = KasModule;
