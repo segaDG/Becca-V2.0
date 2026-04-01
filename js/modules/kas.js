@@ -514,7 +514,7 @@ const KasModule = (() => {
         cancelEdit(id);
         return;
       }
-      const ok = _doCommit(id);
+      const ok = await _doCommit(id, true); // skipValidation — bisa exit kapanpun
       if (ok) _editingId = null;
     }
   }

@@ -479,6 +479,11 @@ const DB = (() => {
   };
   const deleteKasMasuk = (id) => _delete('kas_masuk', id);
 
+  // ── PURCHASE ORDER (Anggaran) ──────────────────────────────
+  const getPO    = ()     => _get('po_anggaran');
+  const savePO   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('po_anggaran', data); };
+  const deletePO = (id)   => _delete('po_anggaran', id);
+
   // ── INVENTORY ─────────────────────────────────────────────
   const getInventory      = ()     => _get('inv_activities');
   const saveInventory     = (data) => {
@@ -994,6 +999,7 @@ const DB = (() => {
     getCustomers, saveCustomer, deleteCustomer,
     // Kas
     getKas, saveKas, deleteKas,
+    getPO, savePO, deletePO,
     getKasMasuk, saveKasMasuk, deleteKasMasuk,
     // Inventory
     getInventory, saveInventory,

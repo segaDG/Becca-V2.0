@@ -23,7 +23,7 @@ else { window.SettingsModule = (() => {
     } catch {}
     return [..._DEFAULT_ROLES, ...extra.filter(r=>!_DEFAULT_ROLES.includes(r))];
   }
-  const FEATURES = ['dashboard','order','invoice','customer','employee','emp_finance','inventory','kas','ap','task','daily-order','report','settings','news'];
+  const FEATURES = ['dashboard','order','invoice','customer','employee','emp_finance','inventory','kas','ap','po','task','daily-order','report','settings','news'];
 
   /* ===================== INIT ===================== */
   async function init() {
@@ -578,7 +578,7 @@ else { window.SettingsModule = (() => {
   function _featLabel(f) {
     const m = {dashboard:'📊 Dashboard',order:'📋 Order',invoice:'🧾 Invoice',customer:'👥 Customer',
                employee:'👷 Karyawan',emp_finance:'💰 Gaji & Hutang Karyawan',inventory:'📦 Inventory',
-               kas:'💰 Kas Kecil',ap:'💳 Account Payable',task:'✅ Task','daily-order':'📅 Daily Order',
+               kas:'💰 Kas Kecil',ap:'💳 Account Payable',po:'🛒 Purchase Order',task:'✅ Task','daily-order':'📅 Daily Order',
                report:'📈 Laporan',settings:'⚙️ Pengaturan',news:'📢 News & Pengumuman'};
     return m[f]||f;
   }
