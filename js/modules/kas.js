@@ -519,7 +519,7 @@ const KasModule = (() => {
     }
   }
 
-  function startEdit(id, focusField) {
+  async function startEdit(id, focusField) {
     if (_editingId === id) return;
     if (_kasLocked.has(id)) {
       // Row terkunci - tidak bisa edit langsung, perlu unlock via # icon
@@ -529,12 +529,11 @@ const KasModule = (() => {
     // FIX: Remove old listener FIRST before committing
     document.removeEventListener('click', _handleOutsideClick);
 
-    // Commit previous (with validation — block switching if incomplete)
+    // Commit previous tanpa validasi
     if (_editingId) {
       const prevId = _editingId;
       _editingId = null;
-      const ok = _doCommit(prevId);
-      if (!ok) return; // validation failed, stay on previous row
+      await _doCommit(prevId, true);
     }
 
     _editingId = id;
@@ -637,16 +636,15 @@ const KasModule = (() => {
   async function commitEdit(id) {
     if (_editingId !== id) return;
     document.removeEventListener('click', _handleOutsideClick);
-    const ok = _doCommit(id);
+    const ok = await _doCommit(id, true); // skipValidation — bisa exit kapanpun
     if (ok) _editingId = null;
-    // if !ok: _editingId stays, listener re-attached in _doCommit
   }
 
   // Enter: save current row + open new row immediately
-  function commitAndAddRow(id) {
+  async function commitAndAddRow(id) {
     if (_editingId !== id) return;
     document.removeEventListener('click', _handleOutsideClick);
-    const ok = _doCommit(id);
+    const ok = await _doCommit(id, true); // skipValidation
     if (ok) { _editingId = null; addRow(); }
   }
 
@@ -684,7 +682,18 @@ const KasModule = (() => {
   function _rowKeyDown(e, id) {
     // Jika autocomplete dropdown aktif, biarkan dropdown handle arrow/enter
     const acDrop = document.getElementById('ks-ac-drop');
-    if (acDrop && (e.key==='ArrowDown'||e.key==='ArrowUp'||(e.key==='Enter'&&_acIdx>=0))) return;
+    // Autocomplete dropdown active → let it handle keys
+    if (acDrop) {
+      if (e.key==='ArrowDown'||e.key==='ArrowUp') return; // dropdown navigates
+      if (e.key==='Enter' && _acIdx>=0) return; // dropdown selects
+      if (e.key==='Tab' && _acIdx>=0) {
+        // Tab selects current suggestion
+        e.preventDefault();
+        const items = acDrop.querySelectorAll('.ks-ac-item');
+        if (items[_acIdx]) _selectNamaSuggestion(id, items[_acIdx].dataset.val);
+        return;
+      }
+    }
     if (e.key === 'Enter')       { e.preventDefault(); commitAndAddRow(id); }
     else if (e.key === 'Escape') { e.preventDefault(); if(acDrop){acDrop.remove();return;} cancelEdit(id); }
   }
@@ -701,8 +710,7 @@ const KasModule = (() => {
       document.removeEventListener('click', _handleOutsideClick);
       const prevId = _editingId;
       _editingId = null;
-      const ok = _doCommit(prevId);
-      if (!ok) return; // validation failed, block adding new row
+      await _doCommit(prevId, true); // skipValidation
     }
     const today = new Date().toISOString().split('T')[0];
     const mo    = parseInt(today.split('-')[1]) - 1;
