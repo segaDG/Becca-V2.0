@@ -1226,30 +1226,39 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         <div style="background:${C.NAVY_M};color:#fff;display:flex;align-items:center;justify-content:center;flex:1;font-weight:700;font-size:12px">${periodeStr}</div>
       </div>`;
 
-    const signAreaRekap = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
-        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:180px">
-          <div style="font-size:10px;color:#333;margin-bottom:46px">Karawang, ${periodeStr}</div>
-          <div style="border-top:1px solid #333;width:160px;padding-top:3px;font-size:9px;color:${C.GRY}">Admin / Pembuat Invoice</div>
-        </div>
-        <div style="text-align:center;min-width:160px">
-          <div style="margin-top:46px;border-top:1px solid #333;padding-top:3px">
-            <div style="font-weight:700;font-size:10px">Manager / PIC</div>
-            <div style="font-size:8px;color:${C.GRY}">${inv.customer}</div>
-          </div>
+    const _signDate = inv._signDate || periodeStr;
+    const _signLine = (label, sub) => `
+      <div style="text-align:center;min-width:130px">
+        <div style="margin-top:46px;border-top:1px solid #333;padding-top:3px">
+          <div style="font-weight:700;font-size:9px">${label}</div>
+          ${sub?`<div style="font-size:7px;color:${C.GRY}">${sub}</div>`:''}
         </div>
       </div>`;
-    const signAreaInvoice = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
-        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:180px">
-          <div style="font-size:10px;color:#333;margin-bottom:46px">Karawang, ${periodeStr}</div>
-          <div style="border-top:1px solid #333;width:160px;padding-top:3px;font-size:9px;color:${C.GRY}">Admin / Pembuat Invoice</div>
+    const signAreaRekap = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px;flex-wrap:wrap;gap:10px">
+        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:130px">
+          <div style="font-size:10px;color:#333;margin-bottom:46px">${_signDate}</div>
+          <div style="border-top:1px solid #333;width:130px;padding-top:3px;font-size:8px;color:${C.GRY}">Admin Invoice</div>
         </div>
-        <div style="text-align:center;min-width:160px">
-          <div style="font-size:8px;color:#ccc;margin-bottom:30px">Materai Rp 10.000</div>
-          <div style="border-top:1px solid #333;width:160px;padding-top:3px">
-            <div style="font-weight:700;font-size:10px">Manager / PIC</div>
-            <div style="font-size:8px;color:${C.GRY}">${inv.customer}</div>
+        ${_signLine('Mengetahui','')}
+        ${_signLine('Gudang','')}
+        ${_signLine('Produksi','')}
+        ${_signLine('Manager / PIC', inv.customer)}
+      </div>`;
+    const signAreaInvoice = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px;flex-wrap:wrap;gap:10px">
+        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:130px">
+          <div style="font-size:10px;color:#333;margin-bottom:46px">${_signDate}</div>
+          <div style="border-top:1px solid #333;width:130px;padding-top:3px;font-size:8px;color:${C.GRY}">Admin Invoice</div>
+        </div>
+        ${_signLine('Mengetahui','')}
+        ${_signLine('Gudang','')}
+        ${_signLine('Produksi','')}
+        <div style="text-align:center;min-width:130px">
+          <div style="font-size:7px;color:#ccc;margin-bottom:34px">Materai Rp 10.000</div>
+          <div style="border-top:1px solid #333;padding-top:3px">
+            <div style="font-weight:700;font-size:9px">Manager / PIC</div>
+            <div style="font-size:7px;color:${C.GRY}">${inv.customer}</div>
           </div>
         </div>
       </div>`;
@@ -1345,6 +1354,18 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
           <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right;font-weight:700">${rp(r.qty * r.harga)}</td>
         </tr>`;
       }).join('');
+    }
+
+    // Pad to minimum 8 rows
+    const _rowCount = (invItemsHtml.match(/<tr/g)||[]).length;
+    for (let _r = _rowCount; _r < 8; _r++) {
+      const bg = _r%2===0?'#ffffff':C.BP;
+      invItemsHtml += `<tr style="background:${bg}">
+        <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px">&nbsp;</td>
+        <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
+        <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
+        <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right;color:${C.GLT}">-</td>
+      </tr>`;
     }
 
     const css = `
@@ -1571,6 +1592,11 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
           <input class="form-control" id="ic-po" value="" placeholder="No. PO / Purchase Order"
             style="font-family:var(--font-mono);font-size:13px;font-weight:600">
         </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label" style="font-size:11px">Tempat & Tanggal Tanda Tangan</label>
+          <input class="form-control" id="ic-sign-date" value="Karawang, ${new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}"
+            style="font-size:12px" placeholder="Karawang, 01 April 2026">
+        </div>
         <div id="ic-preview" style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:20px;min-height:80px;background:var(--surface2);color:var(--text-3);text-align:center">
           Pilih customer dan periode untuk melihat preview
         </div>
@@ -1776,6 +1802,8 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     // Build dummy inv object for preview
     const invPreview = {
       invoiceNum: nomor, customer: cust, customerId: c.customerId || '',
+      po: (document.getElementById('ic-po')?.value||'').trim(),
+      _signDate: (document.getElementById('ic-sign-date')?.value||'').trim(),
       tglInvoice: invDate, tglBayar: '', total: subtotal, dari, sampai,
     };
     const orderRec = {nomor, customer:cust, dari, sampai, orderIds:list.map(o=>o.id), totals:tots};
@@ -1875,6 +1903,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
       customerId:    c.customerId || '',
       customer:      cust,
       po:            (document.getElementById('ic-po')?.value||'').trim(),
+      _signDate:     (document.getElementById('ic-sign-date')?.value||'').trim(),
       invoiceNum:    nomor,
       tglInvoice:    invDate,
       tglBayar:      '',
