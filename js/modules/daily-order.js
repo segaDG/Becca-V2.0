@@ -269,6 +269,8 @@ const DailyOrderModule = (() => {
     const revenue    = _calcRevenue(_date, _shift);
     const budgetVal  = revenue > 0 ? revenue * fcp / 100 : _n(form?.budgetBelanja);
     const budgetOk   = budgetVal <= 0 || totalEst <= budgetVal;
+    // Persist computed budget agar bisa diakses dari modul lain (inventory sync)
+    if (form && budgetVal > 0) form._budget = Math.round(budgetVal);
 
     // Total daily budget card — all shifts combined for selected date
     const formS1     = _forms.find(f => f.tanggal === _date && f.shift === 'S1');
@@ -427,7 +429,7 @@ const DailyOrderModule = (() => {
             </div>
             <div style="text-align:right">
               <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">SELISIH</div>
-              <div style="font-size:14px;font-weight:700;color:${_bc}">${totSelisih>=0?'+':''}${_fmtRp(Math.abs(totSelisih))}</div>
+              <div style="font-size:14px;font-weight:700;color:${_bc}">${totSelisih>=0?'+':'-'}${_fmtRp(Math.abs(totSelisih))}</div>
             </div>
           </div>
           <div style="position:relative;background:var(--surface2);height:18px;border-radius:4px;overflow:hidden">
@@ -454,7 +456,7 @@ const DailyOrderModule = (() => {
             </div>
             <div style="text-align:right">
               <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">SISA</div>
-              <div style="font-size:14px;font-weight:700;color:${_sbc}">${shiftSisaAkt>=0?'+':''}${_fmtRp(Math.abs(shiftSisaAkt))}</div>
+              <div style="font-size:14px;font-weight:700;color:${_sbc}">${shiftSisaAkt>=0?'+':'-'}${_fmtRp(Math.abs(shiftSisaAkt))}</div>
             </div>
           </div>
           <div style="position:relative;background:var(--surface2);height:18px;border-radius:4px;overflow:hidden">
@@ -486,7 +488,7 @@ const DailyOrderModule = (() => {
           ${revenue > 0 && totalPortions > 0 ? (() => {
             const _sisaEst = budgetVal - totalEst;
             const _sisaAkt = shiftSisaAkt;
-            const _badge = (label, v) => `<span style="background:${v>=0?'rgba(16,185,129,.15)':'rgba(239,68,68,.15)'};color:${v>=0?'#059669':'#ef4444'};padding:2px 8px;border-radius:12px;font-weight:700;font-size:10px;white-space:nowrap">${label} ${v>=0?'+':''}${_fmtRp(v)}</span>`;
+            const _badge = (label, v) => `<span style="background:${v>=0?'rgba(16,185,129,.15)':'rgba(239,68,68,.15)'};color:${v>=0?'#059669':'#ef4444'};padding:2px 8px;border-radius:12px;font-weight:700;font-size:10px;white-space:nowrap">${label} ${v>=0?'+':'-'}${_fmtRp(Math.abs(v))}</span>`;
             return `
             <div style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <span style="background:${budgetOk?'rgba(16,185,129,.18)':'rgba(239,68,68,.18)'};
@@ -612,7 +614,7 @@ const DailyOrderModule = (() => {
                       <td style="padding:9px 5px;text-align:right;white-space:nowrap">
                         <div style="font-size:9px;color:var(--text-3);font-weight:600">SISA AKT (${_shiftLabel(_shift)})</div>
                         <div style="font-size:12px;font-weight:800;color:${shiftSisaAkt>=0?'#10b981':'#ef4444'}">
-                          ${shiftSisaAkt>=0?'+':''}${_fmtRp(Math.abs(shiftSisaAkt))}
+                          ${shiftSisaAkt>=0?'+':'-'}${_fmtRp(Math.abs(shiftSisaAkt))}
                         </div>
                       </td>
                     </tr>

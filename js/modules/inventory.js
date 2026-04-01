@@ -664,8 +664,8 @@ const InventoryModule = (() => {
         <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
           ${(()=>{
             const aktTotal = aktItems.reduce((s,it)=>s+_n(it.aktQty)*_n(it.hargaSatuan),0);
-            const budgetShift = _n(form.budgetBelanja) || _n(form.foodCostPct ? aktTotal * 100 / form.foodCostPct : 0);
-            const sisaAkt = budgetShift - aktTotal;
+            const budgetShift = _n(form._budget) || _n(form.budgetBelanja) || 0;
+            const sisaAkt = budgetShift > 0 ? budgetShift - aktTotal : 0;
             const rp = n => 'Rp '+Math.round(n).toLocaleString('id');
             return `
             <div style="flex:1;min-width:100px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
@@ -676,10 +676,10 @@ const InventoryModule = (() => {
               <div style="font-size:8px;font-weight:700;color:#f59e0b">REVISI TOTAL</div>
               <div style="font-size:13px;font-weight:800;color:#f59e0b;font-family:var(--font-mono)" id="sync-revisi-total">${rp(aktTotal)}</div>
             </div>
-            <div style="flex:1;min-width:100px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+            <div style="flex:1;min-width:100px;background:${sisaAkt>=0?'rgba(16,185,129,.05)':'rgba(239,68,68,.05)'};border:1px solid ${sisaAkt>=0?'rgba(16,185,129,.2)':'rgba(239,68,68,.2)'};border-radius:6px;padding:6px 10px">
               <div style="font-size:8px;font-weight:700;color:${sisaAkt>=0?'#10b981':'#ef4444'}">SISA AKT</div>
-              <div style="font-size:13px;font-weight:800;font-family:var(--font-mono)" id="sync-sisa-total" style="color:${sisaAkt>=0?'#10b981':'#ef4444'}">${sisaAkt>=0?'+':''}${rp(Math.abs(sisaAkt))}</div>
-              <div style="font-size:8px;color:var(--text-3)" id="sync-sisa-label">dari budget shift</div>
+              <div style="font-size:13px;font-weight:800;font-family:var(--font-mono);color:${sisaAkt>=0?'#10b981':'#ef4444'}" id="sync-sisa-total">${sisaAkt>=0?'+':'-'}${rp(Math.abs(sisaAkt))}</div>
+              <div style="font-size:8px;color:var(--text-3)" id="sync-sisa-label" data-budget="${budgetShift}">${budgetShift>0?'Budget: '+rp(budgetShift):'budget belum tersedia'}</div>
             </div>`;
           })()}
         </div>
@@ -744,16 +744,16 @@ const InventoryModule = (() => {
     // Update Revisi Total
     const revEl = document.getElementById('sync-revisi-total');
     if (revEl) revEl.textContent = rp(revTotal);
-    // Update Sisa AKT — budget dikurangi revisi total (bukan akt total asli)
+    // Update Sisa AKT — budget - revisi total
     const sisaEl = document.getElementById('sync-sisa-total');
     const sisaLbl = document.getElementById('sync-sisa-label');
     if (sisaEl) {
-      // Hitung sisa dari perbedaan: sisa asli + (origTotal - revTotal)
-      // Sisa berubah seiring revisi
-      const delta = origTotal - revTotal; // positif = lebih hemat, negatif = lebih mahal
-      sisaEl.textContent = (delta>=0?'+':'')+rp(Math.abs(delta))+' dari asli';
-      sisaEl.style.color = delta>=0?'#10b981':'#ef4444';
-      if (sisaLbl) sisaLbl.textContent = delta>=0?'lebih hemat':'lebih mahal';
+      const budget = parseFloat(sisaLbl?.dataset?.budget)||0;
+      if (budget > 0) {
+        const sisa = budget - revTotal;
+        sisaEl.textContent = (sisa>=0?'+':'-')+rp(Math.abs(sisa));
+        sisaEl.style.color = sisa>=0?'#10b981':'#ef4444';
+      }
     }
   }
 
