@@ -257,19 +257,17 @@ const DB = (() => {
     }
 
     // Untuk NO_CACHE tables: merge item localStorage yang belum tersync ke Supabase.
-    // Hanya merge item yang punya _ls_saved_at dalam 24 jam terakhir —
-    // mencegah item lama (yang sudah dihapus di device lain) muncul kembali.
+    // Merge pending items dari localStorage (baru disimpan tapi belum confirm di Supabase).
+    // Window 2 menit — cukup untuk network retry, cegah data terhapus muncul kembali.
     if (NO_CACHE.includes(table)) {
       try {
         const lsData  = JSON.parse(localStorage.getItem('becca_' + table) || '[]');
         const supaIds = new Set(result.map(r => r.id));
-        const ONE_DAY = 24 * 60 * 60 * 1000;
+        const MERGE_WINDOW = 2 * 60 * 1000; // 2 minutes
         const pending = lsData.filter(r => {
           if (!r.id || supaIds.has(r.id)) return false;
-          // Hanya include item yang baru disimpan (< 24 jam) — item lama/tanpa
-          // timestamp dianggap stale/deleted dan dibuang dari merge
           const age = r._ls_saved_at ? (Date.now() - r._ls_saved_at) : Infinity;
-          return age < ONE_DAY;
+          return age < MERGE_WINDOW;
         });
         if (pending.length) result = [...pending, ...result];
       } catch {}
@@ -358,8 +356,10 @@ const DB = (() => {
       .select();
 
     if (error) {
-      console.warn('[DB] save ' + table + ':', error.message);
-      return obj; // sudah disimpan ke localStorage di pre-save atas
+      console.error('[DB] save ' + table + ' FAILED:', error.message);
+      // Data sudah di localStorage (pre-save). Return obj tapi beri tanda gagal.
+      obj._syncPending = true;
+      return obj;
     }
 
     // Jika upsert sukses tapi tidak return row (204), fetch manual
@@ -731,12 +731,12 @@ const DB = (() => {
     _initClient().then(sb => {
       if (!sb) return;
 
-      const tables = ['orders','invoices','tasks','customers','kas',
-                      'presence','activity_logs','users','settings',
-                      'emp_absensi'];
+      // Subscribe to ALL tables that have callbacks registered
+      // (db-extensions registers handlers for many tables beyond the original 10)
+      const tables = Object.keys(callbacks).filter(k => k !== '*');
 
       tables.forEach(table => {
-        const cb = callbacks[table] || callbacks['*'];
+        const cb = callbacks[table];
         if (!cb) return;
 
         subscribe(table, payload => {

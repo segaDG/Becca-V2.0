@@ -133,10 +133,12 @@ const DBExtensions = (() => {
       },
 
       emp_absensi: ({ eventType, new: newRow }) => {
-        if (eventType !== 'INSERT' || !newRow) return;
-        if (window.FaceAttendanceModule) FaceAttendanceModule._fsHandleRemote(newRow);
+        if (eventType === 'INSERT' && newRow && window.FaceAttendanceModule) {
+          FaceAttendanceModule._fsHandleRemote(newRow);
+        }
+        // Refresh on ALL events (INSERT, UPDATE, DELETE) for cross-device sync
         if (window.App?._currentPage === 'employee' && window.EmployeeModule) {
-          _rtDebounce('emp', () => EmployeeModule.renderAbsensi?.());
+          _rtDebounce('emp_absensi', () => EmployeeModule.renderAbsensi?.());
         }
       },
 
