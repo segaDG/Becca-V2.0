@@ -1016,6 +1016,14 @@ const NewsModule = (() => {
   async function _ncAddVideoFile(input) {
     const file = input.files?.[0];
     if (!file) return;
+    // Validate video size — max 50MB for local, max 10MB for cloud sync
+    if (file.size > 50 * 1024 * 1024) {
+      Notify.warning('Video terlalu besar. Maks 50MB.');
+      input.value = ''; return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      Notify.info('Video > 10MB hanya tersimpan di perangkat ini (tidak sync ke cloud)');
+    }
     Notify.info('Memproses video...');
     const idbKey = Utils.uid();
     const thumb  = await _videoThumb(file).catch(() => null);
@@ -1024,7 +1032,7 @@ const NewsModule = (() => {
       _fMedia.push({ type: 'video-idb', idbKey, _thumb: thumb, name: file.name, size: file.size });
       _ncRenderMediaPreview();
     } catch(e) {
-      Notify.error('Gagal menyimpan video: ' + e.message);
+      Notify.error('Gagal menyimpan video: ' + (e.message || 'Storage penuh'));
     }
     input.value = '';
   }

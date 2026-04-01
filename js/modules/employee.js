@@ -1071,8 +1071,10 @@ const EmployeeModule = (() => {
     maxPx   = maxPx   || 256;
     quality = quality || 0.72;
     return new Promise(function(resolve) {
+      const timer = setTimeout(function() { resolve(null); }, 15000);
       const img = new Image();
       img.onload = function() {
+        clearTimeout(timer);
         const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
         const w = Math.round(img.width  * scale);
         const h = Math.round(img.height * scale);
@@ -1081,7 +1083,11 @@ const EmployeeModule = (() => {
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         resolve(canvas.toDataURL('image/jpeg', quality));
       };
-      img.onerror = function() { resolve(dataUrl); }; // fallback: original
+      img.onerror = function() {
+        clearTimeout(timer);
+        Notify.error('Gagal memproses foto');
+        resolve(null);
+      };
       img.src = dataUrl;
     });
   }
@@ -1089,14 +1095,16 @@ const EmployeeModule = (() => {
   function _handleFotoUpload(input) {
     const file = input.files[0];
     if (!file) return;
-    if (file.size > 5*1024*1024) { Notify.warning('Foto terlalu besar. Maks 5MB.'); return; }
+    if (file.size > 10*1024*1024) { Notify.warning('Foto terlalu besar. Maks 10MB.'); return; }
     const reader = new FileReader();
     reader.onload = async function(e) {
       const compressed = await _compressFoto(e.target.result);
+      if (!compressed) return;
       _tempFotoUrl = compressed;
       const prev = document.getElementById('emp-foto-preview');
       if (prev) prev.innerHTML = '<img src="'+compressed+'" style="width:100%;height:100%;object-fit:cover">';
     };
+    reader.onerror = function() { Notify.error('Gagal membaca file'); };
     reader.readAsDataURL(file);
   }
 
@@ -1109,15 +1117,16 @@ const EmployeeModule = (() => {
   function _handleKtpUpload(input) {
     const file = input.files[0];
     if (!file) return;
-    if (file.size > 5*1024*1024) { Notify.warning('Foto KTP terlalu besar. Maks 5MB.'); return; }
+    if (file.size > 10*1024*1024) { Notify.warning('Foto KTP terlalu besar. Maks 10MB.'); return; }
     const reader = new FileReader();
     reader.onload = async function(e) {
-      // KTP butuh resolusi lebih tinggi agar teks terbaca
       const compressed = await _compressFoto(e.target.result, 700, 0.85);
+      if (!compressed) return;
       _tempKtpUrl = compressed;
       const prev = document.getElementById('emp-ktp-preview');
       if (prev) prev.innerHTML = '<img src="'+compressed+'" style="width:100%;height:100%;object-fit:contain">';
     };
+    reader.onerror = function() { Notify.error('Gagal membaca file KTP'); };
     reader.readAsDataURL(file);
   }
 

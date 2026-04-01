@@ -456,8 +456,9 @@ const FaceAttendanceModule = (() => {
     if (!emp) return;
     emp.faceDescriptors = _regSamples;
 
-    // Simpan thumbnail ke localStorage
+    // Simpan thumbnail ke localStorage + Supabase (cross-device)
     try { localStorage.setItem(THUMBS_KEY(empId), JSON.stringify(_regThumbs)); } catch(e) {}
+    emp.faceThumbs = _regThumbs;
 
     try {
       await DB.saveEmployee(emp);
@@ -472,9 +473,20 @@ const FaceAttendanceModule = (() => {
 
   function _stopReg() { _stopStream(); _regSamples = []; _regThumbs = []; _regBusy = false; }
 
-  // Get saved thumbnails for an employee
+  // Get saved thumbnails for an employee (localStorage first, then Supabase data)
   function getEmpThumbs(empId) {
-    try { return JSON.parse(localStorage.getItem(THUMBS_KEY(empId)) || '[]'); } catch { return []; }
+    try {
+      const ls = JSON.parse(localStorage.getItem(THUMBS_KEY(empId)) || '[]');
+      if (ls.length) return ls;
+    } catch {}
+    // Fallback: check if saved in employee record (cross-device sync)
+    const emp = _employees.find(e => e.id === empId);
+    if (emp?.faceThumbs?.length) {
+      // Cache to localStorage for next time
+      try { localStorage.setItem(THUMBS_KEY(empId), JSON.stringify(emp.faceThumbs)); } catch {}
+      return emp.faceThumbs;
+    }
+    return [];
   }
 
   // =============================================

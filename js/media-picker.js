@@ -7,11 +7,16 @@
 const MediaPicker = (() => {
   'use strict';
 
-  // ── Compress image ──────────────────────────────────────
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+  const TIMEOUT_MS = 15000; // 15s timeout for compress/read
+
+  // ── Compress image with timeout ─────────────────────────
   function _compress(dataUrl, maxPx, quality) {
     return new Promise(resolve => {
+      const timer = setTimeout(() => { resolve(null); }, TIMEOUT_MS);
       const img = new Image();
       img.onload = () => {
+        clearTimeout(timer);
         let w = img.width, h = img.height;
         if (w > maxPx || h > maxPx) {
           if (w >= h) { h = Math.round(h * maxPx / w); w = maxPx; }
@@ -22,17 +27,22 @@ const MediaPicker = (() => {
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         resolve(canvas.toDataURL('image/jpeg', quality));
       };
-      img.onerror = () => resolve(null);
+      img.onerror = () => {
+        clearTimeout(timer);
+        if (typeof Notify !== 'undefined') Notify.error('Gambar tidak bisa diproses');
+        resolve(null);
+      };
       img.src = dataUrl;
     });
   }
 
-  // ── File → dataUrl ──────────────────────────────────────
+  // ── File → dataUrl with timeout ─────────────────────────
   function _read(file) {
     return new Promise((res, rej) => {
+      const timer = setTimeout(() => { rej(new Error('Timeout membaca file')); }, TIMEOUT_MS);
       const r = new FileReader();
-      r.onload  = e => res(e.target.result);
-      r.onerror = rej;
+      r.onload  = e => { clearTimeout(timer); res(e.target.result); };
+      r.onerror = () => { clearTimeout(timer); rej(new Error('Gagal membaca file')); };
       r.readAsDataURL(file);
     });
   }
@@ -73,7 +83,7 @@ const MediaPicker = (() => {
   async function _openInput(capture, opts) {
     const input = document.createElement('input');
     input.type   = 'file';
-    input.accept = 'image/*';
+    input.accept = opts.accept || 'image/*';
     if (capture) input.setAttribute('capture', 'environment');
     input.style.display = 'none';
     document.body.appendChild(input);
@@ -83,22 +93,38 @@ const MediaPicker = (() => {
         const file = input.files[0];
         input.remove();
         if (!file) { resolve(null); return; }
-        if (file.size > 10 * 1024 * 1024) {
+
+        // Size check BEFORE reading into memory
+        if (file.size > MAX_FILE_SIZE) {
           if (typeof Notify !== 'undefined') Notify.warning('File terlalu besar (maks 10MB)');
           resolve(null); return;
         }
-        const raw        = await _read(file);
-        const compressed = await _compress(raw, opts.maxPx, opts.quality);
-        if (!compressed) { resolve(null); return; }
 
-        if (opts.preview !== false) {
-          const ok = await _preview(compressed);
-          resolve(ok ? compressed : null);
-        } else {
-          resolve(compressed);
+        // MIME type validation
+        if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+          if (typeof Notify !== 'undefined') Notify.warning('Format file tidak didukung');
+          resolve(null); return;
+        }
+
+        try {
+          const raw = await _read(file);
+          const compressed = await _compress(raw, opts.maxPx, opts.quality);
+          if (!compressed) {
+            if (typeof Notify !== 'undefined') Notify.error('Gagal memproses foto');
+            resolve(null); return;
+          }
+          if (opts.preview !== false) {
+            const ok = await _preview(compressed);
+            resolve(ok ? compressed : null);
+          } else {
+            resolve(compressed);
+          }
+        } catch(e) {
+          if (typeof Notify !== 'undefined') Notify.error(e.message || 'Gagal memproses file');
+          resolve(null);
         }
       };
-      // Jika user cancel (tidak pilih file) — resolve null setelah focus kembali ke window
+      // Jika user cancel — resolve null setelah focus kembali ke window
       const onFocus = () => {
         window.removeEventListener('focus', onFocus);
         setTimeout(() => { if (!input.files?.length) { input.remove(); resolve(null); } }, 500);
