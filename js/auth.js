@@ -79,9 +79,13 @@ const Auth = {
     try { await DB.logActivity({ type: 'login', detail: 'Login berhasil' }); } catch {}
 
     // Daftarkan push token di background (tidak block login)
-    if (window.PushModule) {
-      setTimeout(() => PushModule.requestAndRegister(this._user).catch(() => {}), 2000);
-    }
+    setTimeout(async () => {
+      if (!window.PushModule) { console.warn('[Push] PushModule belum loaded'); return; }
+      try {
+        const token = await PushModule.requestAndRegister(this._user);
+        console.log('[Push] Token:', token ? 'OK ('+token.slice(0,20)+'...)' : 'GAGAL / ditolak');
+      } catch(e) { console.error('[Push] Register error:', e); }
+    }, 3000);
 
     return this._user;
   },

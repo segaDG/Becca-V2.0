@@ -1226,15 +1226,27 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         <div style="background:${C.NAVY_M};color:#fff;display:flex;align-items:center;justify-content:center;flex:1;font-weight:700;font-size:12px">${periodeStr}</div>
       </div>`;
 
-    const signArea = `
+    const signAreaRekap = `
       <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
         <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:180px">
           <div style="font-size:10px;color:#333;margin-bottom:46px">Karawang, ${periodeStr}</div>
           <div style="border-top:1px solid #333;width:160px;padding-top:3px;font-size:9px;color:${C.GRY}">Admin / Pembuat Invoice</div>
         </div>
         <div style="text-align:center;min-width:160px">
-          <div style="font-size:10px;color:#333;margin-bottom:6px">Materai</div>
-          <div style="margin-bottom:6px;font-size:8px;color:${C.GRY}">Rp 10.000</div>
+          <div style="margin-top:46px;border-top:1px solid #333;padding-top:3px">
+            <div style="font-weight:700;font-size:10px">Manager / PIC</div>
+            <div style="font-size:8px;color:${C.GRY}">${inv.customer}</div>
+          </div>
+        </div>
+      </div>`;
+    const signAreaInvoice = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
+        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:180px">
+          <div style="font-size:10px;color:#333;margin-bottom:46px">Karawang, ${periodeStr}</div>
+          <div style="border-top:1px solid #333;width:160px;padding-top:3px;font-size:9px;color:${C.GRY}">Admin / Pembuat Invoice</div>
+        </div>
+        <div style="text-align:center;min-width:160px">
+          <div style="font-size:8px;color:#ccc;margin-bottom:30px">Materai Rp 10.000</div>
           <div style="border-top:1px solid #333;width:160px;padding-top:3px">
             <div style="font-weight:700;font-size:10px">Manager / PIC</div>
             <div style="font-size:8px;color:${C.GRY}">${inv.customer}</div>
@@ -1303,22 +1315,16 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         };
         const stripe = i%2===0?'#ffffff':C.BP;
         return `<tr style="background:${stripe}">
-          <td style="padding:5px 8px;border:1px solid #dde3f0;width:24px"></td>
-          <td colspan="2" style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:left">${descMap[c.key]||c.label}</td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:left">${descMap[c.key]||c.label}</td>
           <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right">${rp(_getHarga(c.key))}</td>
           <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${qty}</td>
-          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:center"></td>
-          <td style="padding:5px 8px;border:1px solid #dde3f0;width:18px"></td>
           <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right;font-weight:700">${rp(qty*_getHarga(c.key))}</td>
         </tr>`;
       }).join('');
     } else {
       // Fallback: just show total
       invItemsHtml = `<tr>
-        <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
-        <td colspan="2" style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px">Food Catering Service</td>
-        <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
-        <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
+        <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px">Food Catering Service</td>
         <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
         <td style="padding:5px 8px;border:1px solid #dde3f0"></td>
         <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right;font-weight:700">${rp(subtotal)}</td>
@@ -1333,12 +1339,9 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         const desc = 'Additional — ' + (addDescMap[r.jenis] || r.jenis);
         const stripe = i%2===0 ? C.BP : '#ffffff';
         return `<tr style="background:${stripe}">
-          <td style="padding:5px 8px;border:1px solid #dde3f0;width:24px"></td>
-          <td colspan="2" style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:left;font-style:italic">${desc}</td>
+          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:left;font-style:italic">${desc}</td>
           <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right">${rp(r.harga)}</td>
           <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:center;font-weight:700">${r.qty}</td>
-          <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:center"></td>
-          <td style="padding:5px 8px;border:1px solid #dde3f0;width:18px"></td>
           <td style="padding:5px 8px;border:1px solid #dde3f0;font-size:9px;text-align:right;font-weight:700">${rp(r.qty * r.harga)}</td>
         </tr>`;
       }).join('');
@@ -1375,7 +1378,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     DESCRIPTION : FOOD CATERING SERVICE
   </div>
   ${rekapTableHtml}
-  ${signArea}
+  ${signAreaRekap}
 </div>
 
 <!-- PAGE 2: INVOICE -->
@@ -1387,13 +1390,10 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
   <table style="width:100%;border-collapse:collapse;margin-bottom:0">
     <thead>
       <tr style="background:${C.NAVY}">
-        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:22px"></th>
-        <th colspan="2" style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};text-align:left">DESCRIPTION</th>
-        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:88px">UNIT PRICE</th>
-        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:46px">QTY</th>
-        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:34px">TAXED<br>(Pb1)</th>
-        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:18px"></th>
-        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:88px;text-align:right">AMOUNT</th>
+        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};text-align:left">DESCRIPTION</th>
+        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:100px;text-align:right">UNIT PRICE</th>
+        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:50px;text-align:center">QTY</th>
+        <th style="padding:6px 8px;color:#fff;font-size:9px;font-weight:700;border:1px solid ${C.NAVY_M};width:110px;text-align:right">AMOUNT</th>
       </tr>
     </thead>
     <tbody>${invItemsHtml}</tbody>
@@ -1436,7 +1436,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     </div>
   </div>
 
-  ${signArea}
+  ${signAreaInvoice}
 
   <!-- Bank -->
   <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:8px 14px;border:1px solid #dde3f0;border-radius:4px;font-size:8px;color:${C.GRY};background:#fafbff">

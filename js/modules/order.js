@@ -712,7 +712,7 @@ const OrderModule = (() => {
     const newOrder = {
       id:'ord_'+Date.now(), timestamp:ts,
       pelapor:g('of-pelapor'), tglOrder:tgl, namaPerusahaan:cust,
-      catatan:g('of-jenis') || 'real orderan',
+      catatan: document.getElementById('of-jenis')?.value || 'real orderan',
       breakfast:n('of-bf'),
       shift1:n('of-s1'), spare1:n('of-sp1'), ot1:n('of-ot1'), snack1:n('of-snk1'),
       shift2:n('of-s2'), spare2:n('of-sp2'), ot2:n('of-ot2'), snack2:n('of-snk2'),
