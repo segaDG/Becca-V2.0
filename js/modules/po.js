@@ -12,6 +12,11 @@ else { window.POModule = (() => {
   const rpA = n => 'Rp '+Math.round(Number(n)||0).toLocaleString('id');
   const _COL = ['','namaBarang','qty','satuan','keterangan','harga','totalHarga','alokasiDanaReal'];
 
+  function _isFinance() {
+    const role = Auth.currentUser()?.role;
+    return role === 'superadmin' || role === 'finance';
+  }
+
   /* ── Chain helpers ─────────────────────────── */
   function _sortedChain() {
     return [..._data].sort((a,b) => (a.createdAt||'').localeCompare(b.createdAt||''));
@@ -43,6 +48,7 @@ else { window.POModule = (() => {
     }
     _data.sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
     _render(page);
+    _updateBadge();
   }
 
   /* ── Main render ───────────────────────────── */
@@ -107,6 +113,7 @@ else { window.POModule = (() => {
               <span style="font-size:11px;color:var(--text-3)">${d.periode||'-'}</span>
               ${isSelesai ? '<span style="font-size:9px;background:rgba(100,116,139,.15);color:#64748b;padding:1px 6px;border-radius:10px;font-weight:700">Selesai</span>' : ''}
               ${isConfirmed?'<span style="font-size:9px;background:rgba(16,185,129,.12);color:#10b981;padding:1px 6px;border-radius:10px;font-weight:700">✓ Confirmed</span>':''}
+              ${!isConfirmed && d.pendingFinance ? '<span style="font-size:9px;background:rgba(245,158,11,.12);color:#f59e0b;padding:1px 6px;border-radius:10px;font-weight:700">⏳ Pending Finance</span>' : ''}
               ${d.status==='arsip'?'<span style="font-size:9px;background:rgba(100,116,139,.1);color:var(--text-3);padding:1px 6px;border-radius:10px;font-weight:600">Arsip</span>':''}
             </div>
             <span style="font-size:11px;color:var(--text-3)">Oleh: ${d.namaPetugas||'-'}</span>
@@ -178,8 +185,16 @@ else { window.POModule = (() => {
         ${isArsip ? `<button onclick="POModule.unarsip('${id}')" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">Buka dari Arsip</button>` : ''}
         ${canEdit ? `<button onclick="POModule.deleteAnggaran('${id}')" style="padding:6px 12px;border:1px solid rgba(239,68,68,.3);border-radius:7px;background:rgba(239,68,68,.07);color:#ef4444;font-size:12px;cursor:pointer">Hapus</button>` : ''}
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-          ${doc.confirmedBy ? `<span style="font-size:11px;background:rgba(16,185,129,.1);color:#10b981;padding:4px 10px;border-radius:20px;font-weight:700">✓ Confirmed by ${doc.confirmedBy}</span>` :
-            Auth.can('po','edit') ? `<button onclick="POModule.confirmAnggaran('${id}')" style="padding:6px 14px;border:none;border-radius:7px;background:#10b981;color:#fff;font-size:12px;cursor:pointer;font-weight:700">✓ Konfirmasi Finance</button>` : '<span style="font-size:11px;color:#f59e0b">Belum dikonfirmasi</span>'}
+          ${doc.confirmedBy
+            ? `<span style="font-size:11px;background:rgba(16,185,129,.1);color:#10b981;padding:4px 10px;border-radius:20px;font-weight:700">✓ Confirmed by ${doc.confirmedBy}</span>`
+            : doc.pendingFinance
+              ? `<span style="font-size:11px;background:rgba(245,158,11,.1);color:#f59e0b;padding:4px 10px;border-radius:20px;font-weight:600">⏳ Menunggu konfirmasi finance</span>
+                 ${_isFinance() ? `<button onclick="POModule.confirmAnggaran('${id}')" style="padding:6px 14px;border:none;border-radius:7px;background:#10b981;color:#fff;font-size:12px;cursor:pointer;font-weight:700">✓ Konfirmasi</button>` : ''}`
+              : _isFinance()
+                ? `<button onclick="POModule.confirmAnggaran('${id}')" style="padding:6px 14px;border:none;border-radius:7px;background:#10b981;color:#fff;font-size:12px;cursor:pointer;font-weight:700">✓ Konfirmasi Finance</button>`
+                : Auth.can('po','edit')
+                  ? `<button onclick="POModule.ajukanFinance('${id}')" style="padding:6px 14px;border:none;border-radius:7px;background:#f59e0b;color:#fff;font-size:12px;cursor:pointer;font-weight:700">📩 Ajukan ke Finance</button>`
+                  : '<span style="font-size:11px;color:var(--text-3)">Belum dikonfirmasi</span>'}
         </div>
       </div>
 
@@ -565,9 +580,59 @@ else { window.POModule = (() => {
     if (!doc) return;
     doc.confirmedBy = nama;
     doc.confirmedAt = new Date().toISOString();
+    doc.pendingFinance = false;
     await DB.savePO(doc);
+    _updateBadge();
     Notify.success('Anggaran dikonfirmasi oleh ' + nama);
+    // Push notif ke pembuat anggaran bahwa sudah dikonfirmasi
+    if (window.Push && doc.namaPetugas) {
+      Push.sendToUser(doc.namaPetugas, {
+        title: '✅ Anggaran Dikonfirmasi',
+        body: `Anggaran ${doc.nomorEstimasi} telah dikonfirmasi oleh ${nama}`,
+        data: { type: 'po_confirmed', poId: doc.id }
+      }).catch(() => {});
+    }
     openAnggaran(id);
+  }
+
+  /* ── Ajukan ke Finance ─────────────────────── */
+  async function ajukanFinance(id) {
+    const doc = _data.find(d => d.id === id);
+    if (!doc) return;
+    const cu = Auth.currentUser();
+    const pengaju = cu?.nama || cu?.username || '-';
+    doc.pendingFinance = true;
+    doc.pendingBy = pengaju;
+    doc.pendingAt = new Date().toISOString();
+    await DB.savePO(doc);
+    _updateBadge();
+
+    // Push notification ke semua user role finance
+    if (window.Push) {
+      Push.sendToGroup({ role: 'finance' }, {
+        title: '📩 Pengajuan Konfirmasi Anggaran',
+        body: `${pengaju} mengajukan konfirmasi anggaran ${doc.nomorEstimasi||''} (${doc.periode||''})`,
+        data: { type: 'po_pending', poId: doc.id }
+      }).catch(() => {});
+    }
+
+    // In-app notification via Notify
+    Notify.success('Pengajuan dikirim ke Finance');
+    openAnggaran(id);
+  }
+
+  /* ── Badge on sidebar ──────────────────────── */
+  function _updateBadge() {
+    const badge = document.getElementById('po-nav-badge');
+    if (!badge) return;
+    // Count: finance sees pending requests, others see nothing
+    const count = _isFinance() ? _data.filter(d => d.pendingFinance && !d.confirmedBy).length : 0;
+    if (count > 0) {
+      badge.textContent = count > 9 ? '9+' : String(count);
+      badge.style.display = 'flex';
+    } else {
+      badge.style.display = 'none';
+    }
   }
 
   /* ── Duplikat ──────────────────────────────── */
@@ -721,7 +786,7 @@ else { window.POModule = (() => {
   }
 
   return { init, switchTab, addAnggaran, openAnggaran, backToList, arsipkan, unarsip,
-    selesaikan, reopenAnggaran, confirmAnggaran, duplikatAnggaran, deleteAnggaran,
+    selesaikan, reopenAnggaran, confirmAnggaran, ajukanFinance, duplikatAnggaran, deleteAnggaran,
     printAnggaran, kirimWA, _startEdit, _onEditKey, _liveCalc, _saveMeta, _addRows, _updateFooter,
     flushPendingEdit };
 })(); }

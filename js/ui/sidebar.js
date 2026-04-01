@@ -81,6 +81,7 @@ const Sidebar = {
           <span class="nav-icon">${item.icon}</span>
           <span class="nav-label">${item.label}</span>
           ${item.id === 'news' ? `<span id="news-nav-badge" style="display:none;background:#ef4444;color:#fff;border-radius:999px;font-size:9px;font-weight:700;min-width:16px;height:16px;align-items:center;justify-content:center;margin-left:auto;padding:0 4px"></span>` : ''}
+          ${item.id === 'po' ? `<span id="po-nav-badge" style="display:none;background:#ef4444;color:#fff;border-radius:999px;font-size:9px;font-weight:700;min-width:16px;height:16px;align-items:center;justify-content:center;margin-left:auto;padding:0 4px"></span>` : ''}
         </div>
       `;
     });
