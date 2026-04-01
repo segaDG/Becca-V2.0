@@ -94,9 +94,11 @@ window.POBelanjaPasarModule = (() => {
     // Get all unique dates from forms, sorted newest first
     const dateSet = new Set();
     _forms.forEach(f => { if (f.tanggal) dateSet.add(f.tanggal); });
+    console.log('[BP] yesterday cutoff:', yStr, '| all form dates:', [...dateSet].sort());
     const allDates = [...dateSet]
       .filter(d => d <= yStr)
       .sort((a,b) => b.localeCompare(a)); // newest first
+    console.log('[BP] filtered dates:', allDates);
 
     // Build grouped list
     let groupHtml = '';
