@@ -628,10 +628,10 @@ const InventoryModule = (() => {
         <td style="padding:5px 6px;font-weight:600;font-size:11px${noMatch?';color:#ef4444;text-decoration:line-through':''}">${it.item||''}</td>
         <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:700">${it.aktQty}</td>
         <td style="padding:4px 3px;text-align:center">
-          <input type="number" min="0" step="0.01" value="${it.aktQty}" data-sync-idx="${i}"
+          <input type="number" min="0" step="1" value="${it.aktQty}" data-sync-idx="${i}" data-harga="${_n(it.hargaSatuan)}" data-orig="${it.aktQty}"
             style="width:55px;padding:3px 4px;text-align:right;border:1px solid var(--border);border-radius:4px;
             font-size:11px;font-family:var(--font-mono);background:var(--surface);color:var(--text)"
-            onfocus="this.select()">
+            onfocus="this.select()" oninput="InventoryModule._updateSyncTotals()">
         </td>
         <td style="padding:5px 6px;text-align:center;font-size:10px;color:var(--text-3)">${it.satuan||''}</td>
         <td style="padding:5px 6px;text-align:center;font-size:9px">
@@ -660,6 +660,25 @@ const InventoryModule = (() => {
           <div style="text-align:right;font-size:11px;color:var(--text-3)">
             ${aktItems.length} item aktual &middot; ${syncedLogs.length} sudah sync
           </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          ${(()=>{
+            const aktTotal = aktItems.reduce((s,it)=>s+_n(it.aktQty)*_n(it.hargaSatuan),0);
+            const rp = n => 'Rp '+Math.round(n).toLocaleString('id');
+            return `
+            <div style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+              <div style="font-size:8px;font-weight:700;color:var(--text-3)">AKT TOTAL</div>
+              <div style="font-size:13px;font-weight:800;color:#6366f1;font-family:var(--font-mono)">${rp(aktTotal)}</div>
+            </div>
+            <div style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+              <div style="font-size:8px;font-weight:700;color:#f59e0b">REVISI TOTAL</div>
+              <div style="font-size:13px;font-weight:800;color:#f59e0b;font-family:var(--font-mono)" id="sync-revisi-total">${rp(aktTotal)}</div>
+            </div>
+            <div style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+              <div style="font-size:8px;font-weight:700;color:var(--text-3)">SELISIH</div>
+              <div style="font-size:13px;font-weight:800;color:#10b981;font-family:var(--font-mono)" id="sync-selisih-total">Rp 0</div>
+            </div>`;
+          })()}
         </div>
         <div style="font-size:10px;color:var(--text-3);margin-bottom:6px;display:flex;gap:12px">
           <span><span style="display:inline-block;width:10px;height:10px;background:rgba(99,102,241,.15);border-radius:2px;margin-right:3px;vertical-align:middle"></span>Baru</span>
@@ -708,6 +727,25 @@ const InventoryModule = (() => {
     if (cntEl) cntEl.textContent = cnt;
   }
 
+  function _updateSyncTotals() {
+    const rp = n => 'Rp '+Math.round(n).toLocaleString('id');
+    let revTotal = 0, origTotal = 0;
+    document.querySelectorAll('[data-sync-idx]').forEach(inp => {
+      const qty = parseFloat(inp.value)||0;
+      const harga = parseFloat(inp.dataset.harga)||0;
+      const orig = parseFloat(inp.dataset.orig)||0;
+      revTotal += qty * harga;
+      origTotal += orig * harga;
+      // Highlight border jika berubah
+      inp.style.borderColor = qty !== orig ? '#f59e0b' : 'var(--border)';
+    });
+    const selisih = revTotal - origTotal;
+    const revEl = document.getElementById('sync-revisi-total');
+    const selEl = document.getElementById('sync-selisih-total');
+    if (revEl) revEl.textContent = rp(revTotal);
+    if (selEl) { selEl.textContent = (selisih>=0?'+':'')+rp(Math.abs(selisih)); selEl.style.color = selisih>=0?'#10b981':'#ef4444'; }
+  }
+
   async function _confirmSync(formId) {
     let forms = [];
     try { forms = await DB.getDailyOrderForms(); } catch(e) {
@@ -741,6 +779,7 @@ const InventoryModule = (() => {
       if (revQty !== _n(it.aktQty)) {
         it.aktQty = revQty;
         it.aktTotal = revQty * _n(it.hargaSatuan);
+        it._syncRevised = true; // badge di form produksi
         revised++;
       }
 
@@ -1617,7 +1656,7 @@ const InventoryModule = (() => {
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">Jumlah <span class="req">*</span></label>
-              <input name="jumlah" type="number" min="0" step="0.01" class="form-control" value="0" required>
+              <input name="jumlah" type="number" min="0" step="1" class="form-control" value="0" required>
             </div>
             <div class="form-group">
               <label class="form-label">Harga/Unit (Rp)</label>
@@ -1808,7 +1847,7 @@ const InventoryModule = (() => {
                         <td class="text-muted text-small">${item.satuan||''}</td>
                         <td class="num" style="color:#6366f1;font-family:var(--font-mono)">${+stokSis.toFixed(2)}</td>
                         <td class="num">
-                          <input type="number" min="0" step="0.01"
+                          <input type="number" min="0" step="1"
                             id="op-in-${item.id}"
                             value="${hasDraft?draftVal:''}"
                             placeholder="${+stokSis.toFixed(2)}"
@@ -2539,7 +2578,7 @@ const InventoryModule = (() => {
     renderLaporanBulanan,
     renderSummary,
     setLogFilterNama, setLogFilterTgl, clearLogFilter, reArrangeInv,
-    syncFormProduksi, _toggleSyncCheck, _confirmSync,
+    syncFormProduksi, _toggleSyncCheck, _confirmSync, _updateSyncTotals,
   };
 
 })();

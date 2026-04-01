@@ -379,7 +379,7 @@ const KasModule = (() => {
       <td><input class="ks-inp" type="text" value="${(r.vendor||'').replace(/"/g,'&quot;')}" placeholder="Vendor"
             id="ks-vendor-${r.id}"
             onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
-      <td class="ks-num"><input class="ks-inp" type="number" min="0" step="0.01" value="${r.qty||0}"
+      <td class="ks-num"><input class="ks-inp" type="number" min="0" step="1" value="${r.qty||0}"
             id="ks-qty-${r.id}" oninput="KasModule._calcTotal('${r.id}')" style="text-align:right"
             onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
       <td><input class="ks-inp" type="text" value="${r.satuan||''}" list="ks-sat-lst" id="ks-sat-${r.id}"

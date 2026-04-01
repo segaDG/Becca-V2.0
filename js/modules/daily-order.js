@@ -145,10 +145,11 @@ const DailyOrderModule = (() => {
         gross += _n(o.snackBerat) * _n(c.hargaSnackBerat);
         qty = _n(o.snackBerat);
       }
-      // Potongan per customer: PPH23(2%), biaya box, biaya lainnya × QTY
+      // Potongan: PPH23 semua shift, biaya box & lainnya hanya meal shifts (bukan snack)
+      const isSnkShift = shift==='SNK1'||shift==='SNK2'||shift==='SNK3'||shift==='SNK4';
       const pphDed   = c.pph23 ? Math.round(gross * 0.02) : 0;
-      const boxDed   = _n(c.biayaBox) * qty;
-      const otherDed = _n(c.biayaLainnya) * qty;
+      const boxDed   = isSnkShift ? 0 : _n(c.biayaBox) * qty;
+      const otherDed = isSnkShift ? 0 : _n(c.biayaLainnya) * qty;
       total += gross - pphDed - boxDed - otherDed;
     });
     return total;
@@ -231,7 +232,6 @@ const DailyOrderModule = (() => {
       case 'summary':  el.innerHTML = _htmlSummary();      break;
     }
     if (_view === 'form') {
-      if (window.GridSelect) GridSelect.onPaste('do-grid', _onGridPaste);
       // Auto-select text on focus for edit inputs
       document.querySelectorAll('#do-content .form-control').forEach(el => {
         el.addEventListener('focus', () => { if (el.select) el.select(); }, {once:false});
@@ -801,10 +801,10 @@ const DailyOrderModule = (() => {
       let q2 = _n(o.shift2)+_n(o.spare2)+_n(o.ot2)+_n(o.shift3)+_n(o.spare3)+_n(o.ot3);
       const pph2 = c.pph23 ? Math.round(g2*0.02) : 0;
       const r2 = g2 - pph2 - _n(c.biayaBox)*q2 - _n(c.biayaLainnya)*q2;
-      // Snacks — apply same deductions (PPH23, biayaBox, biayaLainnya)
-      const _snkNet = (gross, qty) => {
+      // Snacks — hanya PPH23, TANPA biaya box & lainnya
+      const _snkNet = (gross) => {
         const p = c.pph23 ? Math.round(gross*0.02) : 0;
-        return gross - p - _n(c.biayaBox)*qty - _n(c.biayaLainnya)*qty;
+        return gross - p;
       };
       const sn1g = _n(o.snack1)*_n(c.hargaSnack1), sn1q = _n(o.snack1);
       const sn2g = _n(o.snack2)*_n(c.hargaSnack2), sn2q = _n(o.snack2);
@@ -812,8 +812,8 @@ const DailyOrderModule = (() => {
       const sn4g = _n(o.snackBerat)*_n(c.hargaSnackBerat), sn4q = _n(o.snackBerat);
       if(!_revCache[d]) _revCache[d] = {S1:0,S2:0,SNK1:0,SNK2:0,SNK3:0,SNK4:0};
       _revCache[d].S1 += r1; _revCache[d].S2 += r2;
-      _revCache[d].SNK1 += _snkNet(sn1g,sn1q); _revCache[d].SNK2 += _snkNet(sn2g,sn2q);
-      _revCache[d].SNK3 += _snkNet(sn3g,sn3q); _revCache[d].SNK4 += _snkNet(sn4g,sn4q);
+      _revCache[d].SNK1 += _snkNet(sn1g); _revCache[d].SNK2 += _snkNet(sn2g);
+      _revCache[d].SNK3 += _snkNet(sn3g); _revCache[d].SNK4 += _snkNet(sn4g);
     });
     function _dayOmset(dateStr) {
       const r = _revCache[dateStr]; if(!r) return 0;
@@ -1032,7 +1032,7 @@ const DailyOrderModule = (() => {
         <td data-field="di-item" style="padding:7px 5px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
         <td data-field="di-harga" style="padding:7px 5px;text-align:right;color:var(--text-3)">${_n(it.hargaSatuan)?_fmtRp(it.hargaSatuan):'-'}</td>
         <td data-field="di-harga" style="padding:7px 5px;text-align:right;color:#6366f1">${_n(it.estTotal)?_fmtRp(it.estTotal):'-'}</td>
-        <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">${it.aktQty||'-'}</td>
+        <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">${it.aktQty||'-'}${it._syncRevised?'<span style="font-size:7px;background:rgba(245,158,11,.15);color:#f59e0b;padding:0 3px;border-radius:3px;margin-left:2px;font-weight:700;vertical-align:middle">REV</span>':''}</td>
         <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?_fmtRp(it.aktTotal):'-'}</td>
         <td data-field="di-aktqty" style="padding:7px 5px;text-align:center">
           <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;
@@ -1069,7 +1069,7 @@ const DailyOrderModule = (() => {
         </td>
         <td style="padding:4px 3px">
           <input id="di-estqty" class="form-control" style="${inp('text-align:right;width:60px')}"
-            type="number" step="0.01" min="0" placeholder="0" value="${estQ0||''}"
+            type="number" step="1" min="0" placeholder="0" value="${estQ0||''}"
             oninput="DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._estQtyKeyDown(event)">
         </td>
@@ -1088,7 +1088,7 @@ const DailyOrderModule = (() => {
         </td>
         <td style="padding:4px 3px">
           <input id="di-aktqty" class="form-control" style="${inp('text-align:right;width:60px')}"
-            type="number" step="0.01" min="0" placeholder="0" value="${aktQ0||''}"
+            type="number" step="1" min="0" placeholder="0" value="${aktQ0||''}"
             oninput="DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._aktQtyKeyDown(event)">
         </td>
