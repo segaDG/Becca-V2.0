@@ -576,8 +576,16 @@ const DB = (() => {
           const isCorrupted = keys.length > 0 && keys.every(k => !isNaN(k));
           if (!isCorrupted) {
             // Sync privileges + customRoles ke localStorage agar Auth bisa baca antar device
+            // MERGE — DB wins per role+feature, tapi local menambahkan role/feature baru yang belum di DB
             if (parsed._privileges) {
-              try { localStorage.setItem('becca_privileges', JSON.stringify(parsed._privileges)); } catch {}
+              try {
+                const localPriv = JSON.parse(localStorage.getItem('becca_privileges') || '{}');
+                const merged = { ...localPriv };
+                Object.keys(parsed._privileges).forEach(role => {
+                  merged[role] = { ...(merged[role]||{}), ...parsed._privileges[role] };
+                });
+                localStorage.setItem('becca_privileges', JSON.stringify(merged));
+              } catch {}
             }
             if (parsed._customRoles && Array.isArray(parsed._customRoles)) {
               try { localStorage.setItem('becca_custom_roles', JSON.stringify(parsed._customRoles)); } catch {}
@@ -634,10 +642,11 @@ const DB = (() => {
     localStorage.setItem('becca_settings', JSON.stringify(merged));
 
     if (sb) {
-      await sb.from('settings').upsert(
+      const { error } = await sb.from('settings').upsert(
         { id: 'main', data: JSON.stringify(merged), updated_at: new Date().toISOString() },
         { onConflict: 'id' }
       );
+      if (error) throw new Error('Supabase settings upsert failed: ' + (error.message || JSON.stringify(error)));
     }
     return merged;
   };

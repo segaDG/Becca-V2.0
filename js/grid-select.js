@@ -104,7 +104,7 @@ const GridSelect = (() => {
     if (!td) return;
     const tbl = td.closest('table[data-grid-select]');
     if (!tbl) return;
-    if (td.closest('.ks-editing,.iv-editing') || e.target.closest('input,select,button')) return;
+    if (td.closest('.ks-editing,.iv-editing,.po-editing') || e.target.closest('input,select,button')) return;
     const pos = _rc(td); if (!pos) return;
     _clear();
     td.classList.add('gs-sel'); td.style.position = 'relative';

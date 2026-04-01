@@ -500,10 +500,22 @@ else { window.SettingsModule = (() => {
 
   /* ===================== TAB: PRIVILEGE ===================== */
   async function renderPrivilege() {
-    // Sync privileges dari DB dulu agar selalu up-to-date
+    // Sync privileges dari DB — MERGE dengan local, bukan replace
+    // Mencegah data role/modul baru hilang jika Supabase punya versi lama
+    let local = {};
+    try { local = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
     try {
       const settings = await DB.getSettings();
-      if (settings?._privileges) localStorage.setItem('becca_privileges', JSON.stringify(settings._privileges));
+      if (settings?._privileges) {
+        const db = settings._privileges;
+        // Deep merge per role per feature: DB wins, tapi local menambahkan role/feature yang belum ada di DB
+        const merged = { ...local };
+        Object.keys(db).forEach(role => {
+          if (!merged[role]) { merged[role] = { ...db[role] }; }
+          else { merged[role] = { ...merged[role], ...db[role] }; }
+        });
+        localStorage.setItem('becca_privileges', JSON.stringify(merged));
+      }
       if (settings?._customRoles) localStorage.setItem('becca_custom_roles', JSON.stringify(settings._customRoles));
     } catch(e) { console.warn('[Settings] sync privileges:', e); }
     let custom = {};
