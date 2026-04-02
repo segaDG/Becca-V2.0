@@ -655,7 +655,8 @@ const DailyOrderModule = (() => {
                     <th style="padding:7px 5px;text-align:right;color:var(--text-3);font-weight:600;white-space:nowrap">HARGA @</th>
                     <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600;white-space:nowrap">EST TOTAL</th>
                     <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600;white-space:nowrap">AKT QTY
-                      ${items.length > 0 ? `<button onclick="DailyOrderModule.copyEstToAkt()" title="Copy semua Est QTY ke Akt QTY"
+                      ${items.length > 0 && (Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'admin')
+                        ? `<button onclick="DailyOrderModule.copyEstToAkt()" title="Copy semua Est QTY ke Akt QTY (Admin only)"
                         style="margin-left:3px;padding:1px 5px;border:1px solid rgba(16,185,129,.4);border-radius:4px;background:rgba(16,185,129,.1);
                           color:#10b981;font-size:8px;font-weight:700;cursor:pointer;vertical-align:middle"
                         onmouseover="this.style.background='#10b981';this.style.color='#fff'"
@@ -1398,8 +1399,26 @@ const DailyOrderModule = (() => {
   function setMonth(m) { _summaryMonth = m; _renderContent(); }
 
   async function copyEstToAkt() {
+    // Only admin & superadmin can use this — normal flow is via Sync revisi
+    const role = Auth.currentUser()?.role;
+    if (role !== 'superadmin' && role !== 'admin') {
+      Notify.warning('Hanya Admin/Superadmin yang dapat Copy Est ke Akt. Gunakan Sync untuk revisi QTY.');
+      return;
+    }
     const form = _currentForm();
     if (!form || !form.items?.length) { Notify.warning('Tidak ada item untuk di-copy'); return; }
+
+    const ok = await Modal.confirm({
+      title: 'Copy Est QTY → Akt QTY',
+      message: `<div style="color:var(--text-2);font-size:13px">
+        <p>Data <strong>Akt QTY</strong> seharusnya diisi melalui <strong>revisi saat Sync ke Inventory</strong>.</p>
+        <p style="margin-top:8px">Fitur ini akan <strong>menimpa semua Akt QTY</strong> dengan nilai Est QTY tanpa proses revisi.</p>
+        <p style="margin-top:8px;color:#f59e0b;font-weight:600">⚠ Lanjutkan hanya jika Anda yakin.</p>
+      </div>`,
+      confirmText: 'Ya, Copy Est → Akt',
+    });
+    if (!ok) return;
+
     let copied = 0;
     form.items.forEach(it => {
       const est = _n(it.estQty);
@@ -1414,6 +1433,7 @@ const DailyOrderModule = (() => {
     form.updatedAt = new Date().toISOString();
     try {
       await DB.saveDailyOrderForm(form);
+      _calcAllSumber();
       _renderContent();
       Notify.success(`${copied} item: Est QTY → Akt QTY`);
     } catch(e) { Notify.error('Gagal menyimpan'); }
