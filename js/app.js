@@ -176,10 +176,75 @@ const App = {
     this._initTheme();
     this._startPresence();
     setTimeout(() => { if (typeof DBExtensions !== "undefined") DBExtensions.init(); }, 500);
+    // Update all sidebar badges after boot (inventory sync, kas belanja pasar, PO finance)
+    setTimeout(() => this._updateAllBadges(), 1500);
     // Force change password on first login
     if (sessionStorage.getItem('becca_must_change_pwd') === '1') {
       setTimeout(() => this._forceChangePasswordModal(), 500);
     }
+  },
+
+  // Global badge updater — runs on boot, updates sidebar badges without loading modules
+  async _updateAllBadges() {
+    try {
+      // Inventory sync badge (form produksi + belanja pasar pending)
+      const [forms, invLogs, bpDocs] = await Promise.all([
+        DB.getDailyOrderForms().catch(()=>[]),
+        DB.getInventory().catch(()=>[]),
+        DB.getBelanjaPasar().catch(()=>[]),
+      ]);
+      // Pending form produksi
+      const now = new Date();
+      const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate()-3);
+      const cutStr = cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
+      const _n = v => Number(v)||0;
+      const relevant = forms.filter(f => f.tanggal >= cutStr && (f.items||[]).some(it => _n(it.estQty)>0||_n(it.aktQty)>0));
+      let pendInv = relevant.filter(f => {
+        const st = 'do_'+(f.tanggal||'').replace(/-/g,'')+'_'+f.shift;
+        const sl = invLogs.filter(l=>l.syncTag===st);
+        const si = (f.items||[]).filter(it=>_n(it.estQty)>0||_n(it.aktQty)>0);
+        return sl.length < si.length;
+      }).length;
+      // Pending belanja pasar sync
+      pendInv += bpDocs.filter(d => {
+        if (d.kasStatus !== 'confirmed') return false;
+        const sl = invLogs.filter(l=>l.syncTag===('bp_'+d.id));
+        const si = (d.kasItems||[]).filter(it=>_n(it.aktQty)>0);
+        return sl.length < si.length;
+      }).length;
+      // Inventory sidebar badge
+      const invLink = document.querySelector('[data-page="inventory"]');
+      if (invLink) {
+        const old = invLink.querySelector('.sync-badge'); if (old) old.remove();
+        if (pendInv > 0) {
+          invLink.style.position = 'relative';
+          invLink.insertAdjacentHTML('beforeend',
+            `<span class="sync-badge" style="position:absolute;top:4px;right:4px;min-width:14px;height:14px;background:#ef4444;color:#fff;font-size:8px;font-weight:700;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 3px">${pendInv}</span>`);
+        }
+      }
+
+      // Kas belanja pasar badge
+      const pendKas = bpDocs.filter(d => d.status==='selesai' && d.kasStatus!=='confirmed').length;
+      const kasLink = document.querySelector('[data-page="kas"]');
+      if (kasLink) {
+        const old = kasLink.querySelector('.bp-side-badge'); if (old) old.remove();
+        if (pendKas > 0) {
+          kasLink.style.position = 'relative';
+          kasLink.insertAdjacentHTML('beforeend',
+            `<span class="bp-side-badge" style="position:absolute;top:4px;right:4px;min-width:14px;height:14px;background:#ef4444;color:#fff;font-size:8px;font-weight:700;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 3px">${pendKas}</span>`);
+        }
+      }
+
+      // PO finance pending badge
+      const poDocs = await DB.getPO().catch(()=>[]);
+      const isFinance = Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'finance';
+      const pendPO = isFinance ? poDocs.filter(d => d.pendingFinance && !d.confirmedBy).length : 0;
+      const poBadge = document.getElementById('po-nav-badge');
+      if (poBadge) {
+        if (pendPO > 0) { poBadge.textContent = pendPO>9?'9+':String(pendPO); poBadge.style.display = 'flex'; }
+        else { poBadge.style.display = 'none'; }
+      }
+    } catch(e) { console.warn('[Badges]', e); }
   },
 
   _hideLoading() {
