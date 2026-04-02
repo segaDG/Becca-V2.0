@@ -152,26 +152,37 @@ const DBExtensions = (() => {
       },
 
       // ── Key tables for cross-device sync ──
+      // For modules with inline editing (kas, inventory, ap, daily-order, po):
+      // Only re-init if user is NOT currently on that page (cross-device sync).
+      // If user IS on the page, their local state is already up-to-date from their own save.
+      // This prevents realtime from destroying edit state / causing full page refresh.
       inv_activities: () => {
-        if (window.App?._currentPage === 'inventory') _rtDebounce('inv', () => InventoryModule?.init?.());
+        if (window.App?._currentPage !== 'inventory') return;
+        // Only refresh if NOT actively editing
+        _rtDebounce('inv', () => { if (!window.InventoryModule?._editingId) InventoryModule?.init?.(); }, 2000);
       },
       ap: () => {
-        if (window.App?._currentPage === 'ap') _rtDebounce('ap', () => APModule?.init?.());
+        if (window.App?._currentPage !== 'ap') return;
+        _rtDebounce('ap', () => { if (!window.APModule?._editingId) APModule?.init?.(); }, 2000);
       },
       kas: () => {
-        if (window.App?._currentPage === 'kas') _rtDebounce('kas', () => KasModule?.init?.());
+        // Skip re-init when user is on kas page — their local state is fresh
+        // Only useful for cross-device sync (user on DIFFERENT page)
+        if (window.App?._currentPage === 'kas') return;
       },
       daily_order_forms: () => {
-        if (window.App?._currentPage === 'daily-order') _rtDebounce('do', () => DailyOrderModule?.init?.());
+        if (window.App?._currentPage !== 'daily-order') return;
+        _rtDebounce('do', () => DailyOrderModule?.init?.(), 2000);
       },
       news: () => {
-        if (window.App?._currentPage === 'news') _rtDebounce('news', () => NewsModule?.init?.());
+        if (window.App?._currentPage === 'news') _rtDebounce('news', () => NewsModule?.init?.(), 2000);
       },
       po_anggaran: () => {
-        if (window.App?._currentPage === 'po') _rtDebounce('po', () => POModule?.init?.());
+        if (window.App?._currentPage === 'po') return; // PO has inline edit
       },
       employees: () => {
-        if (window.App?._currentPage === 'employee') _rtDebounce('employee', () => EmployeeModule?.init?.());
+        if (window.App?._currentPage !== 'employee') return;
+        _rtDebounce('employee', () => EmployeeModule?.init?.(), 2000);
       },
     });
   }
