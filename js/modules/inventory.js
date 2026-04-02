@@ -1021,7 +1021,9 @@ const InventoryModule = (() => {
         kodeAktivitas: 'BELANJA PASAR', hpp: false,
         pengambil: 'Belanja Pasar',
         penanggungJawab: Auth.currentUser()?.nama || 'Sync',
-        catatan: doc.periode || '', syncTag,
+        catatan: doc.periode || '',
+        syncTag,
+        sourceFormIds: (doc.selectedForms||[]).map(sf => sf.formId),
       };
       try {
         const saved = await DB.saveInventoryLog(logData);

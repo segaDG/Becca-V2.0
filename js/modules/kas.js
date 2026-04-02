@@ -1669,6 +1669,7 @@ const KasModule = (() => {
             <div>
               <span style="font-size:13px;font-weight:700">🛒 ${d.periode||'-'}</span>
               <span style="font-size:11px;color:var(--text-3);margin-left:8px">${d.namaPetugas||'-'}</span>
+              ${(d.selectedForms||[]).length ? `<div style="font-size:9px;color:var(--text-3);margin-top:2px">Form: ${(d.selectedForms||[]).map(sf => sf.tanggal?.slice(5)+' '+({S1:'S1',S2:'S2&3'}[sf.shift]||sf.shift)).join(', ')}</div>` : ''}
             </div>
             <div style="display:flex;align-items:center;gap:8px">
               ${isConfirmed
@@ -1757,6 +1758,7 @@ const KasModule = (() => {
   async function confirmBelanjaPasar(docId) {
     const doc = _bpDocs.find(d => d.id === docId);
     if (!doc) return;
+    if (doc.kasStatus === 'confirmed') { Notify.info('Sudah dikonfirmasi sebelumnya'); return; }
     const cu = Auth.currentUser();
     const ok = await Modal.confirm({
       title: 'Konfirmasi Belanja Pasar',

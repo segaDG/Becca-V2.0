@@ -92,6 +92,13 @@ window.POBelanjaPasarModule = (() => {
     _forms.forEach(f => { if (f.tanggal) dateSet.add(f.tanggal); });
     const allDates = [...dateSet].filter(d => d >= yStr).sort((a,b) => a.localeCompare(b));
 
+    // Collect formIds already used in OTHER belanja pasar docs (prevent double-use)
+    const usedFormIds = new Set();
+    _data.forEach(bp => {
+      if (bp.id === _doc?.id) return; // exclude current doc being edited
+      (bp.selectedForms||[]).forEach(sf => { if (sf.formId) usedFormIds.add(sf.formId); });
+    });
+
     let groupHtml = '';
     allDates.forEach(d => {
       const s1 = _forms.find(f => f.tanggal === d && f.shift === 'S1');
@@ -99,6 +106,8 @@ window.POBelanjaPasarModule = (() => {
       if (!s1 && !s2) return;
       const s1Count = s1 ? (s1.items||[]).filter(it=>it.item).length : 0;
       const s2Count = s2 ? (s2.items||[]).filter(it=>it.item).length : 0;
+      const s1Used = s1 && usedFormIds.has(s1.id);
+      const s2Used = s2 && usedFormIds.has(s2.id);
       const alreadySelected = (_doc.selectedForms||[]).some(sf => sf.tanggal === d);
 
       groupHtml += `
@@ -112,18 +121,22 @@ window.POBelanjaPasarModule = (() => {
             <span style="font-size:11px;color:var(--text-3)">${_dayName(d)}</span>
           </div>
           <div style="padding:6px 12px;display:flex;gap:12px">
-            ${s1 ? `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 0">
+            ${s1 ? (s1Used
+              ? `<span style="font-size:11px;color:#f59e0b;padding:4px 0;font-weight:600">Shift 1 <span style="font-size:9px;background:rgba(245,158,11,.1);padding:1px 5px;border-radius:3px">sudah dipakai</span></span>`
+              : `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 0">
               <input type="checkbox" class="bp-form-chk" data-tanggal="${d}" data-shift="S1" data-fid="${s1.id}"
                 ${alreadySelected?'checked':''} style="width:14px;height:14px;accent-color:#059669">
               <span style="font-size:12px">Shift 1</span>
               <span style="font-size:10px;color:var(--text-3);font-weight:600">${s1Count} items</span>
-            </label>` : '<span style="font-size:11px;color:var(--text-3);padding:4px 0">Shift 1: —</span>'}
-            ${s2 ? `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 0">
+            </label>`) : '<span style="font-size:11px;color:var(--text-3);padding:4px 0">Shift 1: —</span>'}
+            ${s2 ? (s2Used
+              ? `<span style="font-size:11px;color:#f59e0b;padding:4px 0;font-weight:600">Shift 2&3 <span style="font-size:9px;background:rgba(245,158,11,.1);padding:1px 5px;border-radius:3px">sudah dipakai</span></span>`
+              : `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 0">
               <input type="checkbox" class="bp-form-chk" data-tanggal="${d}" data-shift="S2" data-fid="${s2.id}"
                 ${alreadySelected?'checked':''} style="width:14px;height:14px;accent-color:#059669">
               <span style="font-size:12px">Shift 2&3</span>
               <span style="font-size:10px;color:var(--text-3);font-weight:600">${s2Count} items</span>
-            </label>` : '<span style="font-size:11px;color:var(--text-3);padding:4px 0">Shift 2&3: —</span>'}
+            </label>`) : '<span style="font-size:11px;color:var(--text-3);padding:4px 0">Shift 2&3: —</span>'}
           </div>
         </div>`;
     });
