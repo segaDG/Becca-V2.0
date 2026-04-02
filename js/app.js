@@ -14,9 +14,9 @@ const App = {
     news      : 'js/modules/news.js?v=20260401a',
     kas       : 'js/modules/kas.js?v=20260402j',
     'daily-order': 'js/modules/daily-order.js?v=20260402d',
-    inventory : 'js/modules/inventory.js?v=20260402j',
+    inventory : 'js/modules/inventory.js?v=20260403a',
     employee  : 'js/modules/employee.js?v=20260401b',
-    ap        : 'js/modules/ap.js?v=20260402f',
+    ap        : 'js/modules/ap.js?v=20260403a',
     po        : 'js/modules/po.js?v=20260402d',
     task      : 'js/modules/task.js?v=20260330i',
     report    : 'js/modules/report.js?v=20260326r',
@@ -718,7 +718,6 @@ const App = {
     const t = this._THEMES.find(x => x.id === themeId);
     if (!t) return;
     const r = document.documentElement.style;
-    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
 
     r.setProperty('--primary', t.primary);
     r.setProperty('--primary-h', t.primaryH);

@@ -8,6 +8,20 @@ const Utils = {
   MONTHS: ['Januari','Februari','Maret','April','Mei','Juni',
            'Juli','Agustus','September','Oktober','November','Desember'],
 
+  // Parse number — handles Indonesian format "3.000" = 3000, "1.500,5" = 1500.5
+  parseNum(v) {
+    if (typeof v === 'number') return v;
+    if (!v) return 0;
+    let s = String(v).replace(/[Rp\s\u00a0]/g, '');
+    // Indonesian: dots as thousand sep, comma as decimal → "1.000.500,5"
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+    // Indonesian without decimal: "3.000" "50.000"
+    else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+    // Comma as decimal only: "1500,5"
+    else if (/^\d+,\d+$/.test(s)) s = s.replace(',', '.');
+    return parseFloat(s) || 0;
+  },
+
   // Format Rupiah
   formatRupiah(n, compact = false) {
     n = parseFloat(n) || 0;

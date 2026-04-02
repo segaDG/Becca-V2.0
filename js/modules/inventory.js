@@ -1889,7 +1889,7 @@ const InventoryModule = (() => {
     const data = Object.fromEntries(fd.entries());
     if (!data.nama || !data.satuan) { Notify.warning('Nama dan Satuan wajib diisi'); return; }
     data.stokMin      = parseInt(data.stokMin)     || 0;
-    data.hargaSatuan  = parseInt(data.hargaSatuan) || 0;
+    data.hargaSatuan  = Utils.parseNum(data.hargaSatuan);
     if (editId) data.id = editId;
     try {
       const saved = await DB.saveInventoryItem(data);
@@ -1999,7 +1999,7 @@ const InventoryModule = (() => {
     const data = Object.fromEntries(fd.entries());
     if (!data.itemId || !data.jumlah) { Notify.warning('Barang dan Jumlah wajib diisi'); return; }
     data.jumlah = parseFloat(data.jumlah) || 0;
-    data.harga  = parseInt(data.harga)    || 0;
+    data.harga  = Utils.parseNum(data.harga);
     // Find item name
     const item  = _items.find(i => i.id === data.itemId);
     data.itemNama = item?.nama || '';
@@ -2881,6 +2881,7 @@ const InventoryModule = (() => {
     setLogFilterNama, setLogFilterTgl, clearLogFilter, reArrangeInv,
     syncFormProduksi, _toggleSyncCheck, _confirmSync, _updateSyncTotals,
     syncBelanjaPasar, _toggleBPSyncCheck, _confirmBPSync, deleteBPSync,
+    get _invEditId() { return _invEditId; },
   };
 
 })();

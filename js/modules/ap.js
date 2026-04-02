@@ -280,7 +280,7 @@ const APModule = (() => {
         +'<td style="'+tdL+'">'+(r.satuan||'-')+'</td>'
         +'<td style="'+tdR+'">'+((r.hargaSatuan||r.harga_satuan) ? Utils.formatRupiah(r.hargaSatuan||r.harga_satuan) : '-')+'</td>'
         +'<td style="'+tdR+';font-weight:600">'+Utils.formatRupiah(r.total)+'</td>'
-        +'<td style="'+tdL+';white-space:nowrap">'+(r.tgl_bayar||'-')+'</td>'
+        +'<td style="'+tdL+';white-space:nowrap">'+(r.tglBayar||r.tgl_bayar||'-')+'</td>'
         +'<td style="'+tdL+'">'+(r.kodeAktivitas||'-')+'</td>'
         +'<td style="'+tdC+'">'+(r.jatuhTempo||'-')+'</td>'
         +'<td style="'+tdC+'">'+badge+'</td>'
@@ -606,7 +606,7 @@ const APModule = (() => {
     data.total       = parseFloat(data.total)       || 0;
     data.terbayar    = parseFloat(data.terbayar)    || 0;
     data.qty         = parseFloat(data.qty)         || 0;
-    data.hargaSatuan = parseFloat(data.hargaSatuan) || 0;
+    data.hargaSatuan = Utils.parseNum(data.hargaSatuan);
     // Normalize keterangan field
     if (!data.keterangan) data.keterangan = data.ket || '';
     if (editId) data.id = editId;
@@ -1582,6 +1582,7 @@ const APModule = (() => {
 
   function reArrangeAP() { _ap.sort((a,b)=>((b.tgl_transaksi||b.tgl||'')).localeCompare((a.tgl_transaksi||a.tgl||''))); _apPage=1; applyFilter(); Notify.success('Data diurutkan berdasarkan tanggal'); }
 
-  return { init, render, filterBelum, applyFilter, resetFilter, reArrangeAP, goApPage, setApPerPage, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, apAddRow, _apKey };
+  return { init, render, filterBelum, applyFilter, resetFilter, reArrangeAP, goApPage, setApPerPage, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, apAddRow, _apKey,
+    get _apEditId() { return _apEditId; } };
 })();
 window.APModule = APModule;

@@ -158,12 +158,11 @@ const DBExtensions = (() => {
       // This prevents realtime from destroying edit state / causing full page refresh.
       inv_activities: () => {
         if (window.App?._currentPage !== 'inventory') return;
-        // Only refresh if NOT actively editing
-        _rtDebounce('inv', () => { if (!window.InventoryModule?._editingId) InventoryModule?.init?.(); }, 2000);
+        _rtDebounce('inv', () => { if (!window.InventoryModule?._invEditId) InventoryModule?.init?.(); }, 2000);
       },
       ap: () => {
         if (window.App?._currentPage !== 'ap') return;
-        _rtDebounce('ap', () => { if (!window.APModule?._editingId) APModule?.init?.(); }, 2000);
+        _rtDebounce('ap', () => { if (!window.APModule?._apEditId) APModule?.init?.(); }, 2000);
       },
       kas: () => {
         // Skip re-init when user is on kas page — their local state is fresh
