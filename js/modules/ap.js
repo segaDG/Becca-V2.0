@@ -563,7 +563,7 @@ const APModule = (() => {
         <span>${saved.nama}</span>
         <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="APModule._deleteSupplier('${saved.id}')">Hapus</button>
       </div>
-    `;
+    `);
     document.getElementById('new-sup-name').value = '';
   }
 

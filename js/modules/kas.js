@@ -1703,8 +1703,7 @@ const KasModule = (() => {
                 </tr>`;
               }).join('')}</tbody>
               <tfoot><tr style="border-top:2px solid var(--border);background:var(--surface2)">
-                <td colspan="3"></td>
-                <td style="padding:8px 6px;text-align:right;font-size:10px;color:var(--text-3);font-weight:600">${rp(estGrandTotal)}</td>
+                <td colspan="5"></td>
                 <td colspan="2" style="padding:8px;text-align:right;font-weight:700">Grand Total</td>
                 <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);font-weight:800;color:#059669;font-size:13px" id="bp-kas-grand-${d.id}">${rp(aktGrandTotal)}</td>
               </tr></tfoot>
