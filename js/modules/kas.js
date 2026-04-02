@@ -168,11 +168,13 @@ const KasModule = (() => {
       </div>
       <div class="tabs">
         <button class="tab-btn active" data-tab="transaksi" onclick="KasModule.switchTab('transaksi')">Transaksi</button>
+        <button class="tab-btn" data-tab="belanjaPasar" onclick="KasModule.switchTab('belanjaPasar')">Belanja Pasar</button>
         <button class="tab-btn" data-tab="summary"   onclick="KasModule.switchTab('summary')">Summary</button>
         <button class="tab-btn" data-tab="monthly"   onclick="KasModule.switchTab('monthly')">Monthly Report</button>
         <button class="tab-btn" data-tab="cashflow"  onclick="KasModule.switchTab('cashflow')">Cash Flow</button>
       </div>
       <div id="kas-tab-transaksi"></div>
+      <div id="kas-tab-belanjaPasar" style="display:none"></div>
       <div id="kas-tab-summary"  style="display:none"></div>
       <div id="kas-tab-monthly"  style="display:none"></div>
       <div id="kas-tab-cashflow" style="display:none"></div>
@@ -181,7 +183,7 @@ const KasModule = (() => {
 
   function switchTab(tab) {
     _activeTab = tab;
-    ['transaksi','summary','monthly','cashflow'].forEach(t => {
+    ['transaksi','belanjaPasar','summary','monthly','cashflow'].forEach(t => {
       const el = document.getElementById('kas-tab-'+t);
       if (el) el.style.display = t===tab?'':'none';
       document.querySelector('[data-tab="'+t+'"]')?.classList.toggle('active', t===tab);
@@ -192,6 +194,7 @@ const KasModule = (() => {
          <button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>`
       : '';
     if (tab==='transaksi') { UndoRedo.setActive('kas'); renderTransaksi(); _renderBalanceCards(); }
+    else if (tab==='belanjaPasar') renderBelanjaPasar();
     else if (tab==='summary')  renderSummary();
     else if (tab==='monthly')  renderMonthly();
     else if (tab==='cashflow') renderCashflow();
@@ -1601,6 +1604,150 @@ const KasModule = (() => {
     if (saved) { Notify.success(saved+' baris di-paste'); renderTransaksi(); }
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit };
+  /* ===================== TAB: BELANJA PASAR ===================== */
+  let _bpDocs = [];
+  async function renderBelanjaPasar() {
+    const el = document.getElementById('kas-tab-belanjaPasar');
+    if (!el) return;
+    try { _bpDocs = await DB.getBelanjaPasar(); } catch { _bpDocs = []; }
+    // Only show docs that are 'selesai' from PO module
+    const docs = _bpDocs.filter(d => d.status === 'selesai').sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    if (!docs.length) {
+      el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)"><div style="font-size:28px;margin-bottom:8px">🛒</div>Belum ada Form Belanja Pasar yang selesai</div>';
+      return;
+    }
+    const rp = n => n ? 'Rp '+Math.round(Number(n)).toLocaleString('id') : '-';
+    el.innerHTML = docs.map(d => {
+      const isConfirmed = d.kasStatus === 'confirmed';
+      const items = d.kasItems?.length ? d.kasItems : (d.items||[]).filter(it=>it.item).map(it => ({
+        item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
+      }));
+      const aktGrandTotal = items.reduce((s,it) => s + (Number(it.aktQty)||0)*(Number(it.aktHarga)||0), 0);
+      const estGrandTotal = items.reduce((s,it) => s + (Number(it.estQty)||0)*(Number(it.aktHarga)||Number(it.harga)||0), 0);
+      return `
+        <div style="background:var(--surface);border:1px solid ${isConfirmed?'rgba(16,185,129,.3)':'var(--border)'};border-radius:10px;margin-bottom:12px;overflow:hidden">
+          <div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);background:${isConfirmed?'rgba(16,185,129,.04)':'var(--surface2)'}">
+            <div>
+              <span style="font-size:13px;font-weight:700">🛒 ${d.periode||'-'}</span>
+              <span style="font-size:11px;color:var(--text-3);margin-left:8px">${d.namaPetugas||'-'}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              ${isConfirmed
+                ? `<span style="font-size:10px;background:rgba(16,185,129,.12);color:#10b981;padding:2px 8px;border-radius:10px;font-weight:700">✓ Terkonfirmasi</span>
+                   <span style="font-size:10px;color:var(--text-3)">oleh ${d.kasConfirmedBy||'-'}</span>`
+                : `<button onclick="KasModule.confirmBelanjaPasar('${d.id}')" style="padding:5px 14px;border:none;border-radius:6px;background:#059669;color:#fff;font-size:11px;cursor:pointer;font-weight:700">Konfirmasi</button>`}
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:800px">
+              <thead><tr style="background:var(--surface2)">
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;width:28px">#</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:left">ITEM</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;width:50px">SATUAN</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:70px">EST QTY</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:80px;color:#059669">AKT QTY</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:100px;color:#059669">AKT HARGA</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:110px;color:#059669">TOTAL HARGA</th>
+              </tr></thead>
+              <tbody>${items.map((it,i) => {
+                const aktT = (Number(it.aktQty)||0) * (Number(it.aktHarga)||0);
+                return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.012)':''}">
+                  <td style="padding:10px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
+                  <td style="padding:10px 8px;font-weight:600">${it.item}</td>
+                  <td style="padding:10px 6px;color:var(--text-2)">${it.satuan}</td>
+                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${it.estQty||'-'}</td>
+                  <td style="padding:6px 4px;text-align:right">
+                    ${isConfirmed
+                      ? `<span style="font-family:var(--font-mono);font-weight:600;color:#059669">${it.aktQty}</span>`
+                      : `<input type="number" min="0" step="0.5" value="${it.aktQty||0}" data-doc="${d.id}" data-idx="${i}" data-field="aktQty"
+                          onchange="KasModule._bpCellChange('${d.id}',${i})"
+                          style="width:70px;border:1px solid var(--border);border-radius:4px;padding:5px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)" onfocus="this.select()">`}
+                  </td>
+                  <td style="padding:6px 4px;text-align:right">
+                    ${isConfirmed
+                      ? `<span style="font-family:var(--font-mono);font-weight:600">${rp(it.aktHarga)}</span>`
+                      : `<input type="number" min="0" step="100" value="${it.aktHarga||0}" data-doc="${d.id}" data-idx="${i}" data-field="aktHarga"
+                          onchange="KasModule._bpCellChange('${d.id}',${i})"
+                          style="width:90px;border:1px solid var(--border);border-radius:4px;padding:5px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)" onfocus="this.select()">`}
+                  </td>
+                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);font-weight:700;color:#059669" id="bp-kas-total-${d.id}-${i}">${rp(aktT)}</td>
+                </tr>`;
+              }).join('')}</tbody>
+              <tfoot><tr style="border-top:2px solid var(--border);background:var(--surface2)">
+                <td colspan="3"></td>
+                <td style="padding:8px 6px;text-align:right;font-size:10px;color:var(--text-3);font-weight:600">${rp(estGrandTotal)}</td>
+                <td colspan="2" style="padding:8px;text-align:right;font-weight:700">Grand Total</td>
+                <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);font-weight:800;color:#059669;font-size:13px" id="bp-kas-grand-${d.id}">${rp(aktGrandTotal)}</td>
+              </tr></tfoot>
+            </table>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function _bpCellChange(docId, idx) {
+    const doc = _bpDocs.find(d => d.id === docId);
+    if (!doc) return;
+    // Initialize kasItems if not yet
+    if (!doc.kasItems?.length) {
+      doc.kasItems = (doc.items||[]).filter(it=>it.item).map(it => ({
+        item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
+      }));
+    }
+    const it = doc.kasItems[idx];
+    if (!it) return;
+    // Read from DOM
+    const qtyInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${idx}"][data-field="aktQty"]`);
+    const hrgInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${idx}"][data-field="aktHarga"]`);
+    if (qtyInp) it.aktQty = parseFloat(qtyInp.value)||0;
+    if (hrgInp) it.aktHarga = parseFloat(hrgInp.value)||0;
+    it.aktTotal = it.aktQty * it.aktHarga;
+    // Update total cell
+    const rp = n => n ? 'Rp '+Math.round(Number(n)).toLocaleString('id') : '-';
+    const tEl = document.getElementById(`bp-kas-total-${docId}-${idx}`);
+    if (tEl) tEl.textContent = rp(it.aktTotal);
+    const gEl = document.getElementById(`bp-kas-grand-${docId}`);
+    if (gEl) gEl.textContent = rp(doc.kasItems.reduce((s,i) => s + (Number(i.aktQty)||0)*(Number(i.aktHarga)||0), 0));
+    // Auto-save
+    DB.saveBelanjaPasar(doc).catch(() => {});
+  }
+
+  async function confirmBelanjaPasar(docId) {
+    const doc = _bpDocs.find(d => d.id === docId);
+    if (!doc) return;
+    const cu = Auth.currentUser();
+    const ok = await Modal.confirm({
+      title: 'Konfirmasi Belanja Pasar',
+      message: `<p>Konfirmasi bahwa data <strong>AKT QTY</strong> dan <strong>AKT Harga</strong> sudah benar.</p>
+        <p style="margin-top:8px;color:#f59e0b;font-weight:600">⚠ Setelah konfirmasi, data tidak bisa diubah dan akan diteruskan ke Inventory.</p>`,
+      confirmText: 'Ya, Konfirmasi',
+    });
+    if (!ok) return;
+    // Ensure kasItems populated
+    if (!doc.kasItems?.length) {
+      doc.kasItems = (doc.items||[]).filter(it=>it.item).map(it => ({
+        item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
+      }));
+    }
+    // Read latest from DOM
+    doc.kasItems.forEach((it, i) => {
+      const qtyInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${i}"][data-field="aktQty"]`);
+      const hrgInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${i}"][data-field="aktHarga"]`);
+      if (qtyInp) it.aktQty = parseFloat(qtyInp.value)||0;
+      if (hrgInp) it.aktHarga = parseFloat(hrgInp.value)||0;
+      it.aktTotal = it.aktQty * it.aktHarga;
+    });
+    doc.kasStatus = 'confirmed';
+    doc.kasConfirmedAt = new Date().toISOString();
+    doc.kasConfirmedBy = cu?.nama || cu?.username || '-';
+    try {
+      await DB.saveBelanjaPasar(doc);
+      Notify.success('Belanja pasar dikonfirmasi');
+      renderBelanjaPasar();
+      DB.logActivity({type:'confirm_belanja_pasar', detail:'Konfirmasi belanja pasar: '+doc.periode});
+    } catch(e) { Notify.error('Gagal menyimpan: '+(e.message||'')); }
+  }
+
+  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, renderBelanjaPasar, confirmBelanjaPasar, _bpCellChange };
 })();
 window.KasModule = KasModule;

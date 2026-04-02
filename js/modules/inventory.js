@@ -595,6 +595,40 @@ const InventoryModule = (() => {
         </div>
         <div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px">${cards}</div>
       </div>`;
+
+    // ── Belanja Pasar sync section ──
+    let bpDocs = [];
+    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
+    const confirmedBP = bpDocs.filter(d => d.kasStatus === 'confirmed');
+    if (confirmedBP.length) {
+      const bpCards = confirmedBP.map(d => {
+        const syncTag = 'bp_' + d.id;
+        const syncedLogs = _logs.filter(l => l.syncTag === syncTag);
+        const bpItems = (d.kasItems||[]).filter(it => _n(it.aktQty) > 0);
+        const totalItems = bpItems.length;
+        const syncedCount = syncedLogs.length;
+        const isFullSync = syncedCount >= totalItems;
+        const statusColor = isFullSync ? '#0891b2' : syncedCount > 0 ? '#f59e0b' : 'var(--text-3)';
+        const statusText = isFullSync ? 'Synced' : syncedCount > 0 ? 'Partial' : 'Belum';
+        const statusBg = isFullSync ? 'rgba(8,145,178,.1)' : syncedCount > 0 ? 'rgba(245,158,11,.1)' : 'var(--surface2)';
+        return `<button onclick="InventoryModule.syncBelanjaPasar('${d.id}')" title="Belanja Pasar: ${d.periode}"
+          style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
+          border:1px solid ${isFullSync?'rgba(8,145,178,.3)':syncedCount>0?'rgba(245,158,11,.3)':'var(--border)'};
+          border-radius:8px;background:${statusBg};cursor:pointer;min-width:80px;transition:.15s"
+          onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
+          <span style="font-size:9px;font-weight:700;color:var(--text-3)">🛒 ${d.periode||'-'}</span>
+          <span style="font-size:9px;font-weight:700;color:${statusColor}">${statusText}</span>
+          <span style="font-size:8px;color:var(--text-3)">${syncedCount}/${totalItems}</span>
+        </button>`;
+      }).join('');
+      el.innerHTML += `
+        <div style="background:var(--surface);border:1px solid rgba(8,145,178,.2);border-radius:10px;padding:10px 14px;margin-top:8px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#0891b2;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+            🛒 Sync Belanja Pasar → Inventory (MASUK)
+          </div>
+          <div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px">${bpCards}</div>
+        </div>`;
+    }
   }
 
   async function syncFormProduksi(formId) {
@@ -844,6 +878,137 @@ const InventoryModule = (() => {
     renderTransaksi();
   }
 
+  /* ── Sync Belanja Pasar → Inventory (MASUK) ─── */
+  let _bpSyncChecked = {};
+  async function syncBelanjaPasar(docId) {
+    let bpDocs = [];
+    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
+    const doc = bpDocs.find(d => d.id === docId);
+    if (!doc || !doc.kasItems?.length) { Notify.warning('Data belanja pasar tidak ditemukan'); return; }
+
+    const syncTag = 'bp_' + doc.id;
+    const syncedLogs = _logs.filter(l => l.syncTag === syncTag);
+    const bpItems = doc.kasItems.filter(it => _n(it.aktQty) > 0);
+
+    if (!_bpSyncChecked[docId]) _bpSyncChecked[docId] = new Set();
+    const checked = _bpSyncChecked[docId];
+
+    const rows = bpItems.map((it, i) => {
+      const invItem = _items.find(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase());
+      const existing = syncedLogs.find(l => (l.itemNama||'').toLowerCase() === (it.item||'').toLowerCase());
+      const noMatch = !invItem;
+      const isChecked = checked.has(i);
+      const isNew = !existing;
+      const highlight = isNew ? 'background:rgba(8,145,178,.06)' : '';
+      return `<tr style="${highlight};border-bottom:1px solid var(--border)">
+        <td style="padding:5px;text-align:center">
+          ${noMatch ? '<span style="color:#ef4444;font-size:9px">-</span>' :
+            `<input type="checkbox" ${isChecked?'checked':''} onchange="InventoryModule._toggleBPSyncCheck('${docId}',${i})"
+              style="width:15px;height:15px;accent-color:#0891b2;cursor:pointer">`}
+        </td>
+        <td style="padding:5px 6px;font-weight:600;font-size:11px${noMatch?';color:#ef4444;text-decoration:line-through':''}">${it.item||''}</td>
+        <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:700">${_n(it.aktQty)}</td>
+        <td style="padding:5px 6px;text-align:center;font-size:10px;color:var(--text-3)">${it.satuan||''}</td>
+        <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-size:11px">Rp ${Math.round(_n(it.aktHarga)).toLocaleString('id')}</td>
+        <td style="padding:5px 6px;text-align:center;font-size:9px">
+          ${noMatch ? '<span style="color:#ef4444;font-weight:700">NO MATCH</span>' :
+            isNew ? '<span style="color:#0891b2;font-weight:700">BARU</span>' :
+            '<span style="color:#10b981">OK</span>'}
+        </td>
+      </tr>`;
+    }).join('');
+
+    const syncableCount = bpItems.filter(it => _items.some(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase())).length;
+    const mid = 'bp-sync-' + Utils.uid();
+    window._bpSyncMid = mid;
+    Modal.open({
+      id: mid, title: '🛒 Sync Belanja Pasar → Inventory (MASUK)', size: 'modal-xl',
+      body: `
+        <style>.modal-xl{max-width:700px!important}</style>
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+          <div><div style="font-size:14px;font-weight:700">${doc.periode||'-'}</div>
+            <div style="font-size:11px;color:#0891b2;font-weight:600">Belanja Pasar → MASUK inventory</div></div>
+          <div style="font-size:11px;color:var(--text-3)">${bpItems.length} item · ${syncedLogs.length} synced</div>
+        </div>
+        <div style="overflow-x:auto;max-height:50vh;overflow-y:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px"><thead>
+            <tr style="background:rgba(8,145,178,.08)"><th style="padding:5px;width:30px">✓</th><th style="padding:5px;text-align:left">Item</th><th style="padding:5px;text-align:right;width:60px">QTY</th><th style="padding:5px;width:50px">Sat</th><th style="padding:5px;text-align:right;width:80px">Harga</th><th style="padding:5px;width:70px">Status</th></tr>
+          </thead><tbody>${rows}</tbody></table>
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:11px;color:var(--text-3)"><span class="bp-sync-cnt">${checked.size}</span> / ${syncableCount} item</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+            <button class="btn btn-primary" onclick="InventoryModule._confirmBPSync('${docId}')"
+              style="background:#0891b2;border-color:#0891b2;${checked.size?'':'opacity:.4;pointer-events:none'}">
+              Sync ${checked.size} Item
+            </button>
+          </div>
+        </div>`,
+      buttons: []
+    });
+  }
+
+  function _toggleBPSyncCheck(docId, idx) {
+    if (!_bpSyncChecked[docId]) _bpSyncChecked[docId] = new Set();
+    const s = _bpSyncChecked[docId];
+    if (s.has(idx)) s.delete(idx); else s.add(idx);
+    const cnt = s.size;
+    const btn = document.querySelector('[onclick*="_confirmBPSync"]');
+    if (btn) { btn.textContent = 'Sync ' + cnt + ' Item'; btn.style.opacity = cnt?'1':'.4'; btn.style.pointerEvents = cnt?'auto':'none'; }
+    const cntEl = document.querySelector('.bp-sync-cnt');
+    if (cntEl) cntEl.textContent = cnt;
+  }
+
+  async function _confirmBPSync(docId) {
+    let bpDocs = [];
+    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
+    const doc = bpDocs.find(d => d.id === docId);
+    if (!doc) return;
+
+    const syncTag = 'bp_' + doc.id;
+    const checked = _bpSyncChecked[docId] || new Set();
+    const bpItems = (doc.kasItems||[]).filter(it => _n(it.aktQty) > 0);
+    let synced = 0;
+
+    for (const [i, it] of bpItems.entries()) {
+      if (!checked.has(i)) continue;
+      const invItem = _items.find(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase());
+      if (!invItem) continue;
+
+      const existing = _logs.find(l => l.syncTag === syncTag && l.itemId === invItem.id);
+      const logData = {
+        id: existing?.id || undefined,
+        tgl: new Date().toISOString().slice(0,10),
+        itemId: invItem.id, itemNama: invItem.nama,
+        jenis: 'MASUK', jumlah: _n(it.aktQty), harga: _n(it.aktHarga),
+        kodeAktivitas: 'BELANJA PASAR', hpp: false,
+        pengambil: 'Belanja Pasar',
+        penanggungJawab: Auth.currentUser()?.nama || 'Sync',
+        catatan: doc.periode || '', syncTag,
+      };
+      try {
+        const saved = await DB.saveInventoryLog(logData);
+        if (existing) Object.assign(existing, saved);
+        else _logs.unshift(saved);
+        synced++;
+      } catch(e) { console.warn('[BPSync]', e); }
+    }
+
+    if (synced > 0) {
+      doc.invSyncStatus = 'synced';
+      doc.invSyncedAt = new Date().toISOString();
+      doc.invSyncedBy = Auth.currentUser()?.nama || '-';
+      try { await DB.saveBelanjaPasar(doc); } catch {}
+    }
+
+    DB.logActivity({type:'sync_belanja_pasar', detail:`Sync ${synced} item belanja pasar → inventory (MASUK)`, snapshot:{syncTag, docId, synced}});
+    _bpSyncChecked[docId] = new Set();
+    Modal.close(window._bpSyncMid);
+    Notify.success(synced + ' item MASUK ke inventory');
+    renderTransaksi();
+  }
+
   function _n(v) { return Number(v)||0; }
 
   function reArrangeInv() {
@@ -887,6 +1052,9 @@ const InventoryModule = (() => {
         .iv-tbl tr.iv-synced td{background:rgba(139,92,246,.04)!important;border-left-color:rgba(139,92,246,.15)}
         .iv-tbl tr.iv-synced:hover td{background:rgba(139,92,246,.1)!important}
         .iv-tbl tr.iv-synced td:first-child{border-left:3px solid #8b5cf6!important}
+        .iv-tbl tr.iv-bp-synced td{background:rgba(8,145,178,.04)!important}
+        .iv-tbl tr.iv-bp-synced:hover td{background:rgba(8,145,178,.1)!important}
+        .iv-tbl tr.iv-bp-synced td:first-child{border-left:3px solid #0891b2!important}
       `;
       document.head.appendChild(st);
     }
@@ -1009,7 +1177,9 @@ const InventoryModule = (() => {
   function _ivRowView(r, rowNum, canEdit) {
     const jColor = r.jenis==='MASUK'?'var(--success)':r.jenis==='KELUAR'?'var(--danger)':'var(--warning)';
     const isSync = !!r.syncTag;
-    return `<tr class="iv-view${isSync?' iv-synced':''}" id="iv-row-${r.id}" data-id="${r.id}"
+    const isBPSync = isSync && (r.syncTag||'').startsWith('bp_');
+    const syncClass = isBPSync ? ' iv-bp-synced' : isSync ? ' iv-synced' : '';
+    return `<tr class="iv-view${syncClass}" id="iv-row-${r.id}" data-id="${r.id}"
               ${canEdit && !_invLocked.has(r.id) ? `ondblclick="InventoryModule.startLogEdit('${r.id}',event.target.closest('td')?.dataset?.field)"` : ''}>
       <td onclick="event.stopPropagation();${_invLocked.has(r.id)?`InventoryModule.unlockInvRow('${r.id}')`:'void(0)'}"
           title="${_invLocked.has(r.id)?'Klik untuk buka kunci':''}"
@@ -1019,7 +1189,7 @@ const InventoryModule = (() => {
         </div>
       </td>
       <td data-field="ivf-tgl-${r.id}"><div class="ivc">${r.tgl?(r.tgl.split('-').reverse().join('-')):''}</div></td>
-      <td data-field="ivf-item-txt-${r.id}"><div class="ivc">${r.itemNama||''}${isSync?'<span style="font-size:8px;background:rgba(139,92,246,.15);color:#8b5cf6;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">SYNC</span>':''}</div></td>
+      <td data-field="ivf-item-txt-${r.id}"><div class="ivc">${r.itemNama||''}${isBPSync?'<span style="font-size:8px;background:rgba(8,145,178,.15);color:#0891b2;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">BELI</span>':isSync?'<span style="font-size:8px;background:rgba(139,92,246,.15);color:#8b5cf6;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">SYNC</span>':''}</div></td>
       <td data-field="ivf-jenis-${r.id}"><div class="ivc"><span class="badge" style="background:${jColor}18;color:${jColor};border:1px solid ${jColor}40;font-size:10px">${r.jenis||''}</span></div></td>
       <td data-field="ivf-jumlah-${r.id}" class="iv-num"><div class="ivc">${r.jumlah||0}</div></td>
       <td data-field="ivf-harga-${r.id}" class="iv-num"><div class="ivc">${r.harga?Utils.formatRupiah(r.harga):'-'}</div></td>
@@ -2606,6 +2776,7 @@ const InventoryModule = (() => {
     renderSummary,
     setLogFilterNama, setLogFilterTgl, clearLogFilter, reArrangeInv,
     syncFormProduksi, _toggleSyncCheck, _confirmSync, _updateSyncTotals,
+    syncBelanjaPasar, _toggleBPSyncCheck, _confirmBPSync,
   };
 
 })();
