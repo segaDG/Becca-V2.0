@@ -1669,12 +1669,12 @@ const KasModule = (() => {
               <thead><tr style="background:var(--surface2)">
                 <th style="padding:8px 6px;font-size:9px;font-weight:700;width:28px">#</th>
                 <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:left">ITEM</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;width:50px">SATUAN</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:65px">EST QTY</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:85px">EST HARGA</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:65px;background:rgba(100,116,139,.08);color:#475569">EST QTY</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;width:50px;background:rgba(100,116,139,.08);color:#475569">SATUAN</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:95px;background:rgba(100,116,139,.08);color:#475569">EST HARGA</th>
                 <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:75px;color:#059669">AKT QTY</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:100px;color:#059669">AKT HARGA</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:110px;color:#059669">TOTAL HARGA</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:110px;color:#059669">AKT HARGA</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:120px;background:rgba(5,150,105,.1);color:#059669">TOTAL HARGA</th>
               </tr></thead>
               <tbody>${items.map((it,i) => {
                 const aktT = (Number(it.aktQty)||0) * (Number(it.aktHarga)||0);
@@ -1682,9 +1682,9 @@ const KasModule = (() => {
                 return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.012)':''}">
                   <td style="padding:10px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
                   <td style="padding:10px 8px;font-weight:600">${it.item}</td>
-                  <td style="padding:10px 6px;color:var(--text-2)">${it.satuan}</td>
-                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${it.estQty||'-'}</td>
-                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${estH ? rp(estH) : '-'}</td>
+                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);background:rgba(100,116,139,.04);color:#475569">${it.estQty||'-'}</td>
+                  <td style="padding:10px 6px;background:rgba(100,116,139,.04);color:#475569">${it.satuan}</td>
+                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);background:rgba(100,116,139,.04);color:#475569">${estH ? rp(estH) : '-'}</td>
                   <td style="padding:6px 4px;text-align:right">
                     ${isConfirmed
                       ? `<span style="font-family:var(--font-mono);font-weight:600;color:#059669">${it.aktQty}</span>`
@@ -1695,11 +1695,12 @@ const KasModule = (() => {
                   <td style="padding:6px 4px;text-align:right">
                     ${isConfirmed
                       ? `<span style="font-family:var(--font-mono);font-weight:600">${rp(it.aktHarga)}</span>`
-                      : `<input type="number" min="0" step="100" value="${it.aktHarga||0}" data-doc="${d.id}" data-idx="${i}" data-field="aktHarga"
-                          onchange="KasModule._bpCellChange('${d.id}',${i})"
-                          style="width:90px;border:1px solid var(--border);border-radius:4px;padding:5px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)" onfocus="this.select()">`}
+                      : `<input type="text" value="${rp(it.aktHarga||0)}" data-doc="${d.id}" data-idx="${i}" data-field="aktHarga"
+                          onfocus="this.value=this.dataset.raw||${it.aktHarga||0};this.type='number';this.select()"
+                          onblur="this.dataset.raw=this.value;this.type='text';this.value='Rp '+Number(this.dataset.raw||0).toLocaleString('id');KasModule._bpCellChange('${d.id}',${i})"
+                          style="width:100px;border:1px solid var(--border);border-radius:4px;padding:5px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)">`}
                   </td>
-                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);font-weight:700;color:#059669" id="bp-kas-total-${d.id}-${i}">${rp(aktT)}</td>
+                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);font-weight:700;background:rgba(5,150,105,.06);color:#059669" id="bp-kas-total-${d.id}-${i}">${rp(aktT)}</td>
                 </tr>`;
               }).join('')}</tbody>
               <tfoot><tr style="border-top:2px solid var(--border);background:var(--surface2)">
@@ -1728,7 +1729,7 @@ const KasModule = (() => {
     const qtyInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${idx}"][data-field="aktQty"]`);
     const hrgInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${idx}"][data-field="aktHarga"]`);
     if (qtyInp) it.aktQty = parseFloat(qtyInp.value)||0;
-    if (hrgInp) it.aktHarga = parseFloat(hrgInp.value)||0;
+    if (hrgInp) it.aktHarga = parseFloat(hrgInp.dataset.raw || hrgInp.value.replace(/[^\d.-]/g,''))||0;
     it.aktTotal = it.aktQty * it.aktHarga;
     // Update total cell
     const rp = n => n ? 'Rp '+Math.round(Number(n)).toLocaleString('id') : '-';
@@ -1762,7 +1763,7 @@ const KasModule = (() => {
       const qtyInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${i}"][data-field="aktQty"]`);
       const hrgInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${i}"][data-field="aktHarga"]`);
       if (qtyInp) it.aktQty = parseFloat(qtyInp.value)||0;
-      if (hrgInp) it.aktHarga = parseFloat(hrgInp.value)||0;
+      if (hrgInp) it.aktHarga = parseFloat(hrgInp.dataset.raw || hrgInp.value.replace(/[^\d.-]/g,''))||0;
       it.aktTotal = it.aktQty * it.aktHarga;
     });
     doc.kasStatus = 'confirmed';
