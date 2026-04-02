@@ -1057,14 +1057,14 @@ const APModule = (() => {
         +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';text-align:right;width:17%">HARGA SAT.</td>'
         +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';text-align:right;width:18%">TOTAL</td>'
         +'</tr>';
-      // Detail rows
+      // Detail rows — tinted with vendor color
       items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach((r,ri)=>{
         const rowTotal = (r.total||0);
         const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
         const hs    = (r.hargaSatuan||r.harga_satuan) ? Utils.formatRupiah(r.hargaSatuan||r.harga_satuan) : '-';
-        const stripe = ri%2 ? C+'06' : 'transparent';
+        const stripe = ri%2 ? C+'0d' : C+'06';
         rowsHtml +=
-          '<tr style="background:'+stripe+';border-bottom:1px solid var(--border);border-left:3px solid '+C+'">'
+          '<tr style="background:'+stripe+';border-bottom:1px solid '+C+'15;border-left:3px solid '+C+'">'
           +'<td style="padding:10px 20px;font-size:12px;font-weight:600;color:var(--text)">'+(r.item||r.keterangan||'-')+'</td>'
           +'<td style="padding:10px 16px;font-size:11px;color:var(--text-2)">'+tglFmt+'</td>'
           +'<td style="padding:10px 16px;font-size:11px;color:var(--text-2);font-family:var(--font-mono)">'
