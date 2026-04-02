@@ -1728,7 +1728,7 @@ const KasModule = (() => {
           ${isConfirmed ? `<span style="font-size:10px;background:rgba(16,185,129,.12);color:#10b981;padding:2px 8px;border-radius:10px;font-weight:700">✓ oleh ${doc.kasConfirmedBy||'-'}</span>` : ''}
         </div>
         <div style="overflow-x:auto;max-height:55vh;overflow-y:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff">
+          <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:linear-gradient(135deg,#059669,#10b981);color:#fff">
             <th style="padding:8px 6px;font-size:9px;width:25px;font-weight:700">#</th>
             <th style="padding:8px 6px;font-size:9px;text-align:left;font-weight:700">ITEM</th>
             <th style="padding:8px 6px;font-size:9px;text-align:right;width:55px;font-weight:700;color:rgba(255,255,255,.6)">EST QTY</th>
