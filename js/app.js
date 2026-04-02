@@ -734,7 +734,6 @@ const App = {
       }
       .sidebar{background:${t.sidebar}!important}
       .header{background:${t.header}!important;border-bottom-color:${t.border}!important}
-      .sidebar-logo{background:linear-gradient(135deg,${t.primary},${t.primaryH})!important}
       .nav-item.active{background:${t.primary}18!important;color:${t.primaryH}!important;border-left-color:${t.primary}!important}
       .tab-btn.active{color:${t.primary}!important;border-bottom-color:${t.primary}!important}
       .btn-primary{background:${t.primary}!important;border-color:${t.primary}!important}
