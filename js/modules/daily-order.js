@@ -59,10 +59,10 @@ const DailyOrderModule = (() => {
     const running = {};
     Object.keys(stockMap).forEach(k => { running[k] = stockMap[k]; });
 
-    // Only process forms from last 30 days — older forms already synced to inventory
-    // This prevents O(n*m) explosion as data grows (1 year = 90K iterations → 7K)
+    // Only process forms from last 7 days — older forms already synced to inventory
+    // This prevents O(n*m) explosion as data grows
     const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
+    cutoff.setDate(cutoff.getDate() - 7);
     const cutoffStr = cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
 
     const sorted = [..._forms]
