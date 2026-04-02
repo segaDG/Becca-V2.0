@@ -111,6 +111,8 @@ const InventoryModule = (() => {
       else if (_activeTab === 'laporan') renderLaporanBulanan();
       else if (_activeTab === 'summary') renderSummary();
       else switchTab(_activeTab);
+      // Update sync badges on tab + sidebar (without needing Activity Line to be active)
+      _updateSyncBadges();
     } else {
       // Hanya simpan hargaSatuan jika cache sudah fresh
       _items.forEach(item => {
@@ -494,6 +496,62 @@ const InventoryModule = (() => {
   /* ═══ SYNC FORM PRODUKSI → ACTIVITY LINE ═══ */
   let _syncChecked = {}; // formId → Set of checked item indices
 
+  async function _updateSyncBadges() {
+    // Count pending form produksi syncs
+    let forms = [];
+    try { forms = await DB.getDailyOrderForms(); } catch {}
+    const now = new Date();
+    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 3);
+    const cutoffStr = cutoff.toISOString().slice(0,10);
+    const relevant = forms.filter(f => f.tanggal >= cutoffStr && (f.items||[]).some(it => _n(it.estQty)>0 || _n(it.aktQty)>0));
+    let pendingProduksi = relevant.filter(f => {
+      const st = 'do_'+(f.tanggal||'').replace(/-/g,'')+'_'+f.shift;
+      const sl = _logs.filter(l=>l.syncTag===st);
+      const si = (f.items||[]).filter(it => _n(it.estQty)>0 || _n(it.aktQty)>0);
+      return sl.length < si.length || si.some(it => {
+        const bq = _n(it.aktQty)>0?_n(it.aktQty):_n(it.estQty);
+        const l = sl.find(x=>(x.itemNama||'').toLowerCase()===(it.item||'').toLowerCase());
+        return l && l.jumlah !== bq;
+      });
+    }).length;
+
+    // Count pending belanja pasar syncs
+    let bpDocs = [];
+    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
+    const pendingBP = bpDocs.filter(d => {
+      if (d.kasStatus !== 'confirmed') return false;
+      const syncTag = 'bp_' + d.id;
+      const sl = _logs.filter(l => l.syncTag === syncTag);
+      const si = (d.kasItems||[]).filter(it => _n(it.aktQty)>0);
+      return sl.length < si.length;
+    }).length;
+
+    const totalPending = pendingProduksi + pendingBP;
+
+    // Activity Line tab badge
+    const tabBtn = document.getElementById('inv-tab-btn-transaksi');
+    if (tabBtn) {
+      const old = tabBtn.querySelector('.sync-badge');
+      if (old) old.remove();
+      if (totalPending > 0) {
+        tabBtn.style.position = 'relative';
+        tabBtn.insertAdjacentHTML('beforeend',
+          `<span class="sync-badge" style="position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;background:#ef4444;color:#fff;font-size:9px;font-weight:700;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface)">${totalPending}</span>`);
+      }
+    }
+    // Sidebar badge
+    const sideLink = document.querySelector('[data-page="inventory"]');
+    if (sideLink) {
+      const old = sideLink.querySelector('.sync-badge');
+      if (old) old.remove();
+      if (totalPending > 0) {
+        sideLink.style.position = 'relative';
+        sideLink.insertAdjacentHTML('beforeend',
+          `<span class="sync-badge" style="position:absolute;top:4px;right:4px;min-width:14px;height:14px;background:#ef4444;color:#fff;font-size:8px;font-weight:700;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 3px">${totalPending}</span>`);
+      }
+    }
+  }
+
   async function _renderSyncDashboard(tab) {
     let el = document.getElementById('inv-sync-dash');
     if (!el) {
@@ -549,42 +607,20 @@ const InventoryModule = (() => {
       </button>`;
     }).join('');
 
-    // Count pending (belum/partial/update)
+    // Count pending for dashboard display
     const pendingCount = relevant.filter(f => {
       const st = 'do_'+(f.tanggal||'').replace(/-/g,'')+'_'+f.shift;
       const sl = _logs.filter(l=>l.syncTag===st);
       const si = (f.items||[]).filter(it => _n(it.estQty)>0 || _n(it.aktQty)>0);
-      const full = sl.length >= si.length && !si.some(it => {
-        const bq = _n(it.aktQty) > 0 ? _n(it.aktQty) : _n(it.estQty);
+      return sl.length < si.length || si.some(it => {
+        const bq = _n(it.aktQty)>0?_n(it.aktQty):_n(it.estQty);
         const l = sl.find(x=>(x.itemNama||'').toLowerCase()===(it.item||'').toLowerCase());
         return l && l.jumlah !== bq;
       });
-      return !full;
     }).length;
 
-    // Update badge on Activity Line tab
-    const tabBtn = document.getElementById('inv-tab-btn-transaksi');
-    if (tabBtn) {
-      const oldBadge = tabBtn.querySelector('.sync-badge');
-      if (oldBadge) oldBadge.remove();
-      if (pendingCount > 0) {
-        tabBtn.style.position = 'relative';
-        tabBtn.insertAdjacentHTML('beforeend',
-          '<span class="sync-badge" style="position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;background:#ef4444;color:#fff;font-size:9px;font-weight:700;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface)">' + pendingCount + '</span>');
-      }
-    }
-
-    // Update badge on sidebar
-    const sideLink = document.querySelector('[data-page="inventory"]');
-    if (sideLink) {
-      const oldBadge = sideLink.querySelector('.sync-badge');
-      if (oldBadge) oldBadge.remove();
-      if (pendingCount > 0) {
-        sideLink.style.position = 'relative';
-        sideLink.insertAdjacentHTML('beforeend',
-          '<span class="sync-badge" style="position:absolute;top:4px;right:4px;min-width:14px;height:14px;background:#ef4444;color:#fff;font-size:8px;font-weight:700;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 3px">' + pendingCount + '</span>');
-      }
-    }
+    // Badges handled by _updateSyncBadges (called on init + after sync)
+    _updateSyncBadges();
 
     el.innerHTML = `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px">
