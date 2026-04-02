@@ -405,7 +405,7 @@ const KasModule = (() => {
       <td><input class="ks-inp" type="date" value="${r.tgl||''}" id="ks-tgl-${r.id}"
             onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
       <td><input class="ks-inp" type="text" value="${(r.nama||'').replace(/"/g,'&quot;')}" placeholder="Nama/keterangan"
-            id="ks-nama-${r.id}"
+            id="ks-nama-${r.id}" autocomplete="off"
             oninput="KasModule._onNamaInput('${r.id}',this.value)"
             onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
       <td><select class="ks-sel" id="ks-type-${r.id}"
