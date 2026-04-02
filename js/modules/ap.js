@@ -1013,12 +1013,12 @@ const APModule = (() => {
 
     // Palette: per vendor distinct color
     const PALETTE = [
-      {grad:'135deg,#667eea,#764ba2', acc:'#667eea', lt:'rgba(102,126,234,.06)', border:'rgba(102,126,234,.2)'},
-      {grad:'135deg,#11998e,#38ef7d', acc:'#11998e', lt:'rgba(17,153,142,.06)', border:'rgba(17,153,142,.2)'},
-      {grad:'135deg,#f7971e,#ffd200', acc:'#d97706', lt:'rgba(217,119,6,.06)', border:'rgba(217,119,6,.2)'},
-      {grad:'135deg,#e96c6c,#f7797d', acc:'#e96c6c', lt:'rgba(233,108,108,.06)', border:'rgba(233,108,108,.2)'},
-      {grad:'135deg,#4facfe,#00f2fe', acc:'#3b82f6', lt:'rgba(59,130,246,.06)', border:'rgba(59,130,246,.2)'},
-      {grad:'135deg,#a18cd1,#fbc2eb', acc:'#8b5cf6', lt:'rgba(139,92,246,.06)', border:'rgba(139,92,246,.2)'},
+      {grad:'135deg,#667eea,#764ba2', acc:'#667eea', lt:'rgba(102,126,234,.04)', hd:'rgba(102,126,234,.1)', border:'rgba(102,126,234,.25)'},
+      {grad:'135deg,#11998e,#38ef7d', acc:'#11998e', lt:'rgba(17,153,142,.04)', hd:'rgba(17,153,142,.1)', border:'rgba(17,153,142,.25)'},
+      {grad:'135deg,#f7971e,#ffd200', acc:'#d97706', lt:'rgba(217,119,6,.04)', hd:'rgba(217,119,6,.1)', border:'rgba(217,119,6,.25)'},
+      {grad:'135deg,#e96c6c,#f7797d', acc:'#e96c6c', lt:'rgba(233,108,108,.04)', hd:'rgba(233,108,108,.1)', border:'rgba(233,108,108,.25)'},
+      {grad:'135deg,#4facfe,#00f2fe', acc:'#3b82f6', lt:'rgba(59,130,246,.04)', hd:'rgba(59,130,246,.1)', border:'rgba(59,130,246,.25)'},
+      {grad:'135deg,#a18cd1,#fbc2eb', acc:'#8b5cf6', lt:'rgba(139,92,246,.04)', hd:'rgba(139,92,246,.1)', border:'rgba(139,92,246,.25)'},
     ];
 
     let rowsHtml = '';
@@ -1056,27 +1056,28 @@ const APModule = (() => {
         +'</tr>';
 
       // Detail header
-      rowsHtml += '<tr style="background:'+P.lt+';border-bottom:1px solid '+P.border+'40">'
-        +'<td style="padding:5px 16px 5px 68px;font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em">ITEM</td>'
-        +'<td style="padding:5px 16px;font-size:9px;font-weight:700;color:var(--text-3)">TANGGAL</td>'
-        +'<td style="padding:5px 16px;font-size:9px;font-weight:700;color:var(--text-3)">QTY</td>'
-        +'<td style="padding:5px 16px;font-size:9px;font-weight:700;color:var(--text-3);text-align:right">HARGA SAT.</td>'
-        +'<td style="padding:5px 16px;font-size:9px;font-weight:700;color:var(--text-3);text-align:right">SISA</td>'
+      rowsHtml += '<tr style="background:'+P.hd+';border-bottom:1px solid '+P.border+'">'
+        +'<td style="padding:6px 16px 6px 68px;font-size:9px;font-weight:700;color:'+P.acc+';text-transform:uppercase;letter-spacing:.04em">ITEM</td>'
+        +'<td style="padding:6px 16px;font-size:9px;font-weight:700;color:'+P.acc+'">TANGGAL</td>'
+        +'<td style="padding:6px 16px;font-size:9px;font-weight:700;color:'+P.acc+'">QTY</td>'
+        +'<td style="padding:6px 16px;font-size:9px;font-weight:700;color:'+P.acc+';text-align:right">HARGA SAT.</td>'
+        +'<td style="padding:6px 16px;font-size:9px;font-weight:700;color:'+P.acc+';text-align:right">TOTAL</td>'
         +'</tr>';
       // Detail rows
-      items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach(r=>{
-        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
+      items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach((r,ri)=>{
+        const rowTotal = (r.total||0);
         const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
         const hs    = (r.hargaSatuan||r.harga_satuan) ? Utils.formatRupiah(r.hargaSatuan||r.harga_satuan) : '-';
+        const rowBg = ri%2 ? P.lt : 'transparent';
         rowsHtml +=
-          '<tr style="background:'+P.lt+';border-bottom:1px solid '+P.border+'40">'
-          +'<td style="padding:8px 16px 8px 68px;font-size:12px;color:var(--text-2)">'+(r.item||r.keterangan||'-')+'</td>'
-          +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3)">'+tglFmt+'</td>'
-          +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);font-family:var(--font-mono)">'
+          '<tr style="background:'+rowBg+';border-bottom:1px solid '+P.border+'30;border-left:3px solid '+P.acc+'20">'
+          +'<td style="padding:8px 16px 8px 68px;font-size:12px;color:var(--text)">'+(r.item||r.keterangan||'-')+'</td>'
+          +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2)">'+tglFmt+'</td>'
+          +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2);font-family:var(--font-mono)">'
             +((r.qty)?Number(r.qty).toLocaleString('id',{minimumFractionDigits:(r.qty)%1?2:0})+' '+((r.satuan||'')||''):'-')
           +'</td>'
-          +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);text-align:right;font-family:var(--font-mono)">'+hs+'</td>'
-          +'<td style="padding:8px 16px;text-align:right;font-family:var(--font-mono);font-size:12px;font-weight:700;color:'+P.acc+';white-space:nowrap">'+Utils.formatRupiah(sisa)+'</td>'
+          +'<td style="padding:8px 16px;font-size:11px;color:var(--text-2);text-align:right;font-family:var(--font-mono)">'+hs+'</td>'
+          +'<td style="padding:8px 16px;text-align:right;font-family:var(--font-mono);font-size:12px;font-weight:700;color:'+P.acc+';white-space:nowrap">'+Utils.formatRupiah(rowTotal)+'</td>'
           +'</tr>';
       });
     });
