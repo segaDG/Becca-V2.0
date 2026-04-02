@@ -664,7 +664,7 @@ const APModule = (() => {
               const apItems    = _ap.filter(a => a.supplier === s.nama);
               const totalAP    = apItems.reduce((sum,a)=>sum+(a.total||0),0);
               const totalBayar = apItems.reduce((sum,a)=>sum+(a.terbayar||0),0);
-        const sisa   = (s.status==='LUNAS'||s.status==='lunas') ? 0 : (s.total||0)-(s.jumlah_bayar||s.terbayar||0);
+              const sisa       = totalAP - totalBayar;
               return `<tr style="cursor:pointer" onclick="APModule.showSupplierDetail('${s.id}')"
                 onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
                 <td class="text-muted">${i+1}</td>
@@ -706,7 +706,7 @@ const APModule = (() => {
     const apItems    = _ap.filter(a => a.supplier === s.nama);
     const totalAP    = apItems.reduce((sum,a)=>sum+(a.total||0),0);
     const totalBayar = apItems.reduce((sum,a)=>sum+(a.terbayar||0),0);
-        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
+    const sisa       = totalAP - totalBayar;
     const mid        = Utils.uid();
 
     Modal.open({ id: mid,
@@ -785,7 +785,7 @@ const APModule = (() => {
                 </tr></thead>
                 <tbody>
                   ${apItems.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).map(a=>{
-        const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
+                    const sisaA = (a.status==='LUNAS'||a.status==='lunas') ? 0 : (a.total||0)-(a.terbayar||0);
                     const sc    = a.status==='LUNAS'?'badge-success':a.status==='CICILAN'?'badge-warning':'badge-danger';
                     return `<tr>
                       <td style="padding:5px 8px;border-bottom:1px solid var(--border);white-space:nowrap">${a.tgl?a.tgl.split('-').reverse().join('/'):'-'}</td>
@@ -1055,6 +1055,14 @@ const APModule = (() => {
         +'</td>'
         +'</tr>';
 
+      // Detail header
+      rowsHtml += '<tr style="background:'+P.lt+';border-bottom:1px solid '+P.border+'40">'
+        +'<td style="padding:5px 16px 5px 68px;font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em">ITEM</td>'
+        +'<td style="padding:5px 16px;font-size:9px;font-weight:700;color:var(--text-3)">TANGGAL</td>'
+        +'<td style="padding:5px 16px;font-size:9px;font-weight:700;color:var(--text-3)">QTY</td>'
+        +'<td style="padding:5px 16px;font-size:9px;font-weight:700;color:var(--text-3);text-align:right">HARGA SAT.</td>'
+        +'<td style="padding:5px 16px;font-size:9px;font-weight:700;color:var(--text-3);text-align:right">SISA</td>'
+        +'</tr>';
       // Detail rows
       items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach(r=>{
         const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
