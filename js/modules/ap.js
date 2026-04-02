@@ -1011,60 +1011,67 @@ const APModule = (() => {
     let periodeLabel = 'Semua Belum Lunas';
     if (bulan) { const[y,m]=bulan.split('-'); periodeLabel=BL[parseInt(m)]+' '+y; }
 
+    // Bold color palette — each vendor gets a strong distinct color
+    const COLORS = ['#6366f1','#0891b2','#059669','#d97706','#dc2626','#7c3aed','#0284c7','#ca8a04'];
+
     let rowsHtml = '';
+    let vIdx = 0;
     Object.entries(supGroups).forEach(([supName, items]) => {
       const sup      = _suppliers.find(s=>s.nama===supName);
       const payable  = items.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
       if (payable<=0 && status==='unpaid') return;
+      const C = COLORS[vIdx % COLORS.length];
+      vIdx++;
 
-      // Vendor header row — clean neutral style
+      // Vendor header — bold colored banner
       rowsHtml +=
-        '<tr style="border-bottom:1px solid var(--border);background:var(--surface)">'
-        +'<td style="padding:16px">'
-          +'<div style="display:flex;align-items:center;gap:12px">'
-            +'<div style="width:38px;height:38px;border-radius:10px;background:var(--surface2);'
-              +'color:var(--text);font-weight:900;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;'
-              +'border:1px solid var(--border)">'
-              +supName.trim().substring(0,1).toUpperCase()
+        '<tr>'
+        +'<td colspan="5" style="padding:0">'
+          +'<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:'+C+';color:#fff;margin-top:'+(vIdx>1?'12px':'0')+';border-radius:10px 10px 0 0">'
+            +'<div style="display:flex;align-items:center;gap:12px">'
+              +'<div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.2);'
+                +'font-weight:900;font-size:17px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+                +supName.trim().substring(0,1).toUpperCase()
+              +'</div>'
+              +'<div>'
+                +'<div style="font-weight:800;font-size:15px;letter-spacing:.01em">'+supName+'</div>'
+                +'<div style="font-size:11px;opacity:.75;margin-top:1px">'
+                  +(sup?.bank?sup.bank+' · ':'')+(sup?.noRek||'')+(sup?.atasNama?' · '+sup.atasNama:'')
+                  +(!sup?.bank&&!sup?.noRek?(sup?.kategori||'Supplier'):'')
+                +'</div>'
+              +'</div>'
             +'</div>'
-            +'<div>'
-              +'<div style="font-weight:800;font-size:14px;color:var(--heading)">'+supName+'</div>'
-              +'<div style="font-size:11px;color:var(--text-3);margin-top:1px">'+(sup?.kategori||'Supplier')+'</div>'
+            +'<div style="text-align:right">'
+              +'<div style="font-family:var(--font-mono);font-size:20px;font-weight:900">'+Utils.formatRupiah(payable)+'</div>'
+              +'<div style="font-size:10px;opacity:.7;margin-top:1px">'+items.length+' tagihan</div>'
             +'</div>'
           +'</div>'
         +'</td>'
-        +'<td style="padding:16px;font-weight:600;font-size:13px">'+(sup?.bank||'—')+'</td>'
-        +'<td style="padding:16px;font-family:var(--font-mono);font-size:12px;color:var(--text-2)">'+(sup?.noRek||'—')+'</td>'
-        +'<td style="padding:16px;font-size:13px;color:var(--text-2)">'+(sup?.atasNama||'—')+'</td>'
-        +'<td style="padding:16px;text-align:right;white-space:nowrap">'
-          +'<div style="font-family:var(--font-mono);font-size:17px;font-weight:900;color:#dc2626">'+Utils.formatRupiah(payable)+'</div>'
-          +'<div style="font-size:10px;color:var(--text-3);margin-top:2px">'+items.length+' tagihan</div>'
-        +'</td>'
         +'</tr>';
 
-      // Detail header — subtle gray
-      rowsHtml += '<tr style="background:var(--surface2);border-bottom:1px solid var(--border)">'
-        +'<td style="padding:6px 16px 6px 62px;font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em">ITEM</td>'
-        +'<td style="padding:6px 16px;font-size:9px;font-weight:700;color:var(--text-3)">TANGGAL</td>'
-        +'<td style="padding:6px 16px;font-size:9px;font-weight:700;color:var(--text-3)">QTY</td>'
-        +'<td style="padding:6px 16px;font-size:9px;font-weight:700;color:var(--text-3);text-align:right">HARGA SAT.</td>'
-        +'<td style="padding:6px 16px;font-size:9px;font-weight:700;color:var(--text-3);text-align:right">TOTAL</td>'
+      // Detail header
+      rowsHtml += '<tr style="background:'+C+'12;border-bottom:2px solid '+C+'30">'
+        +'<td style="padding:7px 20px;font-size:9px;font-weight:800;color:'+C+';text-transform:uppercase;letter-spacing:.06em;width:35%">ITEM</td>'
+        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';width:14%">TANGGAL</td>'
+        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';width:16%">QTY</td>'
+        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';text-align:right;width:17%">HARGA SAT.</td>'
+        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';text-align:right;width:18%">TOTAL</td>'
         +'</tr>';
-      // Detail rows — clean alternating
+      // Detail rows
       items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach((r,ri)=>{
         const rowTotal = (r.total||0);
         const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
         const hs    = (r.hargaSatuan||r.harga_satuan) ? Utils.formatRupiah(r.hargaSatuan||r.harga_satuan) : '-';
-        const rowBg = ri%2 ? 'rgba(0,0,0,.02)' : 'transparent';
+        const stripe = ri%2 ? C+'06' : 'transparent';
         rowsHtml +=
-          '<tr style="background:'+rowBg+';border-bottom:1px solid var(--border)">'
-          +'<td style="padding:10px 16px 10px 62px;font-size:12px;color:var(--text)">'+(r.item||r.keterangan||'-')+'</td>'
+          '<tr style="background:'+stripe+';border-bottom:1px solid var(--border);border-left:3px solid '+C+'">'
+          +'<td style="padding:10px 20px;font-size:12px;font-weight:600;color:var(--text)">'+(r.item||r.keterangan||'-')+'</td>'
           +'<td style="padding:10px 16px;font-size:11px;color:var(--text-2)">'+tglFmt+'</td>'
           +'<td style="padding:10px 16px;font-size:11px;color:var(--text-2);font-family:var(--font-mono)">'
             +((r.qty)?Number(r.qty).toLocaleString('id',{minimumFractionDigits:(r.qty)%1?2:0})+' '+((r.satuan||'')||''):'-')
           +'</td>'
           +'<td style="padding:10px 16px;font-size:11px;color:var(--text-2);text-align:right;font-family:var(--font-mono)">'+hs+'</td>'
-          +'<td style="padding:10px 16px;text-align:right;font-family:var(--font-mono);font-size:12px;font-weight:700;color:#dc2626;white-space:nowrap">'+Utils.formatRupiah(rowTotal)+'</td>'
+          +'<td style="padding:10px 16px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:800;color:'+C+';white-space:nowrap">'+Utils.formatRupiah(rowTotal)+'</td>'
           +'</tr>';
       });
     });
