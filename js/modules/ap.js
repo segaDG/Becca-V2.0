@@ -428,24 +428,30 @@ const APModule = (() => {
               <label class="form-label">Nama Supplier <span class="req">*</span></label>
               <input name="nama" class="form-control" value="${editSupp.nama||''}" required>
             </div>
-            <div class="form-group">
-              <label class="form-label">No. HP / Telepon</label>
-              <input name="noHp" class="form-control" value="${editSupp.noHp||''}">
+            <div class="form-group" style="max-width:120px">
+              <label class="form-label">Kode Supplier</label>
+              <input name="supplierCode" class="form-control" value="${editSupp.supplierCode||''}" placeholder="01, 02...">
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">Email</label>
-              <input name="email" type="email" class="form-control" value="${editSupp.email||''}">
+              <label class="form-label">No. HP / Telepon</label>
+              <input name="noHp" class="form-control" value="${editSupp.noHp||''}">
             </div>
             <div class="form-group">
-              <label class="form-label">Kategori / Jenis</label>
+              <label class="form-label">Bidang / Kategori</label>
               <input name="kategori" class="form-control" value="${editSupp.kategori||''}" placeholder="Contoh: Bahan Baku, Kemasan, Jasa">
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Alamat</label>
-            <input name="alamat" class="form-control" value="${editSupp.alamat||''}">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Kota</label>
+              <input name="kota" class="form-control" value="${editSupp.kota||''}">
+            </div>
+            <div class="form-group" style="flex:2">
+              <label class="form-label">Alamat</label>
+              <input name="alamat" class="form-control" value="${editSupp.alamat||''}">
+            </div>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -644,8 +650,9 @@ const APModule = (() => {
           <thead>
             <tr>
               <th>#</th>
+              <th>Kode</th>
               <th>Nama Supplier</th>
-              <th>Kategori / Bidang</th>
+              <th>Bidang</th>
               <th>No. HP</th>
               <th>Kota</th>
               <th>Bank</th>
@@ -657,7 +664,7 @@ const APModule = (() => {
             </tr>
           </thead>
           <tbody>
-            ${!_suppliers.length ? `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text-3)">
+            ${!_suppliers.length ? `<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text-3)">
               Belum ada data supplier. Klik "+ Tambah Supplier" untuk menambahkan.
             </td></tr>` :
             _suppliers.map((s,i) => {
@@ -668,6 +675,7 @@ const APModule = (() => {
               return `<tr style="cursor:pointer" onclick="APModule.showSupplierDetail('${s.id}')"
                 onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
                 <td class="text-muted">${i+1}</td>
+                <td style="font-family:var(--font-mono);font-weight:700;text-align:center">${s.supplierCode||'-'}</td>
                 <td>
                   <div style="font-weight:700">${s.nama||'-'}</div>
                   ${s.alamat ? `<div style="font-size:11px;color:var(--text-3)">📍 ${s.alamat}</div>` : ''}
