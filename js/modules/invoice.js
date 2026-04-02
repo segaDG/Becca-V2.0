@@ -1230,30 +1230,25 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
       </div>`;
 
     const _signDate = inv._signDate || periodeStr;
-    const signAreaRekap = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
-        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:180px">
-          <div style="font-size:10px;color:#333;margin-bottom:80px">${_signDate}</div>
-          <div style="border-top:1px solid #333;width:160px;padding-top:3px;font-size:9px;color:${C.GRY}">Admin / Pembuat Invoice</div>
-        </div>
-        <div style="text-align:center;min-width:160px">
-          <div style="margin-top:80px;border-top:1px solid #333;padding-top:3px">
-            <div style="font-weight:700;font-size:10px">Manager / PIC</div>
-            <div style="font-size:8px;color:${C.GRY}">${inv.customer}</div>
+    const _signArea = `
+      <div style="display:flex;justify-content:flex-end;margin-top:24px">
+        <div style="text-align:center;min-width:200px">
+          <div style="font-size:10px;color:#333;margin-bottom:4px">${_signDate}</div>
+          <div style="font-size:8px;color:${C.GRY};margin-bottom:70px">Boga Pangan Sentosa</div>
+          <div style="border-top:1px solid #333;width:180px;margin:0 auto;padding-top:4px">
+            <div style="font-weight:700;font-size:10px">PIC</div>
           </div>
         </div>
       </div>`;
+    const signAreaRekap = _signArea;
     const signAreaInvoice = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
-        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:180px">
-          <div style="font-size:10px;color:#333;margin-bottom:80px">${_signDate}</div>
-          <div style="border-top:1px solid #333;width:160px;padding-top:3px;font-size:9px;color:${C.GRY}">Admin / Pembuat Invoice</div>
-        </div>
-        <div style="text-align:center;min-width:160px">
-          <div style="font-size:8px;color:#ccc;margin-bottom:64px">Materai Rp 10.000</div>
-          <div style="border-top:1px solid #333;padding-top:3px">
-            <div style="font-weight:700;font-size:10px">Manager / PIC</div>
-            <div style="font-size:8px;color:${C.GRY}">${inv.customer}</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:24px">
+        <div style="text-align:center;min-width:200px">
+          <div style="font-size:10px;color:#333;margin-bottom:4px">${_signDate}</div>
+          <div style="font-size:8px;color:#ccc;margin-bottom:6px">Materai Rp 10.000</div>
+          <div style="font-size:8px;color:${C.GRY};margin-bottom:58px">Boga Pangan Sentosa</div>
+          <div style="border-top:1px solid #333;width:180px;margin:0 auto;padding-top:4px">
+            <div style="font-weight:700;font-size:10px">PIC</div>
           </div>
         </div>
       </div>`;
