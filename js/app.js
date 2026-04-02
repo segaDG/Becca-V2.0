@@ -174,6 +174,7 @@ const App = {
     if (!Auth.init()) { this._showLogin(); return; }
     this._showApp();
     this._initTheme();
+    this._loadUserColor();
     this._startPresence();
     setTimeout(() => { if (typeof DBExtensions !== "undefined") DBExtensions.init(); }, 500);
     // Update all sidebar badges after boot (inventory sync, kas belanja pasar, PO finance)
@@ -331,6 +332,11 @@ const App = {
         <!-- Online Users -->
         <div id="online-users-bar" style="display:flex;align-items:center;gap:4px;margin-right:4px"></div>
 
+        <!-- Theme Color Picker -->
+        <button class="header-btn" id="btn-color" onclick="App._openColorPicker()" title="Warna Tema"
+          style="position:relative">
+          <div style="width:16px;height:16px;border-radius:50%;background:var(--primary);border:2px solid rgba(255,255,255,.3)"></div>
+        </button>
         <!-- Dark/Light Mode Toggle -->
         <button class="header-btn" id="btn-theme" onclick="App.toggleTheme()" title="Ganti Tema"
           style="position:relative">
@@ -656,6 +662,72 @@ const App = {
         : '<div style="text-align:center;padding:30px;color:var(--text-3)">Tidak ada user lain yang online</div>',
       footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
     });
+  },
+
+  /* === Theme Color Picker === */
+  _THEME_COLORS: [
+    {name:'Indigo',    primary:'#6366f1', primaryH:'#818cf8'},
+    {name:'Blue',      primary:'#3b82f6', primaryH:'#60a5fa'},
+    {name:'Cyan',      primary:'#06b6d4', primaryH:'#22d3ee'},
+    {name:'Emerald',   primary:'#10b981', primaryH:'#34d399'},
+    {name:'Amber',     primary:'#f59e0b', primaryH:'#fbbf24'},
+    {name:'Rose',      primary:'#f43f5e', primaryH:'#fb7185'},
+    {name:'Violet',    primary:'#8b5cf6', primaryH:'#a78bfa'},
+    {name:'Orange',    primary:'#f97316', primaryH:'#fb923c'},
+    {name:'Pink',      primary:'#ec4899', primaryH:'#f472b6'},
+    {name:'Teal',      primary:'#14b8a6', primaryH:'#2dd4bf'},
+    {name:'Sky',       primary:'#0ea5e9', primaryH:'#38bdf8'},
+    {name:'Red',       primary:'#ef4444', primaryH:'#f87171'},
+  ],
+
+  _openColorPicker() {
+    const current = localStorage.getItem('becca_theme_color') || '#6366f1';
+    const mid = 'color-pick-'+Date.now();
+    Modal.open({
+      id: mid, title: 'Pilih Warna Tema', size: 'modal-sm',
+      body: `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:8px 0">
+        ${this._THEME_COLORS.map(c => `
+          <button onclick="App._applyColor('${c.primary}','${c.primaryH}');Modal.close('${mid}')"
+            style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border:2px solid ${c.primary===current?c.primary:'transparent'};
+            border-radius:10px;background:${c.primary===current?c.primary+'15':'var(--surface2)'};cursor:pointer;transition:.15s"
+            onmouseover="this.style.background='${c.primary}20'" onmouseout="this.style.background='${c.primary===current?c.primary+'15':'var(--surface2)'}'">
+            <div style="width:32px;height:32px;border-radius:50%;background:${c.primary};${c.primary===current?'box-shadow:0 0 0 3px var(--surface),0 0 0 5px '+c.primary:''}"></div>
+            <span style="font-size:10px;font-weight:600;color:${c.primary===current?c.primary:'var(--text-2)'}">${c.name}</span>
+          </button>
+        `).join('')}
+      </div>`,
+      buttons: [],
+    });
+  },
+
+  _applyColor(primary, primaryH) {
+    document.documentElement.style.setProperty('--primary', primary);
+    document.documentElement.style.setProperty('--primary-h', primaryH);
+    document.documentElement.style.setProperty('--primary-bg', primary + '1a');
+    // Save per user
+    const uid = Auth.currentUser()?.username || 'default';
+    localStorage.setItem('becca_theme_color', primary);
+    localStorage.setItem('becca_theme_color_h', primaryH);
+    localStorage.setItem('becca_theme_color_user_' + uid, primary + '|' + primaryH);
+    // Update color button
+    const btn = document.getElementById('btn-color');
+    if (btn) btn.querySelector('div').style.background = primary;
+    Notify.success('Warna tema diubah');
+  },
+
+  _loadUserColor() {
+    const uid = Auth.currentUser()?.username || 'default';
+    const saved = localStorage.getItem('becca_theme_color_user_' + uid);
+    if (saved) {
+      const [p, h] = saved.split('|');
+      if (p) {
+        document.documentElement.style.setProperty('--primary', p);
+        document.documentElement.style.setProperty('--primary-h', h || p);
+        document.documentElement.style.setProperty('--primary-bg', p + '1a');
+        localStorage.setItem('becca_theme_color', p);
+        localStorage.setItem('becca_theme_color_h', h || p);
+      }
+    }
   },
 
   /* === Theme Toggle === */
