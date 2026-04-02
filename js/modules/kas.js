@@ -202,6 +202,7 @@ const KasModule = (() => {
         <button class="tab-btn" data-tab="monthly"   onclick="KasModule.switchTab('monthly')">Monthly Report</button>
         <button class="tab-btn" data-tab="cashflow"  onclick="KasModule.switchTab('cashflow')">Cash Flow</button>
       </div>
+      <div id="kas-bp-dash"></div>
       <div id="kas-tab-transaksi"></div>
       <div id="kas-tab-summary"  style="display:none"></div>
       <div id="kas-tab-monthly"  style="display:none"></div>
@@ -221,7 +222,10 @@ const KasModule = (() => {
       ? `<button class="btn btn-ghost btn-sm" onclick="KasModule.importExcel()" title="Import data dari file Excel (.xlsx)">Import Excel</button>
          <button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>`
       : '';
-    if (tab==='transaksi') { UndoRedo.setActive('kas'); renderTransaksi(); _renderBalanceCards(); }
+    // BP dashboard visibility follows transaksi tab
+    const bpEl = document.getElementById('kas-bp-dash');
+    if (bpEl) bpEl.style.display = tab==='transaksi' ? '' : 'none';
+    if (tab==='transaksi') { UndoRedo.setActive('kas'); _renderBPDashboard(); renderTransaksi(); _renderBalanceCards(); }
     else if (tab==='summary')  renderSummary();
     else if (tab==='monthly')  renderMonthly();
     else if (tab==='cashflow') renderCashflow();
@@ -245,7 +249,6 @@ const KasModule = (() => {
     const bulanOpts= [...new Set(_kas.map(r=>r.bulan).filter(Boolean))].sort();
 
     document.getElementById('kas-tab-transaksi').innerHTML = `
-      <div id="kas-bp-dash"></div>
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap" id="kas-strip-wrap">${_summaryStrip(filtered)}<div id="kas-balance-cards" style="display:contents"></div></div>
       <div class="filter-bar" style="margin-bottom:var(--s3)">
         <input type="date" class="form-control" value="${_filter.dateFrom}" onchange="KasModule.setFilter('dateFrom',this.value)" style="width:140px">
@@ -341,7 +344,6 @@ const KasModule = (() => {
       </div>
     `;
     _renderBalanceCards();
-    _renderBPDashboard();
     if (window.GridSelect) {
       GridSelect.onFill('kas-grid', _onGridFill);
       GridSelect.onPaste('kas-grid', _onGridPaste);
@@ -1832,6 +1834,7 @@ const KasModule = (() => {
       }
       if (window._bpKasMid) Modal.close(window._bpKasMid);
       Notify.success(`Dikonfirmasi + ${inserted} item masuk kas kecil`);
+      _renderBPDashboard();
       renderTransaksi();
       DB.logActivity({type:'confirm_belanja_pasar', detail:`Konfirmasi ${doc.periode}: ${inserted} item → kas kecil`});
     } catch(e) { Notify.error('Gagal: '+(e.message||'')); }
@@ -1860,6 +1863,7 @@ const KasModule = (() => {
     doc.kasStatus = null; doc.kasConfirmedAt = null; doc.kasConfirmedBy = null; doc.kasItems = null;
     try { await DB.saveBelanjaPasar(doc); } catch {}
     Notify.success('Belanja pasar dihapus dari kas');
+    _renderBPDashboard();
     renderTransaksi();
   }
 
