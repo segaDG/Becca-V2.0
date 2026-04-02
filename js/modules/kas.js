@@ -1847,8 +1847,9 @@ const KasModule = (() => {
   async function deleteBPKas(docId) {
     const role = Auth.currentUser()?.role;
     if (role !== 'superadmin' && role !== 'admin') { Notify.warning('Hanya Admin/Superadmin'); return; }
+    if (!_bpDocs.length) { try { _bpDocs = await DB.getBelanjaPasar(); } catch {} }
     const doc = _bpDocs.find(d => d.id === docId);
-    if (!doc) return;
+    if (!doc) { Notify.warning('Data tidak ditemukan'); return; }
     // Count kas rows linked to this BP
     const linkedKas = _kas.filter(r => r.bpDocId === docId);
     const ok = await Modal.confirm({
