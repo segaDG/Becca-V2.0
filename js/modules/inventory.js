@@ -512,19 +512,21 @@ const InventoryModule = (() => {
     // Show forms with aktual data from last 3 days + today
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-3);
     const cutoffStr = cutoff.toISOString().slice(0,10);
-    const relevant = forms.filter(f => f.tanggal >= cutoffStr && (f.items||[]).some(it => it.aktQty > 0));
+    // Show forms that have estQty OR aktQty data (not just aktQty)
+    const relevant = forms.filter(f => f.tanggal >= cutoffStr && (f.items||[]).some(it => _n(it.estQty) > 0 || _n(it.aktQty) > 0));
     if (!relevant.length) { el.innerHTML = ''; return; }
 
     // Check sync status for each form
     const cards = relevant.sort((a,b) => (b.tanggal||'').localeCompare(a.tanggal||'')).map(f => {
       const syncTag = 'do_' + (f.tanggal||'').replace(/-/g,'') + '_' + f.shift;
       const syncedLogs = _logs.filter(l => l.syncTag === syncTag);
-      const aktItems = (f.items||[]).filter(it => it.aktQty > 0);
-      const totalItems = aktItems.length;
+      const syncItems = (f.items||[]).filter(it => _n(it.estQty) > 0 || _n(it.aktQty) > 0);
+      const totalItems = syncItems.length;
       const syncedCount = syncedLogs.length;
-      const needsUpdate = aktItems.some(it => {
+      const needsUpdate = syncItems.some(it => {
+        const baseQty = _n(it.aktQty) > 0 ? _n(it.aktQty) : _n(it.estQty);
         const log = syncedLogs.find(l => (l.itemNama||'').toLowerCase() === (it.item||'').toLowerCase());
-        return log && log.jumlah !== it.aktQty;
+        return log && log.jumlah !== baseQty;
       });
       const isFullSync = syncedCount >= totalItems && !needsUpdate;
       const shiftLabel = (f.shift||'').startsWith('EVT') ? 'C'+(f.shift||'').replace('EVT','') :
@@ -551,8 +553,12 @@ const InventoryModule = (() => {
     const pendingCount = relevant.filter(f => {
       const st = 'do_'+(f.tanggal||'').replace(/-/g,'')+'_'+f.shift;
       const sl = _logs.filter(l=>l.syncTag===st);
-      const ak = (f.items||[]).filter(it=>it.aktQty>0);
-      const full = sl.length >= ak.length && !ak.some(it => { const l=sl.find(x=>(x.itemNama||'').toLowerCase()===(it.item||'').toLowerCase()); return l&&l.jumlah!==it.aktQty; });
+      const si = (f.items||[]).filter(it => _n(it.estQty)>0 || _n(it.aktQty)>0);
+      const full = sl.length >= si.length && !si.some(it => {
+        const bq = _n(it.aktQty) > 0 ? _n(it.aktQty) : _n(it.estQty);
+        const l = sl.find(x=>(x.itemNama||'').toLowerCase()===(it.item||'').toLowerCase());
+        return l && l.jumlah !== bq;
+      });
       return !full;
     }).length;
 
@@ -667,7 +673,7 @@ const InventoryModule = (() => {
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
           ${(()=>{
-            const aktTotal = syncItems.reduce((s,it)=>s+(_n(it.estQty)||_n(it.aktQty))*_n(it.hargaSatuan),0);
+            const aktTotal = syncItems.reduce((s,it)=>s+(_n(it.aktQty)>0?_n(it.aktQty):_n(it.estQty))*_n(it.hargaSatuan),0);
             const budgetShift = _n(form._budget) || _n(form.budgetBelanja) || 0;
             const sisaAkt = budgetShift > 0 ? budgetShift - aktTotal : 0;
             const rp = n => 'Rp '+Math.round(n).toLocaleString('id');
