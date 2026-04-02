@@ -493,18 +493,8 @@ const KasModule = (() => {
     }).join('');
     document.body.appendChild(drop);
 
-    // Arrow key navigation
-    inp._acKeyHandler = (e) => {
-      const items = drop.querySelectorAll('.ks-ac-item');
-      if (e.key === 'ArrowDown') { e.preventDefault(); _acIdx = Math.min(_acIdx+1, items.length-1); _highlightAc(items); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); _acIdx = Math.max(_acIdx-1, -1); _highlightAc(items); }
-      else if (e.key === 'Enter' && _acIdx >= 0 && items[_acIdx]) { e.preventDefault(); _selectNamaSuggestion(id, items[_acIdx].dataset.val); }
-      else if (e.key === 'Escape') { drop.remove(); }
-    };
-    inp.addEventListener('keydown', inp._acKeyHandler);
-
-    // Close on blur (delayed to allow mousedown)
-    inp._acBlur = () => setTimeout(() => { drop.remove(); inp.removeEventListener('keydown', inp._acKeyHandler); }, 150);
+    // Close on blur (delayed to allow mousedown on suggestion)
+    inp._acBlur = () => setTimeout(() => drop.remove(), 150);
     inp.addEventListener('blur', inp._acBlur, {once:true});
   }
 
@@ -715,22 +705,36 @@ const KasModule = (() => {
   }
 
   function _rowKeyDown(e, id) {
-    // Jika autocomplete dropdown aktif, biarkan dropdown handle arrow/enter
     const acDrop = document.getElementById('ks-ac-drop');
-    // Autocomplete dropdown active → let it handle keys
     if (acDrop) {
-      if (e.key==='ArrowDown'||e.key==='ArrowUp') return; // dropdown navigates
-      if (e.key==='Enter' && _acIdx>=0) return; // dropdown selects
-      if (e.key==='Tab' && _acIdx>=0) {
-        // Tab selects current suggestion
-        e.preventDefault();
-        const items = acDrop.querySelectorAll('.ks-ac-item');
-        if (items[_acIdx]) _selectNamaSuggestion(id, items[_acIdx].dataset.val);
+      // Dropdown active — handle navigation here, prevent all propagation
+      const items = acDrop.querySelectorAll('.ks-ac-item');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault(); e.stopPropagation();
+        _acIdx = Math.min(_acIdx + 1, items.length - 1);
+        _highlightAc(items);
         return;
       }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault(); e.stopPropagation();
+        _acIdx = Math.max(_acIdx - 1, -1);
+        _highlightAc(items);
+        return;
+      }
+      if (e.key === 'Enter' && _acIdx >= 0 && items[_acIdx]) {
+        e.preventDefault(); e.stopPropagation();
+        _selectNamaSuggestion(id, items[_acIdx].dataset.val);
+        return;
+      }
+      if (e.key === 'Tab' && _acIdx >= 0 && items[_acIdx]) {
+        e.preventDefault(); e.stopPropagation();
+        _selectNamaSuggestion(id, items[_acIdx].dataset.val);
+        return;
+      }
+      if (e.key === 'Escape') { e.preventDefault(); acDrop.remove(); return; }
     }
     if (e.key === 'Enter')       { e.preventDefault(); commitAndAddRow(id); }
-    else if (e.key === 'Escape') { e.preventDefault(); if(acDrop){acDrop.remove();return;} cancelEdit(id); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(id); }
   }
 
   /* ===================== ADD / DELETE ===================== */
