@@ -1042,11 +1042,15 @@ const APModule = (() => {
                 +supName.trim().substring(0,1).toUpperCase()
               +'</div>'
               +'<div>'
-                +'<div style="font-weight:800;font-size:15px;letter-spacing:.01em">'+supName+'</div>'
-                +'<div style="font-size:11px;opacity:.75;margin-top:1px">'
-                  +(sup?.bank?sup.bank+' · ':'')+(sup?.noRek||'')+(sup?.atasNama?' · '+sup.atasNama:'')
-                  +(!sup?.bank&&!sup?.noRek?(sup?.kategori||'Supplier'):'')
+                +'<div style="font-weight:800;font-size:15px;letter-spacing:.01em">'+supName
+                  +(sup?.supplierCode?'<span style="opacity:.5;font-size:11px;margin-left:6px;font-weight:600">#'+sup.supplierCode+'</span>':'')
                 +'</div>'
+                +'<div style="font-size:11px;opacity:.8;margin-top:2px">'+(sup?.kategori||'Supplier')+'</div>'
+                +(sup?.bank?'<div style="display:flex;gap:12px;margin-top:4px;font-size:11px;opacity:.9">'
+                  +'<span>🏦 '+sup.bank+'</span>'
+                  +(sup?.noRek?'<span style="font-family:var(--font-mono);letter-spacing:.03em">'+sup.noRek+'</span>':'')
+                  +(sup?.atasNama?'<span>a/n '+sup.atasNama+'</span>':'')
+                +'</div>':'')
               +'</div>'
             +'</div>'
             +'<div style="text-align:right">'
