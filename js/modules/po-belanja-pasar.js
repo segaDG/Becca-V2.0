@@ -160,7 +160,7 @@ window.POBelanjaPasarModule = (() => {
     if (el) el.textContent = n + ' form dipilih';
   }
 
-  function _onPickDone() {
+  async function _onPickDone() {
     const selected = [];
     const dateSet = new Set();
     document.querySelectorAll('.bp-form-chk:checked').forEach(cb => {
@@ -177,35 +177,58 @@ window.POBelanjaPasarModule = (() => {
     _doc.dayLabels = {};
     dates.forEach((d, i) => { _doc.dayLabels[d] = DAY_LABELS[i] || String(i+1); });
     _doc.periode = _fmtFull(dates[0]) + ' - ' + _fmtFull(dates.at(-1));
-    _mergeItems();
+    await _mergeItems();
     _step = 3;
     _renderStep3();
   }
 
   /* ── Merge: only PASAR + PARTIAL items ─────── */
-  function _mergeItems() {
-    const map = {};
+  async function _mergeItems() {
+    // 1. Load inventory stock (fresh from DB)
+    let invItems = [], invLogs = [];
+    try { invItems = await DB.getInventoryItems(); } catch {}
+    try { invLogs = await DB.getInventory(); } catch {}
+    // Compute current stock per item
+    const logsByItem = {};
+    invLogs.forEach(l => { if (l.itemId) (logsByItem[l.itemId] = logsByItem[l.itemId]||[]).push(l); });
+    const stockMap = {};
+    invItems.forEach(inv => {
+      const ls = logsByItem[inv.id] || [];
+      const stok = ls.reduce((a,l) => l.jenis==='MASUK' ? a+(l.jumlah||0) : l.jenis==='KELUAR' ? a-(l.jumlah||0) : a, 0);
+      stockMap[inv.nama.toLowerCase().trim()] = stok;
+    });
+
+    // 2. Accumulate total estQty demand across ALL selected forms
+    const demandMap = {};
     _doc.selectedForms.forEach(sf => {
       const f = _forms.find(f => f.id === sf.formId);
       if (!f || !f.items) return;
       f.items.forEach(it => {
         if (!it.item) return;
-        // Use estQty (estimasi) as the base qty for belanja pasar
         const estQ = Number(it.estQty) || 0;
         if (estQ <= 0) return;
-        const sumber = it.sumber || _calcSumber(Number(it.stokGudang)||0, estQ);
-        if (sumber !== 'PASAR' && sumber !== 'PARTIAL') return;
         const key = it.item.toLowerCase().trim();
-        const stok = Number(it.stokGudang) || 0;
-        const pasarQty = sumber === 'PARTIAL' ? Math.max(0, estQ - stok) : estQ;
-        if (pasarQty <= 0) return;
-        if (!map[key]) {
-          map[key] = { item: it.item, satuan: it.satuan||'', totalQty: 0, harga: Number(it.hargaSatuan)||0, qtyCikopo: 0, qtyKarawang: 0 };
-        }
-        map[key].totalQty += pasarQty;
-        if (!map[key].harga && it.hargaSatuan) map[key].harga = Number(it.hargaSatuan)||0;
+        if (!demandMap[key]) demandMap[key] = { item: it.item, satuan: it.satuan||'', totalDemand: 0, harga: Number(it.hargaSatuan)||0 };
+        demandMap[key].totalDemand += estQ;
+        if (!demandMap[key].harga && it.hargaSatuan) demandMap[key].harga = Number(it.hargaSatuan)||0;
       });
     });
+
+    // 3. Compare demand vs stock → determine what needs to be bought
+    const map = {};
+    Object.values(demandMap).forEach(d => {
+      const key = d.item.toLowerCase().trim();
+      const stok = stockMap[key] || 0;
+      const demand = d.totalDemand;
+      let pasarQty = 0;
+      if (stok <= 0)       pasarQty = demand;        // PASAR: no stock at all
+      else if (stok < demand) pasarQty = demand - stok; // PARTIAL: buy the shortage
+      // else: STOK — don't add to belanja pasar
+      if (pasarQty <= 0) return;
+      map[key] = { item: d.item, satuan: d.satuan, totalQty: Math.round(pasarQty*100)/100, harga: d.harga, qtyCikopo: 0, qtyKarawang: 0 };
+    });
+
+    // 4. Preserve existing Cikopo assignments
     const oldItems = _doc.items || [];
     const merged = Object.values(map).sort((a,b) => a.item.localeCompare(b.item));
     merged.forEach(m => {
@@ -214,13 +237,6 @@ window.POBelanjaPasarModule = (() => {
       m.qtyKarawang = Math.round((m.totalQty - (m.qtyCikopo||0)) * 100) / 100;
     });
     _doc.items = merged;
-  }
-
-  function _calcSumber(stok, qty) {
-    if (!qty || qty <= 0) return 'STOK';
-    if (!stok || stok <= 0) return 'PASAR';
-    if (stok >= qty) return 'STOK';
-    return 'PARTIAL';
   }
 
   /* ── Step 3: Form Belanja Pasar (pembagian lokasi) ── */
@@ -331,7 +347,7 @@ window.POBelanjaPasarModule = (() => {
     });
     _doc.cikopo = Object.values(cikopoMap).sort((a,b) => a.item.localeCompare(b.item));
 
-    // PS Karawang: per date per shift — distribute proportionally
+    // PS Karawang: per date per shift — proportional from merged items
     const ps = {};
     (_doc.selectedForms||[]).forEach(sf => {
       const f = _forms.find(f => f.id === sf.formId);
@@ -342,17 +358,12 @@ window.POBelanjaPasarModule = (() => {
         if (!fi.item) return;
         const estQ = Number(fi.estQty) || 0;
         if (estQ <= 0) return;
-        const sumber = fi.sumber || _calcSumber(Number(fi.stokGudang)||0, estQ);
-        if (sumber !== 'PASAR' && sumber !== 'PARTIAL') return;
-        const stok = Number(fi.stokGudang) || 0;
-        const pasarQty = sumber === 'PARTIAL' ? Math.max(0, estQ - stok) : estQ;
-        if (pasarQty <= 0) return;
+        // Only include items that are in the merged pasar list
         const merged = (_doc.items||[]).find(m => m.item.toLowerCase().trim() === fi.item.toLowerCase().trim());
         if (!merged || !merged.totalQty) return;
-        // Always derive PS Karawang as totalQty - qtyCikopo (fresh, not stored)
         const derivedKarawang = Math.max(0, merged.totalQty - (merged.qtyCikopo||0));
         const ratioK = merged.totalQty > 0 ? derivedKarawang / merged.totalQty : 0;
-        const qK = Math.round(pasarQty * ratioK * 100) / 100;
+        const qK = Math.round(estQ * ratioK * 100) / 100;
         if (qK > 0) karawang.push({ item: fi.item, qty: qK, satuan: fi.satuan||merged.satuan||'', harga: merged.harga||Number(fi.hargaSatuan)||0 });
       });
       ps[key] = karawang;
