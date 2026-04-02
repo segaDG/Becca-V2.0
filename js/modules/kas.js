@@ -1850,26 +1850,30 @@ const KasModule = (() => {
     if (!_bpDocs.length) { try { _bpDocs = await DB.getBelanjaPasar(); } catch {} }
     const doc = _bpDocs.find(d => d.id === docId);
     if (!doc) { Notify.warning('Data tidak ditemukan'); return; }
-    // Count kas rows linked to this BP
     const linkedKas = _kas.filter(r => r.bpDocId === docId);
     const ok = await Modal.confirm({
       title: 'Hapus Belanja Pasar dari Kas',
-      message: `<p>Hapus <strong>🛒 ${doc.periode||'-'}</strong>?</p>
+      message: `<p>Hapus <strong>🛒 ${doc.periode||'-'}</strong> dari kas kecil?</p>
         ${linkedKas.length ? `<p style="margin-top:8px;color:#ef4444;font-weight:600">⚠ ${linkedKas.length} baris transaksi kas terkait juga akan dihapus.</p>` : ''}
-        <p style="margin-top:8px">Status konfirmasi akan direset.</p>`,
-      danger: true, confirmText: 'Hapus',
+        <p style="margin-top:8px">Card akan hilang dari kas. Form belanja pasar dikembalikan ke status draft di PO.</p>`,
+      danger: true, confirmText: 'Hapus dari Kas',
     });
     if (!ok) return;
     // Delete linked kas rows
     for (const r of linkedKas) {
       try { await DB.deleteKas(r.id); _kas = _kas.filter(k=>k.id!==r.id); } catch {}
     }
-    // Reset kas status
+    // Reset ALL status — return to draft so it disappears from kas dashboard
+    doc.status = 'draft';
     doc.kasStatus = null; doc.kasConfirmedAt = null; doc.kasConfirmedBy = null; doc.kasItems = null;
+    doc.invSyncStatus = null; doc.invSyncedAt = null; doc.invSyncedBy = null;
     try { await DB.saveBelanjaPasar(doc); } catch {}
+    // Remove from local cache
+    _bpDocs = _bpDocs.filter(d => d.id !== docId || d.status !== 'selesai');
     Notify.success('Belanja pasar dihapus dari kas');
     _renderBPDashboard();
     renderTransaksi();
+    _updateBPBadge();
   }
 
   return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
