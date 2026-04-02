@@ -1728,24 +1728,24 @@ const KasModule = (() => {
           ${isConfirmed ? `<span style="font-size:10px;background:rgba(16,185,129,.12);color:#10b981;padding:2px 8px;border-radius:10px;font-weight:700">✓ oleh ${doc.kasConfirmedBy||'-'}</span>` : ''}
         </div>
         <div style="overflow-x:auto;max-height:55vh;overflow-y:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--surface2)">
-            <th style="padding:6px;font-size:9px;width:25px">#</th>
-            <th style="padding:6px;font-size:9px;text-align:left">ITEM</th>
-            <th style="padding:6px;font-size:9px;text-align:right;width:55px;color:#475569">EST QTY</th>
-            <th style="padding:6px;font-size:9px;width:40px;color:#475569">SAT</th>
-            <th style="padding:6px;font-size:9px;text-align:right;width:80px;color:#475569">EST HARGA</th>
-            <th style="padding:6px;font-size:9px;text-align:right;width:70px;color:#059669">AKT QTY</th>
-            <th style="padding:6px;font-size:9px;text-align:right;width:95px;color:#059669">AKT HARGA</th>
-            <th style="padding:6px;font-size:9px;text-align:right;width:100px;color:#059669">TOTAL</th>
+          <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff">
+            <th style="padding:8px 6px;font-size:9px;width:25px;font-weight:700">#</th>
+            <th style="padding:8px 6px;font-size:9px;text-align:left;font-weight:700">ITEM</th>
+            <th style="padding:8px 6px;font-size:9px;text-align:right;width:55px;font-weight:700;color:rgba(255,255,255,.6)">EST QTY</th>
+            <th style="padding:8px 6px;font-size:9px;width:40px;font-weight:700;color:rgba(255,255,255,.6)">SAT</th>
+            <th style="padding:8px 6px;font-size:9px;text-align:right;width:80px;font-weight:700;color:rgba(255,255,255,.6)">EST HARGA</th>
+            <th style="padding:8px 6px;font-size:9px;text-align:right;width:70px;font-weight:700;color:#34d399">AKT QTY</th>
+            <th style="padding:8px 6px;font-size:9px;text-align:right;width:95px;font-weight:700;color:#34d399">AKT HARGA</th>
+            <th style="padding:8px 6px;font-size:9px;text-align:right;width:100px;font-weight:700;background:rgba(5,150,105,.3);color:#fff">TOTAL</th>
           </tr></thead><tbody>${items.map((it,i) => {
             const aktT = (Number(it.aktQty)||0)*(Number(it.aktHarga)||0);
             const estH = Number(it.estHarga)||Number(it.harga)||0;
-            return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.012)':''}">
-              <td style="padding:8px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
-              <td style="padding:8px 6px;font-weight:600">${it.item}</td>
-              <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:#475569">${it.estQty||'-'}</td>
-              <td style="padding:8px 6px;color:#475569">${it.satuan}</td>
-              <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:#475569">${estH?rp(estH):'-'}</td>
+            return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(5,150,105,.03)':''}">
+              <td style="padding:10px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
+              <td style="padding:10px 6px;font-weight:600">${it.item}</td>
+              <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);color:#64748b;background:rgba(100,116,139,.04)">${it.estQty||'-'}</td>
+              <td style="padding:10px 6px;color:#64748b;background:rgba(100,116,139,.04)">${it.satuan}</td>
+              <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);color:#64748b;background:rgba(100,116,139,.04)">${estH?rp(estH):'-'}</td>
               <td style="padding:6px 4px;text-align:right">${isConfirmed
                 ? `<span style="font-family:var(--font-mono);font-weight:600;color:#059669">${it.aktQty}</span>`
                 : `<input type="number" min="0" step="0.5" value="${it.aktQty||0}" data-doc="${doc.id}" data-idx="${i}" data-field="aktQty"
@@ -1757,12 +1757,12 @@ const KasModule = (() => {
                     onfocus="this.value=this.dataset.raw||${it.aktHarga||0};this.type='number';this.select()"
                     onblur="this.dataset.raw=this.value;this.type='text';this.value='Rp '+Number(this.dataset.raw||0).toLocaleString('id');KasModule._bpCellChange('${doc.id}',${i})"
                     style="width:90px;border:1px solid var(--border);border-radius:4px;padding:4px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)">`}</td>
-              <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);font-weight:700;color:#059669" id="bp-kas-total-${doc.id}-${i}">${rp(aktT)}</td>
+              <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);font-weight:800;color:#059669;background:rgba(5,150,105,.06)" id="bp-kas-total-${doc.id}-${i}">${aktT?rp(aktT):'-'}</td>
             </tr>`;
           }).join('')}</tbody>
-          <tfoot><tr style="border-top:2px solid var(--border);background:var(--surface2)">
-            <td colspan="5"></td><td colspan="2" style="padding:6px;text-align:right;font-weight:700">Grand Total</td>
-            <td style="padding:6px;text-align:right;font-family:var(--font-mono);font-weight:800;color:#059669" id="bp-kas-grand-${doc.id}">${rp(aktGrandTotal)}</td>
+          <tfoot><tr style="background:linear-gradient(135deg,#059669,#10b981);color:#fff">
+            <td colspan="5"></td><td colspan="2" style="padding:10px;text-align:right;font-weight:800;font-size:13px">Grand Total</td>
+            <td style="padding:10px;text-align:right;font-family:var(--font-mono);font-weight:900;font-size:15px" id="bp-kas-grand-${doc.id}">${rp(aktGrandTotal)}</td>
           </tr></tfoot></table>
         </div>`,
       footer: isConfirmed ? '' : `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
