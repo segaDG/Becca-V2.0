@@ -69,7 +69,7 @@ else { window.POModule = (() => {
         </div>` : ''}
       </div>
       <div class="tabs" style="margin-bottom:var(--s4)">
-        <button class="tab-btn active" onclick="POModule.switchTab('active')">Aktif</button>
+        <button class="tab-btn active" onclick="POModule.switchTab('active')">Anggaran</button>
         <button class="tab-btn" onclick="POModule.switchTab('arsip')">Arsip</button>
         <button class="tab-btn" onclick="POModule.switchTab('belanja-pasar')">Belanja Pasar</button>
       </div>
