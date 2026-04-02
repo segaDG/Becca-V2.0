@@ -1612,6 +1612,15 @@ const KasModule = (() => {
     try { _bpDocs = await DB.getBelanjaPasar(); } catch { _bpDocs = []; }
     // Only show docs that are 'selesai' from PO module
     const docs = _bpDocs.filter(d => d.status === 'selesai').sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    // Update badge on tab button
+    const pending = docs.filter(d => d.kasStatus !== 'confirmed').length;
+    const tabBtn = document.querySelector('[data-tab="belanjaPasar"]');
+    if (tabBtn) {
+      const old = tabBtn.querySelector('.bp-kas-badge');
+      if (old) old.remove();
+      if (pending > 0) tabBtn.insertAdjacentHTML('beforeend',
+        `<span class="bp-kas-badge" style="display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;background:#ef4444;color:#fff;border-radius:99px;font-size:9px;font-weight:700;margin-left:6px;padding:0 4px">${pending}</span>`);
+    }
     if (!docs.length) {
       el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)"><div style="font-size:28px;margin-bottom:8px">🛒</div>Belum ada Form Belanja Pasar yang selesai</div>';
       return;
