@@ -278,7 +278,7 @@ const APModule = (() => {
         +'<td style="'+tdL+'">'+(r.item||r.keterangan||'-')+'</td>'
         +'<td style="'+tdR+'">'+(r.qty ? Number(r.qty).toLocaleString('id-ID') : '-')+'</td>'
         +'<td style="'+tdL+'">'+(r.satuan||'-')+'</td>'
-        +'<td style="'+tdR+'">'+(r.harga_satuan ? Utils.formatRupiah(r.harga_satuan) : '-')+'</td>'
+        +'<td style="'+tdR+'">'+((r.hargaSatuan||r.harga_satuan) ? Utils.formatRupiah(r.hargaSatuan||r.harga_satuan) : '-')+'</td>'
         +'<td style="'+tdR+';font-weight:600">'+Utils.formatRupiah(r.total)+'</td>'
         +'<td style="'+tdL+';white-space:nowrap">'+(r.tgl_bayar||'-')+'</td>'
         +'<td style="'+tdL+'">'+(r.kodeAktivitas||'-')+'</td>'
@@ -1059,22 +1059,16 @@ const APModule = (() => {
       items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach(r=>{
         const sisa   = (r.status==='LUNAS'||r.status==='lunas') ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
         const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
-        const hs    = r.harga_satuan ? Utils.formatRupiah(r.harga_satuan) : '-';
+        const hs    = (r.hargaSatuan||r.harga_satuan) ? Utils.formatRupiah(r.hargaSatuan||r.harga_satuan) : '-';
         rowsHtml +=
           '<tr style="background:'+P.lt+';border-bottom:1px solid '+P.border+'40">'
-          +'<td style="padding:8px 16px 8px 68px;font-size:12px;color:var(--text-2);font-style:italic">'
-        +(r.vendor||r.supplier_nama||'-')
-+'</td>'
-        +(r.item||r.keterangan||'-')
-        +'</td>'
+          +'<td style="padding:8px 16px 8px 68px;font-size:12px;color:var(--text-2)">'+(r.item||r.keterangan||'-')+'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3)">'+tglFmt+'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);font-family:var(--font-mono)">'
             +((r.qty)?Number(r.qty).toLocaleString('id',{minimumFractionDigits:(r.qty)%1?2:0})+' '+((r.satuan||'')||''):'-')
           +'</td>'
           +'<td style="padding:8px 16px;font-size:11px;color:var(--text-3);text-align:right;font-family:var(--font-mono)">'+hs+'</td>'
-          +'<td style="padding:8px 16px;text-align:right;font-family:var(--font-mono);font-size:12px;'
-        +(r.tgl_bayar||'-')
-        +'font-weight:700;color:'+P.acc+';white-space:nowrap">'+Utils.formatRupiah(sisa)+'</td>'
+          +'<td style="padding:8px 16px;text-align:right;font-family:var(--font-mono);font-size:12px;font-weight:700;color:'+P.acc+';white-space:nowrap">'+Utils.formatRupiah(sisa)+'</td>'
           +'</tr>';
       });
     });
