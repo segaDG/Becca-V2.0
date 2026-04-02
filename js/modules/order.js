@@ -87,15 +87,14 @@ const OrderModule = (() => {
       const _defaultKeys = new Set(_defaultCols.map(c => c.key));
       const _hadDup = _cols.some(c => c.group === 'sb' && !_defaultKeys.has(c.key));
       if (_hadDup) { _cols = _cols.filter(c => !(c.group === 'sb' && !_defaultKeys.has(c.key))); _saveCols(); }
-      // Orders: prefer Supabase (cross-device) → fall back to localStorage
-      const dbOrders = await DB.getOrders();
-      if (dbOrders.length > 0) {
-        _data = dbOrders;
-        localStorage.setItem('becca_orders', JSON.stringify(_data));
-      } else {
-        const s = localStorage.getItem('becca_orders');
-        _data = s ? JSON.parse(s) : [];
-      }
+      // Fast first page, then background load rest
+      const firstPage = await DB.getPage('orders', { page:1, perPage:100, orderBy:'created_at', ascending:false });
+      if (firstPage.data.length > 0) { _data = firstPage.data; }
+      else { const s = localStorage.getItem('becca_orders'); _data = s ? JSON.parse(s) : []; }
+      // Background: load full dataset
+      DB.getOrders().then(all => {
+        if (all.length > 0) { _data = all; localStorage.setItem('becca_orders', JSON.stringify(_data)); _render(); }
+      }).catch(() => {});
 
       // Pre-cache customers so order form dropdown works on any device
       DB.getCustomers().then(custs => {

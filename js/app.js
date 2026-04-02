@@ -8,13 +8,13 @@ const App = {
 
   _MODULE_MAP: {
     dashboard : 'js/modules/dashboard.js?v=20260329e',
-    order     : 'js/modules/order.js?v=20260401b',
+    order     : 'js/modules/order.js?v=20260403a',
     invoice   : 'js/modules/invoice.js?v=20260402b',
     customer  : 'js/modules/customer.js?v=20260331j',
     news      : 'js/modules/news.js?v=20260401a',
-    kas       : 'js/modules/kas.js?v=20260402j',
+    kas       : 'js/modules/kas.js?v=20260403a',
     'daily-order': 'js/modules/daily-order.js?v=20260402d',
-    inventory : 'js/modules/inventory.js?v=20260403a',
+    inventory : 'js/modules/inventory.js?v=20260403b',
     employee  : 'js/modules/employee.js?v=20260401b',
     ap        : 'js/modules/ap.js?v=20260403a',
     po        : 'js/modules/po.js?v=20260402d',

@@ -84,7 +84,13 @@ const InventoryModule = (() => {
     _recalcStok();
     switchTab('stok');
 
-    // Background-load jika ada yang cold
+    // Fast first page for activity logs (heaviest table)
+    if (!cachedLogs) {
+      const first = await DB.getPage('inv_activities', { page:1, perPage:100, orderBy:'created_at', ascending:false });
+      if (first.data.length) { _logs = first.data; _logs.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); _recalcStok(); }
+    }
+
+    // Background-load full dataset
     if (!cachedItems || !cachedLogs || !cachedOpname) {
       const [freshItems, freshLogs, freshOpname] = await Promise.all([
         cachedItems  ? Promise.resolve(cachedItems)  : DB.getInventoryItems(),

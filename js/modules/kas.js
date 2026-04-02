@@ -82,21 +82,22 @@ const KasModule = (() => {
     _pendingChanges = {};
     UndoRedo.setActive('kas');
 
-    // Level 4 — Progressive loading:
-    // Jika cache warm (dalam 5 menit), langsung render.
-    // Jika cache cold, render dulu dengan data kosong (tampil cepat),
-    // lalu load di background dan re-render saat data tiba.
+    // Progressive loading — fast first page, background load rest
     const cachedKas   = DB.getCached('kas');
     const cachedMasuk = DB.getCached('kas_masuk');
     if (cachedKas)   { _kas = cachedKas; _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); }
     if (cachedMasuk) _masuk = cachedMasuk;
 
-    // Render segera — fast jika cache warm, empty-state jika cold
     switchTab('transaksi');
     _injectStyles();
 
-    // Jika salah satu cache cold, load di background lalu re-render
     if (!cachedKas || !cachedMasuk) {
+      // Fast: fetch first page (50 rows) for instant render
+      if (!cachedKas) {
+        const first = await DB.getPage('kas', { page:1, perPage:100, orderBy:'created_at', ascending:false });
+        if (first.data.length) { _kas = first.data; _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); renderTransaksi(); }
+      }
+      // Background: load full dataset
       const [freshKas, freshMasuk] = await Promise.all([
         cachedKas   ? Promise.resolve(cachedKas)   : DB.getKas(),
         cachedMasuk ? Promise.resolve(cachedMasuk) : DB.getKasMasuk(),
