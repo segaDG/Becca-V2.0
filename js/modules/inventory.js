@@ -616,12 +616,13 @@ const InventoryModule = (() => {
       const invItem = _items.find(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase());
       const existing = syncedLogs.find(l => (l.itemNama||'').toLowerCase() === (it.item||'').toLowerCase());
       const isNew = !existing;
-      // Show estQty as base, aktQty as revised (if different)
-      const baseQty = _n(it.estQty) || _n(it.aktQty);
+      // First sync: use estQty. Re-sync after revision: prefer aktQty
+      const baseQty = _n(it.aktQty) > 0 ? _n(it.aktQty) : _n(it.estQty);
       const qtyChanged = existing && existing.jumlah !== baseQty;
       const noMatch = !invItem;
       const isChecked = checked.has(i);
       const highlight = qtyChanged ? 'background:rgba(245,158,11,.12)' : isNew ? 'background:rgba(99,102,241,.06)' : '';
+      const itemKey = (it.item||'').replace(/'/g,"\\'");
       return `<tr style="${highlight};border-bottom:1px solid var(--border)">
         <td style="padding:5px;text-align:center">
           ${noMatch ? '<span style="color:#ef4444;font-size:9px">-</span>' :
@@ -631,7 +632,7 @@ const InventoryModule = (() => {
         <td style="padding:5px 6px;font-weight:600;font-size:11px${noMatch?';color:#ef4444;text-decoration:line-through':''}">${it.item||''}</td>
         <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:700">${baseQty}</td>
         <td style="padding:4px 3px;text-align:center">
-          <input type="number" min="0" step="1" value="${baseQty}" data-sync-idx="${i}" data-harga="${_n(it.hargaSatuan)}" data-orig="${baseQty}"
+          <input type="number" min="0" step="1" value="${baseQty}" data-sync-idx="${i}" data-item="${itemKey}" data-harga="${_n(it.hargaSatuan)}" data-orig="${baseQty}"
             style="width:55px;padding:3px 4px;text-align:right;border:1px solid var(--border);border-radius:4px;
             font-size:11px;font-family:var(--font-mono);background:var(--surface);color:var(--text)"
             onfocus="this.select()" oninput="InventoryModule._updateSyncTotals()">
@@ -775,18 +776,22 @@ const InventoryModule = (() => {
     const syncItems = (form.items||[]).filter(it => _n(it.estQty) > 0 || _n(it.aktQty) > 0);
     let synced = 0, revised = 0;
 
-    // Read revised QTY from DOM
+    // Read revised QTY from DOM — keyed by item name for safety
     const revInputs = document.querySelectorAll('[data-sync-idx]');
-    const revMap = {};
-    revInputs.forEach(inp => { revMap[parseInt(inp.dataset.syncIdx,10)] = parseFloat(inp.value)||0; });
+    const revByName = {};
+    revInputs.forEach(inp => {
+      const name = (inp.dataset.item||'').toLowerCase().trim();
+      if (name) revByName[name] = parseFloat(inp.value)||0;
+    });
 
     for (const [i, it] of syncItems.entries()) {
       if (!checked.has(i)) continue;
       const invItem = _items.find(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase());
       if (!invItem) continue;
 
-      const baseQty = _n(it.estQty) || _n(it.aktQty);
-      const revQty = revMap[i] !== undefined ? revMap[i] : baseQty;
+      const baseQty = _n(it.aktQty) > 0 ? _n(it.aktQty) : _n(it.estQty);
+      const itemKey = (it.item||'').toLowerCase().trim();
+      const revQty = revByName[itemKey] !== undefined ? revByName[itemKey] : baseQty;
       const qtyToSync = revQty;
 
       // Write revisi back as aktQty in form produksi

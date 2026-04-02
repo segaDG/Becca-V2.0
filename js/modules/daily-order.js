@@ -50,44 +50,7 @@ const DailyOrderModule = (() => {
   }
 
   /* ── Sumber: compare accumulated demand vs inventory stock ── */
-  // _remainingStock is a map: itemName(lower) → remaining stock after all forms' demand
-  // Built once per init/render cycle, reflects global inventory state
-  let _remainingStock = {}; // { "ayam potong": 50, "beras": -10, ... }
-
-  function _buildRemainingStock() {
-    // 1. Build inventory stock map from _inventory
-    const stockMap = {};
-    _inventory.forEach(inv => {
-      stockMap[inv.nama.toLowerCase().trim()] = inv._stok || 0;
-    });
-
-    // 2. Accumulate total demand across ALL forms (all dates, all shifts)
-    // Process forms in chronological order so earlier forms deplete stock first
-    const sorted = [..._forms].sort((a,b) => {
-      const d = (a.tanggal||'').localeCompare(b.tanggal||'');
-      return d !== 0 ? d : (a.shift||'').localeCompare(b.shift||'');
-    });
-
-    // remaining = starting stock
-    const remaining = {};
-    Object.keys(stockMap).forEach(k => { remaining[k] = stockMap[k]; });
-
-    // For each form, subtract demand using estQty
-    sorted.forEach(form => {
-      (form.items || []).forEach(it => {
-        if (!it.item) return;
-        const key = it.item.toLowerCase().trim();
-        const qty = Number(it.estQty) || Number(it.aktQty) || 0;
-        if (qty <= 0) return;
-        if (!(key in remaining)) remaining[key] = 0;
-        remaining[key] -= qty;
-      });
-    });
-
-    _remainingStock = remaining;
-  }
-
-  // Per-form sumber: uses a running stock tracker
+  // Per-form sumber: uses a running stock tracker across ALL forms
   function _calcAllSumber() {
     const stockMap = {};
     _inventory.forEach(inv => {
@@ -1407,6 +1370,7 @@ const DailyOrderModule = (() => {
     }
     const form = _currentForm();
     if (!form || !form.items?.length) { Notify.warning('Tidak ada item untuk di-copy'); return; }
+    if (form.status === 'final') { Notify.warning('Form sudah final, tidak bisa diubah'); return; }
 
     const ok = await Modal.confirm({
       title: 'Copy Est QTY → Akt QTY',

@@ -23,6 +23,7 @@ else { window.POModule = (() => {
   }
   function _getChainSisa(docId) {
     const sorted = _sortedChain();
+    if (!sorted.length) return null;
     const idx = sorted.findIndex(d => d.id === docId);
     if (idx <= 0) return null;
     let carry = Number(sorted[0].sisaPeriode) || 0;
@@ -92,7 +93,7 @@ else { window.POModule = (() => {
     el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)">Memuat...</div>';
     await new Promise((resolve, reject) => {
       const base = 'js/modules/po-belanja-pasar.js';
-      const ver = '?v=20260402c';
+      const ver = '?v=20260402d';
       // Remove old script tag if exists (force reload fresh version)
       const old = document.querySelector(`script[src^="${base}"]`);
       if (old) old.remove();
@@ -777,7 +778,7 @@ else { window.POModule = (() => {
   }
 
   /* ── Navigation ────────────────────────────── */
-  function backToList() { if (_editState) _commitEdit(); _render(); }
+  function backToList() { flushPendingEdit(); _render(); }
   function flushPendingEdit() {
     if (_editState) _commitEdit();
     // Auto-save belanja pasar when leaving PO page

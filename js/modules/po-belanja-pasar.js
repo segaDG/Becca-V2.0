@@ -211,7 +211,7 @@ window.POBelanjaPasarModule = (() => {
     merged.forEach(m => {
       const old = oldItems.find(o => o.item.toLowerCase().trim() === m.item.toLowerCase().trim());
       if (old) m.qtyCikopo = Math.min(old.qtyCikopo||0, m.totalQty);
-      m.qtyKarawang = Math.round((m.totalQty - m.qtyCikopo) * 100) / 100;
+      m.qtyKarawang = Math.round((m.totalQty - (m.qtyCikopo||0)) * 100) / 100;
     });
     _doc.items = merged;
   }
@@ -349,8 +349,9 @@ window.POBelanjaPasarModule = (() => {
         if (pasarQty <= 0) return;
         const merged = (_doc.items||[]).find(m => m.item.toLowerCase().trim() === fi.item.toLowerCase().trim());
         if (!merged || !merged.totalQty) return;
-        // Only the PS Karawang portion
-        const ratioK = merged.totalQty > 0 ? (merged.qtyKarawang||0) / merged.totalQty : 0;
+        // Always derive PS Karawang as totalQty - qtyCikopo (fresh, not stored)
+        const derivedKarawang = Math.max(0, merged.totalQty - (merged.qtyCikopo||0));
+        const ratioK = merged.totalQty > 0 ? derivedKarawang / merged.totalQty : 0;
         const qK = Math.round(pasarQty * ratioK * 100) / 100;
         if (qK > 0) karawang.push({ item: fi.item, qty: qK, satuan: fi.satuan||merged.satuan||'', harga: merged.harga||Number(fi.hargaSatuan)||0 });
       });
@@ -527,14 +528,16 @@ window.POBelanjaPasarModule = (() => {
   }
 
   // Auto-save: called when user leaves PO page or switches tab
+  let _autoSaving = false;
   function autoSave() {
-    if (_doc && _doc.status !== 'selesai' && _step >= 3) {
-      _doc.updatedAt = new Date().toISOString();
-      _computeBreakdown();
-      DB.saveBelanjaPasar(_doc).then(() => {
-        if (!_data.find(d => d.id === _doc.id)) _data.unshift(_doc);
-      }).catch(() => {});
-    }
+    if (_autoSaving || !_doc || _doc.status === 'selesai' || _step < 3) return;
+    _autoSaving = true;
+    _doc.updatedAt = new Date().toISOString();
+    _computeBreakdown();
+    DB.saveBelanjaPasar(_doc)
+      .then(() => { if (!_data.find(d => d.id === _doc.id)) _data.unshift(_doc); })
+      .catch(() => {})
+      .finally(() => { _autoSaving = false; });
   }
 
   async function _deleteDoc() {
