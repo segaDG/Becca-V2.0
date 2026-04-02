@@ -208,9 +208,10 @@ window.POBelanjaPasarModule = (() => {
         const estQ = Number(it.estQty) || 0;
         if (estQ <= 0) return;
         const key = it.item.toLowerCase().trim();
-        if (!demandMap[key]) demandMap[key] = { item: it.item, satuan: it.satuan||'', totalDemand: 0, harga: Number(it.hargaSatuan)||0 };
+        const _pH = v => { const s = String(v||0).replace(/[Rp\s]/g,''); return /^\d+\.\d{3}/.test(s) ? Number(s.replace(/\./g,'')) : Number(s.replace(/,/g,'.'))||0; };
+        if (!demandMap[key]) demandMap[key] = { item: it.item, satuan: it.satuan||'', totalDemand: 0, harga: _pH(it.hargaSatuan) };
         demandMap[key].totalDemand += estQ;
-        if (!demandMap[key].harga && it.hargaSatuan) demandMap[key].harga = Number(it.hargaSatuan)||0;
+        if (!demandMap[key].harga && it.hargaSatuan) demandMap[key].harga = _pH(it.hargaSatuan);
       });
     });
 

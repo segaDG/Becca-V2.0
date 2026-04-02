@@ -1646,9 +1646,22 @@ const KasModule = (() => {
     const rp = n => n ? 'Rp '+Math.round(Number(n)).toLocaleString('id') : '-';
     el.innerHTML = docs.map(d => {
       const isConfirmed = d.kasStatus === 'confirmed';
-      const items = d.kasItems?.length ? d.kasItems : (d.items||[]).filter(it=>it.item).map(it => ({
-        item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, estHarga: it.harga||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
-      }));
+      let items;
+      if (d.kasItems?.length) {
+        // Ensure estHarga is always synced from source items
+        const srcItems = (d.items||[]).filter(it=>it.item);
+        items = d.kasItems.map(ki => {
+          const src = srcItems.find(s => (s.item||'').toLowerCase().trim() === (ki.item||'').toLowerCase().trim());
+          if (!ki.estHarga && src) ki.estHarga = src.harga || 0;
+          if (!ki.aktHarga && src) ki.aktHarga = src.harga || 0;
+          return ki;
+        });
+      } else {
+        items = (d.items||[]).filter(it=>it.item).map(it => ({
+          item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, estHarga: it.harga||0,
+          aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
+        }));
+      }
       const aktGrandTotal = items.reduce((s,it) => s + (Number(it.aktQty)||0)*(Number(it.aktHarga)||0), 0);
       return `
         <div style="background:var(--surface);border:1px solid ${isConfirmed?'rgba(16,185,129,.3)':'var(--border)'};border-radius:10px;margin-bottom:12px;overflow:hidden">
