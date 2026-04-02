@@ -79,20 +79,21 @@ const GridSelect = (() => {
   // ── SUM BAR ──
   function _showBar(cells) {
     if (_bar) { _bar.remove(); _bar = null; }
+    if (cells.length <= 1) return; // Don't show for single cell
     const nums = [];
     cells.forEach(td => { const n = _num((td.textContent||'').trim()); if (!isNaN(n) && n !== 0) nums.push(n); });
-    if (!nums.length && cells.length <= 1) return;
-    const fmt = n => 'Rp '+Math.round(n).toLocaleString('id');
-    let h = `<div class="gs-bar-item"><span class="gs-bar-label">Sel</span><span class="gs-bar-val" style="color:var(--text,#333)">${cells.length}</span></div>`;
-    if (nums.length) {
-      const sum = nums.reduce((a,b)=>a+b,0), avg = sum/nums.length;
-      h += `<div style="width:1px;height:24px;background:var(--border,#ddd)"></div>
-        <div class="gs-bar-item"><span class="gs-bar-label">Sum</span><span class="gs-bar-val">${fmt(sum)}</span></div>
-        <div class="gs-bar-item"><span class="gs-bar-label">Avg</span><span class="gs-bar-val" style="font-size:12px;color:var(--text-2,#666)">${fmt(avg)}</span></div>
-        <div class="gs-bar-item"><span class="gs-bar-label">Min</span><span class="gs-bar-val" style="font-size:12px;color:#10b981">${fmt(Math.min(...nums))}</span></div>
-        <div class="gs-bar-item"><span class="gs-bar-label">Max</span><span class="gs-bar-val" style="font-size:12px;color:#ef4444">${fmt(Math.max(...nums))}</span></div>
-        <div class="gs-bar-item"><span class="gs-bar-label">Count</span><span class="gs-bar-val" style="font-size:12px;color:var(--text-2,#666)">${nums.length}</span></div>`;
-    }
+    if (!nums.length) return;
+    // Detect if values look like currency (>= 1000 or cell text contains "Rp")
+    const isCurrency = cells.some(td => (td.textContent||'').includes('Rp')) || nums.some(n => Math.abs(n) >= 1000);
+    const fmt = n => isCurrency ? 'Rp '+Math.round(n).toLocaleString('id') : (n === Math.floor(n) ? String(n) : n.toFixed(2));
+    const sum = nums.reduce((a,b)=>a+b,0), avg = sum/nums.length;
+    let h = `<div class="gs-bar-item"><span class="gs-bar-label">Sel</span><span class="gs-bar-val" style="color:var(--text,#333)">${cells.length}</span></div>
+      <div style="width:1px;height:24px;background:var(--border,#ddd)"></div>
+      <div class="gs-bar-item"><span class="gs-bar-label">Sum</span><span class="gs-bar-val">${fmt(sum)}</span></div>
+      <div class="gs-bar-item"><span class="gs-bar-label">Avg</span><span class="gs-bar-val" style="font-size:12px;color:var(--text-2,#666)">${fmt(avg)}</span></div>
+      <div class="gs-bar-item"><span class="gs-bar-label">Min</span><span class="gs-bar-val" style="font-size:12px;color:#10b981">${fmt(Math.min(...nums))}</span></div>
+      <div class="gs-bar-item"><span class="gs-bar-label">Max</span><span class="gs-bar-val" style="font-size:12px;color:#ef4444">${fmt(Math.max(...nums))}</span></div>
+      <div class="gs-bar-item"><span class="gs-bar-label">Count</span><span class="gs-bar-val" style="font-size:12px;color:var(--text-2,#666)">${nums.length}</span></div>`;
     _bar = document.createElement('div'); _bar.className = 'gs-bar'; _bar.innerHTML = h;
     document.body.appendChild(_bar);
   }
