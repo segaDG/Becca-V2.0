@@ -1189,7 +1189,7 @@ const InventoryModule = (() => {
         </div>
       </td>
       <td data-field="ivf-tgl-${r.id}"><div class="ivc">${r.tgl?(r.tgl.split('-').reverse().join('-')):''}</div></td>
-      <td data-field="ivf-item-txt-${r.id}"><div class="ivc">${r.itemNama||''}${isBPSync?'<span style="font-size:8px;background:rgba(8,145,178,.15);color:#0891b2;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">BELI</span>':isSync?'<span style="font-size:8px;background:rgba(139,92,246,.15);color:#8b5cf6;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">SYNC</span>':''}</div></td>
+      <td data-field="ivf-item-txt-${r.id}"><div class="ivc">${r.itemNama||''}${isBPSync?'<span style="font-size:8px;background:rgba(8,145,178,.15);color:#0891b2;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">PASAR</span>':isSync?'<span style="font-size:8px;background:rgba(139,92,246,.15);color:#8b5cf6;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">SYNC</span>':''}</div></td>
       <td data-field="ivf-jenis-${r.id}"><div class="ivc"><span class="badge" style="background:${jColor}18;color:${jColor};border:1px solid ${jColor}40;font-size:10px">${r.jenis||''}</span></div></td>
       <td data-field="ivf-jumlah-${r.id}" class="iv-num"><div class="ivc">${r.jumlah||0}</div></td>
       <td data-field="ivf-harga-${r.id}" class="iv-num"><div class="ivc">${r.harga?Utils.formatRupiah(r.harga):'-'}</div></td>
