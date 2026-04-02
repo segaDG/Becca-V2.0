@@ -225,7 +225,7 @@ window.POBelanjaPasarModule = (() => {
       else if (stok < demand) pasarQty = demand - stok; // PARTIAL: buy the shortage
       // else: STOK — don't add to belanja pasar
       if (pasarQty <= 0) return;
-      map[key] = { item: d.item, satuan: d.satuan, totalQty: Math.round(pasarQty*100)/100, harga: d.harga, qtyCikopo: 0, qtyKarawang: 0 };
+      map[key] = { item: d.item, satuan: d.satuan, totalQty: Math.round(pasarQty*100)/100, harga: d.harga, qtyCikopo: 0, qtyKarawang: 0, stokGudang: Math.max(0,stok), totalDemand: demand };
     });
 
     // 4. Preserve existing Cikopo assignments
@@ -264,16 +264,18 @@ window.POBelanjaPasarModule = (() => {
       <div style="font-size:14px;font-weight:700;margin-bottom:8px;color:var(--text)">Form Belanja Pasar — Pembagian Lokasi</div>
 
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">
-        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:900px" id="bp-table">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:1100px" id="bp-table">
           <thead><tr style="background:linear-gradient(135deg,#059669,#10b981);color:#fff">
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;width:30px">#</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:left;min-width:180px">ITEM</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:70px">TOTAL QTY</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;width:55px">SATUAN</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:90px">HARGA</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:100px">TOTAL</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:90px;background:rgba(0,0,0,.15)">CIKOPO</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:100px;background:rgba(255,255,255,.12)">PS. KARAWANG</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;width:28px">#</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:left;min-width:150px">ITEM</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:65px">SISA GUDANG</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:65px">EST QTY</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:70px;background:rgba(0,0,0,.1)">BELI QTY</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;width:50px">SATUAN</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:85px">HARGA</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:95px">TOTAL</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:80px;background:rgba(0,0,0,.15)">CIKOPO</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:90px;background:rgba(255,255,255,.12)">PS. KARAWANG</th>
           </tr></thead>
           <tbody>${items.map((it,i) => {
             const sisa = Math.round((it.totalQty - (it.qtyCikopo||0)) * 100) / 100;
@@ -282,10 +284,12 @@ window.POBelanjaPasarModule = (() => {
             return `<tr style="border-bottom:1px solid var(--border);${bg}">
               <td style="padding:12px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
               <td style="padding:12px 8px;font-weight:600">${it.item}</td>
-              <td style="padding:12px 8px;text-align:right;font-family:var(--font-mono);font-weight:700">${_n2(it.totalQty)}</td>
-              <td style="padding:12px 8px;color:var(--text-2)">${it.satuan}</td>
-              <td style="padding:12px 8px;text-align:right;font-family:var(--font-mono)">${it.harga ? rp(it.harga) : '-'}</td>
-              <td style="padding:12px 8px;text-align:right;font-family:var(--font-mono);font-weight:600">${total ? rp(total) : '-'}</td>
+              <td style="padding:12px 6px;text-align:right;font-family:var(--font-mono);color:${(it.stokGudang||0)>0?'#10b981':'var(--text-3)'};font-weight:600">${_n2(it.stokGudang||0)}</td>
+              <td style="padding:12px 6px;text-align:right;font-family:var(--font-mono);color:#6366f1">${_n2(it.totalDemand||0)}</td>
+              <td style="padding:12px 6px;text-align:right;font-family:var(--font-mono);font-weight:700;background:rgba(0,0,0,.02)">${_n2(it.totalQty)}</td>
+              <td style="padding:12px 6px;color:var(--text-2)">${it.satuan}</td>
+              <td style="padding:12px 6px;text-align:right;font-family:var(--font-mono)">${it.harga ? rp(it.harga) : '-'}</td>
+              <td style="padding:12px 6px;text-align:right;font-family:var(--font-mono);font-weight:600">${total ? rp(total) : '-'}</td>
               <td style="padding:8px 4px;text-align:right;background:rgba(5,150,105,.04)">
                 ${locked
                   ? `<span style="font-family:var(--font-mono);font-weight:600">${_n2(it.qtyCikopo)}</span>`

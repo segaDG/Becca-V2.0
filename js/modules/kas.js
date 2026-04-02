@@ -107,6 +107,33 @@ const KasModule = (() => {
       if (_activeTab === 'transaksi') renderTransaksi();
       else switchTab(_activeTab);
     }
+    // Update belanja pasar badge on init (without switching tab)
+    _updateBPBadge();
+  }
+
+  async function _updateBPBadge() {
+    let bpDocs = [];
+    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
+    const pending = bpDocs.filter(d => d.status === 'selesai' && d.kasStatus !== 'confirmed').length;
+    // Tab badge
+    const tabBtn = document.querySelector('[data-tab="belanjaPasar"]');
+    if (tabBtn) {
+      const old = tabBtn.querySelector('.bp-kas-badge');
+      if (old) old.remove();
+      if (pending > 0) tabBtn.insertAdjacentHTML('beforeend',
+        `<span class="bp-kas-badge" style="display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;background:#ef4444;color:#fff;border-radius:99px;font-size:9px;font-weight:700;margin-left:6px;padding:0 4px">${pending}</span>`);
+    }
+    // Sidebar badge
+    const sideLink = document.querySelector('[data-page="kas"]');
+    if (sideLink) {
+      const old = sideLink.querySelector('.bp-side-badge');
+      if (old) old.remove();
+      if (pending > 0) {
+        sideLink.style.position = 'relative';
+        sideLink.insertAdjacentHTML('beforeend',
+          `<span class="bp-side-badge" style="position:absolute;top:4px;right:4px;min-width:14px;height:14px;background:#ef4444;color:#fff;font-size:8px;font-weight:700;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 3px">${pending}</span>`);
+      }
+    }
   }
 
   function _injectStyles() {
@@ -1610,17 +1637,8 @@ const KasModule = (() => {
     const el = document.getElementById('kas-tab-belanjaPasar');
     if (!el) return;
     try { _bpDocs = await DB.getBelanjaPasar(); } catch { _bpDocs = []; }
-    // Only show docs that are 'selesai' from PO module
     const docs = _bpDocs.filter(d => d.status === 'selesai').sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
-    // Update badge on tab button
-    const pending = docs.filter(d => d.kasStatus !== 'confirmed').length;
-    const tabBtn = document.querySelector('[data-tab="belanjaPasar"]');
-    if (tabBtn) {
-      const old = tabBtn.querySelector('.bp-kas-badge');
-      if (old) old.remove();
-      if (pending > 0) tabBtn.insertAdjacentHTML('beforeend',
-        `<span class="bp-kas-badge" style="display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;background:#ef4444;color:#fff;border-radius:99px;font-size:9px;font-weight:700;margin-left:6px;padding:0 4px">${pending}</span>`);
-    }
+    _updateBPBadge();
     if (!docs.length) {
       el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)"><div style="font-size:28px;margin-bottom:8px">🛒</div>Belum ada Form Belanja Pasar yang selesai</div>';
       return;
@@ -1629,10 +1647,9 @@ const KasModule = (() => {
     el.innerHTML = docs.map(d => {
       const isConfirmed = d.kasStatus === 'confirmed';
       const items = d.kasItems?.length ? d.kasItems : (d.items||[]).filter(it=>it.item).map(it => ({
-        item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
+        item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, estHarga: it.harga||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
       }));
       const aktGrandTotal = items.reduce((s,it) => s + (Number(it.aktQty)||0)*(Number(it.aktHarga)||0), 0);
-      const estGrandTotal = items.reduce((s,it) => s + (Number(it.estQty)||0)*(Number(it.aktHarga)||Number(it.harga)||0), 0);
       return `
         <div style="background:var(--surface);border:1px solid ${isConfirmed?'rgba(16,185,129,.3)':'var(--border)'};border-radius:10px;margin-bottom:12px;overflow:hidden">
           <div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);background:${isConfirmed?'rgba(16,185,129,.04)':'var(--surface2)'}">
@@ -1648,23 +1665,26 @@ const KasModule = (() => {
             </div>
           </div>
           <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:800px">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:950px">
               <thead><tr style="background:var(--surface2)">
                 <th style="padding:8px 6px;font-size:9px;font-weight:700;width:28px">#</th>
                 <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:left">ITEM</th>
                 <th style="padding:8px 6px;font-size:9px;font-weight:700;width:50px">SATUAN</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:70px">EST QTY</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:80px;color:#059669">AKT QTY</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:65px">EST QTY</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:85px">EST HARGA</th>
+                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:75px;color:#059669">AKT QTY</th>
                 <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:100px;color:#059669">AKT HARGA</th>
                 <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:110px;color:#059669">TOTAL HARGA</th>
               </tr></thead>
               <tbody>${items.map((it,i) => {
                 const aktT = (Number(it.aktQty)||0) * (Number(it.aktHarga)||0);
+                const estH = Number(it.estHarga) || Number(it.harga) || 0;
                 return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.012)':''}">
                   <td style="padding:10px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
                   <td style="padding:10px 8px;font-weight:600">${it.item}</td>
                   <td style="padding:10px 6px;color:var(--text-2)">${it.satuan}</td>
                   <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${it.estQty||'-'}</td>
+                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${estH ? rp(estH) : '-'}</td>
                   <td style="padding:6px 4px;text-align:right">
                     ${isConfirmed
                       ? `<span style="font-family:var(--font-mono);font-weight:600;color:#059669">${it.aktQty}</span>`
@@ -1700,7 +1720,7 @@ const KasModule = (() => {
     // Initialize kasItems if not yet
     if (!doc.kasItems?.length) {
       doc.kasItems = (doc.items||[]).filter(it=>it.item).map(it => ({
-        item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
+        item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, estHarga: it.harga||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
       }));
     }
     const it = doc.kasItems[idx];
@@ -1735,7 +1755,7 @@ const KasModule = (() => {
     // Ensure kasItems populated
     if (!doc.kasItems?.length) {
       doc.kasItems = (doc.items||[]).filter(it=>it.item).map(it => ({
-        item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
+        item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, estHarga: it.harga||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
       }));
     }
     // Read latest from DOM
