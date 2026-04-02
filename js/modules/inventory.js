@@ -1086,16 +1086,13 @@ const InventoryModule = (() => {
     // Second confirmation
     const ok2 = await Modal.confirm({
       title: 'Konfirmasi Ulang — Hapus Permanen',
-      message: `<p style="color:#ef4444;font-weight:700">Tindakan ini TIDAK BISA dibatalkan.</p>
-        <p style="margin-top:8px">${syncedLogs.length} log MASUK akan dihapus dan stok inventory akan berkurang.</p>
-        <p style="margin-top:8px">Ketik <strong>"HAPUS"</strong> untuk melanjutkan:</p>
-        <input id="bp-del-confirm" class="form-control" placeholder="Ketik HAPUS" style="margin-top:8px">`,
+      message: `<p style="color:#ef4444;font-weight:700;font-size:15px">⚠ Tindakan ini TIDAK BISA dibatalkan.</p>
+        <p style="margin-top:10px"><strong>${syncedLogs.length} log MASUK</strong> akan dihapus permanen dan stok inventory akan berkurang.</p>
+        <p style="margin-top:8px">Yakin ingin melanjutkan?</p>`,
       danger: true,
-      confirmText: 'Hapus Permanen',
+      confirmText: 'Ya, Hapus Permanen',
     });
     if (!ok2) return;
-    const typed = document.getElementById('bp-del-confirm')?.value?.trim();
-    if (typed !== 'HAPUS') { Notify.warning('Ketik "HAPUS" untuk konfirmasi'); return; }
 
     // Delete all synced logs
     let deleted = 0;
