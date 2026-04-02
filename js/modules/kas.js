@@ -1636,13 +1636,21 @@ const KasModule = (() => {
 
   /* ===================== BELANJA PASAR DASHBOARD (inside transaksi) ===================== */
   let _bpDocs = [];
+  let _bpLoaded = false;
 
-  async function _renderBPDashboard() {
+  // Fetch fresh from DB (call on init + after confirm/delete, NOT on every renderTransaksi)
+  async function _refreshBPData() {
+    try { _bpDocs = await DB.getBelanjaPasar(); } catch { _bpDocs = []; }
+    _bpLoaded = true;
+    _updateBPBadge();
+  }
+
+  // Render cards from cached _bpDocs (sync, no DB call)
+  function _renderBPDashboard() {
     const el = document.getElementById('kas-bp-dash');
     if (!el) return;
-    try { _bpDocs = await DB.getBelanjaPasar(); } catch { _bpDocs = []; }
+    if (!_bpLoaded) { _refreshBPData().then(() => _renderBPDashboard()); return; }
     const docs = _bpDocs.filter(d => d.status === 'selesai').sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
-    _updateBPBadge();
     if (!docs.length) { el.innerHTML = ''; return; }
 
     const isAdmin = Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'admin';

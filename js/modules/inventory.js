@@ -251,6 +251,7 @@ const InventoryModule = (() => {
     });
     if (tab === 'transaksi') {
       UndoRedo.setActive('inv');
+      _bpDocsCache = null; // force refresh BP docs on tab switch
       // Reload logs (MASUK/KELUAR only) - OPNAME ada di tab sendiri
       DB.getInventory().then(freshLogs => {
         _logs = freshLogs;
@@ -495,6 +496,7 @@ const InventoryModule = (() => {
 
   /* ═══ SYNC FORM PRODUKSI → ACTIVITY LINE ═══ */
   let _syncChecked = {}; // formId → Set of checked item indices
+  let _bpDocsCache = null; // cached belanja pasar docs for sync dashboard
 
   async function _updateSyncBadges() {
     // Count pending form produksi syncs
@@ -633,9 +635,8 @@ const InventoryModule = (() => {
       </div>`;
 
     // ── Belanja Pasar sync section ──
-    let bpDocs = [];
-    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
-    const confirmedBP = bpDocs.filter(d => d.kasStatus === 'confirmed');
+    if (!_bpDocsCache) { try { _bpDocsCache = await DB.getBelanjaPasar(); } catch { _bpDocsCache = []; } }
+    const confirmedBP = _bpDocsCache.filter(d => d.kasStatus === 'confirmed');
     if (confirmedBP.length) {
       const bpCards = confirmedBP.map(d => {
         const syncTag = 'bp_' + d.id;
@@ -921,8 +922,8 @@ const InventoryModule = (() => {
   /* ── Sync Belanja Pasar → Inventory (MASUK) ─── */
   let _bpSyncChecked = {};
   async function syncBelanjaPasar(docId) {
-    let bpDocs = [];
-    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
+    if (!_bpDocsCache) { try { _bpDocsCache = await DB.getBelanjaPasar(); } catch { _bpDocsCache = []; } }
+    const bpDocs = _bpDocsCache;
     const doc = bpDocs.find(d => d.id === docId);
     if (!doc || !doc.kasItems?.length) { Notify.warning('Data belanja pasar tidak ditemukan'); return; }
 
@@ -1001,9 +1002,8 @@ const InventoryModule = (() => {
   }
 
   async function _confirmBPSync(docId) {
-    let bpDocs = [];
-    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
-    const doc = bpDocs.find(d => d.id === docId);
+    if (!_bpDocsCache) { try { _bpDocsCache = await DB.getBelanjaPasar(); } catch { _bpDocsCache = []; } }
+    const doc = _bpDocsCache.find(d => d.id === docId);
     if (!doc) return;
 
     const syncTag = 'bp_' + doc.id;
@@ -1060,10 +1060,9 @@ const InventoryModule = (() => {
     const syncTag = 'bp_' + docId;
     const syncedLogs = _logs.filter(l => l.syncTag === syncTag);
 
-    // Load doc info for display
-    let bpDocs = [];
-    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
-    const doc = bpDocs.find(d => d.id === docId);
+    // Use cached docs
+    if (!_bpDocsCache) { try { _bpDocsCache = await DB.getBelanjaPasar(); } catch { _bpDocsCache = []; } }
+    const doc = _bpDocsCache.find(d => d.id === docId);
     const periode = doc?.periode || '-';
 
     // First confirmation
