@@ -499,31 +499,27 @@ const InventoryModule = (() => {
   let _bpDocsCache = null; // cached belanja pasar docs for sync dashboard
 
   async function _updateSyncBadges() {
-    // Count pending form produksi syncs
     let forms = [];
     try { forms = await DB.getDailyOrderForms(); } catch {}
+    // Build syncTag lookup map once — O(n) instead of O(n*m) nested filters
+    const stMap = {};
+    _logs.forEach(l => { if (l.syncTag) (stMap[l.syncTag] = stMap[l.syncTag]||[]).push(l); });
+
     const now = new Date();
     const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 3);
-    const cutoffStr = cutoff.toISOString().slice(0,10);
+    const cutoffStr = cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
     const relevant = forms.filter(f => f.tanggal >= cutoffStr && (f.items||[]).some(it => _n(it.estQty)>0 || _n(it.aktQty)>0));
     let pendingProduksi = relevant.filter(f => {
-      const st = 'do_'+(f.tanggal||'').replace(/-/g,'')+'_'+f.shift;
-      const sl = _logs.filter(l=>l.syncTag===st);
+      const sl = stMap['do_'+(f.tanggal||'').replace(/-/g,'')+'_'+f.shift] || [];
       const si = (f.items||[]).filter(it => _n(it.estQty)>0 || _n(it.aktQty)>0);
-      return sl.length < si.length || si.some(it => {
-        const bq = _n(it.aktQty)>0?_n(it.aktQty):_n(it.estQty);
-        const l = sl.find(x=>(x.itemNama||'').toLowerCase()===(it.item||'').toLowerCase());
-        return l && l.jumlah !== bq;
-      });
+      return sl.length < si.length;
     }).length;
 
-    // Count pending belanja pasar syncs
     let bpDocs = [];
     try { bpDocs = await DB.getBelanjaPasar(); } catch {}
     const pendingBP = bpDocs.filter(d => {
       if (d.kasStatus !== 'confirmed') return false;
-      const syncTag = 'bp_' + d.id;
-      const sl = _logs.filter(l => l.syncTag === syncTag);
+      const sl = stMap['bp_'+d.id] || [];
       const si = (d.kasItems||[]).filter(it => _n(it.aktQty)>0);
       return sl.length < si.length;
     }).length;
@@ -576,10 +572,12 @@ const InventoryModule = (() => {
     const relevant = forms.filter(f => f.tanggal >= cutoffStr && (f.items||[]).some(it => _n(it.estQty) > 0 || _n(it.aktQty) > 0));
     if (!relevant.length) { el.innerHTML = ''; return; }
 
-    // Check sync status for each form
+    // Build syncTag lookup — O(1) per form instead of O(logs)
+    const stMap = {};
+    _logs.forEach(l => { if (l.syncTag) (stMap[l.syncTag] = stMap[l.syncTag]||[]).push(l); });
     const cards = relevant.sort((a,b) => (b.tanggal||'').localeCompare(a.tanggal||'')).map(f => {
       const syncTag = 'do_' + (f.tanggal||'').replace(/-/g,'') + '_' + f.shift;
-      const syncedLogs = _logs.filter(l => l.syncTag === syncTag);
+      const syncedLogs = stMap[syncTag] || [];
       const syncItems = (f.items||[]).filter(it => _n(it.estQty) > 0 || _n(it.aktQty) > 0);
       const totalItems = syncItems.length;
       const syncedCount = syncedLogs.length;
@@ -611,14 +609,9 @@ const InventoryModule = (() => {
 
     // Count pending for dashboard display
     const pendingCount = relevant.filter(f => {
-      const st = 'do_'+(f.tanggal||'').replace(/-/g,'')+'_'+f.shift;
-      const sl = _logs.filter(l=>l.syncTag===st);
+      const sl = stMap['do_'+(f.tanggal||'').replace(/-/g,'')+'_'+f.shift] || [];
       const si = (f.items||[]).filter(it => _n(it.estQty)>0 || _n(it.aktQty)>0);
-      return sl.length < si.length || si.some(it => {
-        const bq = _n(it.aktQty)>0?_n(it.aktQty):_n(it.estQty);
-        const l = sl.find(x=>(x.itemNama||'').toLowerCase()===(it.item||'').toLowerCase());
-        return l && l.jumlah !== bq;
-      });
+      return sl.length < si.length;
     }).length;
 
     // Badges handled by _updateSyncBadges (called on init + after sync)
@@ -640,7 +633,7 @@ const InventoryModule = (() => {
     if (confirmedBP.length) {
       const bpCards = confirmedBP.map(d => {
         const syncTag = 'bp_' + d.id;
-        const syncedLogs = _logs.filter(l => l.syncTag === syncTag);
+        const syncedLogs = stMap[syncTag] || [];
         const bpItems = (d.kasItems||[]).filter(it => _n(it.aktQty) > 0);
         const totalItems = bpItems.length;
         const syncedCount = syncedLogs.length;

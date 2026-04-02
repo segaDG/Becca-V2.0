@@ -208,7 +208,7 @@ const DB = (() => {
 
   // In-memory cache — cleared on save/delete
   const _memCache = {};
-  const _CACHE_TTL = 300000; // 5 menit
+  const _CACHE_TTL = 30000; // 30 detik — shorter for fresher cross-device data
 
   // Fetch semua baris dengan auto-pagination (Supabase max_rows=1000 per request)
   async function _fetchAll(sb, table) {

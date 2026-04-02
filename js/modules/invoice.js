@@ -180,14 +180,15 @@ const InvoiceModule = (() => {
     const page = document.getElementById('page-invoice');
     if (!page) return;
 
-    // Load dari DB — filter skeleton rows (baris lama tanpa field bisnis)
-    try {
-      const raw = await DB.getInvoices();
-      _invoices = raw.filter(_isValidInv);
-    } catch(e) {
-      console.warn('[InvoiceModule] DB.getInvoices error:', e);
-      _invoices = [];
-    }
+    // Load all data in parallel (was sequential: invoices → orders → customers)
+    const [rawInv, rawOrd, rawCust] = await Promise.all([
+      DB.getInvoices().catch(()=>[]),
+      DB.getOrders().catch(()=>[]),
+      DB.getCustomers().catch(()=>[]),
+    ]);
+    _invoices = rawInv.filter(_isValidInv);
+    _ordersCache = rawOrd;
+    _customersCache = rawCust;
 
     // One-time seed: jika hasil valid = 0 & belum pernah diseed
     // Pakai flag v3 agar re-seed otomatis setelah schema fix (data JSONB ditambahkan)
@@ -204,10 +205,6 @@ const InvoiceModule = (() => {
         _invoices = [..._SEED_INVOICES];
       }
     }
-
-    // Load orders + customers from DB for cross-module data
-    try { _ordersCache = await DB.getOrders(); } catch { try { _ordersCache = _getOrders(); } catch { _ordersCache = []; } }
-    try { _customersCache = await DB.getCustomers(); } catch { try { _customersCache = _getCustomers(); } catch { _customersCache = []; } }
 
     // Merge order-invoices dari localStorage yang belum ada di DB
     try {

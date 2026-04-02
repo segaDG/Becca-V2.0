@@ -9,15 +9,15 @@ const App = {
   _MODULE_MAP: {
     dashboard : 'js/modules/dashboard.js?v=20260329e',
     order     : 'js/modules/order.js?v=20260401b',
-    invoice   : 'js/modules/invoice.js?v=20260401f',
+    invoice   : 'js/modules/invoice.js?v=20260402a',
     customer  : 'js/modules/customer.js?v=20260331j',
     news      : 'js/modules/news.js?v=20260401a',
-    kas       : 'js/modules/kas.js?v=20260402i',
+    kas       : 'js/modules/kas.js?v=20260402j',
     'daily-order': 'js/modules/daily-order.js?v=20260402d',
-    inventory : 'js/modules/inventory.js?v=20260402i',
+    inventory : 'js/modules/inventory.js?v=20260402j',
     employee  : 'js/modules/employee.js?v=20260401b',
     ap        : 'js/modules/ap.js?v=20260331f',
-    po        : 'js/modules/po.js?v=20260402c',
+    po        : 'js/modules/po.js?v=20260402d',
     task      : 'js/modules/task.js?v=20260330i',
     report    : 'js/modules/report.js?v=20260326r',
     settings  : 'js/modules/settings.js?v=20260401b',
@@ -188,27 +188,32 @@ const App = {
   async _updateAllBadges() {
     try {
       // Inventory sync badge (form produksi + belanja pasar pending)
-      const [forms, invLogs, bpDocs] = await Promise.all([
+      // Fetch ALL data in parallel (was: PO sequential after others)
+      const [forms, invLogs, bpDocs, poDocs] = await Promise.all([
         DB.getDailyOrderForms().catch(()=>[]),
         DB.getInventory().catch(()=>[]),
         DB.getBelanjaPasar().catch(()=>[]),
+        DB.getPO().catch(()=>[]),
       ]);
+      const _n = v => Number(v)||0;
+      // Build syncTag lookup map — O(1) instead of O(n) filter per form
+      const stMap = {};
+      invLogs.forEach(l => { if (l.syncTag) (stMap[l.syncTag] = stMap[l.syncTag]||[]).push(l); });
+
       // Pending form produksi
       const now = new Date();
       const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate()-3);
       const cutStr = cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
-      const _n = v => Number(v)||0;
       const relevant = forms.filter(f => f.tanggal >= cutStr && (f.items||[]).some(it => _n(it.estQty)>0||_n(it.aktQty)>0));
       let pendInv = relevant.filter(f => {
-        const st = 'do_'+(f.tanggal||'').replace(/-/g,'')+'_'+f.shift;
-        const sl = invLogs.filter(l=>l.syncTag===st);
+        const sl = stMap['do_'+(f.tanggal||'').replace(/-/g,'')+'_'+f.shift] || [];
         const si = (f.items||[]).filter(it=>_n(it.estQty)>0||_n(it.aktQty)>0);
         return sl.length < si.length;
       }).length;
       // Pending belanja pasar sync
       pendInv += bpDocs.filter(d => {
         if (d.kasStatus !== 'confirmed') return false;
-        const sl = invLogs.filter(l=>l.syncTag===('bp_'+d.id));
+        const sl = stMap['bp_'+d.id] || [];
         const si = (d.kasItems||[]).filter(it=>_n(it.aktQty)>0);
         return sl.length < si.length;
       }).length;
@@ -234,9 +239,6 @@ const App = {
             `<span class="bp-side-badge" style="position:absolute;top:4px;right:4px;min-width:14px;height:14px;background:#ef4444;color:#fff;font-size:8px;font-weight:700;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 3px">${pendKas}</span>`);
         }
       }
-
-      // PO finance pending badge
-      const poDocs = await DB.getPO().catch(()=>[]);
       const isFinance = Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'finance';
       const pendPO = isFinance ? poDocs.filter(d => d.pendingFinance && !d.confirmedBy).length : 0;
       const poBadge = document.getElementById('po-nav-badge');

@@ -695,7 +695,7 @@ else { window.POModule = (() => {
     });
   }
 
-  function _doImportBP(docId, mid) {
+  async function _doImportBP(docId, mid) {
     const picked = document.querySelector('input[name="bp-pick"]:checked')?.value;
     if (!picked) { Notify.warning('Pilih satu form belanja pasar'); return; }
     let bpList = [];
@@ -739,7 +739,7 @@ else { window.POModule = (() => {
       added++;
     });
 
-    DB.savePO(doc).catch(() => {});
+    try { await DB.savePO(doc); } catch(e) { Notify.error('Gagal menyimpan'); return; }
     Modal.close(mid);
     Notify.success(added + ' item diimport dari Belanja Pasar');
     openAnggaran(docId);

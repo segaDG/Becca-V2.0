@@ -1782,7 +1782,7 @@ const KasModule = (() => {
     const qtyInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${idx}"][data-field="aktQty"]`);
     const hrgInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${idx}"][data-field="aktHarga"]`);
     if (qtyInp) it.aktQty = parseFloat(qtyInp.value)||0;
-    if (hrgInp) it.aktHarga = parseFloat(hrgInp.dataset.raw||hrgInp.value.replace(/[^\d.-]/g,''))||0;
+    if (hrgInp) it.aktHarga = parseFloat(hrgInp.dataset.raw||(()=>{const s=hrgInp.value.replace(/[Rp\s]/g,'');return /^\d+\.\d{3}/.test(s)?s.replace(/\./g,''):s})()||0)||0;
     it.aktTotal = it.aktQty * it.aktHarga;
     const rp = n => n?'Rp '+Math.round(Number(n)).toLocaleString('id'):'-';
     const tEl = document.getElementById(`bp-kas-total-${docId}-${idx}`);
@@ -1814,7 +1814,7 @@ const KasModule = (() => {
       const qtyInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${i}"][data-field="aktQty"]`);
       const hrgInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${i}"][data-field="aktHarga"]`);
       if (qtyInp) it.aktQty = parseFloat(qtyInp.value)||0;
-      if (hrgInp) it.aktHarga = parseFloat(hrgInp.dataset.raw||hrgInp.value.replace(/[^\d.-]/g,''))||0;
+      if (hrgInp) it.aktHarga = parseFloat(hrgInp.dataset.raw||(()=>{const s=hrgInp.value.replace(/[Rp\s]/g,'');return /^\d+\.\d{3}/.test(s)?s.replace(/\./g,''):s})()||0)||0;
       it.aktTotal = it.aktQty * it.aktHarga;
     });
     doc.kasStatus = 'confirmed';
