@@ -284,10 +284,40 @@ const DB = (() => {
   }
 
   // Kembalikan data dari memCache jika masih fresh, null jika sudah expired/belum ada
-  // Dipakai oleh modul untuk progressive loading (render langsung jika cache warm)
   function getCached(table) {
     const c = _memCache[table];
     return (c && (Date.now() - c.ts) < _CACHE_TTL) ? c.data : null;
+  }
+
+  // Server-side pagination: fetch only 1 page of data
+  // Returns { data: [], total: number, page, perPage }
+  async function getPage(table, { page = 1, perPage = 50, orderBy = 'created_at', ascending = false, filters = {} } = {}) {
+    const sb = await _initClient();
+    if (!sb) {
+      // Fallback: paginate from localStorage
+      const all = _lsGet(table);
+      return { data: all.slice((page-1)*perPage, page*perPage), total: all.length, page, perPage };
+    }
+    const from = (page - 1) * perPage;
+    const to   = from + perPage - 1;
+
+    // Count total
+    let countQ = sb.from(table).select('id', { count: 'exact', head: true });
+    Object.entries(filters).forEach(([key, val]) => {
+      if (val !== undefined && val !== '') countQ = countQ.filter(`data->>\"${key}\"`, 'eq', val);
+    });
+    const { count } = await countQ;
+
+    // Fetch page
+    let q = sb.from(table).select('*').range(from, to);
+    if (!NO_CREATED_AT.includes(table)) q = q.order(orderBy, { ascending });
+    Object.entries(filters).forEach(([key, val]) => {
+      if (val !== undefined && val !== '') q = q.filter(`data->>\"${key}\"`, 'eq', val);
+    });
+    const { data, error } = await q;
+    if (error) { console.warn('[DB] getPage ' + table + ':', error.message); return { data: [], total: 0, page, perPage }; }
+
+    return { data: _fromRows(data || []), total: count || 0, page, perPage };
   }
 
   async function _save(table, obj) {
@@ -1001,7 +1031,7 @@ const DB = (() => {
     subscribe, unsubscribeAll, setupRealtime,
     migrateFromLocalStorage,
     isReady: () => _ready,
-    getCached,
+    getCached, getPage,
 
     // Users
     getUsers, saveUser, deleteUser,

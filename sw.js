@@ -1,53 +1,64 @@
-/* BECCA Service Worker — PWA + Push Notification */
-
-// ── Firebase Messaging (background push) ─────────────────
+// ── Firebase Cloud Messaging (Push Notifications) ────────
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey:            'AIzaSyBgglo30BvAH6U0RrEjUukPCtW_GQiANIA',
-  authDomain:        'becca-ae19d.firebaseapp.com',
-  projectId:         'becca-ae19d',
-  storageBucket:     'becca-ae19d.firebasestorage.app',
-  messagingSenderId: '577597565371',
-  appId:             '1:577597565371:web:8851035e30d5eed7407c9e',
+  apiKey:            "AIzaSyBhL-Y4jUxQzmHiCbSR6WWwjMcMtQK6ZmQ",
+  authDomain:        "beccaorderapp.firebaseapp.com",
+  projectId:         "beccaorderapp",
+  storageBucket:     "beccaorderapp.firebasestorage.app",
+  messagingSenderId: "405498528940",
+  appId:             "1:405498528940:web:9ab5f92f7b28fd01cdcb8e"
 });
 
-const _messaging = firebase.messaging();
-
-// Tampilkan notif saat app di background / tertutup
-_messaging.onBackgroundMessage(payload => {
-  const { title = 'BECCA', body = '' } = payload.notification || {};
-  self.registration.showNotification(title, {
-    body,
-    icon:  '/img/logo-bps.png',
+const messaging = firebase.messaging();
+messaging.onBackgroundMessage(payload => {
+  const { title, body } = payload.notification || {};
+  if (!title) return;
+  const options = {
+    body: body || '',
+    icon: '/img/logo-bps.png',
     badge: '/img/logo-bps.png',
-    data:  payload.data || {},
     vibrate: [200, 100, 200],
-  });
+    data: payload.data || {},
+    actions: [{ action: 'open', title: 'Buka' }],
+  };
+  return self.registration.showNotification(title, options);
 });
 
-// Klik notif → buka/fokus ke tab BECCA
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  e.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      const existing = list.find(c => c.url.includes(self.location.origin));
-      if (existing) return existing.focus();
-      return clients.openWindow('/');
-    })
-  );
+  e.waitUntil(clients.matchAll({ type: 'window' }).then(cl => {
+    const win = cl.find(c => c.visibilityState === 'visible');
+    if (win) return win.focus();
+    return clients.openWindow('/');
+  }));
 });
 
-// ── Static Cache ──────────────────────────────────────────
-const CACHE_NAME = 'becca-static-v4';
+// ── Static Cache — v5 (improved precache + strategy) ─────
+const CACHE_NAME = 'becca-static-v5';
 
 const PRECACHE = [
+  '/',
   '/css/base.css',
   '/css/layout.css',
   '/css/components.css',
   '/css/tables.css',
   '/img/logo-bps.png',
+  // Core JS — always available offline
+  '/js/utils.js',
+  '/js/utils-extensions.js',
+  '/js/db.js',
+  '/js/db-extensions.js',
+  '/js/auth.js',
+  '/js/ui/notify.js',
+  '/js/ui/modal.js',
+  '/js/ui/sidebar.js',
+  '/js/push.js',
+  '/js/grid-select.js',
+  '/js/undo-redo.js',
+  '/js/media-picker.js',
+  '/js/app.js',
 ];
 
 self.addEventListener('install', e => {
@@ -71,28 +82,55 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
-  // Hanya cache request dari origin sendiri — skip semua external
-  // (Firebase SDK punya fetch listener sendiri, bisa konflik jika tidak di-skip)
   if (url.origin !== self.location.origin) return;
 
+  // HTML navigation — network first, fallback to cached index
   if (e.request.mode === 'navigate') {
-    e.respondWith(fetch(e.request).catch(() => caches.match('/')));
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          return res;
+        })
+        .catch(() => caches.match('/'))
+    );
     return;
   }
 
-  if (url.search.includes('v=') || url.pathname.match(/\.(css|js|svg|png|jpg|jpeg|ico|woff2?)$/)) {
+  // JS/CSS with version param — cache first (versioned = immutable)
+  if (url.search.includes('v=')) {
     e.respondWith(
       caches.match(e.request).then(cached => {
-        const networkFetch = fetch(e.request).then(res => {
-          // Clone SEBELUM caches.open (sync) agar body belum dikonsumsi browser
+        if (cached) return cached;
+        return fetch(e.request).then(res => {
           if (res.ok) {
             const clone = res.clone();
             caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
           }
           return res;
         });
+      })
+    );
+    return;
+  }
+
+  // Other static assets — stale-while-revalidate
+  if (url.pathname.match(/\.(css|js|svg|png|jpg|jpeg|ico|woff2?)$/)) {
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        const networkFetch = fetch(e.request).then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          }
+          return res;
+        }).catch(() => cached);
         return cached || networkFetch;
       })
     );
+    return;
   }
+
+  // Supabase API — network only (no cache for data)
 });
