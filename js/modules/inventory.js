@@ -647,15 +647,19 @@ const InventoryModule = (() => {
         const statusColor = isFullSync ? '#0891b2' : syncedCount > 0 ? '#f59e0b' : 'var(--text-3)';
         const statusText = isFullSync ? 'Synced' : syncedCount > 0 ? 'Partial' : 'Belum';
         const statusBg = isFullSync ? 'rgba(8,145,178,.1)' : syncedCount > 0 ? 'rgba(245,158,11,.1)' : 'var(--surface2)';
-        return `<button onclick="InventoryModule.syncBelanjaPasar('${d.id}')" title="Belanja Pasar: ${d.periode}"
-          style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
+        const isAdmin = Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'admin';
+        return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
           border:1px solid ${isFullSync?'rgba(8,145,178,.3)':syncedCount>0?'rgba(245,158,11,.3)':'var(--border)'};
-          border-radius:8px;background:${statusBg};cursor:pointer;min-width:80px;transition:.15s"
-          onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
-          <span style="font-size:9px;font-weight:700;color:var(--text-3)">🛒 ${d.periode||'-'}</span>
-          <span style="font-size:9px;font-weight:700;color:${statusColor}">${statusText}</span>
-          <span style="font-size:8px;color:var(--text-3)">${syncedCount}/${totalItems}</span>
-        </button>`;
+          border-radius:8px;background:${statusBg};min-width:80px;position:relative">
+          <div onclick="InventoryModule.syncBelanjaPasar('${d.id}')" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;width:100%"
+            onmouseover="this.parentElement.style.transform='translateY(-1px)'" onmouseout="this.parentElement.style.transform=''">
+            <span style="font-size:9px;font-weight:700;color:var(--text-3)">🛒 ${d.periode||'-'}</span>
+            <span style="font-size:9px;font-weight:700;color:${statusColor}">${statusText}</span>
+            <span style="font-size:8px;color:var(--text-3)">${syncedCount}/${totalItems}</span>
+          </div>
+          ${isAdmin ? `<button onclick="event.stopPropagation();InventoryModule.deleteBPSync('${d.id}')" title="Hapus sync belanja pasar"
+            style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:99px;border:none;background:#ef4444;color:#fff;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;line-height:1">×</button>` : ''}
+        </div>`;
       }).join('');
       el.innerHTML += `
         <div style="background:var(--surface);border:1px solid rgba(8,145,178,.2);border-radius:10px;padding:10px 14px;margin-top:8px">
@@ -1044,6 +1048,78 @@ const InventoryModule = (() => {
     _bpSyncChecked[docId] = new Set();
     Modal.close(window._bpSyncMid);
     Notify.success(synced + ' item MASUK ke inventory');
+    renderTransaksi();
+  }
+
+  async function deleteBPSync(docId) {
+    const role = Auth.currentUser()?.role;
+    if (role !== 'superadmin' && role !== 'admin') { Notify.warning('Hanya Admin/Superadmin'); return; }
+
+    // Find synced logs for this doc
+    const syncTag = 'bp_' + docId;
+    const syncedLogs = _logs.filter(l => l.syncTag === syncTag);
+
+    // Load doc info for display
+    let bpDocs = [];
+    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
+    const doc = bpDocs.find(d => d.id === docId);
+    const periode = doc?.periode || '-';
+
+    // First confirmation
+    const ok1 = await Modal.confirm({
+      title: 'Hapus Sync Belanja Pasar',
+      message: `<div style="font-size:13px">
+        <p>Hapus sync <strong>🛒 ${periode}</strong>?</p>
+        ${syncedLogs.length > 0 ? `<div style="margin-top:10px;padding:10px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:8px">
+          <div style="font-weight:700;color:#ef4444;margin-bottom:4px">⚠ ${syncedLogs.length} item MASUK akan dihapus dari Activity Line:</div>
+          <div style="max-height:150px;overflow-y:auto;font-size:11px;color:var(--text-2)">
+            ${syncedLogs.map(l => `• ${l.itemNama} — ${l.jumlah} ${l.satuan||''}`).join('<br>')}
+          </div>
+          <div style="font-size:11px;color:#ef4444;margin-top:6px;font-weight:600">Stok inventory akan berkurang sesuai jumlah yang dihapus.</div>
+        </div>` : '<p style="color:var(--text-3);margin-top:8px">Belum ada item yang ter-sync.</p>'}
+      </div>`,
+      danger: true,
+      confirmText: 'Lanjut Hapus',
+    });
+    if (!ok1) return;
+
+    // Second confirmation
+    const ok2 = await Modal.confirm({
+      title: 'Konfirmasi Ulang — Hapus Permanen',
+      message: `<p style="color:#ef4444;font-weight:700">Tindakan ini TIDAK BISA dibatalkan.</p>
+        <p style="margin-top:8px">${syncedLogs.length} log MASUK akan dihapus dan stok inventory akan berkurang.</p>
+        <p style="margin-top:8px">Ketik <strong>"HAPUS"</strong> untuk melanjutkan:</p>
+        <input id="bp-del-confirm" class="form-control" placeholder="Ketik HAPUS" style="margin-top:8px">`,
+      danger: true,
+      confirmText: 'Hapus Permanen',
+    });
+    if (!ok2) return;
+    const typed = document.getElementById('bp-del-confirm')?.value?.trim();
+    if (typed !== 'HAPUS') { Notify.warning('Ketik "HAPUS" untuk konfirmasi'); return; }
+
+    // Delete all synced logs
+    let deleted = 0;
+    for (const log of syncedLogs) {
+      try {
+        await DB.deleteInventoryLog(log.id);
+        _logs = _logs.filter(l => l.id !== log.id);
+        deleted++;
+      } catch(e) { console.warn('[DeleteBPSync]', e); }
+    }
+
+    // Reset doc sync status
+    if (doc) {
+      doc.invSyncStatus = null;
+      doc.invSyncedAt = null;
+      doc.invSyncedBy = null;
+      try { await DB.saveBelanjaPasar(doc); } catch {}
+    }
+
+    // Recalc stock
+    _recalcStok();
+
+    DB.logActivity({type:'delete_bp_sync', detail:`Hapus sync belanja pasar ${periode}: ${deleted} log MASUK dihapus`, snapshot:{syncTag, docId, deleted}});
+    Notify.success(`${deleted} log MASUK dihapus dari inventory`);
     renderTransaksi();
   }
 
@@ -2814,7 +2890,7 @@ const InventoryModule = (() => {
     renderSummary,
     setLogFilterNama, setLogFilterTgl, clearLogFilter, reArrangeInv,
     syncFormProduksi, _toggleSyncCheck, _confirmSync, _updateSyncTotals,
-    syncBelanjaPasar, _toggleBPSyncCheck, _confirmBPSync,
+    syncBelanjaPasar, _toggleBPSyncCheck, _confirmBPSync, deleteBPSync,
   };
 
 })();
