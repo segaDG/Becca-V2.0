@@ -59,16 +59,23 @@ const DailyOrderModule = (() => {
     const running = {};
     Object.keys(stockMap).forEach(k => { running[k] = stockMap[k]; });
 
-    const sorted = [..._forms].sort((a,b) => {
-      const d = (a.tanggal||'').localeCompare(b.tanggal||'');
-      return d !== 0 ? d : (a.shift||'').localeCompare(b.shift||'');
-    });
+    // Only process forms from last 30 days — older forms already synced to inventory
+    // This prevents O(n*m) explosion as data grows (1 year = 90K iterations → 7K)
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const cutoffStr = cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
+
+    const sorted = [..._forms]
+      .filter(f => (f.tanggal||'') >= cutoffStr)
+      .sort((a,b) => {
+        const d = (a.tanggal||'').localeCompare(b.tanggal||'');
+        return d !== 0 ? d : (a.shift||'').localeCompare(b.shift||'');
+      });
 
     sorted.forEach(form => {
       (form.items || []).forEach(it => {
         if (!it.item) return;
         const key = it.item.toLowerCase().trim();
-        // Use estQty as the demand (estimasi kebutuhan)
         const qty = Number(it.estQty) || Number(it.aktQty) || 0;
         if (qty <= 0) { it.sumber = 'STOK'; return; }
         if (!(key in running)) running[key] = 0;
