@@ -664,35 +664,49 @@ const App = {
     });
   },
 
-  /* === Theme Color Picker === */
-  _THEME_COLORS: [
-    {name:'Indigo',    primary:'#6366f1', primaryH:'#818cf8'},
-    {name:'Blue',      primary:'#3b82f6', primaryH:'#60a5fa'},
-    {name:'Cyan',      primary:'#06b6d4', primaryH:'#22d3ee'},
-    {name:'Emerald',   primary:'#10b981', primaryH:'#34d399'},
-    {name:'Amber',     primary:'#f59e0b', primaryH:'#fbbf24'},
-    {name:'Rose',      primary:'#f43f5e', primaryH:'#fb7185'},
-    {name:'Violet',    primary:'#8b5cf6', primaryH:'#a78bfa'},
-    {name:'Orange',    primary:'#f97316', primaryH:'#fb923c'},
-    {name:'Pink',      primary:'#ec4899', primaryH:'#f472b6'},
-    {name:'Teal',      primary:'#14b8a6', primaryH:'#2dd4bf'},
-    {name:'Sky',       primary:'#0ea5e9', primaryH:'#38bdf8'},
-    {name:'Red',       primary:'#ef4444', primaryH:'#f87171'},
+  /* === Theme Color Picker (Full UI Theme) === */
+  _THEMES: [
+    {id:'default',  name:'Default',  primary:'#6366f1',primaryH:'#818cf8', sidebar:'#0f1117',header:'#131720',bg:'#0b0e14',surface:'#131720',surface2:'#1a1f2e',border:'#1e2535',
+     sidebarLight:'#ffffff',headerLight:'#ffffff',bgLight:'#f1f5f9',surfaceLight:'#ffffff',surface2Light:'#f8fafc',borderLight:'rgba(0,0,0,.1)'},
+    {id:'ocean',    name:'Ocean',    primary:'#0ea5e9',primaryH:'#38bdf8', sidebar:'#082f49',header:'#0c4a6e',bg:'#0a1929',surface:'#0f2740',surface2:'#163654',border:'#1e4976',
+     sidebarLight:'#f0f9ff',headerLight:'#e0f2fe',bgLight:'#f0f9ff',surfaceLight:'#ffffff',surface2Light:'#e0f2fe',borderLight:'rgba(14,165,233,.15)'},
+    {id:'forest',   name:'Forest',   primary:'#10b981',primaryH:'#34d399', sidebar:'#052e16',header:'#064e3b',bg:'#021a0f',surface:'#0a3022',surface2:'#134e33',border:'#166534',
+     sidebarLight:'#ecfdf5',headerLight:'#d1fae5',bgLight:'#ecfdf5',surfaceLight:'#ffffff',surface2Light:'#d1fae5',borderLight:'rgba(16,185,129,.15)'},
+    {id:'sunset',   name:'Sunset',   primary:'#f97316',primaryH:'#fb923c', sidebar:'#431407',header:'#7c2d12',bg:'#1c0a00',surface:'#2d1506',surface2:'#44200d',border:'#5c2e15',
+     sidebarLight:'#fff7ed',headerLight:'#ffedd5',bgLight:'#fff7ed',surfaceLight:'#ffffff',surface2Light:'#ffedd5',borderLight:'rgba(249,115,22,.15)'},
+    {id:'cherry',   name:'Cherry',   primary:'#f43f5e',primaryH:'#fb7185', sidebar:'#350a13',header:'#4c0519',bg:'#1a0008',surface:'#2a0a14',surface2:'#3f1222',border:'#5c1a30',
+     sidebarLight:'#fff1f2',headerLight:'#ffe4e6',bgLight:'#fff1f2',surfaceLight:'#ffffff',surface2Light:'#ffe4e6',borderLight:'rgba(244,63,94,.15)'},
+    {id:'royal',    name:'Royal',    primary:'#8b5cf6',primaryH:'#a78bfa', sidebar:'#1e1145',header:'#2e1065',bg:'#0f0720',surface:'#1a1040',surface2:'#261854',border:'#3b2676',
+     sidebarLight:'#f5f3ff',headerLight:'#ede9fe',bgLight:'#f5f3ff',surfaceLight:'#ffffff',surface2Light:'#ede9fe',borderLight:'rgba(139,92,246,.15)'},
+    {id:'midnight', name:'Midnight', primary:'#3b82f6',primaryH:'#60a5fa', sidebar:'#0a1628',header:'#0f1d32',bg:'#060e1a',surface:'#0d1a2d',surface2:'#142640',border:'#1c3456',
+     sidebarLight:'#eff6ff',headerLight:'#dbeafe',bgLight:'#eff6ff',surfaceLight:'#ffffff',surface2Light:'#dbeafe',borderLight:'rgba(59,130,246,.15)'},
+    {id:'coffee',   name:'Coffee',   primary:'#d97706',primaryH:'#fbbf24', sidebar:'#1c1410',header:'#292018',bg:'#110e0a',surface:'#1f1a14',surface2:'#2d261e',border:'#3d3428',
+     sidebarLight:'#fefce8',headerLight:'#fef9c3',bgLight:'#fffbeb',surfaceLight:'#ffffff',surface2Light:'#fef3c7',borderLight:'rgba(217,119,6,.15)'},
   ],
 
   _openColorPicker() {
-    const current = localStorage.getItem('becca_theme_color') || '#6366f1';
-    const mid = 'color-pick-'+Date.now();
+    const uid = Auth.currentUser()?.username || 'default';
+    const current = localStorage.getItem('becca_theme_id_' + uid) || 'default';
+    const mid = 'theme-pick-'+Date.now();
     Modal.open({
-      id: mid, title: 'Pilih Warna Tema', size: 'modal-sm',
+      id: mid, title: 'Pilih Tema Warna', size: 'modal-md',
       body: `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:8px 0">
-        ${this._THEME_COLORS.map(c => `
-          <button onclick="App._applyColor('${c.primary}','${c.primaryH}');Modal.close('${mid}')"
-            style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border:2px solid ${c.primary===current?c.primary:'transparent'};
-            border-radius:10px;background:${c.primary===current?c.primary+'15':'var(--surface2)'};cursor:pointer;transition:.15s"
-            onmouseover="this.style.background='${c.primary}20'" onmouseout="this.style.background='${c.primary===current?c.primary+'15':'var(--surface2)'}'">
-            <div style="width:32px;height:32px;border-radius:50%;background:${c.primary};${c.primary===current?'box-shadow:0 0 0 3px var(--surface),0 0 0 5px '+c.primary:''}"></div>
-            <span style="font-size:10px;font-weight:600;color:${c.primary===current?c.primary:'var(--text-2)'}">${c.name}</span>
+        ${this._THEMES.map(t => `
+          <button onclick="App._applyFullTheme('${t.id}');Modal.close('${mid}')"
+            style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border:2px solid ${t.id===current?t.primary:'transparent'};
+            border-radius:12px;background:${t.id===current?t.primary+'15':'var(--surface2)'};cursor:pointer;transition:.2s"
+            onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px ${t.primary}30'"
+            onmouseout="this.style.transform='';this.style.boxShadow=''">
+            <div style="width:100%;height:36px;border-radius:8px;overflow:hidden;display:flex">
+              <div style="width:30%;background:${t.sidebar}"></div>
+              <div style="flex:1;display:flex;flex-direction:column">
+                <div style="height:8px;background:${t.header}"></div>
+                <div style="flex:1;background:${t.bg};display:flex;align-items:center;justify-content:center">
+                  <div style="width:60%;height:4px;border-radius:2px;background:${t.primary}"></div>
+                </div>
+              </div>
+            </div>
+            <span style="font-size:10px;font-weight:700;color:${t.id===current?t.primary:'var(--text-2)'}">${t.name}</span>
           </button>
         `).join('')}
       </div>`,
@@ -700,34 +714,51 @@ const App = {
     });
   },
 
-  _applyColor(primary, primaryH) {
-    document.documentElement.style.setProperty('--primary', primary);
-    document.documentElement.style.setProperty('--primary-h', primaryH);
-    document.documentElement.style.setProperty('--primary-bg', primary + '1a');
+  _applyFullTheme(themeId) {
+    const t = this._THEMES.find(x => x.id === themeId);
+    if (!t) return;
+    const r = document.documentElement.style;
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+
+    r.setProperty('--primary', t.primary);
+    r.setProperty('--primary-h', t.primaryH);
+    r.setProperty('--primary-bg', t.primary + '1a');
+
+    // Inject theme-specific CSS overrides
+    let css = document.getElementById('becca-theme-color-css');
+    if (!css) { css = document.createElement('style'); css.id = 'becca-theme-color-css'; document.head.appendChild(css); }
+    css.textContent = `
+      :root,[data-theme="dark"] {
+        --primary:${t.primary};--primary-h:${t.primaryH};--primary-bg:${t.primary}1a;
+        --bg:${t.bg};--surface:${t.surface};--surface2:${t.surface2};--border:${t.border};--border2:${t.border};
+      }
+      .sidebar{background:${t.sidebar}!important}
+      .header{background:${t.header}!important;border-bottom-color:${t.border}!important}
+      .sidebar-logo{background:linear-gradient(135deg,${t.primary},${t.primaryH})!important}
+      .nav-item.active{background:${t.primary}18!important;color:${t.primaryH}!important;border-left-color:${t.primary}!important}
+      .tab-btn.active{color:${t.primary}!important;border-bottom-color:${t.primary}!important}
+      .btn-primary{background:${t.primary}!important;border-color:${t.primary}!important}
+      .btn-primary:hover{background:${t.primaryH}!important}
+      [data-theme="light"] {
+        --primary:${t.primary};--primary-h:${t.primaryH};--primary-bg:${t.primary}1a;
+        --bg:${t.bgLight};--surface:${t.surfaceLight};--surface2:${t.surface2Light};--border:${t.borderLight};
+      }
+      [data-theme="light"] .sidebar{background:${t.sidebarLight}!important;border-right-color:${t.borderLight}!important}
+      [data-theme="light"] .header{background:${t.headerLight}!important;border-bottom-color:${t.borderLight}!important}
+    `;
+
     // Save per user
     const uid = Auth.currentUser()?.username || 'default';
-    localStorage.setItem('becca_theme_color', primary);
-    localStorage.setItem('becca_theme_color_h', primaryH);
-    localStorage.setItem('becca_theme_color_user_' + uid, primary + '|' + primaryH);
-    // Update color button
+    localStorage.setItem('becca_theme_id_' + uid, themeId);
     const btn = document.getElementById('btn-color');
-    if (btn) btn.querySelector('div').style.background = primary;
-    Notify.success('Warna tema diubah');
+    if (btn) btn.querySelector('div').style.background = t.primary;
+    Notify.success('Tema "' + t.name + '" diterapkan');
   },
 
   _loadUserColor() {
     const uid = Auth.currentUser()?.username || 'default';
-    const saved = localStorage.getItem('becca_theme_color_user_' + uid);
-    if (saved) {
-      const [p, h] = saved.split('|');
-      if (p) {
-        document.documentElement.style.setProperty('--primary', p);
-        document.documentElement.style.setProperty('--primary-h', h || p);
-        document.documentElement.style.setProperty('--primary-bg', p + '1a');
-        localStorage.setItem('becca_theme_color', p);
-        localStorage.setItem('becca_theme_color_h', h || p);
-      }
-    }
+    const themeId = localStorage.getItem('becca_theme_id_' + uid);
+    if (themeId && themeId !== 'default') this._applyFullTheme(themeId);
   },
 
   /* === Theme Toggle === */
