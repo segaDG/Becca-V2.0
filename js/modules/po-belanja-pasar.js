@@ -190,13 +190,14 @@ window.POBelanjaPasarModule = (() => {
       if (!f || !f.items) return;
       f.items.forEach(it => {
         if (!it.item) return;
-        const sumber = it.sumber || _calcSumber(Number(it.stokGudang)||0, Number(it.aktQty)||0);
-        if (sumber !== 'PASAR' && sumber !== 'PARTIAL') return; // skip STOK items
+        // Use estQty (estimasi) as the base qty for belanja pasar
+        const estQ = Number(it.estQty) || 0;
+        if (estQ <= 0) return;
+        const sumber = it.sumber || _calcSumber(Number(it.stokGudang)||0, estQ);
+        if (sumber !== 'PASAR' && sumber !== 'PARTIAL') return;
         const key = it.item.toLowerCase().trim();
-        const qty = Number(it.aktQty) || Number(it.estQty) || 0;
         const stok = Number(it.stokGudang) || 0;
-        // For PARTIAL: only the shortage goes to pasar
-        const pasarQty = sumber === 'PARTIAL' ? Math.max(0, qty - stok) : qty;
+        const pasarQty = sumber === 'PARTIAL' ? Math.max(0, estQ - stok) : estQ;
         if (pasarQty <= 0) return;
         if (!map[key]) {
           map[key] = { item: it.item, satuan: it.satuan||'', totalQty: 0, harga: Number(it.hargaSatuan)||0, qtyCikopo: 0, qtyKarawang: 0 };
@@ -339,11 +340,12 @@ window.POBelanjaPasarModule = (() => {
       const karawang = [];
       f.items.forEach(fi => {
         if (!fi.item) return;
-        const sumber = fi.sumber || _calcSumber(Number(fi.stokGudang)||0, Number(fi.aktQty)||0);
+        const estQ = Number(fi.estQty) || 0;
+        if (estQ <= 0) return;
+        const sumber = fi.sumber || _calcSumber(Number(fi.stokGudang)||0, estQ);
         if (sumber !== 'PASAR' && sumber !== 'PARTIAL') return;
-        const qty = Number(fi.aktQty) || Number(fi.estQty) || 0;
         const stok = Number(fi.stokGudang) || 0;
-        const pasarQty = sumber === 'PARTIAL' ? Math.max(0, qty - stok) : qty;
+        const pasarQty = sumber === 'PARTIAL' ? Math.max(0, estQ - stok) : estQ;
         if (pasarQty <= 0) return;
         const merged = (_doc.items||[]).find(m => m.item.toLowerCase().trim() === fi.item.toLowerCase().trim());
         if (!merged || !merged.totalQty) return;

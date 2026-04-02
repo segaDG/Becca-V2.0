@@ -601,7 +601,8 @@ const InventoryModule = (() => {
 
     const syncTag = 'do_' + (form.tanggal||'').replace(/-/g,'') + '_' + form.shift;
     const syncedLogs = _logs.filter(l => l.syncTag === syncTag);
-    const aktItems = (form.items||[]).filter(it => it.aktQty > 0);
+    // Use estQty for initial sync (first time), aktQty if already revised
+    const syncItems = (form.items||[]).filter(it => _n(it.estQty) > 0 || _n(it.aktQty) > 0);
     const shiftLabel = (form.shift||'').startsWith('EVT') ? 'Event C'+(form.shift||'').replace('EVT','') :
       {S1:'SHIFT 1',S2:'SHIFT 2',SNK1:'SHIFT 1',SNK2:'SHIFT 2',SNK3:'SHIFT 3',SNK4:'SHIFT 3'}[form.shift]||form.shift;
     const dateLabel = new Date(form.tanggal+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
@@ -610,12 +611,14 @@ const InventoryModule = (() => {
     if (!_syncChecked[formId]) _syncChecked[formId] = new Set();
     const checked = _syncChecked[formId];
 
-    // Build preview rows with diff highlight + revisi qty
-    const rows = aktItems.map((it, i) => {
+    // Build preview rows — initial qty from estQty, revisi column for adjustments
+    const rows = syncItems.map((it, i) => {
       const invItem = _items.find(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase());
       const existing = syncedLogs.find(l => (l.itemNama||'').toLowerCase() === (it.item||'').toLowerCase());
       const isNew = !existing;
-      const qtyChanged = existing && existing.jumlah !== it.aktQty;
+      // Show estQty as base, aktQty as revised (if different)
+      const baseQty = _n(it.estQty) || _n(it.aktQty);
+      const qtyChanged = existing && existing.jumlah !== baseQty;
       const noMatch = !invItem;
       const isChecked = checked.has(i);
       const highlight = qtyChanged ? 'background:rgba(245,158,11,.12)' : isNew ? 'background:rgba(99,102,241,.06)' : '';
@@ -626,9 +629,9 @@ const InventoryModule = (() => {
               style="width:15px;height:15px;accent-color:#10b981;cursor:pointer">`}
         </td>
         <td style="padding:5px 6px;font-weight:600;font-size:11px${noMatch?';color:#ef4444;text-decoration:line-through':''}">${it.item||''}</td>
-        <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:700">${it.aktQty}</td>
+        <td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:700">${baseQty}</td>
         <td style="padding:4px 3px;text-align:center">
-          <input type="number" min="0" step="1" value="${it.aktQty}" data-sync-idx="${i}" data-harga="${_n(it.hargaSatuan)}" data-orig="${it.aktQty}"
+          <input type="number" min="0" step="1" value="${baseQty}" data-sync-idx="${i}" data-harga="${_n(it.hargaSatuan)}" data-orig="${baseQty}"
             style="width:55px;padding:3px 4px;text-align:right;border:1px solid var(--border);border-radius:4px;
             font-size:11px;font-family:var(--font-mono);background:var(--surface);color:var(--text)"
             onfocus="this.select()" oninput="InventoryModule._updateSyncTotals()">
@@ -644,7 +647,7 @@ const InventoryModule = (() => {
     }).join('');
 
     const checkedCount = checked.size;
-    const syncableCount = aktItems.filter((it,i) => _items.some(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase())).length;
+    const syncableCount = syncItems.filter((it,i) => _items.some(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase())).length;
 
     const mid = 'sync-preview-' + Utils.uid();
     window._syncPreviewMid = mid;
@@ -658,12 +661,12 @@ const InventoryModule = (() => {
             <div style="font-size:12px;color:var(--primary);font-weight:600">${shiftLabel}</div>
           </div>
           <div style="text-align:right;font-size:11px;color:var(--text-3)">
-            ${aktItems.length} item aktual &middot; ${syncedLogs.length} sudah sync
+            ${syncItems.length} item &middot; ${syncedLogs.length} sudah sync
           </div>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
           ${(()=>{
-            const aktTotal = aktItems.reduce((s,it)=>s+_n(it.aktQty)*_n(it.hargaSatuan),0);
+            const aktTotal = syncItems.reduce((s,it)=>s+(_n(it.estQty)||_n(it.aktQty))*_n(it.hargaSatuan),0);
             const budgetShift = _n(form._budget) || _n(form.budgetBelanja) || 0;
             const sisaAkt = budgetShift > 0 ? budgetShift - aktTotal : 0;
             const rp = n => 'Rp '+Math.round(n).toLocaleString('id');
@@ -769,28 +772,28 @@ const InventoryModule = (() => {
     const shiftCode = (form.shift||'').startsWith('EVT') ? 'EVENT' :
       {S1:'SHIFT 1',S2:'SHIFT 2',SNK1:'SHIFT 1',SNK2:'SHIFT 2',SNK3:'SHIFT 3',SNK4:'SHIFT 3'}[form.shift]||form.shift;
     const checked = _syncChecked[formId] || new Set();
-    const aktItems = (form.items||[]).filter(it => it.aktQty > 0);
+    const syncItems = (form.items||[]).filter(it => _n(it.estQty) > 0 || _n(it.aktQty) > 0);
     let synced = 0, revised = 0;
 
-    // Read revised QTY from DOM (key as number to match loop index)
+    // Read revised QTY from DOM
     const revInputs = document.querySelectorAll('[data-sync-idx]');
     const revMap = {};
     revInputs.forEach(inp => { revMap[parseInt(inp.dataset.syncIdx,10)] = parseFloat(inp.value)||0; });
 
-    for (const [i, it] of aktItems.entries()) {
+    for (const [i, it] of syncItems.entries()) {
       if (!checked.has(i)) continue;
       const invItem = _items.find(x => (x.nama||'').toLowerCase() === (it.item||'').toLowerCase());
       if (!invItem) continue;
 
-      // Gunakan revisi QTY jika berbeda
-      const revQty = revMap[i] !== undefined ? revMap[i] : _n(it.aktQty);
+      const baseQty = _n(it.estQty) || _n(it.aktQty);
+      const revQty = revMap[i] !== undefined ? revMap[i] : baseQty;
       const qtyToSync = revQty;
 
-      // Update form produksi aktQty jika revisi berbeda
-      if (revQty !== _n(it.aktQty)) {
-        it.aktQty = revQty;
-        it.aktTotal = revQty * _n(it.hargaSatuan);
-        it._syncRevised = true; // badge di form produksi
+      // Write revisi back as aktQty in form produksi
+      it.aktQty = revQty;
+      it.aktTotal = revQty * _n(it.hargaSatuan);
+      if (revQty !== baseQty) {
+        it._syncRevised = true;
         revised++;
       }
 
@@ -812,8 +815,8 @@ const InventoryModule = (() => {
       } catch(e) { console.warn('[Sync]', e); }
     }
 
-    // Save revised form produksi back to DB
-    if (revised > 0) {
+    // Always save form back — aktQty updated from revisi
+    if (synced > 0) {
       form.updatedAt = new Date().toISOString();
       try { await DB.saveDailyOrderForm(form); } catch(e) { console.warn('[Sync] save form:', e); }
     }

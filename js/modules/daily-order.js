@@ -72,19 +72,16 @@ const DailyOrderModule = (() => {
     const remaining = {};
     Object.keys(stockMap).forEach(k => { remaining[k] = stockMap[k]; });
 
-    // For each form, subtract demand
+    // For each form, subtract demand using estQty
     sorted.forEach(form => {
       (form.items || []).forEach(it => {
         if (!it.item) return;
         const key = it.item.toLowerCase().trim();
-        const qty = Number(it.aktQty) || 0;
+        const qty = Number(it.estQty) || Number(it.aktQty) || 0;
         if (qty <= 0) return;
         if (!(key in remaining)) remaining[key] = 0;
         remaining[key] -= qty;
       });
-
-      // Tag each item in this form with its sumber based on stock AT THIS POINT
-      // We need per-form remaining, so we track cumulatively
     });
 
     _remainingStock = remaining;
@@ -108,14 +105,14 @@ const DailyOrderModule = (() => {
       (form.items || []).forEach(it => {
         if (!it.item) return;
         const key = it.item.toLowerCase().trim();
-        const qty = Number(it.aktQty) || 0;
+        // Use estQty as the demand (estimasi kebutuhan)
+        const qty = Number(it.estQty) || Number(it.aktQty) || 0;
         if (qty <= 0) { it.sumber = 'STOK'; return; }
         if (!(key in running)) running[key] = 0;
         const avail = running[key];
         if (avail <= 0)       it.sumber = 'PASAR';
         else if (avail >= qty) it.sumber = 'STOK';
         else                   it.sumber = 'PARTIAL';
-        // Also store how much comes from stock vs pasar
         it.stokGudang = Math.max(0, avail);
         running[key] -= qty;
       });
