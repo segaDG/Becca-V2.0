@@ -1055,7 +1055,8 @@ const InventoryModule = (() => {
     const role = Auth.currentUser()?.role;
     if (role !== 'superadmin' && role !== 'admin') { Notify.warning('Hanya Admin/Superadmin'); return; }
 
-    // Find synced logs for this doc
+    // Refresh logs from DB to get accurate sync state
+    try { _logs = await DB.getInventory(); _logs.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); } catch {}
     const syncTag = 'bp_' + docId;
     const syncedLogs = _logs.filter(l => l.syncTag === syncTag);
 

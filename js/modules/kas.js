@@ -177,6 +177,9 @@ const KasModule = (() => {
       .ks-tbl tr.ks-row-tbc td{background:rgba(245,158,11,.10)!important;}
       .ks-tbl tr.ks-row-tbc:hover td{background:rgba(245,158,11,.20)!important;}
       .ks-tbl tr.ks-row-tbc .badge-warning{background:#d97706!important;color:#fff!important;font-weight:700!important;}
+      .ks-tbl tr.ks-row-bp td{background:rgba(8,145,178,.06)!important;}
+      .ks-tbl tr.ks-row-bp:hover td{background:rgba(8,145,178,.12)!important;}
+      .ks-tbl tr.ks-row-bp td:first-child{border-left:3px solid #0891b2!important;}
     `;
     document.head.appendChild(s);
     // Auto-select text on focus for edit inputs
@@ -195,13 +198,11 @@ const KasModule = (() => {
       </div>
       <div class="tabs">
         <button class="tab-btn active" data-tab="transaksi" onclick="KasModule.switchTab('transaksi')">Transaksi</button>
-        <button class="tab-btn" data-tab="belanjaPasar" onclick="KasModule.switchTab('belanjaPasar')">Belanja Pasar</button>
         <button class="tab-btn" data-tab="summary"   onclick="KasModule.switchTab('summary')">Summary</button>
         <button class="tab-btn" data-tab="monthly"   onclick="KasModule.switchTab('monthly')">Monthly Report</button>
         <button class="tab-btn" data-tab="cashflow"  onclick="KasModule.switchTab('cashflow')">Cash Flow</button>
       </div>
       <div id="kas-tab-transaksi"></div>
-      <div id="kas-tab-belanjaPasar" style="display:none"></div>
       <div id="kas-tab-summary"  style="display:none"></div>
       <div id="kas-tab-monthly"  style="display:none"></div>
       <div id="kas-tab-cashflow" style="display:none"></div>
@@ -210,7 +211,7 @@ const KasModule = (() => {
 
   function switchTab(tab) {
     _activeTab = tab;
-    ['transaksi','belanjaPasar','summary','monthly','cashflow'].forEach(t => {
+    ['transaksi','summary','monthly','cashflow'].forEach(t => {
       const el = document.getElementById('kas-tab-'+t);
       if (el) el.style.display = t===tab?'':'none';
       document.querySelector('[data-tab="'+t+'"]')?.classList.toggle('active', t===tab);
@@ -221,7 +222,6 @@ const KasModule = (() => {
          <button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>`
       : '';
     if (tab==='transaksi') { UndoRedo.setActive('kas'); renderTransaksi(); _renderBalanceCards(); }
-    else if (tab==='belanjaPasar') renderBelanjaPasar();
     else if (tab==='summary')  renderSummary();
     else if (tab==='monthly')  renderMonthly();
     else if (tab==='cashflow') renderCashflow();
@@ -245,6 +245,7 @@ const KasModule = (() => {
     const bulanOpts= [...new Set(_kas.map(r=>r.bulan).filter(Boolean))].sort();
 
     document.getElementById('kas-tab-transaksi').innerHTML = `
+      <div id="kas-bp-dash"></div>
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap" id="kas-strip-wrap">${_summaryStrip(filtered)}<div id="kas-balance-cards" style="display:contents"></div></div>
       <div class="filter-bar" style="margin-bottom:var(--s3)">
         <input type="date" class="form-control" value="${_filter.dateFrom}" onchange="KasModule.setFilter('dateFrom',this.value)" style="width:140px">
@@ -340,6 +341,7 @@ const KasModule = (() => {
       </div>
     `;
     _renderBalanceCards();
+    _renderBPDashboard();
     if (window.GridSelect) {
       GridSelect.onFill('kas-grid', _onGridFill);
       GridSelect.onPaste('kas-grid', _onGridPaste);
@@ -354,7 +356,8 @@ const KasModule = (() => {
   /* ---- VIEW ROW ---- */
   function _rowView(r, rowNum, canEdit) {
     const sc = r.status==='DONE'?'badge-success':r.status==='TBC'?'badge-warning':'badge-neutral';
-    const rowColorClass = r.type==='Kas' ? 'ks-row-kas' : r.status==='DONE' ? 'ks-row-done' : r.status==='TBC' ? 'ks-row-tbc' : '';
+    const isBP = !!r.bpDocId;
+    const rowColorClass = isBP ? 'ks-row-bp' : r.type==='Kas' ? 'ks-row-kas' : r.status==='DONE' ? 'ks-row-done' : r.status==='TBC' ? 'ks-row-tbc' : '';
     const ksOnDbl = !_kasLocked.has(r.id) ? `KasModule.startEdit('${r.id}',event.target.closest('td')?.dataset?.field)` : '';
     return `<tr class="ks-view ${rowColorClass}" id="ks-row-${r.id}" data-id="${r.id}" style="${_kasLocked.has(r.id)?'opacity:.75':''};cursor:pointer" ondblclick="${ksOnDbl}">
       <td style="width:28px">
@@ -363,7 +366,7 @@ const KasModule = (() => {
         </div>
       </td>
       <td data-field="ks-tgl-${r.id}" style="white-space:nowrap"><div class="ks-cell">${r.tgl ? r.tgl.split('-').reverse().join('-') : ''}</div></td>
-      <td data-field="ks-nama-${r.id}"><div class="ks-cell">${r.nama||''}</div></td>
+      <td data-field="ks-nama-${r.id}"><div class="ks-cell">${r.nama||''}${isBP?'<span style="font-size:8px;background:rgba(8,145,178,.15);color:#0891b2;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">PASAR</span>':''}</div></td>
       <td data-field="ks-type-${r.id}"><div class="ks-cell"><span class="badge badge-neutral" style="font-size:10px">${r.type||''}</span></div></td>
       <td data-field="ks-vendor-${r.id}"><div class="ks-cell">${r.vendor||''}</div></td>
       <td data-field="ks-qty-${r.id}" class="ks-num"><div class="ks-cell">${(r.qty||0)%1===0?(r.qty||0):parseFloat((r.qty||0).toFixed(2))}</div></td>
@@ -1631,154 +1634,173 @@ const KasModule = (() => {
     if (saved) { Notify.success(saved+' baris di-paste'); renderTransaksi(); }
   }
 
-  /* ===================== TAB: BELANJA PASAR ===================== */
+  /* ===================== BELANJA PASAR DASHBOARD (inside transaksi) ===================== */
   let _bpDocs = [];
-  async function renderBelanjaPasar() {
-    const el = document.getElementById('kas-tab-belanjaPasar');
+
+  async function _renderBPDashboard() {
+    const el = document.getElementById('kas-bp-dash');
     if (!el) return;
     try { _bpDocs = await DB.getBelanjaPasar(); } catch { _bpDocs = []; }
     const docs = _bpDocs.filter(d => d.status === 'selesai').sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
     _updateBPBadge();
-    if (!docs.length) {
-      el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)"><div style="font-size:28px;margin-bottom:8px">🛒</div>Belum ada Form Belanja Pasar yang selesai</div>';
-      return;
-    }
-    const rp = n => n ? 'Rp '+Math.round(Number(n)).toLocaleString('id') : '-';
-    el.innerHTML = docs.map(d => {
+    if (!docs.length) { el.innerHTML = ''; return; }
+
+    const isAdmin = Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'admin';
+    const cards = docs.map(d => {
       const isConfirmed = d.kasStatus === 'confirmed';
-      let items;
-      if (d.kasItems?.length) {
-        // Ensure estHarga is always synced from source items
-        const srcItems = (d.items||[]).filter(it=>it.item);
-        items = d.kasItems.map(ki => {
-          const src = srcItems.find(s => (s.item||'').toLowerCase().trim() === (ki.item||'').toLowerCase().trim());
-          if (!ki.estHarga && src) ki.estHarga = src.harga || 0;
-          if (!ki.aktHarga && src) ki.aktHarga = src.harga || 0;
-          return ki;
-        });
-      } else {
-        items = (d.items||[]).filter(it=>it.item).map(it => ({
-          item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, estHarga: it.harga||0,
-          aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
-        }));
-      }
-      const aktGrandTotal = items.reduce((s,it) => s + (Number(it.aktQty)||0)*(Number(it.aktHarga)||0), 0);
-      return `
-        <div style="background:var(--surface);border:1px solid ${isConfirmed?'rgba(16,185,129,.3)':'var(--border)'};border-radius:10px;margin-bottom:12px;overflow:hidden">
-          <div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);background:${isConfirmed?'rgba(16,185,129,.04)':'var(--surface2)'}">
-            <div>
-              <span style="font-size:13px;font-weight:700">🛒 ${d.periode||'-'}</span>
-              <span style="font-size:11px;color:var(--text-3);margin-left:8px">${d.namaPetugas||'-'}</span>
-              ${(d.selectedForms||[]).length ? `<div style="font-size:9px;color:var(--text-3);margin-top:2px">Form: ${(d.selectedForms||[]).map(sf => sf.tanggal?.slice(5)+' '+({S1:'S1',S2:'S2&3'}[sf.shift]||sf.shift)).join(', ')}</div>` : ''}
-            </div>
-            <div style="display:flex;align-items:center;gap:8px">
-              ${isConfirmed
-                ? `<span style="font-size:10px;background:rgba(16,185,129,.12);color:#10b981;padding:2px 8px;border-radius:10px;font-weight:700">✓ Terkonfirmasi</span>
-                   <span style="font-size:10px;color:var(--text-3)">oleh ${d.kasConfirmedBy||'-'}</span>`
-                : `<button onclick="KasModule.confirmBelanjaPasar('${d.id}')" style="padding:5px 14px;border:none;border-radius:6px;background:#059669;color:#fff;font-size:11px;cursor:pointer;font-weight:700">Konfirmasi</button>`}
-            </div>
-          </div>
-          <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:950px">
-              <thead><tr style="background:var(--surface2)">
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;width:28px">#</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:left">ITEM</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:65px;background:rgba(100,116,139,.08);color:#475569">EST QTY</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;width:50px;background:rgba(100,116,139,.08);color:#475569">SATUAN</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:95px;background:rgba(100,116,139,.08);color:#475569">EST HARGA</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:75px;color:#059669">AKT QTY</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:110px;color:#059669">AKT HARGA</th>
-                <th style="padding:8px 6px;font-size:9px;font-weight:700;text-align:right;width:120px;background:rgba(5,150,105,.1);color:#059669">TOTAL HARGA</th>
-              </tr></thead>
-              <tbody>${items.map((it,i) => {
-                const aktT = (Number(it.aktQty)||0) * (Number(it.aktHarga)||0);
-                const estH = Number(it.estHarga) || Number(it.harga) || 0;
-                return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.012)':''}">
-                  <td style="padding:10px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
-                  <td style="padding:10px 8px;font-weight:600">${it.item}</td>
-                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);background:rgba(100,116,139,.04);color:#475569">${it.estQty||'-'}</td>
-                  <td style="padding:10px 6px;background:rgba(100,116,139,.04);color:#475569">${it.satuan}</td>
-                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);background:rgba(100,116,139,.04);color:#475569">${estH ? rp(estH) : '-'}</td>
-                  <td style="padding:6px 4px;text-align:right">
-                    ${isConfirmed
-                      ? `<span style="font-family:var(--font-mono);font-weight:600;color:#059669">${it.aktQty}</span>`
-                      : `<input type="number" min="0" step="0.5" value="${it.aktQty||0}" data-doc="${d.id}" data-idx="${i}" data-field="aktQty"
-                          onchange="KasModule._bpCellChange('${d.id}',${i})"
-                          style="width:70px;border:1px solid var(--border);border-radius:4px;padding:5px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)" onfocus="this.select()">`}
-                  </td>
-                  <td style="padding:6px 4px;text-align:right">
-                    ${isConfirmed
-                      ? `<span style="font-family:var(--font-mono);font-weight:600">${rp(it.aktHarga)}</span>`
-                      : `<input type="text" value="${rp(it.aktHarga||0)}" data-doc="${d.id}" data-idx="${i}" data-field="aktHarga"
-                          onfocus="this.value=this.dataset.raw||${it.aktHarga||0};this.type='number';this.select()"
-                          onblur="this.dataset.raw=this.value;this.type='text';this.value='Rp '+Number(this.dataset.raw||0).toLocaleString('id');KasModule._bpCellChange('${d.id}',${i})"
-                          style="width:100px;border:1px solid var(--border);border-radius:4px;padding:5px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)">`}
-                  </td>
-                  <td style="padding:10px 6px;text-align:right;font-family:var(--font-mono);font-weight:700;background:rgba(5,150,105,.06);color:#059669" id="bp-kas-total-${d.id}-${i}">${rp(aktT)}</td>
-                </tr>`;
-              }).join('')}</tbody>
-              <tfoot><tr style="border-top:2px solid var(--border);background:var(--surface2)">
-                <td colspan="5"></td>
-                <td colspan="2" style="padding:8px;text-align:right;font-weight:700">Grand Total</td>
-                <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);font-weight:800;color:#059669;font-size:13px" id="bp-kas-grand-${d.id}">${rp(aktGrandTotal)}</td>
-              </tr></tfoot>
-            </table>
-          </div>
-        </div>`;
+      const itemCount = (d.kasItems||d.items||[]).filter(it=>it.item||it.totalQty).length;
+      const statusColor = isConfirmed ? '#10b981' : '#f59e0b';
+      const statusText = isConfirmed ? 'Terkonfirmasi' : 'Belum Konfirmasi';
+      const statusBg = isConfirmed ? 'rgba(16,185,129,.1)' : 'rgba(245,158,11,.1)';
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
+        border:1px solid ${isConfirmed?'rgba(16,185,129,.3)':'rgba(245,158,11,.3)'};
+        border-radius:8px;background:${statusBg};min-width:90px;position:relative;cursor:pointer;transition:.15s"
+        onclick="KasModule.openBPDetail('${d.id}')"
+        onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
+        <span style="font-size:9px;font-weight:700;color:var(--text-3)">🛒 ${d.periode||'-'}</span>
+        <span style="font-size:9px;font-weight:700;color:${statusColor}">${statusText}</span>
+        <span style="font-size:8px;color:var(--text-3)">${itemCount} items</span>
+        ${isAdmin ? `<button onclick="event.stopPropagation();KasModule.deleteBPKas('${d.id}')" title="Hapus"
+          style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:99px;border:none;background:#ef4444;color:#fff;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700">×</button>` : ''}
+      </div>`;
     }).join('');
+
+    const pendingCount = docs.filter(d => d.kasStatus !== 'confirmed').length;
+    el.innerHTML = `
+      <div style="background:var(--surface);border:1px solid rgba(8,145,178,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#0891b2;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          🛒 Belanja Pasar
+          ${pendingCount>0?`<span style="background:#f59e0b;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700">${pendingCount} belum konfirmasi</span>`:''}
+        </div>
+        <div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px">${cards}</div>
+      </div>`;
+  }
+
+  async function openBPDetail(docId) {
+    const doc = _bpDocs.find(d => d.id === docId);
+    if (!doc) return;
+    const isConfirmed = doc.kasStatus === 'confirmed';
+    const rp = n => n ? 'Rp '+Math.round(Number(n)).toLocaleString('id') : '-';
+
+    // Init kasItems
+    let items;
+    if (doc.kasItems?.length) {
+      const srcItems = (doc.items||[]).filter(it=>it.item);
+      items = doc.kasItems.map(ki => {
+        const src = srcItems.find(s => (s.item||'').toLowerCase().trim() === (ki.item||'').toLowerCase().trim());
+        if (!ki.estHarga && src) ki.estHarga = src.harga||0;
+        if (!ki.aktHarga && src) ki.aktHarga = src.harga||0;
+        return ki;
+      });
+    } else {
+      items = (doc.items||[]).filter(it=>it.item).map(it => ({
+        item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, estHarga: it.harga||0,
+        aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
+      }));
+    }
+    const aktGrandTotal = items.reduce((s,it) => s+(Number(it.aktQty)||0)*(Number(it.aktHarga)||0), 0);
+
+    const mid = 'bp-kas-'+Utils.uid();
+    window._bpKasMid = mid;
+    Modal.open({
+      id: mid,
+      title: '🛒 Belanja Pasar — '+doc.periode,
+      size: 'modal-xl',
+      body: `<style>.modal-xl{max-width:900px!important}</style>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <div><span style="font-size:11px;color:var(--text-3)">Oleh: ${doc.namaPetugas||'-'}</span>
+            ${(doc.selectedForms||[]).length ? `<div style="font-size:9px;color:var(--text-3)">Form: ${(doc.selectedForms||[]).map(sf => sf.tanggal?.slice(5)+' '+({S1:'S1',S2:'S2&3'}[sf.shift]||sf.shift)).join(', ')}</div>` : ''}
+          </div>
+          ${isConfirmed ? `<span style="font-size:10px;background:rgba(16,185,129,.12);color:#10b981;padding:2px 8px;border-radius:10px;font-weight:700">✓ oleh ${doc.kasConfirmedBy||'-'}</span>` : ''}
+        </div>
+        <div style="overflow-x:auto;max-height:55vh;overflow-y:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--surface2)">
+            <th style="padding:6px;font-size:9px;width:25px">#</th>
+            <th style="padding:6px;font-size:9px;text-align:left">ITEM</th>
+            <th style="padding:6px;font-size:9px;text-align:right;width:55px;color:#475569">EST QTY</th>
+            <th style="padding:6px;font-size:9px;width:40px;color:#475569">SAT</th>
+            <th style="padding:6px;font-size:9px;text-align:right;width:80px;color:#475569">EST HARGA</th>
+            <th style="padding:6px;font-size:9px;text-align:right;width:70px;color:#059669">AKT QTY</th>
+            <th style="padding:6px;font-size:9px;text-align:right;width:95px;color:#059669">AKT HARGA</th>
+            <th style="padding:6px;font-size:9px;text-align:right;width:100px;color:#059669">TOTAL</th>
+          </tr></thead><tbody>${items.map((it,i) => {
+            const aktT = (Number(it.aktQty)||0)*(Number(it.aktHarga)||0);
+            const estH = Number(it.estHarga)||Number(it.harga)||0;
+            return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.012)':''}">
+              <td style="padding:8px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
+              <td style="padding:8px 6px;font-weight:600">${it.item}</td>
+              <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:#475569">${it.estQty||'-'}</td>
+              <td style="padding:8px 6px;color:#475569">${it.satuan}</td>
+              <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:#475569">${estH?rp(estH):'-'}</td>
+              <td style="padding:6px 4px;text-align:right">${isConfirmed
+                ? `<span style="font-family:var(--font-mono);font-weight:600;color:#059669">${it.aktQty}</span>`
+                : `<input type="number" min="0" step="0.5" value="${it.aktQty||0}" data-doc="${doc.id}" data-idx="${i}" data-field="aktQty"
+                    onchange="KasModule._bpCellChange('${doc.id}',${i})"
+                    style="width:65px;border:1px solid var(--border);border-radius:4px;padding:4px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)" onfocus="this.select()">`}</td>
+              <td style="padding:6px 4px;text-align:right">${isConfirmed
+                ? `<span style="font-family:var(--font-mono);font-weight:600">${rp(it.aktHarga)}</span>`
+                : `<input type="text" value="${rp(it.aktHarga||0)}" data-doc="${doc.id}" data-idx="${i}" data-field="aktHarga"
+                    onfocus="this.value=this.dataset.raw||${it.aktHarga||0};this.type='number';this.select()"
+                    onblur="this.dataset.raw=this.value;this.type='text';this.value='Rp '+Number(this.dataset.raw||0).toLocaleString('id');KasModule._bpCellChange('${doc.id}',${i})"
+                    style="width:90px;border:1px solid var(--border);border-radius:4px;padding:4px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)">`}</td>
+              <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);font-weight:700;color:#059669" id="bp-kas-total-${doc.id}-${i}">${rp(aktT)}</td>
+            </tr>`;
+          }).join('')}</tbody>
+          <tfoot><tr style="border-top:2px solid var(--border);background:var(--surface2)">
+            <td colspan="5"></td><td colspan="2" style="padding:6px;text-align:right;font-weight:700">Grand Total</td>
+            <td style="padding:6px;text-align:right;font-family:var(--font-mono);font-weight:800;color:#059669" id="bp-kas-grand-${doc.id}">${rp(aktGrandTotal)}</td>
+          </tr></tfoot></table>
+        </div>`,
+      footer: isConfirmed ? '' : `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
+        <button class="btn btn-primary" onclick="KasModule.confirmBelanjaPasar('${doc.id}')" style="background:#059669;border-color:#059669">Konfirmasi</button>`,
+    });
   }
 
   function _bpCellChange(docId, idx) {
     const doc = _bpDocs.find(d => d.id === docId);
     if (!doc) return;
-    // Initialize kasItems if not yet
     if (!doc.kasItems?.length) {
       doc.kasItems = (doc.items||[]).filter(it=>it.item).map(it => ({
         item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, estHarga: it.harga||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
       }));
     }
-    const it = doc.kasItems[idx];
-    if (!it) return;
-    // Read from DOM
+    const it = doc.kasItems[idx]; if (!it) return;
     const qtyInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${idx}"][data-field="aktQty"]`);
     const hrgInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${idx}"][data-field="aktHarga"]`);
     if (qtyInp) it.aktQty = parseFloat(qtyInp.value)||0;
-    if (hrgInp) it.aktHarga = parseFloat(hrgInp.dataset.raw || hrgInp.value.replace(/[^\d.-]/g,''))||0;
+    if (hrgInp) it.aktHarga = parseFloat(hrgInp.dataset.raw||hrgInp.value.replace(/[^\d.-]/g,''))||0;
     it.aktTotal = it.aktQty * it.aktHarga;
-    // Update total cell
-    const rp = n => n ? 'Rp '+Math.round(Number(n)).toLocaleString('id') : '-';
+    const rp = n => n?'Rp '+Math.round(Number(n)).toLocaleString('id'):'-';
     const tEl = document.getElementById(`bp-kas-total-${docId}-${idx}`);
     if (tEl) tEl.textContent = rp(it.aktTotal);
     const gEl = document.getElementById(`bp-kas-grand-${docId}`);
-    if (gEl) gEl.textContent = rp(doc.kasItems.reduce((s,i) => s + (Number(i.aktQty)||0)*(Number(i.aktHarga)||0), 0));
-    // Auto-save
-    DB.saveBelanjaPasar(doc).catch(() => {});
+    if (gEl) gEl.textContent = rp(doc.kasItems.reduce((s,i)=>s+(Number(i.aktQty)||0)*(Number(i.aktHarga)||0),0));
+    DB.saveBelanjaPasar(doc).catch(()=>{});
   }
 
   async function confirmBelanjaPasar(docId) {
     const doc = _bpDocs.find(d => d.id === docId);
     if (!doc) return;
-    if (doc.kasStatus === 'confirmed') { Notify.info('Sudah dikonfirmasi sebelumnya'); return; }
+    if (doc.kasStatus === 'confirmed') { Notify.info('Sudah dikonfirmasi'); return; }
     const cu = Auth.currentUser();
     const ok = await Modal.confirm({
       title: 'Konfirmasi Belanja Pasar',
-      message: `<p>Konfirmasi bahwa data <strong>AKT QTY</strong> dan <strong>AKT Harga</strong> sudah benar.</p>
-        <p style="margin-top:8px;color:#f59e0b;font-weight:600">⚠ Setelah konfirmasi, data tidak bisa diubah dan akan diteruskan ke Inventory.</p>`,
+      message: `<p>Data <strong>AKT QTY</strong> dan <strong>AKT Harga</strong> sudah benar?</p>
+        <p style="margin-top:8px;color:#f59e0b;font-weight:600">⚠ Data akan masuk ke transaksi kas kecil dan diteruskan ke Inventory.</p>`,
       confirmText: 'Ya, Konfirmasi',
     });
     if (!ok) return;
-    // Ensure kasItems populated
     if (!doc.kasItems?.length) {
       doc.kasItems = (doc.items||[]).filter(it=>it.item).map(it => ({
         item: it.item, satuan: it.satuan||'', estQty: it.totalQty||0, estHarga: it.harga||0, aktQty: it.totalQty||0, aktHarga: it.harga||0, aktTotal: (it.totalQty||0)*(it.harga||0)
       }));
     }
-    // Read latest from DOM
+    // Read latest DOM values
     doc.kasItems.forEach((it, i) => {
       const qtyInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${i}"][data-field="aktQty"]`);
       const hrgInp = document.querySelector(`input[data-doc="${docId}"][data-idx="${i}"][data-field="aktHarga"]`);
       if (qtyInp) it.aktQty = parseFloat(qtyInp.value)||0;
-      if (hrgInp) it.aktHarga = parseFloat(hrgInp.dataset.raw || hrgInp.value.replace(/[^\d.-]/g,''))||0;
+      if (hrgInp) it.aktHarga = parseFloat(hrgInp.dataset.raw||hrgInp.value.replace(/[^\d.-]/g,''))||0;
       it.aktTotal = it.aktQty * it.aktHarga;
     });
     doc.kasStatus = 'confirmed';
@@ -1786,12 +1808,53 @@ const KasModule = (() => {
     doc.kasConfirmedBy = cu?.nama || cu?.username || '-';
     try {
       await DB.saveBelanjaPasar(doc);
-      Notify.success('Belanja pasar dikonfirmasi');
-      renderBelanjaPasar();
-      DB.logActivity({type:'confirm_belanja_pasar', detail:'Konfirmasi belanja pasar: '+doc.periode});
-    } catch(e) { Notify.error('Gagal menyimpan: '+(e.message||'')); }
+      // Auto-insert kas kecil rows for each item with aktQty > 0
+      const today = new Date().toISOString().slice(0,10);
+      let inserted = 0;
+      for (const it of doc.kasItems) {
+        if (!it.aktQty || !it.aktHarga) continue;
+        const row = {
+          tgl: today, nama: it.item, type: 'Belanja Pasar',
+          vendor: 'Pasar', qty: it.aktQty, satuan: it.satuan||'',
+          hargaSatuan: it.aktHarga, jumlah: it.aktTotal,
+          penerima: doc.namaPetugas||'-', status: 'DONE',
+          bpDocId: doc.id, // link back to belanja pasar
+        };
+        try { await DB.saveKas(row); _kas.unshift(row); inserted++; } catch {}
+      }
+      if (window._bpKasMid) Modal.close(window._bpKasMid);
+      Notify.success(`Dikonfirmasi + ${inserted} item masuk kas kecil`);
+      renderTransaksi();
+      DB.logActivity({type:'confirm_belanja_pasar', detail:`Konfirmasi ${doc.periode}: ${inserted} item → kas kecil`});
+    } catch(e) { Notify.error('Gagal: '+(e.message||'')); }
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, renderBelanjaPasar, confirmBelanjaPasar, _bpCellChange };
+  async function deleteBPKas(docId) {
+    const role = Auth.currentUser()?.role;
+    if (role !== 'superadmin' && role !== 'admin') { Notify.warning('Hanya Admin/Superadmin'); return; }
+    const doc = _bpDocs.find(d => d.id === docId);
+    if (!doc) return;
+    // Count kas rows linked to this BP
+    const linkedKas = _kas.filter(r => r.bpDocId === docId);
+    const ok = await Modal.confirm({
+      title: 'Hapus Belanja Pasar dari Kas',
+      message: `<p>Hapus <strong>🛒 ${doc.periode||'-'}</strong>?</p>
+        ${linkedKas.length ? `<p style="margin-top:8px;color:#ef4444;font-weight:600">⚠ ${linkedKas.length} baris transaksi kas terkait juga akan dihapus.</p>` : ''}
+        <p style="margin-top:8px">Status konfirmasi akan direset.</p>`,
+      danger: true, confirmText: 'Hapus',
+    });
+    if (!ok) return;
+    // Delete linked kas rows
+    for (const r of linkedKas) {
+      try { await DB.deleteKas(r.id); _kas = _kas.filter(k=>k.id!==r.id); } catch {}
+    }
+    // Reset kas status
+    doc.kasStatus = null; doc.kasConfirmedAt = null; doc.kasConfirmedBy = null; doc.kasItems = null;
+    try { await DB.saveBelanjaPasar(doc); } catch {}
+    Notify.success('Belanja pasar dihapus dari kas');
+    renderTransaksi();
+  }
+
+  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
 })();
 window.KasModule = KasModule;
