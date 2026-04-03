@@ -85,6 +85,16 @@ CREATE TABLE IF NOT EXISTS public.delivery_tracking_logs (
 ALTER TABLE public.delivery_tracking_logs DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.delivery_tracking_logs TO anon;
 
+-- ── personal_notes ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.personal_notes (
+  id         TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  data       JSONB
+);
+ALTER TABLE public.personal_notes DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.personal_notes TO anon;
+
 -- ── delivery_schedules ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.delivery_schedules (
   id         TEXT PRIMARY KEY,

@@ -588,6 +588,11 @@ const DB = (() => {
   const getDeliveryTrackingLogs  = ()     => _get('delivery_tracking_logs');
   const saveDeliveryTrackingLog  = (data) => { if (!data.id) data.id = Utils.uid(); return _save('delivery_tracking_logs', data); };
 
+  // ── PERSONAL NOTES ────────────────────────────────────────
+  const getPersonalNotes   = ()     => _get('personal_notes');
+  const savePersonalNote   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('personal_notes', data); };
+  const deletePersonalNote = (id)   => _delete('personal_notes', id);
+
   // ── ACCOUNT PAYABLE ───────────────────────────────────────
   const getAP         = ()     => _get('ap');
   const saveAP        = (data) => { if (!data.id) data.id = Utils.uid(); return _save('ap', data); };
@@ -1074,6 +1079,8 @@ const DB = (() => {
     getDeliverySchedules, saveDeliverySchedule, deleteDeliverySchedule,
     getDeliveryCheckpoints, saveDeliveryCheckpoint, deleteDeliveryCheckpoint,
     getDeliveryTrackingLogs, saveDeliveryTrackingLog,
+    // Personal Notes
+    getPersonalNotes, savePersonalNote, deletePersonalNote,
     // AP
     getAP, saveAP, deleteAP, getSuppliers, saveSupplier, deleteSupplier,
     // News & Pengumuman
