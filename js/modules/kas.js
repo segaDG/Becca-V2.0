@@ -817,21 +817,24 @@ const KasModule = (() => {
     const done   = keluar.filter(r=>r.status==='DONE');
     const tbc    = keluar.filter(r=>r.status==='TBC');
     const noSt   = keluar.filter(r=>!r.status);
-    const _card = (label, value, color, onclick='') => {
-      const clickable = onclick ? `cursor:pointer;` : '';
-      const hover     = onclick ? `onmouseover="this.style.outline='2px solid ${color}'" onmouseout="this.style.outline=''"` : '';
-      const clk       = onclick ? `onclick="${onclick}"` : '';
-      const arrow     = onclick ? ' <span style="font-size:9px;opacity:.6">▼</span>' : '';
-      return `<div ${clk} ${hover} style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 140px;min-width:0;max-width:220px;${clickable}transition:all .15s">
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${label}${arrow}</div>
-        <div style="font-size:18px;font-weight:700;color:${color};font-family:var(--font-mono)">${value}</div>
+    const _card = (icon, label, value, color, accent, onclick='') => {
+      const clk = onclick ? `onclick="${onclick}" style="cursor:pointer"` : '';
+      return `<div ${clk} class="ks-strip-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;flex:1 1 150px;min-width:0;max-width:240px;transition:all .2s;position:relative;overflow:hidden"
+        onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.15)'"
+        onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${accent}"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <div style="width:28px;height:28px;border-radius:7px;background:${accent}18;display:flex;align-items:center;justify-content:center;font-size:13px">${icon}</div>
+          <span style="font-size:11px;color:var(--text-2);font-weight:600">${label}</span>
+        </div>
+        <div style="font-size:20px;font-weight:800;color:${color};font-family:var(--font-mono);letter-spacing:-.01em">${value}</div>
       </div>`;
     };
     return [
-      _card('Total Keluar', Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)), 'var(--danger)'),
-      _card('Confirmed',    Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),   'var(--success)'),
-      _card('TBC',          Utils.formatRupiah(tbc.reduce((s,r)=>s+(r.jumlah||0),0)),    'var(--warning)', "KasModule.filterByStatus('TBC')"),
-      _card('Belum Diisi',  noSt.length+' baris',                                         'var(--text-2)',  "KasModule.filterByStatus('-')"),
+      _card('📤','Total Keluar', Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)), 'var(--danger)', '#ef4444'),
+      _card('✅','Confirmed',    Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),   'var(--success)', '#22c55e'),
+      _card('⏳','TBC',          Utils.formatRupiah(tbc.reduce((s,r)=>s+(r.jumlah||0),0)),    'var(--warning)', '#f59e0b', "KasModule.filterByStatus('TBC')"),
+      _card('❓','Belum Diisi',  noSt.length+' baris',                                        'var(--text-2)', '#64748b', "KasModule.filterByStatus('-')"),
     ].join('');
   }
 

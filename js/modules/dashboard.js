@@ -59,13 +59,26 @@ const DashboardModule = (() => {
       </div>
       <div id="dash-content"><div style="text-align:center;padding:60px;color:var(--text-3)">Memuat...</div></div>
       <style>
-        .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5);cursor:pointer;transition:all var(--t-base);position:relative;overflow:hidden;user-select:none;}
-        .stat-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:var(--shadow-md);}
-        .stat-card:hover .stat-arrow{opacity:1;}
-        .stat-arrow{position:absolute;top:var(--s3);right:var(--s3);opacity:0;transition:opacity var(--t-base);color:var(--text-3);}
-        .stat-icon{font-size:22px;margin-bottom:var(--s2);}
-        .stat-label{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--s1);}
-        .stat-value{font-size:20px;font-weight:700;font-family:var(--font-mono);}
+        .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5);cursor:pointer;transition:all .2s;position:relative;overflow:hidden;user-select:none}
+        .stat-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+        .stat-card:hover .stat-arrow{opacity:1;transform:translateX(0)}
+        .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--r-lg) var(--r-lg) 0 0}
+        .stat-card.sc-green::before{background:linear-gradient(90deg,#10b981,#34d399)}
+        .stat-card.sc-red::before{background:linear-gradient(90deg,#ef4444,#f87171)}
+        .stat-card.sc-blue::before{background:linear-gradient(90deg,#3b82f6,#60a5fa)}
+        .stat-card.sc-purple::before{background:linear-gradient(90deg,#6366f1,#818cf8)}
+        .stat-card.sc-amber::before{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+        .stat-card.sc-cyan::before{background:linear-gradient(90deg,#06b6d4,#22d3ee)}
+        .stat-arrow{position:absolute;top:var(--s4);right:var(--s4);opacity:0;transform:translateX(-4px);transition:all .2s;color:var(--text-3)}
+        .stat-icon-wrap{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:var(--s3)}
+        .sc-green .stat-icon-wrap{background:rgba(16,185,129,.12)}
+        .sc-red .stat-icon-wrap{background:rgba(239,68,68,.12)}
+        .sc-blue .stat-icon-wrap{background:rgba(59,130,246,.12)}
+        .sc-purple .stat-icon-wrap{background:rgba(99,102,241,.12)}
+        .sc-amber .stat-icon-wrap{background:rgba(245,158,11,.12)}
+        .sc-cyan .stat-icon-wrap{background:rgba(6,182,212,.12)}
+        .stat-label{font-size:11px;color:var(--text-2);font-weight:500;margin-bottom:4px}
+        .stat-value{font-size:22px;font-weight:800;font-family:var(--font-mono);letter-spacing:-.01em}
       </style>
     `;
     await _render();
@@ -183,16 +196,19 @@ const DashboardModule = (() => {
       return true;
     });
     const arrowSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M5 12h14M12 5l7 7-7 7"/></svg>`;
+    // Color class per widget
+    const _wColor = {saldo_kas:'sc-green',total_keluar:'sc-red',total_masuk:'sc-green',karyawan:'sc-purple',hutang:'sc-amber',barang_aktif:'sc-blue',nilai_inv:'sc-cyan',total_trx:'sc-purple',task_open:'sc-amber',invoice_belum:'sc-red',ap_belum:'sc-red'};
 
     const el = document.getElementById('dash-content');
     if (!el) return;
     el.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:var(--s4);margin-bottom:var(--s5)">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--s4);margin-bottom:var(--s6)">
         ${widgets.map(w => {
           const v = vals[w.id] || {v:'-', c:'var(--text-2)'};
-          return `<div class="stat-card" onclick="App.navigate('${w.nav}')">
+          const cc = _wColor[w.id] || 'sc-purple';
+          return `<div class="stat-card ${cc}" onclick="App.navigate('${w.nav}')">
             <div class="stat-arrow">${arrowSVG}</div>
-            <div class="stat-icon">${w.icon}</div>
+            <div class="stat-icon-wrap">${w.icon}</div>
             <div class="stat-label">${w.label}</div>
             <div class="stat-value" style="color:${v.c}">${v.v}</div>
           </div>`;
@@ -253,20 +269,22 @@ const DashboardModule = (() => {
 
   function _renderRecentKasTable(rows) {
     const nav = "App.navigate(\'kas\')";
-    let h = '<div class="card"><div class="card-header">'
-      + '<div class="card-title">Transaksi Kas Terbaru</div>'
-      + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat Semua</button>'
+    let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">'
+      + '<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(239,68,68,.1);display:flex;align-items:center;justify-content:center;font-size:15px">💰</div>'
+      + '<div style="font-size:14px;font-weight:700">Transaksi Kas Terbaru</div></div>'
+      + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat Semua →</button>'
       + '</div><div class="table-scroll"><table class="table">'
       + '<thead><tr><th>Tanggal</th><th>Nama</th><th>Type</th><th class="num">Jumlah</th><th>Status</th></tr></thead><tbody>';
     if (!rows.length) {
-      h += '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-3)">Belum ada data</td></tr>';
+      h += '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data</td></tr>';
     } else {
       rows.forEach(function(r) {
         h += '<tr style="cursor:pointer" onclick="' + nav + '">'
           + '<td style="white-space:nowrap">' + (r.tgl ? Utils.formatDate(r.tgl,'dd/mm/yyyy') : '-') + '</td>'
-          + '<td>' + (r.nama||'-') + '</td>'
+          + '<td style="font-weight:600">' + (r.nama||'-') + '</td>'
           + '<td><span class="badge badge-neutral">' + (r.type||'-') + '</span></td>'
-          + '<td class="num">' + Utils.formatRupiah(r.jumlah||0) + '</td>'
+          + '<td class="num" style="font-weight:700">' + Utils.formatRupiah(r.jumlah||0) + '</td>'
           + '<td><span class="badge ' + (r.status==='DONE'?'badge-success':'badge-warning') + '">' + (r.status||'-') + '</span></td>'
           + '</tr>';
       });
@@ -276,19 +294,24 @@ const DashboardModule = (() => {
 
   function _renderLowStockCard(lowStock) {
     const nav = "App.navigate(\'inventory\')";
-    let h = '<div class="card"><div class="card-header">'
-      + '<div class="card-title">Stok Menipis</div>'
-      + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat</button>'
-      + '</div><div style="padding:var(--s3)">';
+    let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">'
+      + '<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(245,158,11,.1);display:flex;align-items:center;justify-content:center;font-size:15px">⚠️</div>'
+      + '<div><div style="font-size:14px;font-weight:700">Stok Menipis</div>'
+      + '<div style="font-size:11px;color:var(--text-3)">' + lowStock.length + ' item di bawah minimum</div></div></div>'
+      + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat →</button>'
+      + '</div><div style="padding:8px 12px">';
     if (!lowStock.length) {
-      h += '<div style="text-align:center;padding:30px;color:var(--text-3)">Semua stok aman ✅</div>';
+      h += '<div style="text-align:center;padding:30px;color:var(--success);font-weight:600">Semua stok aman ✅</div>';
     } else {
-      lowStock.slice(0,8).forEach(function(p) {
+      lowStock.slice(0,8).forEach(function(p,i) {
         const stok = p._stok||p.balance||0;
-        h += '<div onclick="' + nav + '" style="display:flex;align-items:center;justify-content:space-between;padding:7px var(--s3);border-radius:var(--r-sm);cursor:pointer">'
-          + '<div><div style="font-size:13px;font-weight:500">' + p.nama + '</div>'
-          + '<div style="font-size:11px;color:var(--text-3)">' + (p.satuan||'') + '</div></div>'
-          + '<span class="badge ' + (stok<=0?'badge-danger':'badge-warning') + '">' + stok + ' ' + (p.satuan||'') + '</span>'
+        h += '<div onclick="' + nav + '" style="display:flex;align-items:center;justify-content:space-between;padding:10px 8px;border-radius:8px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'
+          + '<div style="display:flex;align-items:center;gap:10px">'
+          + '<span style="font-size:10px;color:var(--text-3);font-weight:700;width:20px">' + (i+1) + '</span>'
+          + '<div><div style="font-size:13px;font-weight:600">' + p.nama + '</div>'
+          + '<div style="font-size:10px;color:var(--text-3)">Min: ' + (p.stokMin||0) + ' ' + (p.satuan||'') + '</div></div></div>'
+          + '<span class="badge ' + (stok<=0?'badge-danger':'badge-warning') + '" style="font-family:var(--font-mono);font-weight:700">' + stok + ' ' + (p.satuan||'') + '</span>'
           + '</div>';
       });
     }
@@ -297,17 +320,19 @@ const DashboardModule = (() => {
 
   function _renderHutangTable(topHutang) {
     const nav = "App.navigate(\'employee\')";
-    let h = '<div class="card"><div class="card-header">'
-      + '<div class="card-title">Hutang Karyawan Terbesar</div>'
-      + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat</button>'
+    let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-top:var(--s5)">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">'
+      + '<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(245,158,11,.1);display:flex;align-items:center;justify-content:center;font-size:15px">💳</div>'
+      + '<div style="font-size:14px;font-weight:700">Hutang Karyawan Terbesar</div></div>'
+      + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat →</button>'
       + '</div><div class="table-scroll"><table class="table">'
       + '<thead><tr><th>#</th><th>Nama</th><th>Divisi</th><th class="num">Sisa Hutang</th></tr></thead><tbody>';
     topHutang.forEach(function(e,i) {
       h += '<tr style="cursor:pointer" onclick="' + nav + '">'
         + '<td class="text-muted">' + (i+1) + '</td>'
-        + '<td class="font-semibold">' + e.nama + '</td>'
+        + '<td style="font-weight:700">' + e.nama + '</td>'
         + '<td><span class="badge badge-neutral">' + (e.divisi||'-') + '</span></td>'
-        + '<td class="num" style="color:var(--warning);font-weight:600">' + Utils.formatRupiah(e.sisaHutang) + '</td>'
+        + '<td class="num" style="color:var(--warning);font-weight:700;font-family:var(--font-mono)">' + Utils.formatRupiah(e.sisaHutang) + '</td>'
         + '</tr>';
     });
     return h + '</tbody></table></div></div>';
