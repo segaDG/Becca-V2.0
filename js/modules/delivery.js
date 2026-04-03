@@ -147,11 +147,13 @@ const DeliveryModule = (() => {
         </span>
       </div>
       <div class="tabs" style="margin-bottom:var(--s4)">
-        <button class="tab-btn active" onclick="DeliveryModule.switchTab('jadwal')">\ud83d\udcc5 Jadwal</button>
-        <button class="tab-btn" onclick="DeliveryModule.switchTab('summary')">\ud83d\udcca Summary</button>
+        <button class="tab-btn active" data-dlv-tab="jadwal" onclick="DeliveryModule.switchTab('jadwal')">\ud83d\udcc5 Jadwal</button>
+        <button class="tab-btn" data-dlv-tab="summary" onclick="DeliveryModule.switchTab('summary')">\ud83d\udcca Summary</button>
+        <button class="tab-btn" data-dlv-tab="tracking" onclick="DeliveryModule.switchTab('tracking')">\ud83d\udce1 Tracking</button>
       </div>
       <div id="dlv-tab-jadwal"><div id="dlv-grid"></div></div>
-      <div id="dlv-tab-summary" class="hidden"></div>`;
+      <div id="dlv-tab-summary" class="hidden"></div>
+      <div id="dlv-tab-tracking" class="hidden"></div>`;
     _renderWeekGrid();
   }
 
@@ -441,12 +443,13 @@ const DeliveryModule = (() => {
 
   /* ═══ TABS ═══ */
   function switchTab(tab) {
-    document.querySelectorAll('.tabs .tab-btn').forEach((b,i) => b.classList.toggle('active', (i===0&&tab==='jadwal')||(i===1&&tab==='summary')));
-    const jEl = document.getElementById('dlv-tab-jadwal');
-    const sEl = document.getElementById('dlv-tab-summary');
-    if (jEl) jEl.classList.toggle('hidden', tab!=='jadwal');
-    if (sEl) sEl.classList.toggle('hidden', tab!=='summary');
+    document.querySelectorAll('[data-dlv-tab]').forEach(b => b.classList.toggle('active', b.dataset.dlvTab===tab));
+    ['jadwal','summary','tracking'].forEach(t => {
+      const el = document.getElementById('dlv-tab-'+t);
+      if (el) el.classList.toggle('hidden', t!==tab);
+    });
     if (tab==='summary') _renderSummary();
+    if (tab==='tracking') _renderTracking();
   }
 
   /* ═══ SUMMARY ═══ */
@@ -540,6 +543,218 @@ const DeliveryModule = (() => {
     `;
   }
 
-  return { init, prevWeek, nextWeek, goToday, openModal, saveEntry, deleteEntry, cycleStatus, autoPopulate, resetWeek, switchTab, _filterPIC };
+  /* ═══ TRACKING ═══ */
+  let _trackingInterval = null, _trackingDriverId = null, _trackingDate = '';
+  let _trackingLogs = [], _checkpoints = [];
+
+  function _haversine(lat1,lon1,lat2,lon2) {
+    const R=6371000, rad=Math.PI/180;
+    const dLat=(lat2-lat1)*rad, dLon=(lon2-lon1)*rad;
+    const a=Math.sin(dLat/2)**2+Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dLon/2)**2;
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }
+
+  async function _loadAllCheckpoints() {
+    const settings = await DB.getSettings().catch(()=>({}));
+    const bps = settings.bpsLat ? [{id:'bps',nama:settings.bpsLocationName||'BPS Office',lat:+settings.bpsLat,lng:+settings.bpsLng,type:'bps'}] : [];
+    const custCPs = _customers.filter(c=>c.lat&&c.lng).map(c=>({id:c.id,nama:c.namaShort||c.nama,lat:+c.lat,lng:+c.lng,type:'customer'}));
+    const custom = await DB.getDeliveryCheckpoints().catch(()=>[]);
+    _checkpoints = [...bps,...custCPs,...custom.map(c=>({...c,type:'custom'}))];
+    return _checkpoints;
+  }
+
+  function _findNearest(lat,lng) {
+    let best=null, bestDist=Infinity;
+    _checkpoints.forEach(cp=>{
+      if(!cp.lat||!cp.lng) return;
+      const d=_haversine(lat,lng,cp.lat,cp.lng);
+      if(d<bestDist){bestDist=d;best={...cp,distance:d};}
+    });
+    return best;
+  }
+
+  async function _pingLocation() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(async(pos)=>{
+      const {latitude:lat,longitude:lng}=pos.coords;
+      const nearest=_findNearest(lat,lng);
+      const drv=_employees.find(e=>e.id===_trackingDriverId);
+      const log={
+        id:Utils.uid(), driverId:_trackingDriverId, driverName:drv?.nama||'',
+        date:_trackingDate, timestamp:new Date().toISOString(),
+        lat,lng,
+        nearestId:nearest?.id||null, nearestName:nearest?.nama||null,
+        distanceM:nearest?Math.round(nearest.distance):null,
+        status:nearest&&nearest.distance<200?'at_checkpoint':'moving',
+      };
+      await DB.saveDeliveryTrackingLog(log).catch(()=>{});
+      _trackingLogs.push(log);
+      _renderTracking();
+      // Push notification jika tiba di checkpoint
+      if(log.status==='at_checkpoint'&&typeof PushModule!=='undefined'){
+        PushModule.sendToRole?.('admin',{title:'Driver Tiba',body:`${log.driverName} tiba di ${log.nearestName}`}).catch(()=>{});
+      }
+    },(err)=>{ Notify.warning('GPS error: '+err.message); if(err.code===1){stopTracking();Notify.error('Akses lokasi ditolak — tracking dihentikan');} },{enableHighAccuracy:true,timeout:30000});
+  }
+
+  async function startTracking(driverId) {
+    if(!driverId){Notify.warning('Pilih driver terlebih dahulu');return;}
+    if(!navigator.geolocation){Notify.error('Browser tidak mendukung GPS');return;}
+    if(_trackingInterval) stopTracking();
+    _trackingDriverId=driverId;
+    _trackingDate=_toStr(new Date());
+    await _loadAllCheckpoints();
+    // Load existing logs for today
+    const allLogs=await DB.getDeliveryTrackingLogs().catch(()=>[]);
+    _trackingLogs=allLogs.filter(l=>l.driverId===driverId&&l.date===_trackingDate).sort((a,b)=>(a.timestamp||'').localeCompare(b.timestamp||''));
+    _pingLocation();
+    _trackingInterval=setInterval(()=>_pingLocation(),5*60*1000);
+    _renderTracking();
+    Notify.success('Tracking dimulai — update setiap 5 menit');
+  }
+
+  function stopTracking() {
+    if(_trackingInterval) clearInterval(_trackingInterval);
+    _trackingInterval=null; _trackingDriverId=null;
+    _renderTracking();
+    Notify.info('Tracking dihentikan');
+  }
+
+  async function _renderTracking() {
+    const el=document.getElementById('dlv-tab-tracking');
+    if(!el) return;
+    if(!_checkpoints.length) await _loadAllCheckpoints();
+    const drivers=_getDrivers();
+    const allEmps=_allActiveEmployees();
+    const driverList=drivers.length?drivers:allEmps;
+    const isActive=!!_trackingInterval;
+    const activeDrv=_employees.find(e=>e.id===_trackingDriverId);
+
+    el.innerHTML=`
+      <!-- Controls -->
+      <div class="card" style="margin-bottom:var(--s4)">
+        <div style="padding:var(--s4);display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap">
+          <div class="form-group" style="margin:0;flex:1;min-width:200px">
+            <label class="form-label">Pilih Driver</label>
+            <select id="trk-driver" class="form-control" ${isActive?'disabled':''}>
+              <option value="">— Pilih Driver —</option>
+              ${driverList.map(e=>`<option value="${e.id}" ${_trackingDriverId===e.id?'selected':''}>${e.nama}${e.jabatan?' \u00b7 '+e.jabatan:''}</option>`).join('')}
+            </select>
+          </div>
+          ${isActive
+            ?`<button class="btn btn-danger" onclick="DeliveryModule.stopTracking()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                Stop Tracking</button>
+              <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--success);font-weight:600">
+                <span style="width:8px;height:8px;border-radius:50%;background:var(--success);animation:pulse 1.5s infinite"></span>
+                Aktif — ${activeDrv?.nama||''}</span>`
+            :`<button class="btn btn-primary" onclick="DeliveryModule.startTracking(document.getElementById('trk-driver').value)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Start Tracking</button>`}
+          <div style="margin-left:auto"><button class="btn btn-ghost btn-sm" onclick="DeliveryModule.openCheckpointManager()">Kelola Checkpoint</button></div>
+        </div>
+      </div>
+      <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style>
+
+      ${isActive||_trackingLogs.length?`
+      <!-- Checkpoint Progress -->
+      <div class="card" style="margin-bottom:var(--s4)">
+        <div class="card-header"><span class="card-title">Checkpoint Progress</span><span style="font-size:11px;color:var(--text-3)">${_trackingDate}</span></div>
+        <div style="padding:var(--s4)">
+          ${_checkpoints.length?_checkpoints.map(cp=>{
+            const visited=_trackingLogs.find(l=>l.nearestId===cp.id&&l.status==='at_checkpoint');
+            const lastLog=_trackingLogs.length?_trackingLogs[_trackingLogs.length-1]:null;
+            const dist=lastLog?_haversine(lastLog.lat,lastLog.lng,cp.lat,cp.lng):null;
+            const dotColor=visited?'var(--success)':dist!==null&&dist<500?'var(--info)':'var(--text-3)';
+            return `<div style="display:flex;align-items:center;gap:var(--s3);padding:var(--s2) 0;border-bottom:1px solid var(--border)">
+              <span style="width:12px;height:12px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:600;color:var(--heading)">${cp.nama} <span style="font-size:10px;color:var(--text-3);font-weight:400">${cp.type}</span></div>
+                <a href="https://www.google.com/maps?q=${cp.lat},${cp.lng}" target="_blank" style="font-size:10px;color:var(--primary-h)">${cp.lat.toFixed(5)}, ${cp.lng.toFixed(5)}</a>
+              </div>
+              ${visited?`<span style="font-size:11px;color:var(--success);font-weight:600">\u2713 ${new Date(visited.timestamp).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</span>`
+                :dist!==null?`<span style="font-size:11px;color:var(--text-3)">${dist<1000?Math.round(dist)+'m':(dist/1000).toFixed(1)+'km'}</span>`
+                :''}
+            </div>`;}).join(''):'<div style="color:var(--text-3);padding:var(--s4);text-align:center">Belum ada checkpoint. Tambahkan lokasi di Customer atau Kelola Checkpoint.</div>'}
+        </div>
+      </div>
+
+      <!-- Tracking Log Table -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Log Tracking</span><span style="font-size:11px;color:var(--text-3)">${_trackingLogs.length} ping</span></div>
+        <div class="table-scroll"><table class="table">
+          <thead><tr><th>Waktu</th><th>Koordinat</th><th>Checkpoint Terdekat</th><th class="num">Jarak</th><th>Status</th></tr></thead>
+          <tbody>
+            ${_trackingLogs.length?[..._trackingLogs].reverse().map(l=>{
+              const stColor=l.status==='at_checkpoint'?'var(--success)':l.status==='moving'?'var(--info)':'var(--text-3)';
+              const stLabel=l.status==='at_checkpoint'?'Di Checkpoint':l.status==='moving'?'Bergerak':'Idle';
+              return `<tr>
+                <td style="white-space:nowrap;font-family:var(--font-mono);font-size:12px">${new Date(l.timestamp).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</td>
+                <td><a href="https://www.google.com/maps?q=${l.lat},${l.lng}" target="_blank" style="font-size:11px">${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}</a></td>
+                <td>${l.nearestName||'-'}</td>
+                <td class="num" style="font-family:var(--font-mono)">${l.distanceM!=null?(l.distanceM<1000?l.distanceM+'m':(l.distanceM/1000).toFixed(1)+'km'):'-'}</td>
+                <td><span style="font-size:11px;font-weight:600;color:${stColor}">${stLabel}</span></td>
+              </tr>`;}).join(''):'<tr><td colspan="5" style="text-align:center;padding:var(--s6);color:var(--text-3)">Belum ada log tracking</td></tr>'}
+          </tbody>
+        </table></div>
+      </div>`:'<div style="text-align:center;padding:var(--s8);color:var(--text-3)">Pilih driver dan klik Start Tracking untuk memulai</div>'}
+    `;
+  }
+
+  /* ═══ CHECKPOINT MANAGER ═══ */
+  async function openCheckpointManager() {
+    await _loadAllCheckpoints();
+    const custom=await DB.getDeliveryCheckpoints().catch(()=>[]);
+    const mid='cp-mgr-'+Date.now();
+    Modal.open({id:mid,title:'Kelola Checkpoint',size:'modal-lg',
+      body:`
+        <div class="table-scroll"><table class="table">
+          <thead><tr><th>Nama</th><th>Lat</th><th>Lng</th><th>Tipe</th><th>Maps</th><th></th></tr></thead>
+          <tbody>
+            ${_checkpoints.map(cp=>`<tr>
+              <td style="font-weight:600">${cp.nama}</td>
+              <td style="font-family:var(--font-mono);font-size:11px">${cp.lat?.toFixed(5)||'-'}</td>
+              <td style="font-family:var(--font-mono);font-size:11px">${cp.lng?.toFixed(5)||'-'}</td>
+              <td><span class="badge ${cp.type==='bps'?'badge-info':cp.type==='customer'?'badge-primary':'badge-warning'}">${cp.type}</span></td>
+              <td><a href="https://www.google.com/maps?q=${cp.lat},${cp.lng}" target="_blank" style="font-size:11px">Buka</a></td>
+              <td>${cp.type==='custom'?`<button class="btn-icon" style="color:var(--danger)" onclick="DeliveryModule.deleteCheckpoint('${cp.id}','${mid}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>`:''}</td>
+            </tr>`).join('')}
+            ${!_checkpoints.length?'<tr><td colspan="6" style="text-align:center;padding:var(--s4);color:var(--text-3)">Belum ada checkpoint</td></tr>':''}
+          </tbody>
+        </table></div>
+        <div style="margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--border)">
+          <h4 style="margin-bottom:var(--s3)">Tambah Checkpoint Baru</h4>
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:var(--s2);align-items:end">
+            <div class="form-group" style="margin:0"><label class="form-label">Nama</label><input id="cp-nama" class="form-control" placeholder="Nama lokasi"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Lat</label><input id="cp-lat" class="form-control" type="number" step="any" placeholder="-6.xxx"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Lng</label><input id="cp-lng" class="form-control" type="number" step="any" placeholder="107.xxx"></div>
+            <button class="btn btn-primary btn-sm" onclick="DeliveryModule.addCheckpoint('${mid}')">+ Tambah</button>
+          </div>
+        </div>`,
+      footer:`<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+  }
+
+  async function addCheckpoint(modalId) {
+    const nama=(document.getElementById('cp-nama')?.value||'').trim();
+    const lat=parseFloat(document.getElementById('cp-lat')?.value);
+    const lng=parseFloat(document.getElementById('cp-lng')?.value);
+    if(!nama){Notify.warning('Nama checkpoint wajib diisi');return;}
+    if(isNaN(lat)||isNaN(lng)){Notify.warning('Latitude dan Longitude wajib diisi');return;}
+    await DB.saveDeliveryCheckpoint({nama,lat,lng});
+    Notify.success('Checkpoint "'+nama+'" ditambahkan');
+    Modal.close(modalId);
+    openCheckpointManager();
+  }
+
+  async function deleteCheckpoint(id,modalId) {
+    if(!confirm('Hapus checkpoint ini?')) return;
+    await DB.deleteDeliveryCheckpoint(id);
+    Notify.success('Checkpoint dihapus');
+    Modal.close(modalId);
+    openCheckpointManager();
+  }
+
+  return { init, prevWeek, nextWeek, goToday, openModal, saveEntry, deleteEntry, cycleStatus, autoPopulate, resetWeek, switchTab, startTracking, stopTracking, openCheckpointManager, addCheckpoint, deleteCheckpoint, _filterPIC };
 })();
 window.DeliveryModule = DeliveryModule;

@@ -48,6 +48,10 @@ CREATE INDEX IF NOT EXISTS idx_push_role ON public.push_tokens (role);
 -- DELIVERY_SCHEDULES — sering di-filter by weekStart
 CREATE INDEX IF NOT EXISTS idx_dlv_week ON public.delivery_schedules ((data->>'weekStart'));
 
+-- DELIVERY_TRACKING_LOGS — sering di-filter by driverId, date
+CREATE INDEX IF NOT EXISTS idx_trk_driver ON public.delivery_tracking_logs ((data->>'driverId'));
+CREATE INDEX IF NOT EXISTS idx_trk_date ON public.delivery_tracking_logs ((data->>'date'));
+
 -- SETTINGS — hanya 1 row, tidak perlu index
 
 -- PRESENCE — sering di-filter by last_seen

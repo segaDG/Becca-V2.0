@@ -169,6 +169,12 @@ else { window.SettingsModule = (() => {
                 <label class="form-label">Email</label>
                 <input name="email" type="email" class="form-control" value="${settings.email||''}">
               </div>
+              <div class="cf-section" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin:var(--s4) 0 var(--s3);padding-bottom:var(--s2);border-bottom:1px solid var(--border)">Lokasi BPS (Delivery Tracking)</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);margin-bottom:var(--s3)">
+                <div class="form-group"><label class="form-label">Latitude</label><input name="bpsLat" class="form-control" type="number" step="any" value="${settings.bpsLat||''}" placeholder="-6.xxxxx"></div>
+                <div class="form-group"><label class="form-label">Longitude</label><input name="bpsLng" class="form-control" type="number" step="any" value="${settings.bpsLng||''}" placeholder="107.xxxxx"></div>
+              </div>
+              <div class="form-group" style="margin-bottom:var(--s4)"><label class="form-label">Nama Lokasi</label><input name="bpsLocationName" class="form-control" value="${settings.bpsLocationName||'BPS Office'}"></div>
               <button type="button" class="btn btn-primary" onclick="SettingsModule.saveGeneralSettings()">💾 Simpan</button>
             </form>
           </div>

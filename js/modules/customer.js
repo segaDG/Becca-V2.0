@@ -699,6 +699,13 @@ const CustomerModule = (() => {
         </div>
         <div class="form-group"><label class="form-label">Alamat</label><input class="form-control" id="cf-alamat" value="${fv('alamat')}"></div>
 
+        <div class="cf-section">Lokasi (Delivery Tracking)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:var(--s3);align-items:end">
+          <div class="form-group"><label class="form-label">Latitude</label><input class="form-control" id="cf-lat" type="number" step="any" value="${nv('lat')}" placeholder="-6.xxxxx"></div>
+          <div class="form-group"><label class="form-label">Longitude</label><input class="form-control" id="cf-lng" type="number" step="any" value="${nv('lng')}" placeholder="107.xxxxx"></div>
+          <a href="https://www.google.com/maps?q=${nv('lat')||'-6.3'},${nv('lng')||'107.3'}" target="_blank" class="btn btn-ghost btn-sm" style="margin-bottom:var(--s4)">Maps</a>
+        </div>
+
         <div class="cf-section">Kontrak & Tarif Dasar</div>
         <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:var(--s3)">
           <div class="form-group">
@@ -786,6 +793,8 @@ const CustomerModule = (() => {
       nama, namaShort: g('cf-namaShort'),
       pic: g('cf-pic'), noHp: g('cf-noHp'), kota: g('cf-kota'),
       status: g('cf-status'), alamat: g('cf-alamat'), email: g('cf-email'),
+      lat: parseFloat(document.getElementById('cf-lat')?.value)||null,
+      lng: parseFloat(document.getElementById('cf-lng')?.value)||null,
       jenisPelayanan: g('cf-jenis'), catatan: g('cf-catatan'),
       hargaPerPax: n('cf-hargaPerPax'), biayaBox: n('cf-biayaBox'),
       biayaLainnya: n('cf-biayaLainnya'), tempo: n('cf-tempo'),

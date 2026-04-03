@@ -66,6 +66,25 @@ CREATE TABLE IF NOT EXISTS public.push_tokens (
 ALTER TABLE public.push_tokens DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.push_tokens TO anon;
 
+-- ── delivery_checkpoints ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.delivery_checkpoints (
+  id         TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  data       JSONB
+);
+ALTER TABLE public.delivery_checkpoints DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.delivery_checkpoints TO anon;
+
+-- ── delivery_tracking_logs ───────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.delivery_tracking_logs (
+  id         TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  data       JSONB
+);
+ALTER TABLE public.delivery_tracking_logs DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.delivery_tracking_logs TO anon;
+
 -- ── delivery_schedules ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.delivery_schedules (
   id         TEXT PRIMARY KEY,

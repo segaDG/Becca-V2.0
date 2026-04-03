@@ -579,6 +579,15 @@ const DB = (() => {
   const saveDeliverySchedule   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('delivery_schedules', data); };
   const deleteDeliverySchedule = (id)   => _delete('delivery_schedules', id);
 
+  // ── DELIVERY CHECKPOINTS ─────────────────────────────────
+  const getDeliveryCheckpoints   = ()     => _get('delivery_checkpoints');
+  const saveDeliveryCheckpoint   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('delivery_checkpoints', data); };
+  const deleteDeliveryCheckpoint = (id)   => _delete('delivery_checkpoints', id);
+
+  // ── DELIVERY TRACKING LOGS ───────────────────────────────
+  const getDeliveryTrackingLogs  = ()     => _get('delivery_tracking_logs');
+  const saveDeliveryTrackingLog  = (data) => { if (!data.id) data.id = Utils.uid(); return _save('delivery_tracking_logs', data); };
+
   // ── ACCOUNT PAYABLE ───────────────────────────────────────
   const getAP         = ()     => _get('ap');
   const saveAP        = (data) => { if (!data.id) data.id = Utils.uid(); return _save('ap', data); };
@@ -1064,6 +1073,8 @@ const DB = (() => {
     getEmpJadwal, saveEmpJadwal, deleteEmpJadwal,
     // Delivery
     getDeliverySchedules, saveDeliverySchedule, deleteDeliverySchedule,
+    getDeliveryCheckpoints, saveDeliveryCheckpoint, deleteDeliveryCheckpoint,
+    getDeliveryTrackingLogs, saveDeliveryTrackingLog,
     // AP
     getAP, saveAP, deleteAP, getSuppliers, saveSupplier, deleteSupplier,
     // News & Pengumuman
