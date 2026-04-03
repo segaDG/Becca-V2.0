@@ -143,7 +143,12 @@ const DeliveryModule = (() => {
         <div style="flex:1"></div>
         <span style="font-size:14px;font-weight:600;color:var(--heading)">${_fmtDateFull(_weekStart)} \u2014 ${_fmtDateFull(days[6])}</span>
       </div>
-      <div id="dlv-grid"></div>`;
+      <div class="tabs" style="margin-bottom:var(--s4)">
+        <button class="tab-btn active" onclick="DeliveryModule.switchTab('jadwal')">Jadwal</button>
+        <button class="tab-btn" onclick="DeliveryModule.switchTab('summary')">Summary</button>
+      </div>
+      <div id="dlv-tab-jadwal"><div id="dlv-grid"></div></div>
+      <div id="dlv-tab-summary" class="hidden"></div>`;
     _renderWeekGrid();
   }
 
@@ -431,6 +436,107 @@ const DeliveryModule = (() => {
     _renderWeekGrid();
   }
 
-  return { init, prevWeek, nextWeek, goToday, openModal, saveEntry, deleteEntry, cycleStatus, autoPopulate, resetWeek, _filterPIC };
+  /* ═══ TABS ═══ */
+  function switchTab(tab) {
+    document.querySelectorAll('.tabs .tab-btn').forEach((b,i) => b.classList.toggle('active', (i===0&&tab==='jadwal')||(i===1&&tab==='summary')));
+    const jEl = document.getElementById('dlv-tab-jadwal');
+    const sEl = document.getElementById('dlv-tab-summary');
+    if (jEl) jEl.classList.toggle('hidden', tab!=='jadwal');
+    if (sEl) sEl.classList.toggle('hidden', tab!=='summary');
+    if (tab==='summary') _renderSummary();
+  }
+
+  /* ═══ SUMMARY ═══ */
+  function _renderSummary() {
+    const el = document.getElementById('dlv-tab-summary');
+    if (!el) return;
+    const sc = _currentSchedule();
+    const entries = sc?.entries || [];
+    const totalEntries = entries.length;
+    const totalDelivered = entries.filter(e=>e.status==='delivered').length;
+    const totalPax = entries.reduce((s,e)=>s+(e.totalPax||0),0);
+    const deliveredPax = entries.filter(e=>e.status==='delivered').reduce((s,e)=>s+(e.totalPax||0),0);
+    const uniqueCustomers = new Set(entries.map(e=>e.customerName)).size;
+
+    // Driver stats
+    const drvMap = {};
+    entries.forEach(e => {
+      const name = e.driverName || '— Belum assign';
+      if (!drvMap[name]) drvMap[name] = { trips:0, customers:new Set(), pax:0, delivered:0 };
+      drvMap[name].trips++;
+      if (e.customerName) drvMap[name].customers.add(e.customerName);
+      drvMap[name].pax += e.totalPax||0;
+      if (e.status==='delivered') drvMap[name].delivered++;
+    });
+
+    // PIC stats
+    const picMap = {};
+    entries.forEach(e => {
+      (e.picNames||[]).forEach((name,idx) => {
+        if (!picMap[name]) picMap[name] = { trips:0, customers:new Set(), pax:0, delivered:0 };
+        picMap[name].trips++;
+        if (e.customerName) picMap[name].customers.add(e.customerName);
+        picMap[name].pax += e.totalPax||0;
+        if (e.status==='delivered') picMap[name].delivered++;
+      });
+    });
+
+    const drvRows = Object.entries(drvMap).sort((a,b)=>b[1].trips-a[1].trips);
+    const picRows = Object.entries(picMap).sort((a,b)=>b[1].trips-a[1].trips);
+
+    el.innerHTML = `
+      <!-- Summary Cards -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s3);margin-bottom:var(--s5)">
+        <div class="stat-card blue"><div style="font-size:11px;color:var(--text-3);text-transform:uppercase;font-weight:600;letter-spacing:.04em;margin-bottom:4px">Total Pengiriman</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--heading)">${totalEntries}</div>
+          <div style="font-size:11px;color:var(--text-3)">${totalDelivered} terkirim</div></div>
+        <div class="stat-card green"><div style="font-size:11px;color:var(--text-3);text-transform:uppercase;font-weight:600;letter-spacing:.04em;margin-bottom:4px">Total Pax</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--success)">${totalPax.toLocaleString('id')}</div>
+          <div style="font-size:11px;color:var(--text-3)">${deliveredPax.toLocaleString('id')} terkirim</div></div>
+        <div class="stat-card purple"><div style="font-size:11px;color:var(--text-3);text-transform:uppercase;font-weight:600;letter-spacing:.04em;margin-bottom:4px">Customer</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--primary-h)">${uniqueCustomers}</div></div>
+        <div class="stat-card yellow"><div style="font-size:11px;color:var(--text-3);text-transform:uppercase;font-weight:600;letter-spacing:.04em;margin-bottom:4px">Driver Aktif</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--warning)">${drvRows.filter(([n])=>n!=='— Belum assign').length}</div></div>
+      </div>
+
+      <!-- Driver Table -->
+      <div class="card" style="margin-bottom:var(--s4)">
+        <div class="card-header"><span class="card-title">Rekap Driver</span></div>
+        <div class="table-scroll"><table class="table">
+          <thead><tr><th>#</th><th>Driver</th><th class="num">Pengiriman</th><th class="num">Customer</th><th class="num">Total Pax</th><th class="num">Terkirim</th></tr></thead>
+          <tbody>
+            ${drvRows.length ? drvRows.map(([name,d],i)=>`<tr>
+              <td style="color:var(--text-3)">${i+1}</td>
+              <td style="font-weight:600">${name}</td>
+              <td class="num"><span style="font-family:var(--font-mono);font-weight:700">${d.trips}</span></td>
+              <td class="num">${d.customers.size}</td>
+              <td class="num" style="font-family:var(--font-mono)">${d.pax.toLocaleString('id')}</td>
+              <td class="num"><span style="padding:2px 8px;border-radius:var(--r-full);font-size:11px;font-weight:700;background:${d.delivered===d.trips?'var(--success-bg)':'var(--warning-bg)'};color:${d.delivered===d.trips?'var(--success)':'var(--warning)'}">${d.delivered}/${d.trips}</span></td>
+            </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:var(--s6);color:var(--text-3)">Belum ada data</td></tr>'}
+          </tbody>
+        </table></div>
+      </div>
+
+      <!-- PIC Table -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Rekap PIC / Pramusaji</span></div>
+        <div class="table-scroll"><table class="table">
+          <thead><tr><th>#</th><th>Nama PIC</th><th class="num">Penugasan</th><th class="num">Customer</th><th class="num">Total Pax</th><th class="num">Terkirim</th></tr></thead>
+          <tbody>
+            ${picRows.length ? picRows.map(([name,d],i)=>`<tr>
+              <td style="color:var(--text-3)">${i+1}</td>
+              <td style="font-weight:600">${name}</td>
+              <td class="num"><span style="font-family:var(--font-mono);font-weight:700">${d.trips}</span></td>
+              <td class="num">${d.customers.size}</td>
+              <td class="num" style="font-family:var(--font-mono)">${d.pax.toLocaleString('id')}</td>
+              <td class="num"><span style="padding:2px 8px;border-radius:var(--r-full);font-size:11px;font-weight:700;background:${d.delivered===d.trips?'var(--success-bg)':'var(--warning-bg)'};color:${d.delivered===d.trips?'var(--success)':'var(--warning)'}">${d.delivered}/${d.trips}</span></td>
+            </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:var(--s6);color:var(--text-3)">Belum ada data</td></tr>'}
+          </tbody>
+        </table></div>
+      </div>
+    `;
+  }
+
+  return { init, prevWeek, nextWeek, goToday, openModal, saveEntry, deleteEntry, cycleStatus, autoPopulate, resetWeek, switchTab, _filterPIC };
 })();
 window.DeliveryModule = DeliveryModule;
