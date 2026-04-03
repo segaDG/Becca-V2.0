@@ -200,6 +200,7 @@ const DeliveryModule = (() => {
           const today = _isToday(date);
           const delivered = entries.filter(e => e.status === 'delivered').length;
           const total = entries.length;
+          const conflictMap = _buildConflictMap(entries);
 
           // Group by driver
           const driverGroups = {};
@@ -235,7 +236,7 @@ const DeliveryModule = (() => {
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
                       ${driver}
                     </div>
-                    ${items.map(e => _renderCard(e, canEdit)).join('')}
+                    ${items.map(e => _renderCard(e, canEdit, conflictMap)).join('')}
                   </div>
                 `).join('')
               }
@@ -257,32 +258,63 @@ const DeliveryModule = (() => {
     `;
   }
 
+  /* ═══ PIC CONFLICT — same day + same shift ═══ */
+  function _buildConflictMap(entries) {
+    // key: "picId::shift" → count. If >1, conflict
+    const map = {};
+    entries.forEach(e => {
+      const shift = e.shift || 'all';
+      (e.picIds || []).forEach(pid => {
+        // "all" conflicts with everything; specific shift only conflicts with same shift or "all"
+        const keys = shift === 'all'
+          ? ['S1','S2','S3','all'].map(s => pid+'::'+s)
+          : [pid+'::'+shift, pid+'::all'];
+        keys.forEach(k => { map[k] = (map[k]||0) + 1; });
+      });
+    });
+    return map;
+  }
+  function _picHasConflict(entry, conflictMap) {
+    const shift = entry.shift || 'all';
+    return (entry.picIds || []).some(pid => {
+      const k = pid + '::' + shift;
+      return (conflictMap[k] || 0) > 1;
+    });
+  }
+
+  /* ═══ CUSTOMER SHORT NAME ═══ */
+  function _custShort(name) {
+    const c = _customers.find(x => (x.nama||'').toLowerCase() === (name||'').toLowerCase());
+    return c?.namaShort || name || '-';
+  }
+
   /* ═══ RENDER — DELIVERY CARD ═══ */
-  function _renderCard(entry, canEdit) {
+  function _renderCard(entry, canEdit, conflictMap) {
     const st = STATUS[entry.status] || STATUS.pending;
     const picLabel = (entry.picNames || []).join(', ');
-    const shiftLabel = entry.shift === 'all' ? '' : entry.shift;
-    const infoParts = [shiftLabel, entry.totalPax ? entry.totalPax+' pax' : '', entry.deliveryTime].filter(Boolean).join(' · ');
+    const conflict = _picHasConflict(entry, conflictMap);
+    const shiftBadge = entry.shift && entry.shift !== 'all'
+      ? `<span style="font-size:8px;font-weight:800;padding:1px 5px;border-radius:var(--r-full);background:var(--primary-bg);color:var(--primary-h);letter-spacing:.03em">${entry.shift}</span>`
+      : '';
     return `<div onclick="${canEdit ? `DeliveryModule.openModal('${entry.id}','${entry.date}')` : ''}"
-      style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:var(--s2) var(--s3);margin-bottom:4px;cursor:${canEdit?'pointer':'default'};transition:all var(--t-fast);border-left:3px solid ${st.color}"
+      style="background:var(--surface2);border:1px solid ${conflict?'var(--danger)':'var(--border)'};border-radius:var(--r-sm);padding:var(--s2) var(--s3);margin-bottom:4px;cursor:${canEdit?'pointer':'default'};transition:all var(--t-fast)"
       onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:2px">
-        <div style="font-size:11px;font-weight:700;color:var(--heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${entry.customerName||'-'}</div>
-        <span onclick="event.stopPropagation();DeliveryModule.cycleStatus('${entry.id}')" title="Klik untuk ganti status"
-          style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:var(--r-full);background:${st.bg};color:${st.color};cursor:pointer;white-space:nowrap;flex-shrink:0">
-          ${st.icon} ${st.label}
-        </span>
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">
+        <span onclick="event.stopPropagation();DeliveryModule.cycleStatus('${entry.id}')" title="${st.label}"
+          style="width:8px;height:8px;border-radius:50%;background:${st.color};cursor:pointer;flex-shrink:0"></span>
+        <div style="font-size:11px;font-weight:700;color:var(--heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${_custShort(entry.customerName)}</div>
+        ${shiftBadge}
       </div>
-      ${entry.driverName ? `<div style="font-size:9px;color:var(--info);display:flex;align-items:center;gap:3px">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="8" height="8"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-        ${entry.driverName}
+      ${entry.driverName ? `<div style="font-size:9px;color:var(--info);display:flex;align-items:center;gap:3px;overflow:hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="8" height="8" style="flex-shrink:0"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${entry.driverName}</span>
       </div>` : ''}
-      ${picLabel ? `<div style="font-size:9px;color:var(--text-2);display:flex;align-items:center;gap:3px">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="8" height="8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        ${picLabel}
+      ${picLabel ? `<div style="font-size:9px;color:${conflict?'var(--danger)':'var(--text-2)'};display:flex;align-items:center;gap:3px;overflow:hidden;${conflict?'font-weight:700':''}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="8" height="8" style="flex-shrink:0"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${picLabel}</span>
+        ${conflict ? '<span title="PIC bentrok di shift yang sama!" style="color:var(--danger);flex-shrink:0">⚠</span>' : ''}
       </div>` : ''}
-      ${infoParts ? `<div style="font-size:9px;color:var(--text-3);margin-top:1px">${infoParts}</div>` : ''}
-      ${entry.notes ? `<div style="font-size:8px;color:var(--text-3);margin-top:1px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${entry.notes}</div>` : ''}
+      ${entry.totalPax ? `<div style="font-size:9px;color:var(--text-3);margin-top:1px">${entry.totalPax} pax${entry.deliveryTime ? ' · '+entry.deliveryTime : ''}</div>` : ''}
     </div>`;
   }
 
