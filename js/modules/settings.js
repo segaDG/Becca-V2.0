@@ -310,7 +310,11 @@ else { window.SettingsModule = (() => {
     merged.sort((a,b)=>_getRoles().indexOf(a.role)-_getRoles().indexOf(b.role));
 
     document.getElementById('set-tab-users').innerHTML = `
-      <div style="display:flex;justify-content:flex-end;margin-bottom:var(--s4)">
+      <div style="display:flex;justify-content:flex-end;gap:var(--s2);margin-bottom:var(--s4)">
+        <button class="btn btn-ghost btn-sm" onclick="SettingsModule.bulkCreateFromEmployees()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+          Buat Akun dari Karyawan
+        </button>
         <button class="btn btn-primary" onclick="SettingsModule.openUserModal()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 5v14M5 12h14"/></svg>
           Tambah User
@@ -2331,10 +2335,89 @@ else { window.SettingsModule = (() => {
     }
   }
 
+  async function bulkCreateFromEmployees() {
+    const employees = await DB.getEmployees().catch(()=>[]);
+    const active = employees.filter(e => e.status !== 'nonaktif' && e.status !== 'resign' && e.nama);
+    if (!active.length) { Notify.warning('Tidak ada karyawan aktif'); return; }
+
+    const existingUsers = await DB.getUsers().catch(()=>[]);
+    const existingNames = new Set(existingUsers.map(u => (u.username||'').toLowerCase()));
+    // Also include default users
+    Auth._defaultUsers.forEach(u => existingNames.add((u.username||'').toLowerCase()));
+
+    // Filter out employees who already have an account
+    const toCreate = active.filter(e => {
+      const uname = (e.nama||'').toLowerCase().replace(/\s+/g,'');
+      return !existingNames.has(uname);
+    });
+
+    if (!toCreate.length) { Notify.info('Semua karyawan sudah memiliki akun'); return; }
+
+    const mid = Utils.uid();
+    Modal.open({ id: mid, title: 'Buat Akun dari Data Karyawan', size: 'modal-lg',
+      body: `
+        <div style="margin-bottom:var(--s4)">
+          <div style="font-size:13px;color:var(--text-2);margin-bottom:var(--s2)">${toCreate.length} karyawan belum punya akun (dari ${active.length} karyawan aktif)</div>
+          <div style="font-size:12px;color:var(--text-3)">Password default: <strong style="font-family:var(--font-mono);color:var(--heading)">888888</strong> · Role default: <strong style="color:var(--heading)">operator</strong></div>
+        </div>
+        <div class="table-scroll" style="max-height:400px;overflow-y:auto"><table class="table">
+          <thead><tr><th><input type="checkbox" id="bulk-chk-all" checked onchange="document.querySelectorAll('.bulk-emp-chk').forEach(c=>c.checked=this.checked)"></th><th>Nama</th><th>Username</th><th>Jabatan</th><th>Role</th></tr></thead>
+          <tbody>
+            ${toCreate.map((e,i) => {
+              const uname = (e.nama||'').toLowerCase().replace(/\s+/g,'');
+              return `<tr>
+                <td><input type="checkbox" class="bulk-emp-chk" data-idx="${i}" checked></td>
+                <td style="font-weight:600">${e.nama}</td>
+                <td style="font-family:var(--font-mono);font-size:12px">${uname}</td>
+                <td style="font-size:12px;color:var(--text-2)">${e.jabatan||'-'}</td>
+                <td><select class="form-control bulk-role" data-idx="${i}" style="font-size:11px;padding:3px 6px;min-height:28px">
+                  ${_getRoles().map(r=>`<option value="${r}" ${r==='operator'?'selected':''}>${r}</option>`).join('')}
+                </select></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="SettingsModule._doBulkCreate('${mid}')">Buat ${toCreate.length} Akun</button>`,
+    });
+    // Store toCreate for _doBulkCreate
+    window._bulkEmpList = toCreate;
+  }
+
+  async function _doBulkCreate(modalId) {
+    const list = window._bulkEmpList || [];
+    if (!list.length) return;
+    let created = 0;
+    for (let i = 0; i < list.length; i++) {
+      const chk = document.querySelector(`.bulk-emp-chk[data-idx="${i}"]`);
+      if (!chk?.checked) continue;
+      const roleSel = document.querySelector(`.bulk-role[data-idx="${i}"]`);
+      const e = list[i];
+      const uname = (e.nama||'').toLowerCase().replace(/\s+/g,'');
+      const data = {
+        id: Utils.uid(),
+        nama: e.nama,
+        username: uname,
+        password: '888888',
+        role: roleSel?.value || 'operator',
+        aktif: true,
+        mustChangePassword: true,
+        email: '',
+      };
+      try { await DB.saveUser(data); created++; } catch {}
+    }
+    delete window._bulkEmpList;
+    _syncAuthJs();
+    Modal.close(modalId);
+    Notify.success(created + ' akun berhasil dibuat');
+    DB.logActivity({ type: 'bulk_create_users', detail: created + ' akun dari karyawan' });
+    renderUsers();
+  }
+
   return {
     init, switchTab,
     saveGeneralSettings, _handleLogoUpload, _removeLogo, openChangePasswordModal, _changePassword,
-    renderUsers, openUserModal, _submitUser, toggleUser, deleteUser,
+    renderUsers, openUserModal, _submitUser, toggleUser, deleteUser, bulkCreateFromEmployees, _doBulkCreate,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData,
