@@ -208,8 +208,8 @@ const DB = (() => {
 
   // In-memory cache — cleared on save/delete
   const _memCache = {};
-  const _CACHE_TTL = 300000; // 5 menit — data stabil (employees, customers, items)
-  const _CACHE_TTL_SHORT = 60000; // 1 menit — data yang sering berubah
+  const _CACHE_TTL = 1800000; // 30 menit — data stabil (employees, customers, items)
+  const _CACHE_TTL_SHORT = 300000; // 5 menit — data yang sering berubah
   const _SHORT_CACHE_TABLES = new Set(['kas','orders','inv_activities','daily_order_forms','delivery_tracking_logs']);
   let _settingsCache = null, _settingsCacheTs = 0;
 
@@ -235,13 +235,26 @@ const DB = (() => {
     const sb = await _initClient();
     if (!sb) return _lsGet(table);
 
-    // Cek memory cache dulu (TTL per table type)
+    // 1. Memory cache (fastest)
     const cached = _memCache[table];
     const ttl = _SHORT_CACHE_TABLES.has(table) ? _CACHE_TTL_SHORT : _CACHE_TTL;
     if (cached && (Date.now() - cached.ts) < ttl) {
       return cached.data;
     }
 
+    // 2. localStorage cache — serve immediately, avoid network if data exists
+    // For non-NO_CACHE tables, use localStorage as long-term cache
+    if (!NO_CACHE.includes(table)) {
+      const lsData = JSON.parse(localStorage.getItem('becca_' + table) || '[]');
+      const lsTs = parseInt(localStorage.getItem('becca_' + table + '_ts') || '0');
+      // If localStorage has data and is less than 1 hour old, use it + populate memCache
+      if (Array.isArray(lsData) && lsData.length > 0 && (Date.now() - lsTs) < 3600000) {
+        _memCache[table] = { data: lsData, ts: Date.now() };
+        return lsData;
+      }
+    }
+
+    // 3. Fetch from Supabase (only if cache miss)
     const data = await _fetchAll(sb, table);
     let result = _fromRows(data);
 
@@ -257,7 +270,7 @@ const DB = (() => {
 
     // Cache ke localStorage hanya untuk table non-realtime
     if (result.length > 0 && !NO_CACHE.includes(table)) {
-      try { localStorage.setItem('becca_' + table, JSON.stringify(result)); } catch {}
+      try { localStorage.setItem('becca_' + table, JSON.stringify(result)); localStorage.setItem('becca_' + table + '_ts', String(Date.now())); } catch {}
     }
 
     // Untuk NO_CACHE tables: merge item localStorage yang belum tersync ke Supabase.
@@ -327,6 +340,9 @@ const DB = (() => {
   async function _save(table, obj) {
     const sb = await _initClient();
     if (!sb) return _lsSave(table, obj);
+    // Invalidate caches so next _get() fetches fresh
+    delete _memCache[table];
+    try { localStorage.removeItem('becca_' + table + '_ts'); } catch {}
 
     if (!obj.id) obj.id = Utils.uid();
     obj.updated_at = new Date().toISOString();
@@ -414,6 +430,8 @@ const DB = (() => {
   async function _delete(table, id) {
     const sb = await _initClient();
     if (!sb) return _lsDelete(table, id);
+    delete _memCache[table];
+    try { localStorage.removeItem('becca_' + table + '_ts'); } catch {}
 
     const { error } = await sb.from(table).delete().eq('id', id);
     if (error) {

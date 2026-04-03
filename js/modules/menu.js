@@ -517,9 +517,10 @@ const MenuModule = (() => {
     // === MINUMAN ===
     ['Es Teh Manis','Es Jeruk','Air Mineral','Teh Hangat','Kopi','Es Cincau','Es Kelapa','Jus Jambu','Jus Jeruk','Jus Alpukat','Susu','Wedang Jahe'].forEach(n=>_m(n,'Minuman','Indonesia','Umum'));
 
-    // Batch save
-    for (let i=0; i<items.length; i++) {
-      await DB.saveMenuItem(items[i]).catch(()=>{});
+    // Batch save — 50 items per batch to reduce Supabase calls
+    for (let i=0; i<items.length; i+=50) {
+      const batch = items.slice(i, i+50);
+      await Promise.all(batch.map(item => DB.saveMenuItem(item).catch(()=>{}))).catch(()=>{});
     }
     Notify.success(items.length + ' menu berhasil disimpan ke library');
   }
