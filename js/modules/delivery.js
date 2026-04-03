@@ -95,10 +95,12 @@ const DeliveryModule = (() => {
       .sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
   }
 
-  function _customerOptions() {
-    // From active customers + order-specific names
-    const names = new Set(_customers.map(c => c.nama).filter(Boolean));
-    _orders.forEach(o => { if (o.namaPerusahaan) names.add(o.namaPerusahaan); });
+  function _customerOptions(date) {
+    // Hanya customer yang punya order pada tanggal ini
+    const names = new Set();
+    _orders.forEach(o => {
+      if ((o.tanggal||o.tglOrder) === date && o.namaPerusahaan) names.add(o.namaPerusahaan);
+    });
     return [...names].sort();
   }
 
@@ -297,7 +299,7 @@ const DeliveryModule = (() => {
     const drivers = _getDrivers();
     const pics = _getPIC();
     const allEmps = _allActiveEmployees();
-    const custOpts = _customerOptions();
+    const custOpts = _customerOptions(date);
 
     // If no dedicated drivers/PIC found, fall back to all active employees
     const driverList = drivers.length ? drivers : allEmps;
