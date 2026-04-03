@@ -814,11 +814,14 @@ const KasModule = (() => {
         <div style="font-size:20px;font-weight:800;color:${color};font-family:var(--font-mono);letter-spacing:-.01em">${value}</div>
       </div>`;
     };
-    return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--s3);width:100%">
+    const masuk = data.filter(r=>r.type==='Kas');
+    return `<style>.ks-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s3);width:100%}@media(max-width:1100px){.ks-cards{grid-template-columns:repeat(3,1fr)}}@media(max-width:600px){.ks-cards{grid-template-columns:repeat(2,1fr)}}</style>
+    <div class="ks-cards">
       ${_card('\ud83d\udce4','Total Keluar', Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)), 'var(--danger)', '#ef4444')}
       ${_card('\u2705','Confirmed',    Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),   'var(--success)', '#22c55e')}
       ${_card('\u23f3','TBC',          Utils.formatRupiah(tbc.reduce((s,r)=>s+(r.jumlah||0),0)),    'var(--warning)', '#f59e0b', "KasModule.filterByStatus('TBC')")}
       ${_card('\u2753','Belum Diisi',  noSt.length+' baris',                                        'var(--text-2)', '#64748b', "KasModule.filterByStatus('-')")}
+      ${_card('\ud83d\udcb0','Kas Masuk',   Utils.formatRupiah(masuk.reduce((s,r)=>s+(r.jumlah||0),0)),  'var(--success)', '#10b981', "KasModule.filterKasMasukType()")}
     </div>`;
   }
 
@@ -1368,18 +1371,8 @@ const KasModule = (() => {
           + (canEditSaldo ? ' <span style="font-size:10px;color:var(--text-3);cursor:pointer" onclick="KasModule.editSaldoAwal()" title="Edit">✎</span>' : '');
       }
       
-      // Render Kas Masuk card
-      container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--s3)">
-        ${cards.map(c =>
-          `<div onclick="KasModule.filterKasMasukType()" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;min-width:0;cursor:pointer;transition:all .2s;position:relative;overflow:hidden" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.15)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${c.color}"></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-              <span style="font-size:11px;color:var(--text-2);font-weight:600">${c.label} <span style="font-size:9px;opacity:.6">\u25bc</span></span>
-            </div>
-            <div style="font-size:20px;font-weight:800;color:${c.color};font-family:var(--font-mono);letter-spacing:-.01em">${c.value}</div>
-          </div>`
-        ).join('')}
-      </div>`;
+      // Kas Masuk card sudah di _summaryStrip, container dipakai untuk info lain jika perlu
+      container.innerHTML = '';
     } catch(e) {
       console.error('Balance cards error:', e);
     }
