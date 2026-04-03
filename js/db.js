@@ -208,7 +208,10 @@ const DB = (() => {
 
   // In-memory cache — cleared on save/delete
   const _memCache = {};
-  const _CACHE_TTL = 30000; // 30 detik — shorter for fresher cross-device data
+  const _CACHE_TTL = 300000; // 5 menit — data stabil (employees, customers, items)
+  const _CACHE_TTL_SHORT = 60000; // 1 menit — data yang sering berubah
+  const _SHORT_CACHE_TABLES = new Set(['kas','orders','inv_activities','daily_order_forms','delivery_tracking_logs']);
+  let _settingsCache = null, _settingsCacheTs = 0;
 
   // Fetch semua baris dengan auto-pagination (Supabase max_rows=1000 per request)
   async function _fetchAll(sb, table) {
@@ -232,9 +235,10 @@ const DB = (() => {
     const sb = await _initClient();
     if (!sb) return _lsGet(table);
 
-    // Cek memory cache dulu
+    // Cek memory cache dulu (TTL per table type)
     const cached = _memCache[table];
-    if (cached && (Date.now() - cached.ts) < _CACHE_TTL) {
+    const ttl = _SHORT_CACHE_TABLES.has(table) ? _CACHE_TTL_SHORT : _CACHE_TTL;
+    if (cached && (Date.now() - cached.ts) < ttl) {
       return cached.data;
     }
 
@@ -616,11 +620,12 @@ const DB = (() => {
   const saveDailyOrderForm   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('daily_order_forms', data); };
   const deleteDailyOrderForm = (id)   => _delete('daily_order_forms', id);
 
-  // ── SETTINGS ──────────────────────────────────────────────
+  // ── SETTINGS (with memory cache) ───────────────────────────
   const getSettings  = async () => {
+    // Return cached if fresh (5 min)
+    if (_settingsCache && (Date.now() - _settingsCacheTs) < _CACHE_TTL) return _settingsCache;
     const sb = await _initClient();
     if (sb) {
-      // Pakai maybeSingle() agar tidak error 406 jika row belum ada
       const { data } = await sb.from('settings').select('*').eq('id','main').maybeSingle();
       if (data?.data) {
         try {
@@ -638,7 +643,9 @@ const DB = (() => {
             if (parsed._customRoles && Array.isArray(parsed._customRoles)) {
               try { localStorage.setItem('becca_custom_roles', JSON.stringify(parsed._customRoles)); } catch {}
             }
-            return { ...parsed, id: 'main' };
+            const result = { ...parsed, id: 'main' };
+            _settingsCache = result; _settingsCacheTs = Date.now();
+            return result;
           }
           console.warn('[DB] Settings Supabase korup (char-indexed) — pakai localStorage');
           // Auto-repair: jika localStorage punya data valid, push ke Supabase sekali
@@ -666,7 +673,7 @@ const DB = (() => {
     } catch { return {}; }
   };
   const saveSettings = async (data) => {
-    // Guard: jika data berupa string, parse dulu (mencegah char-spread korupsi)
+    _settingsCache = null; _settingsCacheTs = 0; // invalidate cache
     if (typeof data === 'string') {
       try { data = JSON.parse(data); } catch { data = {}; }
     }

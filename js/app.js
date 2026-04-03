@@ -130,13 +130,11 @@ const App = {
   async _updateAllBadges() {
     try {
       // Inventory sync badge (form produksi + belanja pasar pending)
-      // Fetch ALL data in parallel (was: PO sequential after others)
-      const [forms, invLogs, bpDocs, poDocs] = await Promise.all([
-        DB.getDailyOrderForms().catch(()=>[]),
-        DB.getInventory().catch(()=>[]),
-        DB.getBelanjaPasar().catch(()=>[]),
-        DB.getPO().catch(()=>[]),
-      ]);
+      // Use cache if available (dashboard likely loaded these already), else fetch
+      const forms   = DB.getCached('daily_order_forms') || await DB.getDailyOrderForms().catch(()=>[]);
+      const invLogs = DB.getCached('inv_activities')    || await DB.getInventory().catch(()=>[]);
+      const bpDocs  = DB.getCached('belanja_pasar')     || await DB.getBelanjaPasar().catch(()=>[]);
+      const poDocs  = DB.getCached('po_anggaran')       || await DB.getPO().catch(()=>[]);
       const _n = v => Number(v)||0;
       // Build syncTag lookup map — O(1) instead of O(n) filter per form
       const stMap = {};

@@ -95,22 +95,27 @@ const EmployeeModule = (() => {
     const _skelEl = document.getElementById('emp-tab-data');
     if (_skelEl && !_employees.length) _skelEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3)"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="animation:spin 1s linear infinite;opacity:.4"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><div style="margin-top:12px;font-size:13px">Memuat data karyawan...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
 
-    [_employees, _logs, _absensi, _payroll, _jadwal] = await Promise.all([
+    // Cache-first: render immediately with cached data, then background refresh
+    _employees = DB.getCached('employees') || [];
+    _logs      = DB.getCached('employee_logs') || [];
+    _absensi   = DB.getCached('emp_absensi') || [];
+    _payroll   = DB.getCached('emp_payroll') || [];
+    _lbLoadLocks();
+    if (_employees.length) { _logs.sort((a,b)=>((b.tanggal||b.tgl||'')).localeCompare((a.tanggal||a.tgl||''))); switchTab('data'); }
+
+    // Background fetch fresh data
+    const [freshEmp, freshLogs, freshAbs, freshPay] = await Promise.all([
       DB.getEmployees().catch(()=>[]),
       DB.getEmployeeLogs().catch(()=>[]),
       DB.getEmpAbsensi().catch(()=>[]),
       DB.getEmpPayroll().catch(()=>[]),
-      DB.getEmpJadwal().catch(()=>[]),
     ]);
-    _lbLoadLocks();
+    _employees = freshEmp; _logs = freshLogs; _absensi = freshAbs; _payroll = freshPay;
     _logs.sort((a,b)=>((b.tanggal||b.tgl||'')).localeCompare((a.tanggal||a.tgl||'')));
-    // Auto-lock semua rows yang sudah ada saat init (setelah reload)
     _logs.forEach(l => _lbLocked.add(l.id));
     _lbSaveLocks();
-    // Init face attendance module with latest data
     if (window.FaceAttendanceModule) FaceAttendanceModule.init(_employees, _absensi);
-    switchTab('data');
-    // One-time: migrate photos from localStorage to Supabase (runs in background)
+    switchTab(_activeTab || 'data');
     migratePhotosFromLS(_lsEmpSnap).catch(() => {});
   }
 
