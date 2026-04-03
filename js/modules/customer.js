@@ -704,20 +704,31 @@ const CustomerModule = (() => {
         <div class="form-group"><label class="form-label">Alamat</label><input class="form-control" id="cf-alamat" value="${fv('alamat')}"></div>
 
         <div class="cf-section">Lokasi (Delivery Tracking)</div>
+        <div style="display:flex;gap:var(--s2);margin-bottom:var(--s3);flex-wrap:wrap">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="CustomerModule._useMyLocation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m10-10h-4M6 12H2"/></svg>
+            Lokasi Saya (GPS)
+          </button>
+          <div style="flex:1;min-width:200px;position:relative">
+            <input class="form-control" id="cf-maps-link" placeholder="Paste link Google Maps di sini..." style="font-size:12px;padding-right:60px" onpaste="setTimeout(()=>CustomerModule._parseMapLink(),50)">
+            <button type="button" onclick="CustomerModule._parseMapLink()" style="position:absolute;right:2px;top:2px;bottom:2px;padding:0 10px;border:none;background:var(--primary);color:white;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Extract</button>
+          </div>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)">
           <div class="form-group"><label class="form-label">Latitude</label><input class="form-control" id="cf-lat" type="number" step="any" value="${nv('lat')}" placeholder="-6.xxxxx" oninput="CustomerModule._previewLoc()"></div>
           <div class="form-group"><label class="form-label">Longitude</label><input class="form-control" id="cf-lng" type="number" step="any" value="${nv('lng')}" placeholder="107.xxxxx" oninput="CustomerModule._previewLoc()"></div>
         </div>
         <div id="cf-loc-preview" style="margin-bottom:var(--s4)">
           ${nv('lat')&&nv('lng')?`<div style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-top:var(--s2)">
-            <a href="https://www.google.com/maps?q=${nv('lat')},${nv('lng')}" target="_blank" style="display:block">
-              <img src="https://maps.googleapis.com/maps/api/staticmap?center=${nv('lat')},${nv('lng')}&zoom=15&size=600x200&markers=color:red%7C${nv('lat')},${nv('lng')}&key=AIzaSyBhL-Y4jUxQzmHiCbSR6WWwjMcMtQK6ZmQ" style="width:100%;height:120px;object-fit:cover;display:block" onerror="this.parentElement.innerHTML='<div style=\\'padding:12px;text-align:center;font-size:12px;color:var(--text-3)\\'>Preview tidak tersedia — <a href=\\'https://www.google.com/maps?q=${nv('lat')},${nv('lng')}\\' target=\\'_blank\\' style=\\'color:var(--primary-h)\\'>Buka di Google Maps</a></div>'">
+            <a href="https://www.google.com/maps?q=${nv('lat')},${nv('lng')}" target="_blank" style="display:block;background:var(--surface2);padding:var(--s4);text-align:center">
+              <svg viewBox="0 0 24 24" fill="var(--success)" width="24" height="24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+              <div style="font-size:12px;color:var(--primary-h);margin-top:4px">Klik untuk buka di Google Maps</div>
             </a>
-            <div style="padding:6px var(--s3);background:var(--surface2);display:flex;align-items:center;justify-content:space-between">
-              <span style="font-size:11px;color:var(--success);font-weight:600">\u2713 Lokasi sudah diset</span>
+            <div style="padding:6px var(--s3);background:var(--surface2);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:11px;color:var(--success);font-weight:600">\u2713 ${nv('lat').toFixed?nv('lat').toFixed(5):nv('lat')}, ${nv('lng').toFixed?nv('lng').toFixed(5):nv('lng')}</span>
               <a href="https://www.google.com/maps?q=${nv('lat')},${nv('lng')}" target="_blank" style="font-size:11px;color:var(--primary-h)">Buka Maps \u2197</a>
             </div>
-          </div>`:'<div style="padding:var(--s3);text-align:center;color:var(--text-3);font-size:12px;border:1px dashed var(--border);border-radius:var(--r-md);margin-top:var(--s2)">Isi Latitude & Longitude untuk melihat preview lokasi</div>'}
+          </div>`:'<div style="padding:var(--s3);text-align:center;color:var(--text-3);font-size:12px;border:1px dashed var(--border);border-radius:var(--r-md);margin-top:var(--s2)">Isi koordinat manual, gunakan GPS, atau paste link Google Maps</div>'}
         </div>
 
         <div class="cf-section">Kontrak & Tarif Dasar</div>
@@ -977,7 +988,60 @@ const CustomerModule = (() => {
     </div>`;
   }
 
-  return { init, switchTab, setSearch, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, _previewLoc };
+  function _useMyLocation() {
+    if (!navigator.geolocation) { Notify.error('Browser tidak mendukung GPS'); return; }
+    Notify.info('Mengambil lokasi GPS...');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const latEl = document.getElementById('cf-lat');
+        const lngEl = document.getElementById('cf-lng');
+        if (latEl) latEl.value = pos.coords.latitude.toFixed(6);
+        if (lngEl) lngEl.value = pos.coords.longitude.toFixed(6);
+        _previewLoc();
+        Notify.success('Lokasi GPS berhasil diambil');
+      },
+      (err) => {
+        if (err.code === 1) Notify.error('Akses lokasi ditolak. Izinkan di browser.');
+        else Notify.error('Gagal ambil lokasi: ' + err.message);
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  }
+
+  function _parseMapLink() {
+    const input = document.getElementById('cf-maps-link');
+    const url = (input?.value || '').trim();
+    if (!url) { Notify.warning('Paste link Google Maps terlebih dahulu'); return; }
+
+    // Extract coordinates from various Google Maps URL formats
+    let lat, lng;
+    // Format: @-6.123,107.456 or @-6.123,107.456,17z
+    const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (atMatch) { lat = parseFloat(atMatch[1]); lng = parseFloat(atMatch[2]); }
+    // Format: ?q=-6.123,107.456 or &q=-6.123,107.456
+    if (!lat) { const qMatch = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/); if (qMatch) { lat = parseFloat(qMatch[1]); lng = parseFloat(qMatch[2]); } }
+    // Format: /place/-6.123,107.456 or /dir/-6.123,107.456
+    if (!lat) { const pMatch = url.match(/\/(-?\d+\.\d{3,}),(-?\d+\.\d{3,})/); if (pMatch) { lat = parseFloat(pMatch[1]); lng = parseFloat(pMatch[2]); } }
+    // Format: ll=-6.123,107.456
+    if (!lat) { const llMatch = url.match(/ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/); if (llMatch) { lat = parseFloat(llMatch[1]); lng = parseFloat(llMatch[2]); } }
+    // Format: plain coordinates "lat,lng" pasted directly
+    if (!lat) { const plain = url.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/); if (plain) { lat = parseFloat(plain[1]); lng = parseFloat(plain[2]); } }
+
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+      Notify.error('Tidak bisa extract koordinat dari link ini. Coba paste format: -6.xxxxx, 107.xxxxx');
+      return;
+    }
+
+    const latEl = document.getElementById('cf-lat');
+    const lngEl = document.getElementById('cf-lng');
+    if (latEl) latEl.value = lat.toFixed(6);
+    if (lngEl) lngEl.value = lng.toFixed(6);
+    if (input) input.value = '';
+    _previewLoc();
+    Notify.success(`Koordinat berhasil diambil: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+  }
+
+  return { init, switchTab, setSearch, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, _previewLoc, _useMyLocation, _parseMapLink };
 })();
 
 window.CustomerModule = CustomerModule;
