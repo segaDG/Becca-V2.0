@@ -716,7 +716,7 @@ const DeliveryModule = (() => {
               <td style="font-family:var(--font-mono);font-size:11px">${cp.lat?.toFixed(5)||'-'}</td>
               <td style="font-family:var(--font-mono);font-size:11px">${cp.lng?.toFixed(5)||'-'}</td>
               <td><span class="badge ${cp.type==='bps'?'badge-info':cp.type==='customer'?'badge-primary':'badge-warning'}">${cp.type}</span></td>
-              <td><a href="https://www.google.com/maps?q=${cp.lat},${cp.lng}" target="_blank" style="font-size:11px">Buka</a></td>
+              <td><a href="https://www.google.com/maps?q=${cp.lat},${cp.lng}" target="_blank" style="font-size:11px;display:inline-flex;align-items:center;gap:3px;color:var(--primary-h)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>Maps</a></td>
               <td>${cp.type==='custom'?`<button class="btn-icon" style="color:var(--danger)" onclick="DeliveryModule.deleteCheckpoint('${cp.id}','${mid}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>`:''}</td>
             </tr>`).join('')}
             ${!_checkpoints.length?'<tr><td colspan="6" style="text-align:center;padding:var(--s4);color:var(--text-3)">Belum ada checkpoint</td></tr>':''}

@@ -400,6 +400,7 @@ const CustomerModule = (() => {
               ${_th('PIC','','','120px')}
               ${_th('No HP','','','110px')}
               ${_th('Kota','','','90px')}
+              ${_th('Lok','','center','40px')}
               ${_thS('status','Status','75px','center')}
               ${_th('Catatan','','','160px')}
               ${_thS('pb1','PB1','65px','center')}
@@ -474,6 +475,9 @@ const CustomerModule = (() => {
                 <td style="padding:8px 10px;font-size:11px;color:var(--text-2)">${c.pic||'-'}</td>
                 <td style="padding:8px 10px;font-size:11px;font-family:var(--font-mono);color:var(--text-2)">${c.noHp||'-'}</td>
                 <td style="padding:8px 10px;font-size:11px;color:var(--text-2)">${c.kota||'-'}</td>
+                <td style="padding:8px 10px;text-align:center">${c.lat&&c.lng
+                  ?`<a href="https://www.google.com/maps?q=${c.lat},${c.lng}" target="_blank" title="${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:var(--success);text-decoration:none"><svg viewBox="0 0 24 24" fill="var(--success)" width="12" height="12"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></a>`
+                  :`<span style="font-size:10px;color:var(--text-3)" title="Belum ada lokasi">\u2014</span>`}</td>
                 <td style="padding:8px 10px;text-align:center">
                   <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;${sc}">${c.status||'AKTIF'}</span>
                 </td>
@@ -700,10 +704,20 @@ const CustomerModule = (() => {
         <div class="form-group"><label class="form-label">Alamat</label><input class="form-control" id="cf-alamat" value="${fv('alamat')}"></div>
 
         <div class="cf-section">Lokasi (Delivery Tracking)</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:var(--s3);align-items:end">
-          <div class="form-group"><label class="form-label">Latitude</label><input class="form-control" id="cf-lat" type="number" step="any" value="${nv('lat')}" placeholder="-6.xxxxx"></div>
-          <div class="form-group"><label class="form-label">Longitude</label><input class="form-control" id="cf-lng" type="number" step="any" value="${nv('lng')}" placeholder="107.xxxxx"></div>
-          <a href="https://www.google.com/maps?q=${nv('lat')||'-6.3'},${nv('lng')||'107.3'}" target="_blank" class="btn btn-ghost btn-sm" style="margin-bottom:var(--s4)">Maps</a>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)">
+          <div class="form-group"><label class="form-label">Latitude</label><input class="form-control" id="cf-lat" type="number" step="any" value="${nv('lat')}" placeholder="-6.xxxxx" oninput="CustomerModule._previewLoc()"></div>
+          <div class="form-group"><label class="form-label">Longitude</label><input class="form-control" id="cf-lng" type="number" step="any" value="${nv('lng')}" placeholder="107.xxxxx" oninput="CustomerModule._previewLoc()"></div>
+        </div>
+        <div id="cf-loc-preview" style="margin-bottom:var(--s4)">
+          ${nv('lat')&&nv('lng')?`<div style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-top:var(--s2)">
+            <a href="https://www.google.com/maps?q=${nv('lat')},${nv('lng')}" target="_blank" style="display:block">
+              <img src="https://maps.googleapis.com/maps/api/staticmap?center=${nv('lat')},${nv('lng')}&zoom=15&size=600x200&markers=color:red%7C${nv('lat')},${nv('lng')}&key=AIzaSyBhL-Y4jUxQzmHiCbSR6WWwjMcMtQK6ZmQ" style="width:100%;height:120px;object-fit:cover;display:block" onerror="this.parentElement.innerHTML='<div style=\\'padding:12px;text-align:center;font-size:12px;color:var(--text-3)\\'>Preview tidak tersedia — <a href=\\'https://www.google.com/maps?q=${nv('lat')},${nv('lng')}\\' target=\\'_blank\\' style=\\'color:var(--primary-h)\\'>Buka di Google Maps</a></div>'">
+            </a>
+            <div style="padding:6px var(--s3);background:var(--surface2);display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:11px;color:var(--success);font-weight:600">\u2713 Lokasi sudah diset</span>
+              <a href="https://www.google.com/maps?q=${nv('lat')},${nv('lng')}" target="_blank" style="font-size:11px;color:var(--primary-h)">Buka Maps \u2197</a>
+            </div>
+          </div>`:'<div style="padding:var(--s3);text-align:center;color:var(--text-3);font-size:12px;border:1px dashed var(--border);border-radius:var(--r-md);margin-top:var(--s2)">Isi Latitude & Longitude untuk melihat preview lokasi</div>'}
         </div>
 
         <div class="cf-section">Kontrak & Tarif Dasar</div>
@@ -943,7 +957,27 @@ const CustomerModule = (() => {
     Notify.success('PB1 & PPH23 semua customer diset Ada');
   }
 
-  return { init, switchTab, setSearch, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer };
+  function _previewLoc() {
+    const lat = parseFloat(document.getElementById('cf-lat')?.value);
+    const lng = parseFloat(document.getElementById('cf-lng')?.value);
+    const el = document.getElementById('cf-loc-preview');
+    if (!el) return;
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+      el.innerHTML = '<div style="padding:var(--s3);text-align:center;color:var(--text-3);font-size:12px;border:1px dashed var(--border);border-radius:var(--r-md);margin-top:var(--s2)">Isi Latitude & Longitude untuk melihat preview lokasi</div>';
+      return;
+    }
+    el.innerHTML = `<div style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-top:var(--s2)">
+      <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" style="display:block">
+        <img src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=600x200&markers=color:red%7C${lat},${lng}&key=AIzaSyBhL-Y4jUxQzmHiCbSR6WWwjMcMtQK6ZmQ" style="width:100%;height:120px;object-fit:cover;display:block" onerror="this.style.display='none'">
+      </a>
+      <div style="padding:6px var(--s3);background:var(--surface2);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:11px;color:var(--success);font-weight:600">\u2713 ${lat.toFixed(5)}, ${lng.toFixed(5)}</span>
+        <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" style="font-size:11px;color:var(--primary-h)">Buka Maps \u2197</a>
+      </div>
+    </div>`;
+  }
+
+  return { init, switchTab, setSearch, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, _previewLoc };
 })();
 
 window.CustomerModule = CustomerModule;
