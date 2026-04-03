@@ -423,8 +423,8 @@ const InventoryModule = (() => {
                 `;
               }).join('') : `
                 <tr>
-                  <td colspan="11" style="text-align:center;padding:40px;color:var(--text-3)">
-                    Belum ada data barang
+                  <td colspan="11">
+                    ${UI.empty({iconKey:'box', title:'Belum ada data barang', desc:'Klik "Barang Baru" untuk menambahkan'})}
                   </td>
                 </tr>
               `}
@@ -432,15 +432,7 @@ const InventoryModule = (() => {
           </table>
         </div>
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--text-3)">
-        <span>Hal ${_stokPage}/${totalStokPg} · ${filtered.length} barang</span>
-        <div style="display:flex;gap:4px;align-items:center">
-          <button class="btn btn-sm" onclick="InventoryModule.goStokPage(1)" ${_stokPage===1?'disabled':''}>«</button>
-          <button class="btn btn-sm" onclick="InventoryModule.goStokPage(${_stokPage-1})" ${_stokPage===1?'disabled':''}>‹</button>
-          <button class="btn btn-sm" onclick="InventoryModule.goStokPage(${_stokPage+1})" ${_stokPage===totalStokPg?'disabled':''}>›</button>
-          <button class="btn btn-sm" onclick="InventoryModule.goStokPage(${totalStokPg})" ${_stokPage===totalStokPg?'disabled':''}>»</button>
-        </div>
-      </div>
+      ${UI.pagination({ page: _stokPage, totalPages: totalStokPg, total: filtered.length, perPage: _stokPerPage, onPage: 'InventoryModule.goStokPage', onPerPage: 'InventoryModule.setStokPerPage', label: 'barang' })}
     `;
   }
 
@@ -1267,20 +1259,7 @@ const InventoryModule = (() => {
           </tbody>
         </table>
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--text-3)">
-        <span>Hal ${_invLogPage}/${totalPages} · ${sorted.length} baris</span>
-        <div style="display:flex;gap:4px;align-items:center">
-          <select onchange="InventoryModule.setInvLogPerPage(+this.value)"
-            style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;
-                   background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer">
-            ${[20,50,100].map(n=>`<option value="${n}" ${_invLogPerPage===n?'selected':''}>${n}/hal</option>`).join('')}
-          </select>
-          <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(1)" ${_invLogPage===1?'disabled':''}>«</button>
-          <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(${_invLogPage-1})" ${_invLogPage===1?'disabled':''}>‹</button>
-          <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(${_invLogPage+1})" ${_invLogPage===totalPages?'disabled':''}>›</button>
-          <button class="btn btn-sm" onclick="InventoryModule.goInvLogPage(${totalPages})" ${_invLogPage===totalPages?'disabled':''}>»</button>
-        </div>
-      </div>
+      ${UI.pagination({ page: _invLogPage, totalPages: totalPages, total: sorted.length, perPage: _invLogPerPage, onPage: 'InventoryModule.goInvLogPage', onPerPage: 'InventoryModule.setInvLogPerPage', label: 'baris' })}
     `;
   }
 
@@ -2030,13 +2009,7 @@ const InventoryModule = (() => {
     const low = _items.filter(i => (i.stokMin||0) > 0 && (i._stok||0) <= (i.stokMin||0))
                       .sort((a,b) => (a._stok||0) - (b._stok||0));
     document.getElementById('inv-tab-alert').innerHTML = low.length === 0 ? `
-      <div class="empty-state" style="height:40vh">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
-          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        <h4>Semua Stok Aman</h4>
-        <p>Tidak ada barang yang perlu restock</p>
-      </div>` : `
+      ${UI.empty({iconKey:'check', title:'Semua stok aman', desc:'Tidak ada barang yang perlu restock', height:'40vh'})}` : `
       <div class="table-wrapper">
         <div class="table-scroll">
           <table class="table">
@@ -2558,7 +2531,7 @@ const InventoryModule = (() => {
     const BULAN = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
     const allMonths = [...new Set(_logs.filter(l=>l.tgl).map(l=>l.tgl.slice(0,7)))].sort();
     if (!allMonths.length) {
-      el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-3)">Belum ada data activity. Import Activity Line terlebih dahulu.</div>';
+      el.innerHTML = UI.empty({iconKey:'list', title:'Belum ada data activity', desc:'Import Activity Line terlebih dahulu'});
       return;
     }
     const currMonth = (_laporanBulan && allMonths.includes(_laporanBulan)) ? _laporanBulan : allMonths[allMonths.length - 1];
@@ -2675,7 +2648,7 @@ const InventoryModule = (() => {
 
     const allMonths = [...new Set(_logs.filter(l=>l.tgl).map(l=>l.tgl.slice(0,7)))].sort();
     if (!allMonths.length) {
-      el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-3)">Belum ada data activity. Import Activity Line terlebih dahulu.</div>';
+      el.innerHTML = UI.empty({iconKey:'chart', title:'Belum ada data activity', desc:'Import Activity Line terlebih dahulu'});
       return;
     }
     const last3 = allMonths.slice(-3);

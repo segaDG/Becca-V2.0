@@ -249,7 +249,7 @@ const OrderModule = (() => {
 
     if (!paged.length) {
       const span = 5 + _cols.length + 2;
-      tbody.innerHTML = `<tr><td colspan="${span}" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data order.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${span}">${UI.empty({iconKey:'order', title:'Tidak ada data order', desc:'Gunakan filter atau tambah order baru'})}</td></tr>`;
     } else {
       tbody.innerHTML = paged.map((o, i) => {
       const bg  = i%2===0 ? 'var(--surface)' : 'var(--surface2)';
@@ -284,21 +284,10 @@ const OrderModule = (() => {
     }
 
     const pg = document.getElementById('ord-pagination');
-    if (pg) pg.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;font-size:12px;color:var(--text-3);border-top:1px solid var(--border)">
-        <span>Hal ${_page}/${totalPg} · ${total} order</span>
-        <div style="display:flex;gap:4px;align-items:center">
-          <select onchange="OrderModule.setPerPage(+this.value)"
-            style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;
-                   background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer">
-            ${[20,50,100].map(n=>`<option value="${n}" ${_perPage===n?'selected':''}>${n}/hal</option>`).join('')}
-          </select>
-          <button class="btn btn-sm" onclick="OrderModule.goPage(1)" ${_page===1?'disabled':''}>«</button>
-          <button class="btn btn-sm" onclick="OrderModule.goPage(${_page-1})" ${_page===1?'disabled':''}>‹</button>
-          <button class="btn btn-sm" onclick="OrderModule.goPage(${_page+1})" ${_page===totalPg?'disabled':''}>›</button>
-          <button class="btn btn-sm" onclick="OrderModule.goPage(${totalPg})" ${_page===totalPg?'disabled':''}>»</button>
-        </div>
-      </div>`;
+    if (pg) pg.innerHTML = UI.pagination({
+      page: _page, totalPages: totalPg, total, perPage: _perPage,
+      onPage: 'OrderModule.goPage', onPerPage: 'OrderModule.setPerPage', label: 'order'
+    });
   }
 
   /* ─── INLINE EDIT ─── */

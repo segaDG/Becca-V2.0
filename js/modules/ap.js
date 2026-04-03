@@ -225,25 +225,16 @@ const APModule = (() => {
     let pgEl = document.getElementById('ap-pagination');
     if (!pgEl) {
       pgEl = document.createElement('div'); pgEl.id = 'ap-pagination';
-      pgEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3)';
       const tbl = document.getElementById('ap-main-table');
       if (tbl) tbl.parentNode.insertBefore(pgEl, tbl.nextSibling);
     }
-    pgEl.innerHTML = `
-      <span>Hal ${_apPage}/${totalPg} &middot; ${total} baris</span>
-      <div style="display:flex;align-items:center;gap:4px">
-        <select onchange="APModule.setApPerPage(+this.value)" style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer">
-          ${[20,50,100,200].map(n=>`<option value="${n}" ${_apPerPage===n?'selected':''}>${n}/hal</option>`).join('')}
-        </select>
-        <button onclick="APModule.goApPage(${_apPage-1})" ${_apPage<=1?'disabled':''} style="padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);cursor:pointer;font-size:11px">&#8249;</button>
-        <button onclick="APModule.goApPage(${_apPage+1})" ${_apPage>=totalPg?'disabled':''} style="padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);cursor:pointer;font-size:11px">&#8250;</button>
-      </div>`;
+    pgEl.innerHTML = UI.pagination({ page: _apPage, totalPages: totalPg, total: total, perPage: _apPerPage, onPage: 'APModule.goApPage', onPerPage: 'APModule.setApPerPage', label: 'tagihan' });
 
     const tbody = document.getElementById('ap-tbody');
     if (!tbody) return;
 
     if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--text-3)">Tidak ada data AP</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12">' + UI.empty({iconKey:'money', title:'Tidak ada data AP', desc:'Belum ada tagihan yang cocok dengan filter'}) + '</td></tr>';
       _updateSummaryCards(data);
       return;
     }
@@ -664,8 +655,8 @@ const APModule = (() => {
             </tr>
           </thead>
           <tbody>
-            ${!_suppliers.length ? `<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text-3)">
-              Belum ada data supplier. Klik "+ Tambah Supplier" untuk menambahkan.
+            ${!_suppliers.length ? `<tr><td colspan="12">
+              ${UI.empty({iconKey:'cart', title:'Belum ada data supplier', desc:'Klik "+ Tambah Supplier" untuk menambahkan'})}
             </td></tr>` :
             _suppliers.map((s,i) => {
               const apItems    = _ap.filter(a => a.supplier === s.nama);
@@ -1160,7 +1151,7 @@ const APModule = (() => {
                   <th style="padding:11px 16px;text-align:right;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Total Payable</th>
                 </tr>
               </thead>
-              <tbody>${rowsHtml||'<tr><td colspan="5" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada tagihan belum lunas</td></tr>'}</tbody>
+              <tbody>${rowsHtml||'<tr><td colspan="5">'+UI.empty({iconKey:'check', title:'Tidak ada tagihan belum lunas', desc:'Semua tagihan sudah lunas'})+'</td></tr>'}</tbody>
             </table>
           </div>
 

@@ -334,8 +334,8 @@ const EmployeeModule = (() => {
                     </div>
                   </td>` : ''}
                 </tr>`;
-              }).join('') : `<tr><td colspan="${8+(canFinance?2:0)+(canEdit?1:0)}" style="text-align:center;padding:40px;color:var(--text-3)">
-                Belum ada data karyawan
+              }).join('') : `<tr><td colspan="${8+(canFinance?2:0)+(canEdit?1:0)}">
+                ${UI.empty({iconKey:'user', title:'Belum ada data karyawan', desc:'Tambah karyawan baru untuk mulai'})}
               </td></tr>`}
             </tbody>
           </table>
@@ -388,7 +388,7 @@ const EmployeeModule = (() => {
     }
 
     if (!active.length) {
-      el.innerHTML = '<div class="empty-state" style="height:40vh"><h4>Belum ada data karyawan</h4></div>';
+      el.innerHTML = UI.empty({iconKey:'user', title:'Belum ada data karyawan', height:'40vh'});
       return;
     }
 
@@ -1791,7 +1791,7 @@ const EmployeeModule = (() => {
     const ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
     const emps   = _employees.filter(e => ACTIVE.includes(e.status));
     if (!emps.length) {
-      el.innerHTML = '<div class="empty-state"><p>Belum ada karyawan aktif</p></div>';
+      el.innerHTML = UI.empty({iconKey:'user', title:'Belum ada karyawan aktif'});
       return;
     }
     const year  = _absYear;
@@ -2045,7 +2045,7 @@ const EmployeeModule = (() => {
     const canFinance = Auth.can('emp_finance','view');
     const canEdit    = Auth.can('employee','edit');
     if (!canFinance) {
-      el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" style="opacity:.3"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><h4>Akses Terbatas</h4><p>Fitur payroll hanya untuk peran dengan akses keuangan</p></div>';
+      el.innerHTML = UI.empty({iconKey:'lock', title:'Akses Terbatas', desc:'Fitur payroll hanya untuk peran dengan akses keuangan'});
       return;
     }
     const year  = _payYear;
@@ -2160,11 +2160,8 @@ const EmployeeModule = (() => {
           </tbody>
         </table>
       </div></div>
-      ` : `<div class="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40" style="opacity:.3"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-        <h4>Belum ada payroll ${monthName} ${year}${_payGrup?' · Tgl '+_payGrup:''}</h4>
-        <p>${canEdit?'Klik "Generate" untuk membuat data gaji bulan ini':'Belum ada data'}</p>
-      </div>`}`;
+      ` : UI.empty({iconKey:'money', title:'Belum ada data gaji', desc: canEdit ? 'Klik "Generate" untuk membuat data gaji bulan ini' : 'Belum ada data'})}
+    `;
   }
 
   function _paySetMonth(val, type) {

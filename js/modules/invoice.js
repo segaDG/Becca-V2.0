@@ -397,7 +397,7 @@ const InvoiceModule = (() => {
           </tr>
         </thead>
         <tbody>
-        ${!list.length ? `<tr><td colspan="12" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data.</td></tr>` :
+        ${!list.length ? `<tr><td colspan="12">${UI.empty({iconKey:'list', title:'Tidak ada data invoice', desc:'Belum ada invoice yang cocok dengan filter'})}</td></tr>` :
           list.map((inv,i) => {
             const bg = _rowBg(i, inv);
             return `<tr ${_hov()} style="border-bottom:1px solid var(--border);cursor:pointer"

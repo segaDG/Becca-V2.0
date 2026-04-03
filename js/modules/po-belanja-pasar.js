@@ -37,7 +37,7 @@ window.POBelanjaPasarModule = (() => {
         <button class="btn btn-primary" onclick="POBelanjaPasarModule.newDoc()">+ Buat Form Belanja Pasar</button>
       </div>` : ''}
       ${!_data.length
-        ? `<div style="text-align:center;padding:48px;color:var(--text-3)"><div style="font-size:32px;margin-bottom:8px">🛒</div>Belum ada data</div>`
+        ? UI.empty({iconKey:'cart', title:'Belum ada data', desc:'Belum ada belanja pasar'})
         : `<div style="display:grid;gap:10px">${_data.map(d => {
             const n = (d.items||[]).filter(it=>it.item).length;
             const isSelesai = d.status==='selesai';
@@ -153,7 +153,7 @@ window.POBelanjaPasarModule = (() => {
         <span id="bp-selected-count" style="font-size:11px;color:var(--text-3);margin-left:auto">0 form dipilih</span>
       </div>
       <div id="bp-form-list" style="max-height:60vh;overflow-y:auto">
-        ${groupHtml || '<div style="text-align:center;padding:32px;color:var(--text-3)">Tidak ada form produksi</div>'}
+        ${groupHtml || UI.empty({iconKey:'calendar', title:'Tidak ada form produksi'})}
       </div>
       <button class="btn btn-primary" onclick="POBelanjaPasarModule._onPickDone()" style="width:100%;margin-top:12px">Lanjut → Form Belanja Pasar</button>`;
     _updateCount();

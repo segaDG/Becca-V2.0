@@ -208,3 +208,79 @@ Object.assign(Utils, {
     return handle;
   },
 });
+
+/* ============================================
+   BECCA V2.0 — Shared UI Helpers
+   Reusable render functions for consistency
+   ============================================ */
+const UI = {
+  /* ── Empty State ─────────────────────────────
+     UI.empty({ icon, title, desc, action })
+     icon:   SVG string (optional, defaults to generic box)
+     title:  heading text
+     desc:   description text
+     action: { label, onclick, cls } (optional button)
+  ──────────────────────────────────────────── */
+  _emptyIcons: {
+    box:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
+    list:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+    search:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+    money:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
+    order:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>',
+    user:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    cart:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>',
+    check:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>',
+    lock:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>',
+    chart:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+    calendar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+    news:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10l6 6v8a2 2 0 01-2 2z"/></svg>',
+  },
+
+  empty(opts = {}) {
+    const icon = opts.icon || this._emptyIcons[opts.iconKey] || this._emptyIcons.box;
+    const h = opts.height || '';
+    const action = opts.action
+      ? `<button class="btn ${opts.action.cls || 'btn-ghost btn-sm'}" onclick="${opts.action.onclick}" style="margin-top:var(--s3)">${opts.action.label}</button>`
+      : '';
+    return `<div class="empty-state"${h ? ` style="min-height:${h}"` : ''}>
+      <div class="empty-icon">${icon}</div>
+      <h4>${opts.title || 'Belum ada data'}</h4>
+      ${opts.desc ? `<p>${opts.desc}</p>` : ''}
+      ${action}
+    </div>`;
+  },
+
+  /* ── Pagination ──────────────────────────────
+     UI.pagination({ page, totalPages, total, perPage, perPageOptions, onPage, onPerPage })
+     onPage:    JS expression string (receives page number), e.g. "Module.goPage"
+     onPerPage: JS expression string (receives perPage number), e.g. "Module.setPerPage"
+  ──────────────────────────────────────────── */
+  pagination({ page, totalPages, total, perPage, perPageOptions, onPage, onPerPage, label }) {
+    const tp = Math.max(1, totalPages || 1);
+    const p  = Math.max(1, Math.min(page, tp));
+    const opts = perPageOptions || [20, 50, 100];
+    const lbl = label || 'baris';
+
+    // Page numbers to show (max 5 centered around current)
+    const pages = [];
+    let start = Math.max(1, p - 2);
+    let end   = Math.min(tp, start + 4);
+    start = Math.max(1, end - 4);
+    for (let i = start; i <= end; i++) pages.push(i);
+
+    return `<div class="pagination">
+      <span class="pagination-info">Hal ${p}/${tp} · ${(total||0).toLocaleString('id')} ${lbl}</span>
+      <div class="pagination-controls">
+        <select class="per-page-select" onchange="${onPerPage}(+this.value)">
+          ${opts.map(n => `<option value="${n}" ${perPage===n?'selected':''}>${n}/${lbl}</option>`).join('')}
+        </select>
+        <button class="page-btn page-nav" onclick="${onPage}(1)" ${p<=1?'disabled':''}>&laquo;</button>
+        <button class="page-btn page-nav" onclick="${onPage}(${p-1})" ${p<=1?'disabled':''}>&lsaquo;</button>
+        ${pages.map(n => `<button class="page-btn ${n===p?'active':''}" onclick="${onPage}(${n})">${n}</button>`).join('')}
+        <button class="page-btn page-nav" onclick="${onPage}(${p+1})" ${p>=tp?'disabled':''}>&rsaquo;</button>
+        <button class="page-btn page-nav" onclick="${onPage}(${tp})" ${p>=tp?'disabled':''}>&raquo;</button>
+      </div>
+    </div>`;
+  },
+};
+window.UI = UI;

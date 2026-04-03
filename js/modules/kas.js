@@ -327,22 +327,7 @@ const KasModule = (() => {
           </tbody>
         </table>
       </div>
-      <div class="pagination" style="margin-top:var(--s3)">
-        <span class="pagination-info">Hal ${_page}/${Math.max(1,totalPg)} · ${total} baris</span>
-        <div class="pagination-controls">
-          <select onchange="KasModule.setPerPage(+this.value)"
-            style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;
-                   background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer">
-            ${[20,50,100].map(n=>`<option value="${n}" ${_perPage===n?'selected':''}>${n}/hal</option>`).join('')}
-          </select>
-          <button class="page-btn" onclick="KasModule.goPage(${_page-1})" ${_page<=1?'disabled':''}>‹</button>
-          ${Array.from({length:Math.min(totalPg,7)},(_,i)=>{
-            const p=_page<=4?i+1:_page+i-3;
-            return p>=1&&p<=totalPg?`<button class="page-btn ${p===_page?'active':''}" onclick="KasModule.goPage(${p})">${p}</button>`:'';
-          }).join('')}
-          <button class="page-btn" onclick="KasModule.goPage(${_page+1})" ${_page>=totalPg?'disabled':''}>›</button>
-        </div>
-      </div>
+      ${UI.pagination({ page:_page, totalPages:totalPg, total, perPage:_perPage, onPage:'KasModule.goPage', onPerPage:'KasModule.setPerPage', label:'baris' })}
     `;
     _renderBalanceCards();
     if (window.GridSelect) {
@@ -1107,7 +1092,7 @@ const KasModule = (() => {
       nd[b][t]=(nd[b][t]||0)+(r.jumlah||0);
     });
     const bulan = ORDER.filter(b=>nd[b]);
-    if (!bulan.length) { el.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-3)">Tidak ada data</div>'; return; }
+    if (!bulan.length) { el.innerHTML=UI.empty({iconKey:'money', title:'Tidak ada data', desc:'Belum ada transaksi pada periode ini'}); return; }
     const typeMap={};
     kasRaw.forEach(r=>{ const t=r.type||'Lain-lain'; typeMap[t]=(typeMap[t]||0)+(r.jumlah||0); });
     const allTypes=Object.entries(typeMap).sort((a,b)=>b[1]-a[1]).map(([t])=>t);
@@ -1432,7 +1417,7 @@ const KasModule = (() => {
     const mid = Utils.uid();
     
     function _renderMasukTable(rows) {
-      if (!rows.length) return '<div style="text-align:center;padding:30px;color:var(--text-3)">Tidak ada data pada periode ini</div>';
+      if (!rows.length) return UI.empty({iconKey:'chart', title:'Tidak ada data pada periode ini'});
       const total = rows.reduce((s,r)=>s+(r.kredit||0),0);
       return '<div class="table-scroll"><table class="table" style="font-size:12px">'
         + '<thead><tr><th>Tanggal</th><th>Keterangan</th><th class="num">Jumlah</th></tr></thead>'
@@ -1484,7 +1469,7 @@ const KasModule = (() => {
     const tableEl = document.getElementById('km-table');
     if (!tableEl) return;
     if (!filtered.length) {
-      tableEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-3)">Tidak ada data pada periode ini</div>';
+      tableEl.innerHTML = UI.empty({iconKey:'chart', title:'Tidak ada data pada periode ini'});
       return;
     }
     const total = filtered.reduce((s,r)=>s+(r.kredit||0),0);

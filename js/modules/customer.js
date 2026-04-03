@@ -409,7 +409,7 @@ const CustomerModule = (() => {
           </thead>
 
           <tbody>
-          ${!list.length ? `<tr><td colspan="33" style="text-align:center;padding:48px;color:var(--text-3)">Tidak ada data customer.</td></tr>` :
+          ${!list.length ? `<tr><td colspan="33">${UI.empty({iconKey:'user', title:'Tidak ada data customer', desc:'Belum ada customer yang cocok dengan filter'})}</td></tr>` :
             list.map((c, i) => {
               const ak = (c.status||'AKTIF')==='AKTIF';
               // Solid backgrounds for sticky columns (no transparent!)

@@ -10,6 +10,7 @@
   /* overflow:clip — preserves border-radius clipping tapi TIDAK membuat
      scroll container, sehingga child overflow-x:auto tetap bisa swipe di iOS */
   overflow: clip;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 /* Fallback untuk browser lama yang tidak support clip */
 @supports not (overflow: clip) {
@@ -23,23 +24,34 @@
   font-size: 13px;
 }
 .table thead {
-  background: var(--surface2);
+  background: linear-gradient(180deg, var(--surface2) 0%, rgba(23,28,36,0.95) 100%);
   position: sticky; top: 0; z-index: 10;
 }
 .table th {
-  padding: 10px var(--s4);
+  padding: 11px var(--s4);
   text-align: left;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 700;
   color: var(--text-3);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border2);
   white-space: nowrap;
 }
-.table th.sortable { cursor: pointer; user-select: none; }
-.table th.sortable:hover { color: var(--text-2); }
-.table th .sort-icon { display: inline-block; margin-left: 4px; opacity: 0.4; }
+.table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--t-fast);
+}
+.table th.sortable:hover { color: var(--primary-h); }
+.table th .sort-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  opacity: 0.3;
+  transition: all var(--t-fast);
+}
+.table th.sorted { color: var(--primary-h); }
 .table th.sorted .sort-icon { opacity: 1; color: var(--primary-h); }
 
 .table td {
@@ -47,9 +59,11 @@
   border-bottom: 1px solid var(--border);
   color: var(--text);
   vertical-align: middle;
+  transition: background var(--t-fast);
 }
 .table tr:last-child td { border-bottom: none; }
-.table tbody tr:hover { background: var(--surface2); }
+.table tbody tr { transition: background var(--t-fast); }
+.table tbody tr:hover { background: rgba(99,102,241,0.04); }
 
 /* Number columns (right-aligned) */
 .table td.num, .table th.num { text-align: right; font-family: var(--font-mono); }
@@ -81,39 +95,64 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--s3) var(--s4);
-  background: var(--surface2);
+  background: linear-gradient(180deg, rgba(15,19,24,0.5), var(--surface2));
   border-top: 1px solid var(--border);
   flex-wrap: wrap;
   gap: var(--s2);
 }
-.pagination-info { font-size: 12px; color: var(--text-3); }
-.pagination-controls { display: flex; align-items: center; gap: var(--s1); }
+.pagination-info {
+  font-size: 12px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.pagination-controls { display: flex; align-items: center; gap: 3px; }
 .page-btn {
   width: 30px; height: 30px;
   border-radius: var(--r-sm);
   background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-2);
+  border: 1px solid transparent;
+  color: var(--text-3);
   cursor: pointer;
   font-size: 12px; font-weight: 600;
   display: flex; align-items: center; justify-content: center;
   transition: all var(--t-base);
   font-family: var(--font);
+  font-variant-numeric: tabular-nums;
 }
-.page-btn:hover { background: var(--surface3); color: var(--text); }
-.page-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
-.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.page-btn:hover {
+  background: var(--surface3);
+  color: var(--text);
+  border-color: var(--border);
+}
+.page-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+}
+.page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.page-btn:disabled:hover { background: transparent; border-color: transparent; color: var(--text-3); }
+
+/* Nav arrows (prev/next) */
+.page-btn.page-nav {
+  color: var(--text-2);
+  border-color: var(--border);
+}
+.page-btn.page-nav:hover { background: var(--surface3); color: var(--text); }
 
 .per-page-select {
   background: var(--surface3);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  color: var(--text);
-  font-size: 12px;
+  color: var(--text-2);
+  font-size: 11px;
   padding: 4px 8px;
   cursor: pointer;
   font-family: var(--font);
+  transition: all var(--t-base);
 }
+.per-page-select:hover { border-color: var(--border2); color: var(--text); }
+.per-page-select:focus { border-color: var(--primary); outline: none; }
 
 /* === MOBILE RESPONSIVE === */
 

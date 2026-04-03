@@ -101,9 +101,13 @@
   padding: var(--s5);
   position: relative;
   overflow: hidden;
-  transition: border-color var(--t-base);
+  transition: all var(--t-base);
 }
-.stat-card:hover { border-color: var(--border2); }
+.stat-card:hover {
+  border-color: var(--border2);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
 .stat-card::before {
   content: '';
   position: absolute;
@@ -233,25 +237,29 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   cursor: pointer;
 }
 .toggle-switch {
-  width: 36px; height: 20px;
+  width: 40px; height: 22px;
   background: var(--surface3);
   border-radius: var(--r-full);
   position: relative;
-  transition: background var(--t-base);
+  transition: all var(--t-base);
   border: 1px solid var(--border2);
 }
 .toggle-switch::after {
   content: '';
   position: absolute;
-  width: 14px; height: 14px;
+  width: 16px; height: 16px;
   background: white;
   border-radius: var(--r-full);
   top: 2px; left: 2px;
-  transition: transform var(--t-base);
-  box-shadow: var(--shadow-sm);
+  transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
-.toggle input:checked + .toggle-switch { background: var(--primary); border-color: var(--primary); }
-.toggle input:checked + .toggle-switch::after { transform: translateX(16px); }
+.toggle input:checked + .toggle-switch {
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 12px rgba(99,102,241,0.3);
+}
+.toggle input:checked + .toggle-switch::after { transform: translateX(18px); }
 .toggle input { display: none; }
 
 /* Form Row */
@@ -263,7 +271,9 @@ textarea.form-control { resize: vertical; min-height: 80px; }
    =========================== */
 .modal-backdrop {
   position: fixed; inset: 0;
-  background: var(--overlay);
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
   z-index: 1000;
   padding: var(--s6);
@@ -279,7 +289,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   max-width: 520px;
   max-height: 90vh;
   display: flex; flex-direction: column;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
   animation: modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
 }
 .modal-lg { max-width: 720px; }
@@ -295,17 +305,24 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   display: flex; align-items: center; justify-content: space-between;
   flex-shrink: 0;
 }
-.modal-title { font-size: 16px; font-weight: 700; color: var(--heading); }
+.modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--heading);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
 .modal-close {
-  width: 28px; height: 28px;
+  width: 30px; height: 30px;
   border-radius: var(--r-sm);
-  background: transparent; border: none;
+  background: transparent; border: 1px solid transparent;
   color: var(--text-3); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all var(--t-base);
   font-size: 18px;
 }
-.modal-close:hover { background: var(--surface2); color: var(--text); }
+.modal-close:hover { background: var(--surface2); color: var(--text); border-color: var(--border); }
 .modal-body {
   padding: var(--s6);
   overflow-y: auto;
@@ -317,6 +334,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   display: flex; align-items: center; justify-content: flex-end;
   gap: var(--s2);
   flex-shrink: 0;
+  background: rgba(15,19,24,0.5);
 }
 
 /* ===========================
@@ -360,18 +378,8 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .toast-info    .toast-icon-wrap { background: var(--info-bg);    color: var(--info); }
 
 /* ===========================
-   EMPTY STATE
+   EMPTY STATE — main definition in layout.css
    =========================== */
-.empty-state {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  padding: var(--s12) var(--s6);
-  text-align: center;
-  color: var(--text-3);
-}
-.empty-state svg { width: 48px; height: 48px; opacity: 0.3; margin-bottom: var(--s4); }
-.empty-state h4  { font-size: 14px; color: var(--text-2); margin-bottom: var(--s2); }
-.empty-state p   { font-size: 13px; }
 
 /* ===========================
    LOADING / SKELETON
@@ -428,6 +436,10 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   gap: var(--s2);
   flex-wrap: wrap;
   margin-bottom: var(--s4);
+  padding: var(--s3) var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
 }
 .filter-bar .form-control {
   width: auto;
@@ -438,6 +450,32 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   min-height: 34px;
   line-height: 1.4;
   box-sizing: border-box;
+  background: var(--surface2);
+  border-color: var(--border);
+  border-radius: var(--r-sm);
+  transition: all var(--t-base);
+}
+.filter-bar .form-control:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+  background: var(--surface3);
+}
+.filter-bar .filter-sep {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.filter-bar .filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.filter-bar .btn {
+  min-height: 34px;
 }
 
 /* ===========================
