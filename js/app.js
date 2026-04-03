@@ -81,112 +81,49 @@ const App = {
       history.replaceState({}, '', location.pathname);
     }
 
-    // Init Supabase DB
-    DB.init().then(async () => {
-      if (DB.isReady() && !localStorage.getItem('becca_migrated_v6')) {
-        localStorage.setItem('becca_migrated_v6', '1');
-        DB.migrateFromLocalStorage()
-          .then(n => {
-            if (n > 0) Notify.success('Sinkronisasi data selesai: ' + n + ' item tersync ke cloud ✓');
-            // Bersihkan localStorage untuk NO_CACHE tables — data sudah ada di Supabase
-            // Mencegah data lama terus di-merge dengan hasil Supabase
-            ['tasks','ap','suppliers','customers','users'].forEach(t => {
-              localStorage.removeItem('becca_' + t);
-            });
-          })
-          .catch(() => {});
-      }
-      // Normalisasi nama customer — sekali jalan (case-insensitive match)
-      if (DB.isReady() && !localStorage.getItem('becca_orders_norm_v1')) {
-        localStorage.setItem('becca_orders_norm_v1', '1');
-        Promise.all([DB.getCustomers(), DB.getOrders()]).then(async ([custs, orders]) => {
-          const custNames = (custs||[]).map(c => c.nama).filter(Boolean);
-          if (!custNames.length) return;
-          let fixed = 0;
-          for (const order of (orders||[])) {
-            const raw = (order.namaPerusahaan||'').trim();
-            if (!raw || custNames.includes(raw)) continue;
-            const match = custNames.find(n => n.toLowerCase() === raw.toLowerCase());
-            if (match) { order.namaPerusahaan = match; await DB.saveOrder(order); fixed++; }
-          }
-          if (fixed > 0) Notify.success(fixed + ' order diperbarui nama customer ✓');
-        }).catch(() => {});
-      }
-      // Rename nama customer ke nama lengkap resmi — sekali jalan
-      if (DB.isReady() && !localStorage.getItem('becca_cust_rename_v2')) {
-        localStorage.setItem('becca_cust_rename_v2', '1');
-        const _R = {
-          'pt. nici':           'PT. NUGRAHA INDAH CITARASA INDONESIA',
-          'pt. shinto kogyo':   'PT. Shinto Kogyo Indonesia',
-          'pt. daiki':          'PT. DAIKI ALMUNIUM INDUSTRI IND',
-          'pt. awi':            'PT. Akashi Wahana Indonesia',
-          'pt. nbc':            'PT. NBC INDONESIA',
-          'pt. resonac':        'PT. RESONAC MATERIALS INDONESIA',
-          'pt. ssk':            'PT. Super Steel Karawang',
-          'super steel karawang':'PT. Super Steel Karawang',
-          'pt. aicc':           'PT. Asian Isuzu Casting Center (AICC)',
-          'pt. ddmi':           'PT. Daihatsu Drivetrain Manufacturing Indonesia (DDMI)',
-          'pt. iff krw':        'International Flavors & Fragrances (IFF)',
-        };
-        const _rename = n => _R[(n||'').trim().toLowerCase()] || n;
-        Promise.all([DB.getCustomers(), DB.getOrders(), DB.getInvoices()]).then(async ([custs, orders, invs]) => {
-          let c=0, o=0, i=0;
-          for (const cust of (custs||[])) {
-            const n = _rename(cust.nama);
-            if (n !== cust.nama) { cust.nama = n; await DB.saveCustomer(cust); c++; }
-          }
-          for (const ord of (orders||[])) {
-            const n = _rename(ord.namaPerusahaan);
-            if (n !== ord.namaPerusahaan) { ord.namaPerusahaan = n; await DB.saveOrder(ord); o++; }
-          }
-          for (const inv of (invs||[])) {
-            const n = _rename(inv.customer);
-            if (n !== inv.customer) { inv.customer = n; await DB.saveInvoice(inv); i++; }
-          }
-          const total = c + o + i;
-          if (total > 0) Notify.success(`Nama customer diperbarui: ${c} customer, ${o} order, ${i} invoice ✓`);
-        }).catch(() => {});
-      }
-      // Selalu sync users ke Supabase settings saat boot (cross-device login)
-      if (DB.isReady()) {
-        await this._loadModule('settings').catch(() => {});
-        if (typeof SettingsModule !== 'undefined') {
-          SettingsModule._syncAuthJs().catch(() => {});
-        }
-      }
-      // Refresh role user aktif jika berubah di DB sejak login terakhir
-      // (misal: admin ganti role user dari operator → finance, user tidak perlu logout)
-      const _cu = Auth.currentUser();
-      if (_cu && DB.isReady()) {
-        DB.getUsers().then(users => {
-          const fresh = users.find(u =>
-            (u.id && u.id === _cu.id) ||
-            (u.username?.toLowerCase() === (_cu.username||'').toLowerCase())
-          );
-          if (fresh && fresh.role && fresh.role !== _cu.role) {
-            Auth._user = { ..._cu, role: fresh.role };
-            // Update session di tempat yang sama dengan saat login
-            Utils.ls.get(Auth._SESSION_KEY)
-              ? Utils.ls.set(Auth._SESSION_KEY, Auth._user)
-              : sessionStorage.setItem(Auth._SESSION_KEY, JSON.stringify(Auth._user));
-            App._renderHeader();
-            if (typeof Sidebar !== 'undefined') Sidebar.render();
-          }
-        }).catch(()=>{});
-      }
-    }).catch(()=>{});
+    // Init Supabase DB — non-blocking, UI renders first
+    DB.init().catch(()=>{});
     if (!Auth.init()) { this._showLogin(); return; }
     this._showApp();
     this._initTheme();
     this._loadUserColor();
-    this._startPresence();
-    setTimeout(() => { if (typeof DBExtensions !== "undefined") DBExtensions.init(); }, 500);
-    // Update all sidebar badges after boot (inventory sync, kas belanja pasar, PO finance)
-    setTimeout(() => this._updateAllBadges(), 1500);
     // Force change password on first login
     if (sessionStorage.getItem('becca_must_change_pwd') === '1') {
       setTimeout(() => this._forceChangePasswordModal(), 500);
     }
+    // === DEFERRED: all heavy ops run AFTER UI is interactive ===
+    setTimeout(() => this._deferredBoot(), 2000);
+  },
+
+  async _deferredBoot() {
+    // Start presence tracking
+    this._startPresence();
+    // DB extensions
+    if (typeof DBExtensions !== 'undefined') DBExtensions.init();
+    // Sync auth (background, non-blocking)
+    if (DB.isReady()) {
+      await this._loadModule('settings').catch(()=>{});
+      if (typeof SettingsModule !== 'undefined') SettingsModule._syncAuthJs().catch(()=>{});
+    }
+    // Refresh user role from DB
+    const _cu = Auth.currentUser();
+    if (_cu && DB.isReady()) {
+      DB.getUsers().then(users => {
+        const fresh = users.find(u => (u.id&&u.id===_cu.id)||(u.username?.toLowerCase()===(_cu.username||'').toLowerCase()));
+        if (fresh?.role && fresh.role!==_cu.role) {
+          Auth._user = {..._cu, role:fresh.role};
+          Utils.ls.get(Auth._SESSION_KEY) ? Utils.ls.set(Auth._SESSION_KEY,Auth._user) : sessionStorage.setItem(Auth._SESSION_KEY,JSON.stringify(Auth._user));
+          this._renderHeader(); if(typeof Sidebar!=='undefined') Sidebar.render();
+        }
+      }).catch(()=>{});
+    }
+    // One-time migrations (only if flag not set)
+    if (DB.isReady() && !localStorage.getItem('becca_migrated_v6')) {
+      localStorage.setItem('becca_migrated_v6','1');
+      DB.migrateFromLocalStorage().then(n=>{if(n>0)Notify.success(n+' item tersync ke cloud');['tasks','ap','suppliers','customers','users'].forEach(t=>localStorage.removeItem('becca_'+t));}).catch(()=>{});
+    }
+    // Update sidebar badges (delayed further)
+    setTimeout(() => this._updateAllBadges(), 1000);
   },
 
   // Global badge updater — runs on boot, updates sidebar badges without loading modules

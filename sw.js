@@ -36,7 +36,7 @@ self.addEventListener('notificationclick', e => {
 });
 
 // ── Static Cache — v5 (improved precache + strategy) ─────
-const CACHE_NAME = 'becca-static-v39';
+const CACHE_NAME = 'becca-static-v40';
 
 const PRECACHE = [
   '/',
@@ -45,20 +45,15 @@ const PRECACHE = [
   '/css/components.css',
   '/css/tables.css',
   '/img/logo-bps.png',
-  // Core JS — always available offline
+  // Core JS only — minimal for first paint
   '/js/utils.js',
-  '/js/utils-extensions.js',
   '/js/db.js',
-  '/js/db-extensions.js',
   '/js/auth.js',
   '/js/ui/notify.js',
   '/js/ui/modal.js',
   '/js/ui/sidebar.js',
-  '/js/push.js',
-  '/js/grid-select.js',
-  '/js/undo-redo.js',
-  '/js/media-picker.js',
   '/js/app.js',
+  // Non-critical: loaded via stale-while-revalidate, not precache
 ];
 
 self.addEventListener('install', e => {
