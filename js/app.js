@@ -334,30 +334,10 @@ const App = {
         <!-- Online Users -->
         <div id="online-users-bar" style="display:flex;align-items:center;gap:4px;margin-right:4px"></div>
 
-        <!-- Theme Color Picker -->
-        <button class="header-btn" id="btn-color" onclick="App._openColorPicker()" title="Warna Tema"
-          style="position:relative">
-          <div style="width:16px;height:16px;border-radius:50%;background:var(--primary);border:2px solid rgba(255,255,255,.3)"></div>
-        </button>
-        <!-- Dark/Light Mode Toggle -->
-        <button class="header-btn" id="btn-theme" onclick="App.toggleTheme()" title="Ganti Tema"
-          style="position:relative">
-          <svg id="icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"
-            style="display:none">
-            <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/>
-          </svg>
-          <svg id="icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-            <circle cx="12" cy="12" r="5"/>
-            <line x1="12" y1="1" x2="12" y2="3"/>
-            <line x1="12" y1="21" x2="12" y2="23"/>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-            <line x1="1" y1="12" x2="3" y2="12"/>
-            <line x1="21" y1="12" x2="23" y2="12"/>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-          </svg>
-        </button>
+        <!-- Hidden theme elements for JS reference -->
+        <span id="btn-color" style="display:none"></span>
+        <svg id="icon-dark" style="display:none"><path/></svg>
+        <svg id="icon-light" style="display:none"><circle/></svg>
         <!-- Notifikasi -->
         <button class="header-btn" id="btn-notif" onclick="App._openNotif()" title="Notifikasi" style="position:relative">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -399,6 +379,19 @@ const App = {
               <div style="font-weight:600;font-size:13px;color:var(--heading)">${user?.nama||''}</div>
               <div style="font-size:11px;color:var(--text-3)">${user?.role||''}</div>
             </div>
+            <button class="dropdown-item" onclick="App._openColorPicker();App._hideUserMenu()">
+              <div style="width:14px;height:14px;border-radius:50%;background:var(--primary);border:2px solid rgba(255,255,255,.2);flex-shrink:0"></div>
+              Tema Warna
+            </button>
+            <button class="dropdown-item" id="btn-theme" onclick="App.toggleTheme();App._hideUserMenu()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+              </svg>
+              ${document.documentElement.getAttribute('data-theme')==='light'?'Mode Gelap':'Mode Terang'}
+            </button>
+            <div style="border-top:1px solid var(--border);margin:4px 0"></div>
             <button class="dropdown-item" onclick="App.navigate('settings');App._hideUserMenu()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                 <circle cx="12" cy="12" r="3"/>
