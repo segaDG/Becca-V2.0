@@ -96,34 +96,33 @@ const App = {
   },
 
   async _deferredBoot() {
-    // Start presence tracking
     this._startPresence();
-    // DB extensions
     if (typeof DBExtensions !== 'undefined') DBExtensions.init();
-    // Sync auth (background, non-blocking)
+    // Refresh user role (light — 1 cached call)
     if (DB.isReady()) {
-      await this._loadModule('settings').catch(()=>{});
-      if (typeof SettingsModule !== 'undefined') SettingsModule._syncAuthJs().catch(()=>{});
-    }
-    // Refresh user role from DB
-    const _cu = Auth.currentUser();
-    if (_cu && DB.isReady()) {
       DB.getUsers().then(users => {
+        const _cu = Auth.currentUser(); if (!_cu) return;
         const fresh = users.find(u => (u.id&&u.id===_cu.id)||(u.username?.toLowerCase()===(_cu.username||'').toLowerCase()));
         if (fresh?.role && fresh.role!==_cu.role) {
           Auth._user = {..._cu, role:fresh.role};
-          Utils.ls.get(Auth._SESSION_KEY) ? Utils.ls.set(Auth._SESSION_KEY,Auth._user) : sessionStorage.setItem(Auth._SESSION_KEY,JSON.stringify(Auth._user));
+          Utils.ls.get(Auth._SESSION_KEY)?Utils.ls.set(Auth._SESSION_KEY,Auth._user):sessionStorage.setItem(Auth._SESSION_KEY,JSON.stringify(Auth._user));
           this._renderHeader(); if(typeof Sidebar!=='undefined') Sidebar.render();
         }
       }).catch(()=>{});
     }
-    // One-time migrations (only if flag not set)
-    if (DB.isReady() && !localStorage.getItem('becca_migrated_v6')) {
+    // Migration (once)
+    if (DB.isReady()&&!localStorage.getItem('becca_migrated_v6')) {
       localStorage.setItem('becca_migrated_v6','1');
-      DB.migrateFromLocalStorage().then(n=>{if(n>0)Notify.success(n+' item tersync ke cloud');['tasks','ap','suppliers','customers','users'].forEach(t=>localStorage.removeItem('becca_'+t));}).catch(()=>{});
+      DB.migrateFromLocalStorage().then(n=>{if(n>0)Notify.success(n+' item tersync');}).catch(()=>{});
     }
-    // Update sidebar badges (delayed further)
-    setTimeout(() => this._updateAllBadges(), 1000);
+    // Badges — use whatever is cached, don't force new fetches
+    setTimeout(() => this._updateAllBadges(), 2000);
+    // Auth sync — defer even further (not critical)
+    setTimeout(async () => {
+      if (!DB.isReady()) return;
+      await this._loadModule('settings').catch(()=>{});
+      if (typeof SettingsModule!=='undefined') SettingsModule._syncAuthJs().catch(()=>{});
+    }, 8000);
   },
 
   // Global badge updater — runs on boot, updates sidebar badges without loading modules

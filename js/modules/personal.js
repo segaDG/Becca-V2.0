@@ -36,13 +36,8 @@ const PersonalModule = (() => {
     page.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:40vh;color:var(--text-3)">Memuat data personal...</div>';
 
     const user = Auth.currentUser();
-    const [employees, logs, absensi, payroll, notes] = await Promise.all([
-      DB.getEmployees().catch(()=>[]),
-      DB.getEmployeeLogs().catch(()=>[]),
-      DB.getEmpAbsensi().catch(()=>[]),
-      DB.getEmpPayroll().catch(()=>[]),
-      DB.getPersonalNotes().catch(()=>[]),
-    ]);
+    // Cache-first: render fast from cache, then background refresh
+    const employees = DB.getCached('employees') || await DB.getEmployees().catch(()=>[]);
     _employees = employees;
     // Match user to employee: 1) explicit empId link, 2) name fallback
     const uEmpId = user?.empId;
@@ -54,9 +49,17 @@ const PersonalModule = (() => {
         || employees.find(e => uUsername && (e.nama||'').toLowerCase().replace(/[\s.]+/g,'').includes(uUsername))
         || null;
     const eid = _emp?.id;
-    _logs = eid ? logs.filter(l => l.employeeId===eid || (l.nama||'').toLowerCase()===(user?.nama||'').toLowerCase()).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')) : [];
+
+    // Only fetch what's needed for this user (not all tables)
+    const [logs, absensi, notes] = await Promise.all([
+      eid ? DB.getEmployeeLogs().catch(()=>[]) : Promise.resolve([]),
+      eid ? DB.getEmpAbsensi().catch(()=>[])   : Promise.resolve([]),
+      DB.getPersonalNotes().catch(()=>[]),
+    ]);
+    const empName = (_emp?.nama||'').toLowerCase();
+    _logs = eid ? logs.filter(l => l.employeeId===eid || (l.nama||'').toLowerCase()===empName).sort((a,b)=>((b.tanggal||b.tgl||'')).localeCompare((a.tanggal||a.tgl||''))) : [];
     _absensi = eid ? absensi.filter(a => a.empId===eid).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')) : [];
-    _payroll = eid ? payroll.filter(p => p.empId===eid).sort((a,b)=>((b.tahun||'')+'-'+(b.bulan||'')).localeCompare((a.tahun||'')+'-'+(a.bulan||''))) : [];
+    _payroll = []; // not needed for display, kasbon computed from logs
     _notes = notes.filter(n => n.userId === user?.id || n.username === user?.username).sort((a,b)=>(b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||''));
 
     _renderFull(page);

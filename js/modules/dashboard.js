@@ -132,7 +132,7 @@ const DashboardModule = (() => {
         canInvoice    ? DB.getInvoices().catch(()=>null)       : null,
         canAP         ? DB.getAP().catch(()=>null)             : null,
         canTask       ? DB.getTasks().catch(()=>null)          : null,
-        DB.getSettings().catch(()=>null),
+        null, // settings already cached — no need to re-fetch
       ]).then(([fKas, fEmp, fInv, fInv2, fAP, fTasks, fSet]) => {
         if (!document.getElementById('dash-content')) return; // user navigated away
         _renderData(
