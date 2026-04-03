@@ -804,7 +804,7 @@ const KasModule = (() => {
     const noSt   = keluar.filter(r=>!r.status);
     const _card = (icon, label, value, color, accent, onclick='') => {
       const clk = onclick ? `onclick="${onclick}" style="cursor:pointer"` : '';
-      return `<div ${clk} class="ks-strip-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;flex:1 1 150px;min-width:0;max-width:240px;transition:all .2s;position:relative;overflow:hidden"
+      return `<div ${clk} class="ks-strip-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;min-width:0;transition:all .2s;position:relative;overflow:hidden"
         onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.15)'"
         onmouseout="this.style.transform='';this.style.boxShadow=''">
         <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${accent}"></div>
@@ -815,12 +815,12 @@ const KasModule = (() => {
         <div style="font-size:20px;font-weight:800;color:${color};font-family:var(--font-mono);letter-spacing:-.01em">${value}</div>
       </div>`;
     };
-    return [
-      _card('📤','Total Keluar', Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)), 'var(--danger)', '#ef4444'),
-      _card('✅','Confirmed',    Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),   'var(--success)', '#22c55e'),
-      _card('⏳','TBC',          Utils.formatRupiah(tbc.reduce((s,r)=>s+(r.jumlah||0),0)),    'var(--warning)', '#f59e0b', "KasModule.filterByStatus('TBC')"),
-      _card('❓','Belum Diisi',  noSt.length+' baris',                                        'var(--text-2)', '#64748b', "KasModule.filterByStatus('-')"),
-    ].join('');
+    return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--s3);width:100%">
+      ${_card('\ud83d\udce4','Total Keluar', Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)), 'var(--danger)', '#ef4444')}
+      ${_card('\u2705','Confirmed',    Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),   'var(--success)', '#22c55e')}
+      ${_card('\u23f3','TBC',          Utils.formatRupiah(tbc.reduce((s,r)=>s+(r.jumlah||0),0)),    'var(--warning)', '#f59e0b', "KasModule.filterByStatus('TBC')")}
+      ${_card('\u2753','Belum Diisi',  noSt.length+' baris',                                        'var(--text-2)', '#64748b', "KasModule.filterByStatus('-')")}
+    </div>`;
   }
 
   /* ===================== EXPORT CSV ===================== */

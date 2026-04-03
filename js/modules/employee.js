@@ -77,7 +77,6 @@ const EmployeeModule = (() => {
         ${Auth.can('emp_finance','view') ? `<button class="tab-btn" id="emp-tab-btn-logbook" data-tab="logbook" onclick="EmployeeModule.switchTab('logbook')">📋 Logbook</button>` : ''}
         <button class="tab-btn"        id="emp-tab-btn-absensi" data-tab="absensi" onclick="EmployeeModule.switchTab('absensi')">📅 Absensi</button>
         ${Auth.can('emp_finance','view') ? `<button class="tab-btn" id="emp-tab-btn-payroll" data-tab="payroll" onclick="EmployeeModule.switchTab('payroll')">💰 Payroll</button>` : ''}
-        <button class="tab-btn"        id="emp-tab-btn-jadwal"  data-tab="jadwal"  onclick="EmployeeModule.switchTab('jadwal')">🗓 Jadwal Shift</button>
         <button class="tab-btn"        id="emp-tab-btn-arsip"   data-tab="arsip"   onclick="EmployeeModule.switchTab('arsip')">📁 Arsip</button>
       </div>
       <div id="emp-tab-data"></div>
@@ -85,7 +84,6 @@ const EmployeeModule = (() => {
       <div id="emp-tab-logbook" class="hidden"></div>
       <div id="emp-tab-absensi" class="hidden"></div>
       <div id="emp-tab-payroll" class="hidden"></div>
-      <div id="emp-tab-jadwal"  class="hidden"></div>
       <div id="emp-tab-arsip"   class="hidden"></div>
     `;
 
