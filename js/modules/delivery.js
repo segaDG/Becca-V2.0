@@ -141,11 +141,14 @@ const DeliveryModule = (() => {
         <button class="btn btn-ghost btn-sm" onclick="DeliveryModule.goToday()">Hari Ini</button>
         <button class="btn btn-ghost btn-sm" onclick="DeliveryModule.nextWeek()">Minggu Depan \u203a</button>
         <div style="flex:1"></div>
-        <span style="font-size:14px;font-weight:600;color:var(--heading)">${_fmtDateFull(_weekStart)} \u2014 ${_fmtDateFull(days[6])}</span>
+        <span style="font-size:13px;font-weight:600;color:var(--primary-h);background:var(--primary-bg);border:1px solid rgba(99,102,241,.15);padding:6px 16px;border-radius:var(--r-full);display:inline-flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          ${_fmtDateFull(_weekStart)} \u2014 ${_fmtDateFull(days[6])}
+        </span>
       </div>
       <div class="tabs" style="margin-bottom:var(--s4)">
-        <button class="tab-btn active" onclick="DeliveryModule.switchTab('jadwal')">Jadwal</button>
-        <button class="tab-btn" onclick="DeliveryModule.switchTab('summary')">Summary</button>
+        <button class="tab-btn active" onclick="DeliveryModule.switchTab('jadwal')">\ud83d\udcc5 Jadwal</button>
+        <button class="tab-btn" onclick="DeliveryModule.switchTab('summary')">\ud83d\udcca Summary</button>
       </div>
       <div id="dlv-tab-jadwal"><div id="dlv-grid"></div></div>
       <div id="dlv-tab-summary" class="hidden"></div>`;
