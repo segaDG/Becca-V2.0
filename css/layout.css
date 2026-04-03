@@ -56,7 +56,7 @@
 .sidebar-name {
   font-weight: 700;
   font-size: 15px;
-  color: var(--heading);
+  color: #f0f2f7;
   white-space: nowrap;
   overflow: hidden;
   transition: opacity var(--t-slow);
@@ -175,7 +175,7 @@
 .user-name {
   font-size: 13px;
   font-weight: 600;
-  color: var(--heading);
+  color: #e0e4ed;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -183,7 +183,7 @@
 
 .user-role {
   font-size: 11px;
-  color: var(--text-3);
+  color: #7b86a0;
   text-transform: capitalize;
 }
 #sidebar.collapsed .user-info { opacity: 0; }
