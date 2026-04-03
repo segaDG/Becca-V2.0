@@ -1824,9 +1824,9 @@ const EmployeeModule = (() => {
           ${[year-1,year,year+1].map(y=>`<option value="${y}" ${y===year?'selected':''}>${y}</option>`).join('')}
         </select>
         <div style="margin-left:auto;display:flex;gap:var(--s2);flex-wrap:wrap">
-          ${window.FaceAttendanceModule ? FaceAttendanceModule.renderToggle() : ''}
-          ${FaceAttendanceModule?.isEnabled() ? `
-            <button class="btn btn-primary btn-sm" onclick="FaceAttendanceModule.openKioskFullscreen()" title="Mode layar penuh untuk tablet absensi">⛶ Scan</button>
+          ${window.FaceAttendanceModule ? window.FaceAttendanceModule.renderToggle() : ''}
+          ${window.FaceAttendanceModule && window.FaceAttendanceModule.isEnabled && window.FaceAttendanceModule.isEnabled() ? `
+            <button class="btn btn-primary btn-sm" onclick="window.FaceAttendanceModule.openKioskFullscreen()" title="Mode layar penuh untuk tablet absensi">⛶ Scan</button>
           ` : ''}
           ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="EmployeeModule._bulkAbsensi('H')" title="Tandai semua Hadir hari ini">✅ Hadir Semua</button>
           <button class="btn btn-primary btn-sm" onclick="EmployeeModule.openAbsensiModal()">+ Input</button>` : ''}
