@@ -63,7 +63,7 @@ const DeliveryModule = (() => {
     const d = new Date(s + 'T12:00:00');
     return DAYS[d.getDay() === 0 ? 6 : d.getDay() - 1];
   }
-  function _isToday(s) { return s === new Date().toISOString().slice(0,10); }
+  function _isToday(s) { return s === _toStr(new Date()); }
 
   function _currentSchedule() {
     return _schedules.find(sc => sc.weekStart === _weekStart);
