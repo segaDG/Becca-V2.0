@@ -570,11 +570,11 @@ const EmployeeModule = (() => {
           </div>
         </div>
 
-        <!-- Log History -->
+        ${canFinance ? `<!-- Log History (hanya untuk user dengan akses keuangan) -->
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
             <div style="font-size:14px;font-weight:700;color:var(--heading)">Riwayat Log (${empLogs.length})</div>
-            ${canFinance ? (()=>{
+            ${(()=>{
               const tH = empLogs.reduce((s,l)=>s+(l.hutang||(l.jenis==='BERHUTANG'?l.jumlah:0)||0),0);
               const tB = empLogs.reduce((s,l)=>s+(l.bayar||(l.jenis==='BAYAR HUTANG'?l.jumlah:0)||0),0);
               const sisa = Math.max(0,tH-tB);
@@ -583,9 +583,9 @@ const EmployeeModule = (() => {
                 <span>Total Bayar: <strong style="color:var(--success);font-family:var(--font-mono)">${Utils.formatRupiah(tB)}</strong></span>
                 <span>Sisa: <strong style="color:${sisa>0?'var(--danger)':'var(--success)'};font-family:var(--font-mono)">${Utils.formatRupiah(sisa)}</strong></span>
               </div>`;
-            })() : ''}
+            })()}
           </div>
-          ${canFinance && empLogs.length ? `
+          ${empLogs.length ? `
             <div class="table-scroll">
               <table class="table" style="font-size:13px">
                 <thead><tr>
@@ -596,7 +596,7 @@ const EmployeeModule = (() => {
                     const hutang = l.hutang||(l.jenis==='BERHUTANG'?l.jumlah:0)||0;
                     const bayar  = l.bayar ||(l.jenis==='BAYAR HUTANG'?l.jumlah:0)||0;
                     const tglFmt = (l.tgl||l.tanggal||'').slice(8,10)+'-'+(l.tgl||l.tanggal||'').slice(5,7)+'-'+(l.tgl||l.tanggal||'').slice(0,4);
-                    const konf   = l.konfirmasi==='CONFIRMED'?'<span class="badge badge-success" style="font-size:10px">✓</span>':'<span class="badge badge-neutral" style="font-size:10px">—</span>';
+                    const konf   = l.konfirmasi==='CONFIRMED'?'<span class="badge badge-success" style="font-size:10px">\u2713</span>':'<span class="badge badge-neutral" style="font-size:10px">\u2014</span>';
                     return `<tr>
                       <td style="white-space:nowrap;color:var(--text-2)">${tglFmt||'-'}</td>
                       <td>${l.keterangan||l.ket||l.catatan||'-'}</td>
@@ -607,8 +607,8 @@ const EmployeeModule = (() => {
                   }).join('')}
                 </tbody>
               </table>
-            </div>` : (canFinance ? `<div style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</div>` : `<div style="text-align:center;padding:40px;color:var(--text-3)">—</div>`)}
-        </div>
+            </div>` : `<div style="text-align:center;padding:40px;color:var(--text-3)">Belum ada log</div>`}
+        </div>` : ''}
 
         </div><!-- /right column -->
       </div>
