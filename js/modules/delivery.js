@@ -340,24 +340,31 @@ const DeliveryModule = (() => {
     try { await DB.saveDeliverySchedule(sc); } catch {} _renderWeekGrid();
   }
 
-  /* ═══ AUTO POPULATE ═══ */
+  /* ═══ AUTO POPULATE — 1 card per customer per shift ═══ */
   async function autoPopulate() {
     const days=_weekDays(_weekStart);
     let sc=_currentSchedule();
     if (!sc) { sc={id:Utils.uid(),weekStart:_weekStart,weekEnd:days[6],entries:[],createdBy:Auth.currentUser()?.nama||'',createdAt:new Date().toISOString()}; _schedules.push(sc); }
     if (!sc.entries) sc.entries=[];
+    const n=v=>Number(v)||0;
     let added=0;
     days.forEach(date => {
-      const custMap={};
+      // Aggregate per customer per shift
+      const map = {}; // key: "custName::shift" → pax
       _orders.filter(o=>o.tglOrder===date).forEach(o => {
-        const name=o.namaPerusahaan; if(!name) return; if(!custMap[name]) custMap[name]=0;
-        const n=v=>Number(v)||0;
-        custMap[name]+=n(o.breakfast)+n(o.shift1)+n(o.spare1)+n(o.ot1)+n(o.snack1)+n(o.shift2)+n(o.spare2)+n(o.ot2)+n(o.snack2)+n(o.shift3)+n(o.spare3)+n(o.ot3)+n(o.snack3)+n(o.snackBerat);
+        const name=o.namaPerusahaan; if(!name) return;
+        const s1 = n(o.breakfast)+n(o.shift1)+n(o.spare1)+n(o.ot1)+n(o.snack1);
+        const s2 = n(o.shift2)+n(o.spare2)+n(o.ot2)+n(o.snack2);
+        const s3 = n(o.shift3)+n(o.spare3)+n(o.ot3)+n(o.snack3);
+        if (s1>0) { const k=name+'::S1'; map[k]=(map[k]||0)+s1; }
+        if (s2>0) { const k=name+'::S2'; map[k]=(map[k]||0)+s2; }
+        if (s3>0) { const k=name+'::S3'; map[k]=(map[k]||0)+s3; }
       });
-      Object.entries(custMap).forEach(([cn,pax]) => {
-        if (sc.entries.some(e=>e.date===date&&e.customerName===cn)) return;
+      Object.entries(map).forEach(([key,pax]) => {
+        const [cn,shift] = key.split('::');
+        if (sc.entries.some(e=>e.date===date&&e.customerName===cn&&e.shift===shift)) return;
         const c=_customers.find(x=>(x.nama||'').toLowerCase()===cn.toLowerCase());
-        sc.entries.push({id:Utils.uid(),date,customerId:c?.id||'',customerName:cn,driverId:'',driverName:'',picIds:[],picNames:[],shift:'all',status:'pending',deliveryTime:'',totalPax:pax,notes:'',updatedBy:Auth.currentUser()?.nama||'',updatedAt:new Date().toISOString()});
+        sc.entries.push({id:Utils.uid(),date,customerId:c?.id||'',customerName:cn,driverId:'',driverName:'',picIds:[],picNames:[],shift,status:'pending',deliveryTime:'',totalPax:pax,notes:'',updatedBy:Auth.currentUser()?.nama||'',updatedAt:new Date().toISOString()});
         added++;
       });
     });
