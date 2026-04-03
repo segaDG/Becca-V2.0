@@ -169,6 +169,12 @@ else { window.SettingsModule = (() => {
                 <label class="form-label">Email</label>
                 <input name="email" type="email" class="form-control" value="${settings.email||''}">
               </div>
+              <div class="cf-section" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin:var(--s4) 0 var(--s3);padding-bottom:var(--s2);border-bottom:1px solid var(--border)">Default Food Cost</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--s3);margin-bottom:var(--s4)">
+                <div class="form-group"><label class="form-label">Food Cost (Rp)</label><input name="defaultFoodCost" type="number" min="0" class="form-control" value="${settings.defaultFoodCost||''}" placeholder="Harga default makanan" style="font-family:var(--font-mono)"></div>
+                <div class="form-group"><label class="form-label">Snack Cost (Rp)</label><input name="defaultSnackCost" type="number" min="0" class="form-control" value="${settings.defaultSnackCost||''}" placeholder="Harga default snack" style="font-family:var(--font-mono)"></div>
+                <div class="form-group"><label class="form-label">Snack Berat Cost (Rp)</label><input name="defaultSnackBeratCost" type="number" min="0" class="form-control" value="${settings.defaultSnackBeratCost||''}" placeholder="Harga default snack berat" style="font-family:var(--font-mono)"></div>
+              </div>
               <div class="cf-section" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin:var(--s4) 0 var(--s3);padding-bottom:var(--s2);border-bottom:1px solid var(--border)">Lokasi BPS (Delivery Tracking)</div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);margin-bottom:var(--s3)">
                 <div class="form-group"><label class="form-label">Latitude</label><input name="bpsLat" class="form-control" type="number" step="any" value="${settings.bpsLat||''}" placeholder="-6.xxxxx"></div>
