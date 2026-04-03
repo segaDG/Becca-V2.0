@@ -82,7 +82,33 @@ const MenuModule = (() => {
     if (_libTema) list=list.filter(m=>m.tema===_libTema);
     if (_libJenis) list=list.filter(m=>m.jenis===_libJenis);
 
+    // Count per kategori (from full library, not filtered)
+    const allItems = _library.filter(m=>!m.archived);
+    const katCounts = {};
+    KATEGORI.forEach(k => katCounts[k] = 0);
+    allItems.forEach(m => { if(katCounts[m.klasifikasi]!==undefined) katCounts[m.klasifikasi]++; });
+    const katColors = {'Nasi':'#f59e0b','Lauk Kering':'#ef4444','Lauk Kuah':'#f97316','Pendamping':'#8b5cf6','Sayur':'#10b981','Sambel':'#ec4899','Buah':'#06b6d4','Minuman':'#3b82f6','Paketan':'#6366f1'};
+
     el.innerHTML = `
+      <!-- Kategori cards -->
+      <div style="display:flex;gap:var(--s2);margin-bottom:var(--s3);overflow-x:auto;padding-bottom:4px">
+        <div onclick="MenuModule._libFilter('kat','')" style="flex-shrink:0;padding:8px 14px;border-radius:var(--r-sm);cursor:pointer;border:1px solid ${!_libKat?'var(--primary)':'var(--border)'};background:${!_libKat?'var(--primary-bg)':'var(--surface)'};display:flex;align-items:center;gap:6px;transition:all .15s;box-shadow:0 1px 3px rgba(0,0,0,.06)"
+          onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
+          <span style="font-size:12px;font-weight:600;color:${!_libKat?'var(--primary)':'var(--text)'}">Semua</span>
+          <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:var(--r-full);background:var(--surface2);color:var(--text-2)">${allItems.length}</span>
+        </div>
+        ${KATEGORI.map(k=>{
+          const c=katColors[k]||'var(--text-3)';
+          const active=_libKat===k;
+          return `<div onclick="MenuModule._libFilter('kat','${k}')" style="flex-shrink:0;padding:8px 14px;border-radius:var(--r-sm);cursor:pointer;border:1px solid ${active?c+'50':'var(--border)'};background:${active?c+'12':'var(--surface)'};display:flex;align-items:center;gap:6px;transition:all .15s;box-shadow:0 1px 3px rgba(0,0,0,.06)"
+            onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
+            <span style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0"></span>
+            <span style="font-size:12px;font-weight:600;color:${active?c:'var(--text)');white-space:nowrap">${k}</span>
+            <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:var(--r-full);background:${active?c+'20':'var(--surface2)'};color:${active?c:'var(--text-2)'}">${katCounts[k]}</span>
+          </div>`;
+        }).join('')}
+      </div>
+
       <div class="filter-bar" style="margin-bottom:var(--s3)">
         <input type="text" class="form-control" style="flex:1;min-width:200px" placeholder="Cari menu / bahan..." value="${_esc(_libSearch)}" oninput="MenuModule._libFilter('search',this.value)">
         <select class="form-control" style="width:130px" onchange="MenuModule._libFilter('kat',this.value)">
