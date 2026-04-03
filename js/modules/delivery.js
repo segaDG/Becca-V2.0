@@ -153,7 +153,7 @@ const DeliveryModule = (() => {
     if (!el) return;
     const days = _weekDays(_weekStart), canEdit = Auth.can('delivery','edit');
 
-    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:var(--s2);min-height:60vh">
+    el.innerHTML = `<div id="dlv-week" style="display:grid;grid-template-columns:repeat(7,1fr);gap:var(--s2);min-height:60vh">
       ${days.map((date,i) => {
         const entries = _getEntriesForDate(date), today = _isToday(date);
         const delivered = entries.filter(e=>e.status==='delivered').length, total = entries.length;
@@ -203,14 +203,14 @@ const DeliveryModule = (() => {
       }).join('')}
     </div>
     <style>
-      @media(max-width:1100px){#dlv-grid>div{grid-template-columns:repeat(4,1fr)!important}}
-      @media(max-width:768px){
-        #dlv-grid>div{grid-template-columns:repeat(2,1fr)!important;min-height:auto!important}
-        #dlv-grid>div>div{min-height:200px}
+      @media(max-width:1100px){
+        #dlv-week{grid-template-columns:repeat(7,minmax(180px,1fr))!important}
+        #dlv-grid{overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;padding-bottom:var(--s2)}
+        #dlv-week>div{scroll-snap-align:start;min-width:180px}
       }
-      @media(max-width:480px){
-        #dlv-grid>div{grid-template-columns:1fr!important}
-        #dlv-grid>div>div{min-height:auto}
+      @media(max-width:768px){
+        #dlv-week{grid-template-columns:repeat(7,minmax(160px,1fr))!important;min-height:auto!important}
+        #dlv-week>div{min-width:160px}
       }
     </style>`;
   }
@@ -220,7 +220,6 @@ const DeliveryModule = (() => {
     const st = STATUS[entry.status]||STATUS.pending;
     const conflict = _picHasConflict(entry, cmap);
     const sc = SHIFT_C[entry.shift]||SHIFT_C.all;
-    const picLabel = (entry.picNames||[]).join(', ');
     const bg = conflict ? 'rgba(239,68,68,.07)' : sc.card;
     const bdr = conflict ? 'var(--danger)' : sc.border;
 
@@ -232,8 +231,9 @@ const DeliveryModule = (() => {
           style="width:8px;height:8px;border-radius:50%;background:${st.color};cursor:pointer;flex-shrink:0"></span>
         <div style="font-size:11px;font-weight:700;color:var(--heading);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${_custShort(entry.customerName)}</div>
       </div>
-      ${picLabel?`<div style="font-size:9px;color:${conflict?'var(--danger)':'var(--text-2)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${conflict?'font-weight:700':''}">
-        ${picLabel}${conflict?' \u26a0':''}
+      ${(entry.picNames||[]).length?`<div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:1px">
+        ${(entry.picNames||[]).map(name=>`<span style="font-size:8px;font-weight:600;padding:0 4px;border-radius:var(--r-full);background:${conflict?'var(--danger-bg)':'rgba(148,163,184,.12)'};color:${conflict?'var(--danger)':'var(--text-2)'}">${name}</span>`).join('')}
+        ${conflict?'<span style="font-size:9px;color:var(--danger)">\u26a0</span>':''}
       </div>`:''}
       ${entry.totalPax?`<div style="font-size:9px;color:var(--text-3)">${entry.totalPax} pax${entry.deliveryTime?' \u00b7 '+entry.deliveryTime:''}</div>`:''}
     </div>`;
