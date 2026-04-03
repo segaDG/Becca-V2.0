@@ -260,23 +260,29 @@ const DeliveryModule = (() => {
   /* ═══ RENDER — DELIVERY CARD ═══ */
   function _renderCard(entry, canEdit) {
     const st = STATUS[entry.status] || STATUS.pending;
-    const picLabel = (entry.picNames || []).join(', ') || '-';
+    const picLabel = (entry.picNames || []).join(', ');
+    const shiftLabel = entry.shift === 'all' ? '' : entry.shift;
+    const infoParts = [shiftLabel, entry.totalPax ? entry.totalPax+' pax' : '', entry.deliveryTime].filter(Boolean).join(' · ');
     return `<div onclick="${canEdit ? `DeliveryModule.openModal('${entry.id}','${entry.date}')` : ''}"
       style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:var(--s2) var(--s3);margin-bottom:4px;cursor:${canEdit?'pointer':'default'};transition:all var(--t-fast);border-left:3px solid ${st.color}"
       onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:2px">
-        <div style="font-size:12px;font-weight:600;color:var(--heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${entry.customerName||'-'}</div>
+        <div style="font-size:11px;font-weight:700;color:var(--heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${entry.customerName||'-'}</div>
         <span onclick="event.stopPropagation();DeliveryModule.cycleStatus('${entry.id}')" title="Klik untuk ganti status"
-          style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:var(--r-full);background:${st.bg};color:${st.color};cursor:pointer;white-space:nowrap;flex-shrink:0">
+          style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:var(--r-full);background:${st.bg};color:${st.color};cursor:pointer;white-space:nowrap;flex-shrink:0">
           ${st.icon} ${st.label}
         </span>
       </div>
-      <div style="font-size:10px;color:var(--text-2);display:flex;align-items:center;gap:4px">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="9" height="9"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      ${entry.driverName ? `<div style="font-size:9px;color:var(--info);display:flex;align-items:center;gap:3px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="8" height="8"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        ${entry.driverName}
+      </div>` : ''}
+      ${picLabel ? `<div style="font-size:9px;color:var(--text-2);display:flex;align-items:center;gap:3px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="8" height="8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         ${picLabel}
-      </div>
-      ${entry.totalPax ? `<div style="font-size:10px;color:var(--text-3);margin-top:1px">${entry.totalPax} pax${entry.shift ? ' · '+entry.shift : ''}${entry.deliveryTime ? ' · '+entry.deliveryTime : ''}</div>` : ''}
-      ${entry.notes ? `<div style="font-size:9px;color:var(--text-3);margin-top:2px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${entry.notes}</div>` : ''}
+      </div>` : ''}
+      ${infoParts ? `<div style="font-size:9px;color:var(--text-3);margin-top:1px">${infoParts}</div>` : ''}
+      ${entry.notes ? `<div style="font-size:8px;color:var(--text-3);margin-top:1px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${entry.notes}</div>` : ''}
     </div>`;
   }
 
@@ -325,26 +331,16 @@ const DeliveryModule = (() => {
       body: `
         <input type="hidden" id="dlv-modal-date" value="${date}">
         <div style="font-size:13px;color:var(--primary-h);font-weight:600;margin-bottom:var(--s4)">${dayLabel}</div>
-        <div class="form-group">
-          <label class="form-label">Customer <span class="req">*</span></label>
-          <input type="text" id="dlv-cust-search" class="form-control" placeholder="Cari customer..." oninput="DeliveryModule._filterCust(this.value)" style="margin-bottom:var(--s2)">
-          <div id="dlv-cust-list" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-sm);padding:var(--s2)">
-            ${custOpts.length ? custOpts.map(c => `
-              <label class="form-check dlv-cust-item" style="padding:5px var(--s2);border-radius:var(--r-sm);cursor:pointer;display:flex;align-items:center;gap:var(--s2)" data-search="${c.label.toLowerCase()}" onclick="this.querySelector('input').checked=true;DeliveryModule._onCustSelect('${c.value.replace(/'/g,"\\'")}')">
-                <input type="radio" name="dlv-customer" value="${c.value}" ${existing && existing.customerName===c.value?'checked':''} style="accent-color:var(--primary);width:16px;height:16px;cursor:pointer">
-                <span style="font-size:13px;font-weight:500">${c.label}</span>
-              </label>
-            `).join('') : '<div style="padding:var(--s4);text-align:center;color:var(--text-3);font-size:12px">Tidak ada order pada tanggal ini</div>'}
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Customer <span class="req">*</span></label>
+            <input type="text" id="dlv-customer" class="form-control" placeholder="Klik atau ketik untuk cari..." value="${existing?.customerName||''}" autocomplete="off">
+            <div style="font-size:10px;color:var(--text-3);margin-top:2px">${custOpts.length} customer dengan order di tanggal ini</div>
           </div>
-          <div style="font-size:10px;color:var(--text-3);margin-top:3px">${custOpts.length} customer dengan order di tanggal ini</div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Driver</label>
-          <select id="dlv-driver" class="form-control">
-            <option value="">— Pilih Driver —</option>
-            ${driverList.map(e => `<option value="${e.id}" ${existing && existing.driverId===e.id?'selected':''}>${e.nama}${e.jabatan?' · '+e.jabatan:''}</option>`).join('')}
-          </select>
+          <div class="form-group">
+            <label class="form-label">Driver</label>
+            <input type="text" id="dlv-driver" class="form-control" placeholder="Klik atau ketik untuk cari..." value="${existing?.driverName||''}" autocomplete="off">
+          </div>
         </div>
 
         <div class="form-group">
@@ -405,35 +401,28 @@ const DeliveryModule = (() => {
       `,
     });
 
-    // Auto-select first customer if only one option
-    if (custOpts.length === 1 && !existing) {
-      const radio = document.querySelector('input[name="dlv-customer"]');
-      if (radio) { radio.checked = true; _onCustSelect(custOpts[0].value); }
-    }
-  }
-
-  function _filterCust(q) {
-    const lower = q.toLowerCase();
-    document.querySelectorAll('.dlv-cust-item').forEach(el => {
-      el.style.display = el.dataset.search.includes(lower) ? '' : 'none';
-    });
-  }
-
-  function _onCustSelect(custName) {
-    // Auto-calc pax
-    const paxEl = document.getElementById('dlv-pax');
-    if (paxEl) {
-      // Get date from the modal's day label — find from checked radio's context
-      const radio = document.querySelector('input[name="dlv-customer"]:checked');
-      if (radio && radio.value) {
-        // _weekStart + entries context to find date — use simpler approach: store date on modal
-        const dateEl = document.getElementById('dlv-modal-date');
-        const date = dateEl ? dateEl.value : '';
-        if (date) {
-          const pax = _calcPax(radio.value, date);
-          if (pax > 0) paxEl.value = pax;
+    // Searchable dropdown — customer
+    const custInput = document.getElementById('dlv-customer');
+    if (custInput) {
+      Utils.initCombo(custInput, custOpts, {
+        onSelect(item) {
+          custInput.value = item.value;
+          const paxEl = document.getElementById('dlv-pax');
+          if (paxEl && !existing) {
+            const pax = _calcPax(item.value, date);
+            if (pax > 0) paxEl.value = pax;
+          }
         }
-      }
+      });
+    }
+    // Searchable dropdown — driver
+    const drvInput = document.getElementById('dlv-driver');
+    if (drvInput) {
+      const drvOpts = driverList.map(e => ({ label: e.nama + (e.jabatan ? ' · '+e.jabatan : ''), value: e.id, nama: e.nama }));
+      Utils.initCombo(drvInput, drvOpts, {
+        onSelect(item) { drvInput.value = item.nama; drvInput.dataset.id = item.value; }
+      });
+      if (existing?.driverId) drvInput.dataset.id = existing.driverId;
     }
   }
 
@@ -446,13 +435,12 @@ const DeliveryModule = (() => {
 
   /* ═══ SAVE ENTRY ═══ */
   async function saveEntry(entryId, date, modalId) {
-    const custRadio = document.querySelector('input[name="dlv-customer"]:checked');
-    const customerName = custRadio ? custRadio.value : '';
+    const customerName = (document.getElementById('dlv-customer')?.value || '').trim();
     if (!customerName) { Notify.warning('Pilih customer terlebih dahulu'); return; }
 
-    const driverSel = document.getElementById('dlv-driver');
-    const driverId = driverSel.value;
-    const driverName = driverId ? driverSel.options[driverSel.selectedIndex].text.split(' · ')[0] : '';
+    const drvInput = document.getElementById('dlv-driver');
+    const driverId = drvInput?.dataset?.id || '';
+    const driverName = (drvInput?.value || '').trim();
 
     const picChecks = document.querySelectorAll('#dlv-pic-list input[type="checkbox"]:checked');
     const picIds = [...picChecks].map(c => c.value);
@@ -627,7 +615,7 @@ const DeliveryModule = (() => {
     prevWeek, nextWeek, goToday,
     openModal, saveEntry, deleteEntry,
     cycleStatus, autoPopulate,
-    _filterCust, _onCustSelect, _filterPIC,
+    _filterPIC,
   };
 })();
 window.DeliveryModule = DeliveryModule;

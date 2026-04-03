@@ -136,14 +136,14 @@ Object.assign(Utils, {
     }
 
     function _render(q) {
-      const ms = _matches(q);
-      if (!ms.length || !q.trim()) { _hide(); return; }
+      const ms = q.trim() ? _matches(q) : entries;
+      if (!ms.length) { _hide(); return; }
       activeIdx = 0;
       drop.innerHTML = ms.map((m, i) =>
         `<div class="bcc-i" data-i="${i}" style="padding:6px 10px;cursor:pointer;border-radius:6px;` +
         `font-size:11px;font-weight:600;line-height:1.4;` +
         `color:${i === 0 ? '#a5b4fc' : 'var(--text,#e2e8f0)'};` +
-        `background:${i === 0 ? 'rgba(99,102,241,.22)' : 'transparent'}">${_hl(q.trim(), m.label)}` +
+        `background:${i === 0 ? 'rgba(99,102,241,.22)' : 'transparent'}">${q.trim() ? _hl(q.trim(), m.label) : m.label}` +
         (freq[m.value] > 1 ? `<span style="float:right;font-size:10px;font-weight:400;color:var(--text-3,#64748b);margin-left:8px">${freq[m.value]}×</span>` : '') +
         `</div>`
       ).join('');
@@ -175,7 +175,7 @@ Object.assign(Utils, {
     function _hide() { drop.style.display = 'none'; activeIdx = 0; }
 
     function _onInput()  { _render(inputEl.value); }
-    function _onFocus()  { if (inputEl.value.trim()) _render(inputEl.value); }
+    function _onFocus()  { _render(inputEl.value); }
     function _onBlur()   { setTimeout(_hide, 160); }
     function _onKeyDown(e) {
       if (drop.style.display === 'none') return;
