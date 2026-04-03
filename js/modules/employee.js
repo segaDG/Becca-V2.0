@@ -396,8 +396,12 @@ const EmployeeModule = (() => {
         <input type="text" class="form-control" style="max-width:300px" placeholder="Cari karyawan..."
           oninput="EmployeeModule.filterCards(this.value)" id="card-search">
       </div>
+      <style>
+        @keyframes empCardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        .emp-card-anim{animation:empCardIn .3s ease both}
+      </style>
       <div id="cards-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s4)">
-        ${active.map(emp => _cardHTML(emp)).join('')}
+        ${active.map((emp,i) => _cardHTML(emp,i)).join('')}
       </div>
     `;
   }
@@ -407,10 +411,10 @@ const EmployeeModule = (() => {
     const active = _employees.filter(e=>e.status!=='Arsip');
     const filtered = lower ? active.filter(e=>(e.nama||'').toLowerCase().includes(lower)||(e.jabatan||'').toLowerCase().includes(lower)) : active;
     const grid = document.getElementById('cards-grid');
-    if (grid) grid.innerHTML = filtered.map(emp=>_cardHTML(emp)).join('');
+    if (grid) grid.innerHTML = filtered.map((emp,i)=>_cardHTML(emp,i)).join('');
   }
 
-  function _cardHTML(emp) {
+  function _cardHTML(emp, idx=0) {
     const statusColor = ['AKTIF','ACTIVE','Active','Tetap'].includes(emp.status)?'var(--success)'
       : ['Kontrak','CONTRACT','Percobaan'].includes(emp.status)?'var(--warning)'
       : ['RESIGN','Resign'].includes(emp.status)?'var(--danger)'
@@ -419,8 +423,9 @@ const EmployeeModule = (() => {
     const canEdit    = Auth.can('employee','edit');
     const canFinance = Auth.can('emp_finance','view');
 
-    return `<div onclick="EmployeeModule.viewCard('${emp.id}')" style="cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-                         overflow:hidden;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.08)"
+    const delay = Math.min(idx*40, 600);
+    return `<div class="emp-card-anim" onclick="EmployeeModule.viewCard('${emp.id}')" style="cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+                         overflow:hidden;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.08);animation-delay:${delay}ms"
                   onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)';this.style.boxShadow='var(--shadow-md)'"
                   onmouseout="this.style.borderColor='var(--border)';this.style.transform='';this.style.boxShadow='0 1px 4px rgba(0,0,0,.08)'">
 
