@@ -141,7 +141,7 @@ const DeliveryModule = (() => {
         <button class="btn btn-ghost btn-sm" onclick="DeliveryModule.goToday()">Hari Ini</button>
         <button class="btn btn-ghost btn-sm" onclick="DeliveryModule.nextWeek()">Minggu Depan \u203a</button>
         <div style="flex:1"></div>
-        <span style="font-size:13px;font-weight:600;color:var(--primary-h);background:var(--primary-bg);border:1px solid rgba(99,102,241,.15);padding:6px 16px;border-radius:var(--r-full);display:inline-flex;align-items:center;gap:6px">
+        <span style="font-size:13px;font-weight:600;color:var(--heading);background:var(--surface);border:1px solid var(--border2);padding:6px 16px;border-radius:var(--r-full);display:inline-flex;align-items:center;gap:6px;box-shadow:var(--shadow-sm)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
           ${_fmtDateFull(_weekStart)} \u2014 ${_fmtDateFull(days[6])}
         </span>
@@ -176,7 +176,7 @@ const DeliveryModule = (() => {
           shiftGrp[s][dk].push(e);
         });
         const dt = new Date(date+'T12:00:00');
-        return `<div style="background:var(--surface);border:1px solid ${today?'var(--primary)':'var(--border)'};border-radius:var(--r-md);display:flex;flex-direction:column;min-width:0;overflow:hidden;${today?'box-shadow:0 0 0 2px rgba(99,102,241,.15)':''}">
+        return `<div style="background:var(--surface);border:1px solid ${today?'var(--primary)':'var(--border)'};border-radius:var(--r-md);display:flex;flex-direction:column;min-width:0;overflow:hidden;box-shadow:${today?'0 0 0 2px rgba(99,102,241,.15),':''}0 2px 8px rgba(0,0,0,.08)">
           <div style="padding:var(--s3);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:${today?'var(--primary-bg)':'var(--surface2)'}">
             <div>
               <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${today?'var(--primary-h)':'var(--text-3)'}">${DAYS_SHORT[i]}</div>
