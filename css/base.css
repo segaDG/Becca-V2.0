@@ -5,25 +5,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
 :root {
-  /* === Warna Background === */
-  --bg:        #0b0e14;
-  --surface:   #131720;
-  --surface2:  #1a1f2e;
-  --surface3:  #212840;
-  --overlay:   rgba(0,0,0,0.7);
+  /* === Background — deeper, richer dark palette === */
+  --bg:        #090c10;
+  --surface:   #0f1318;
+  --surface2:  #171c24;
+  --surface3:  #1f2632;
+  --overlay:   rgba(0,0,0,0.75);
 
-  /* === Border === */
-  --border:    #1e2535;
-  --border2:   #2a3248;
+  /* === Border — subtle, layered === */
+  --border:    rgba(255,255,255,.06);
+  --border2:   rgba(255,255,255,.1);
 
-  /* === Brand / Aksen === */
+  /* === Brand / Accent === */
   --primary:   #6366f1;
   --primary-h: #818cf8;
-  --primary-bg:rgba(99,102,241,0.1);
+  --primary-bg:rgba(99,102,241,0.08);
 
-  /* === Status Warna === */
-  --success:   #22c55e;
-  --success-bg:rgba(34,197,94,0.1);
+  /* === Status — vibrant but balanced === */
+  --success:   #10b981;
+  --success-bg:rgba(16,185,129,0.1);
   --warning:   #f59e0b;
   --warning-bg:rgba(245,158,11,0.1);
   --danger:    #ef4444;
@@ -31,28 +31,28 @@
   --info:      #3b82f6;
   --info-bg:   rgba(59,130,246,0.1);
 
-  /* === Teks === */
-  --text:      #e2e8f0;
-  --text-2:    #94a3b8;
-  --text-3:    #475569;
-  --heading:   #f1f5f9;
+  /* === Text — better contrast hierarchy === */
+  --text:      #e8edf4;
+  --text-2:    #8b95a8;
+  --text-3:    #4a5568;
+  --heading:   #f7f9fc;
 
   /* === Spacing (8px scale) === */
   --s1: 4px;  --s2: 8px;  --s3: 12px;
   --s4: 16px; --s5: 20px; --s6: 24px;
   --s8: 32px; --s10:40px; --s12:48px;
 
-  /* === Border Radius === */
-  --r-sm:  6px;
-  --r-md:  10px;
-  --r-lg:  14px;
-  --r-xl:  20px;
+  /* === Border Radius — slightly rounder === */
+  --r-sm:  8px;
+  --r-md:  12px;
+  --r-lg:  16px;
+  --r-xl:  22px;
   --r-full:9999px;
 
-  /* === Shadow === */
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.6);
+  /* === Shadow — softer, more layered === */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.15);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.2);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.25);
 
   /* === Font === */
   --font:      'Inter', sans-serif;

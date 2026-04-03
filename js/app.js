@@ -790,30 +790,32 @@ const App = {
       style.id = 'becca-light-mode-css';
       style.textContent = `
         [data-theme="light"] {
-          --bg:          #f1f5f9;
+          --bg:          #f0f2f5;
           --surface:     #ffffff;
-          --surface2:    #f8fafc;
-          --surface3:    #f1f5f9;
-          --border:      rgba(0,0,0,.1);
-          --border2:     rgba(0,0,0,.15);
-          --text:        #0f172a;
-          --text-1:      #1e293b;
-          --text-2:      #475569;
-          --text-3:      #94a3b8;
-          --heading:     #0f172a;
-          --overlay:     rgba(0,0,0,.4);
-          --shadow-sm:   0 1px 2px rgba(0,0,0,.08);
-          --shadow-md:   0 4px 12px rgba(0,0,0,.1);
-          --shadow-lg:   0 8px 24px rgba(0,0,0,.12);
+          --surface2:    #f7f8fa;
+          --surface3:    #eef0f4;
+          --border:      rgba(0,0,0,.08);
+          --border2:     rgba(0,0,0,.12);
+          --text:        #111827;
+          --text-1:      #1f2937;
+          --text-2:      #4b5563;
+          --text-3:      #9ca3af;
+          --heading:     #030712;
+          --overlay:     rgba(0,0,0,.35);
+          --shadow-sm:   0 1px 2px rgba(0,0,0,.05), 0 1px 3px rgba(0,0,0,.04);
+          --shadow-md:   0 4px 12px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.04);
+          --shadow-lg:   0 12px 40px rgba(0,0,0,.1), 0 4px 12px rgba(0,0,0,.05);
           color-scheme: light;
         }
         [data-theme="light"] .sidebar {
           background: #ffffff;
-          border-right: 1px solid rgba(0,0,0,.08);
+          border-right: 1px solid rgba(0,0,0,.06);
+          box-shadow: 2px 0 8px rgba(0,0,0,.03);
         }
         [data-theme="light"] .header {
           background: #ffffff;
-          border-bottom: 1px solid rgba(0,0,0,.08);
+          border-bottom: 1px solid rgba(0,0,0,.06);
+          box-shadow: 0 1px 4px rgba(0,0,0,.03);
         }
         [data-theme="light"] .ks-tbl td,
         [data-theme="light"] .iv-tbl td {
