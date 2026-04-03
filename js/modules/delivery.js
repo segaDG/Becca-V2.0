@@ -243,6 +243,15 @@ const DeliveryModule = (() => {
     const driverList=drivers.length?drivers:allEmps, picList=pics.length?pics:allEmps;
     const mid='dlv-'+Date.now(), dayLabel=_dayName(date)+', '+_fmtDateFull(date), selPics=existing?(existing.picIds||[]):[];
 
+    // Count usage per day (exclude current entry being edited)
+    const dayEntries = _getEntriesForDate(date).filter(e => e.id !== entryId);
+    const picUsage = {};  // picId → count
+    const drvUsage = {};  // driverId → count
+    dayEntries.forEach(e => {
+      (e.picIds||[]).forEach(pid => { picUsage[pid] = (picUsage[pid]||0)+1; });
+      if (e.driverId) drvUsage[e.driverId] = (drvUsage[e.driverId]||0)+1;
+    });
+
     Modal.open({ id:mid, title:existing?'Edit Delivery':'Tambah Delivery', size:'modal-lg',
       body: `
         <input type="hidden" id="dlv-modal-date" value="${date}">
@@ -262,10 +271,14 @@ const DeliveryModule = (() => {
           <label class="form-label">PIC / Pramusaji</label>
           <input type="text" id="dlv-pic-search" class="form-control" placeholder="Cari PIC..." oninput="DeliveryModule._filterPIC(this.value)" style="margin-bottom:var(--s2)">
           <div id="dlv-pic-list" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-sm);padding:var(--s2)">
-            ${picList.map(e=>`<label class="form-check dlv-pic-item" style="padding:4px 0" data-name="${(e.nama||'').toLowerCase()}">
+            ${picList.map(e=>{
+              const cnt = picUsage[e.id]||0;
+              const cntBadge = cnt ? `<span style="font-size:9px;font-weight:700;padding:0 5px;border-radius:var(--r-full);background:${cnt>=2?'var(--danger-bg)':'var(--warning-bg)'};color:${cnt>=2?'var(--danger)':'var(--warning)'};margin-left:auto;flex-shrink:0">${cnt}x</span>` : '';
+              return `<label class="form-check dlv-pic-item" style="padding:4px 0;display:flex;align-items:center" data-name="${(e.nama||'').toLowerCase()}">
               <input type="checkbox" value="${e.id}" data-nama="${e.nama}" ${selPics.includes(e.id)?'checked':''}>
-              <span class="form-check-label">${e.nama}${e.jabatan?' <span style="color:var(--text-3);font-size:11px">\u00b7 '+e.jabatan+'</span>':''}</span>
-            </label>`).join('')}
+              <span class="form-check-label" style="flex:1">${e.nama}${e.jabatan?' <span style="color:var(--text-3);font-size:11px">\u00b7 '+e.jabatan+'</span>':''}</span>
+              ${cntBadge}
+            </label>`;}).join('')}
           </div>
         </div>
         <div class="form-row-3">
@@ -305,7 +318,11 @@ const DeliveryModule = (() => {
     if (ci) Utils.initCombo(ci, custOpts, { onSelect(item) { ci.value=item.value; const p=document.getElementById('dlv-pax'); if(p&&!existing){const x=_calcPax(item.value,date);if(x>0)p.value=x;} } });
     const di = document.getElementById('dlv-driver');
     if (di) {
-      const dOpts = driverList.map(e=>({label:e.nama+(e.jabatan?' \u00b7 '+e.jabatan:''),value:e.id,nama:e.nama}));
+      const dOpts = driverList.map(e=>{
+        const cnt = drvUsage[e.id]||0;
+        const tag = cnt ? ` (${cnt}x hari ini)` : '';
+        return {label:e.nama+(e.jabatan?' \u00b7 '+e.jabatan:'')+tag, value:e.id, nama:e.nama};
+      });
       Utils.initCombo(di, dOpts, { onSelect(item){di.value=item.nama;di.dataset.id=item.value;} });
       if (existing?.driverId) di.dataset.id=existing.driverId;
     }
