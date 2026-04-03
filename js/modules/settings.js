@@ -510,22 +510,9 @@ else { window.SettingsModule = (() => {
 
   /* ===================== TAB: PRIVILEGE ===================== */
   async function renderPrivilege() {
-    // Sync privileges dari DB — MERGE dengan local, bukan replace
-    // Mencegah data role/modul baru hilang jika Supabase punya versi lama
-    let local = {};
-    try { local = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
+    // Fetch settings dari Supabase — getSettings() sudah sync _privileges ke localStorage (DB = source of truth)
     try {
       const settings = await DB.getSettings();
-      if (settings?._privileges) {
-        const db = settings._privileges;
-        // Deep merge per role per feature: DB wins, tapi local menambahkan role/feature yang belum ada di DB
-        const merged = { ...local };
-        Object.keys(db).forEach(role => {
-          if (!merged[role]) { merged[role] = { ...db[role] }; }
-          else { merged[role] = { ...merged[role], ...db[role] }; }
-        });
-        localStorage.setItem('becca_privileges', JSON.stringify(merged));
-      }
       if (settings?._customRoles) localStorage.setItem('becca_custom_roles', JSON.stringify(settings._customRoles));
     } catch(e) { console.warn('[Settings] sync privileges:', e); }
     if (Auth._bustPrivCache) Auth._bustPrivCache();
@@ -639,8 +626,12 @@ else { window.SettingsModule = (() => {
     DB.logActivity({type:'update_privileges', detail:'Hak akses diperbarui'});
   }
 
-  function resetPrivileges() {
+  async function resetPrivileges() {
+    if (!confirm('Reset semua hak akses ke default?')) return;
     localStorage.removeItem('becca_privileges');
+    // Also clear from Supabase
+    try { await DB.saveSettings({ _privileges: {} }); } catch {}
+    if (Auth._bustPrivCache) Auth._bustPrivCache();
     Notify.success('Hak akses direset ke default');
     renderPrivilege();
   }

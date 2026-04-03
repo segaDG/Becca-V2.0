@@ -624,16 +624,10 @@ const DB = (() => {
           const keys = Object.keys(parsed);
           const isCorrupted = keys.length > 0 && keys.every(k => !isNaN(k));
           if (!isCorrupted) {
-            // Sync privileges + customRoles ke localStorage agar Auth bisa baca antar device
-            // MERGE — DB wins per role+feature, tapi local menambahkan role/feature baru yang belum di DB
+            // Sync privileges ke localStorage — DB is source of truth, REPLACE bukan merge
             if (parsed._privileges) {
               try {
-                const localPriv = JSON.parse(localStorage.getItem('becca_privileges') || '{}');
-                const merged = { ...localPriv };
-                Object.keys(parsed._privileges).forEach(role => {
-                  merged[role] = { ...(merged[role]||{}), ...parsed._privileges[role] };
-                });
-                localStorage.setItem('becca_privileges', JSON.stringify(merged));
+                localStorage.setItem('becca_privileges', JSON.stringify(parsed._privileges));
               } catch {}
             }
             if (parsed._customRoles && Array.isArray(parsed._customRoles)) {
@@ -685,10 +679,15 @@ const DB = (() => {
       } catch {}
     }
     // local: untuk githubToken dan setting lokal lain yang tidak ada di Supabase
+    // PENTING: exclude _privileges, _customRoles, _users dari local agar tidak overwrite Supabase
     const local = JSON.parse(localStorage.getItem('becca_settings') || '{}');
+    delete local._privileges; delete local._customRoles; delete local._users;
     // supaBase (cloud) → local (override lokal) → data (nilai baru)
     const merged = { ...supaBase, ...local, ...data, id: 'main' };
-    localStorage.setItem('becca_settings', JSON.stringify(merged));
+    // Jangan simpan _privileges/_users/_customRoles di becca_settings — mereka punya storage sendiri
+    const toStore = { ...merged };
+    delete toStore._privileges; delete toStore._customRoles; delete toStore._users;
+    localStorage.setItem('becca_settings', JSON.stringify(toStore));
 
     if (sb) {
       const { error } = await sb.from('settings').upsert(
