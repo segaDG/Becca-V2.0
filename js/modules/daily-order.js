@@ -1017,7 +1017,7 @@ const DailyOrderModule = (() => {
       <style>
         .sm-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
         .sm-tbl{width:100%;border-collapse:collapse;font-size:11px;min-width:900px}
-        .sm-tbl thead th{padding:7px 6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;background:linear-gradient(135deg,#3B4E87,#4A5E99);color:#fff}
+        .sm-tbl thead th{padding:7px 6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;background:var(--thead-bg);color:var(--thead-text)}
         .sm-tbl thead th:first-child{border-radius:0}
         .sm-td{padding:5px 6px;border-bottom:1px solid rgba(0,0,0,.05)}
         .sm-tbl tbody tr{transition:background .1s}

@@ -803,7 +803,7 @@ const KasModule = (() => {
     const tbc    = keluar.filter(r=>r.status==='TBC');
     const noSt   = keluar.filter(r=>!r.status);
     const _card = (icon, label, value, color, accent, onclick='') => {
-      return `<div ${onclick?`onclick="${onclick}"`:''}  class="ks-strip-card" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s3) var(--s4);min-width:0;transition:all .2s;position:relative;overflow:hidden;${onclick?'cursor:pointer':''}"
+      return `<div ${onclick?`onclick="${onclick}"`:''}  class="ks-strip-card" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s3) var(--s4);min-width:0;transition:all .2s;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);${onclick?'cursor:pointer':''}"
         onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='var(--shadow-sm)'"
         onmouseout="this.style.transform='';this.style.boxShadow=''">
         <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${accent}"></div>

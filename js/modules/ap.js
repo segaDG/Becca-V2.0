@@ -122,7 +122,7 @@ const APModule = (() => {
           {l:'Total AP',       v:Utils.formatRupiah(totalTagihan,true),  c:'#6366f1', ic:'📋', sub:sorted.length+' total transaksi'},
           {l:'Supplier Aktif', v:_suppliers.length+' supplier',          c:'#f59e0b', ic:'🏭', sub:supList.length+' supplier punya tagihan'},
         ].map(s=>`
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;position:relative;overflow:hidden${s.click?';cursor:pointer':''}"${s.click?' onclick="APModule.filterBelum()"':''}>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)${s.click?';cursor:pointer':''}"${s.click?' onclick="APModule.filterBelum()"':''}>
             <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:${s.c};border-radius:4px 0 0 4px"></div>
             <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:6px">${s.l}</div>
             <div style="font-size:20px;font-weight:800;color:${s.c};font-family:var(--font-mono);letter-spacing:-.02em">${s.v}</div>
@@ -156,7 +156,7 @@ const APModule = (() => {
       </div>
 
       <!-- TABLE -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
           <table style="width:100%;border-collapse:collapse;min-width:900px" id="ap-main-table">
             <thead>
@@ -629,7 +629,7 @@ const APModule = (() => {
           {l:'Punya Tagihan',  v:supWithAP+' supplier',      c:'var(--warning)'},
           {l:'Total AP Aktif', v:_ap.filter(a=>a.status!=='LUNAS').length+' tagihan', c:'var(--danger)'},
         ].map(s=>`
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 150px;min-width:0;max-width:220px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 150px;min-width:0;max-width:220px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
             <div style="font-size:16px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
           </div>`).join('')}
@@ -966,7 +966,7 @@ const APModule = (() => {
 
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <span style="font-size:10px;font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em">Periode</span>
           <select id="vap-fil-bulan" class="form-control" style="width:160px;height:32px;font-size:13px;font-weight:500" onchange="APModule.applyVAPFilter()">
             ${monthOpts}
@@ -1448,22 +1448,22 @@ const APModule = (() => {
     page.innerHTML = `
       <!-- Summary Header Cards -->
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-        <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:16px;padding:20px;color:#fff">
+        <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:16px;padding:20px;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="font-size:11px;opacity:.8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Total AP</div>
           <div style="font-size:22px;font-weight:800;margin:6px 0">${fmtRp(grandTotal)}</div>
           <div style="font-size:12px;opacity:.8">${grandCount} transaksi</div>
         </div>
-        <div style="background:linear-gradient(135deg,#10b981,#059669);border-radius:16px;padding:20px;color:#fff">
+        <div style="background:linear-gradient(135deg,#10b981,#059669);border-radius:16px;padding:20px;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="font-size:11px;opacity:.8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Sudah Dibayar</div>
           <div style="font-size:22px;font-weight:800;margin:6px 0">${fmtRp(grandPaid)}</div>
           <div style="font-size:12px;opacity:.8">${lunasCnt} transaksi lunas</div>
         </div>
-        <div style="background:linear-gradient(135deg,#ef4444,#dc2626);border-radius:16px;padding:20px;color:#fff">
+        <div style="background:linear-gradient(135deg,#ef4444,#dc2626);border-radius:16px;padding:20px;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="font-size:11px;opacity:.8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Sisa Hutang</div>
           <div style="font-size:22px;font-weight:800;margin:6px 0">${fmtRp(grandUnpaid)}</div>
           <div style="font-size:12px;opacity:.8">${grandCount-lunasCnt} belum lunas</div>
         </div>
-        <div style="background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:16px;padding:20px;color:#fff">
+        <div style="background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:16px;padding:20px;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="font-size:11px;opacity:.8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Persentase Lunas</div>
           <div style="font-size:22px;font-weight:800;margin:6px 0">${pct(grandPaid,grandTotal)}%</div>
           <div style="font-size:12px;opacity:.8;background:rgba(255,255,255,.2);border-radius:20px;height:6px;margin-top:8px"><div style="background:#fff;height:6px;border-radius:20px;width:${pct(grandPaid,grandTotal)}%"></div></div>
@@ -1473,7 +1473,7 @@ const APModule = (() => {
       <!-- Main content 2 columns -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
         <!-- Per Vendor Chart -->
-        <div style="background:var(--surface2);border-radius:14px;padding:20px;border:.5px solid var(--border)">
+        <div style="background:var(--surface2);border-radius:14px;padding:20px;border:.5px solid var(--border);box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px">📊 AP per Vendor</div>
           ${vendors.map((v,i) => `
             <div style="margin-bottom:14px">
@@ -1493,7 +1493,7 @@ const APModule = (() => {
         </div>
 
         <!-- Per Bulan Table -->
-        <div style="background:var(--surface2);border-radius:14px;padding:20px;border:.5px solid var(--border)">
+        <div style="background:var(--surface2);border-radius:14px;padding:20px;border:.5px solid var(--border);box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px">📅 AP per Bulan</div>
           <table style="width:100%;border-collapse:collapse;font-size:12px">
             <thead>

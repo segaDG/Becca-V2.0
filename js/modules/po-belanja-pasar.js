@@ -279,7 +279,7 @@ window.POBelanjaPasarModule = (() => {
 
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">
         <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:1100px" id="bp-table">
-          <thead><tr style="background:linear-gradient(135deg,#059669,#10b981);color:#fff">
+          <thead><tr style="background:var(--thead-bg);color:var(--thead-text)">
             <th style="padding:10px 6px;font-size:9px;font-weight:700;width:28px">#</th>
             <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:left;min-width:150px">ITEM</th>
             <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:65px">SISA GUDANG</th>

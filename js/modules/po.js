@@ -125,7 +125,7 @@ else { window.POModule = (() => {
         const isSelesai = d.status === 'selesai';
         const cardBg = isSelesai ? 'rgba(100,116,139,.08)' : isConfirmed ? 'rgba(16,185,129,.08)' : d.status==='arsip' ? 'rgba(100,116,139,.04)' : '';
         const cardBorder = isSelesai ? 'rgba(100,116,139,.25)' : isConfirmed ? 'rgba(16,185,129,.3)' : 'var(--border)';
-        return `<div style="background:var(--surface);border:1px solid ${cardBorder};border-radius:10px;padding:12px 16px;cursor:pointer;transition:.15s;position:relative;overflow:hidden;${cardBg?'background:'+cardBg:''}"
+        return `<div style="background:var(--surface);border:1px solid ${cardBorder};border-radius:10px;padding:12px 16px;cursor:pointer;transition:.15s;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);${cardBg?'background:'+cardBg:''}"
           onclick="POModule.openAnggaran('${d.id}')"
           onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
           ${isSelesai ? `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-25deg);font-size:32px;font-weight:900;color:rgba(100,116,139,.12);pointer-events:none;white-space:nowrap;letter-spacing:6px;font-style:italic">SELESAI</div>` : ''}
@@ -222,7 +222,7 @@ else { window.POModule = (() => {
         </div>
       </div>
 
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
           <div class="form-group"><label class="form-label">Nomor Estimasi</label>
             <input class="form-control" value="${doc.nomorEstimasi||''}" onchange="POModule._saveMeta('${id}','nomorEstimasi',this.value)" style="font-family:var(--font-mono);font-weight:700" ${locked?'disabled':''}></div>
@@ -239,7 +239,7 @@ else { window.POModule = (() => {
         ${isSelesai ? `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(100,116,139,.08);pointer-events:none;white-space:nowrap;letter-spacing:12px;text-transform:uppercase;font-style:italic;z-index:2">SELESAI</div>` : ''}
         <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:800px" id="po-table" data-grid-select data-doc="${id}">
-          <thead><tr style="background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff">
+          <thead><tr style="background:var(--thead-bg);color:var(--thead-text)">
             <th style="padding:7px 6px;font-size:9px;font-weight:700;width:28px">#</th>
             <th style="padding:7px 6px;font-size:9px;font-weight:700;text-align:left;min-width:180px">NAMA BARANG</th>
             <th style="padding:7px 6px;font-size:9px;font-weight:700;width:45px">QTY</th>

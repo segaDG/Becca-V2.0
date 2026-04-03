@@ -279,9 +279,9 @@ const NewsModule = (() => {
                 style="background:var(--surface);border:1px solid ${unrd ? col : 'var(--border)'};
                        border-left:4px solid ${unrd ? col : 'var(--border)'};
                        border-radius:12px;padding:14px 16px;cursor:pointer;
-                       transition:transform .15s,box-shadow .15s;position:relative;overflow:hidden"
+                       transition:transform .15s,box-shadow .15s;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)"
                 onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.08)'"
-                onmouseout="this.style.transform='';this.style.boxShadow=''">
+                onmouseout="this.style.transform='';this.style.boxShadow='0 1px 4px rgba(0,0,0,.08)'">
                 ${unrd ? `<div style="position:absolute;top:12px;right:12px;width:8px;height:8px;border-radius:50%;background:${col}"></div>` : ''}
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;flex-wrap:wrap">
                   <span style="font-size:16px">${_ICON[item.tipe] || '📢'}</span>

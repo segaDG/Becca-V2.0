@@ -190,20 +190,20 @@ const EmployeeModule = (() => {
     document.getElementById('emp-tab-data').innerHTML = `
       <!-- Stats cards: Aktif + per Departemen -->
       <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:140px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Aktif</div>
           <div style="font-size:18px;font-weight:700;color:var(--success);font-family:var(--font-mono)">${active.filter(e=>['AKTIF','ACTIVE','Active','Tetap'].includes(e.status)).length}</div>
         </div>
         ${depts.map(dept => {
           const count = active.filter(e=>(e.divisi||e.departemen)===dept).length;
           const deptEsc = dept.replace(/'/g,"\'");
-          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer"
+          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.08)"
             onclick="EmployeeModule.setFilter('dept','${deptEsc}')" title="Filter: ${dept}">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">${dept}</div>
             <div style="font-size:18px;font-weight:700;color:var(--primary-h);font-family:var(--font-mono)">${count}</div>
           </div>`;
         }).join('')}
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:120px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:120px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Tanpa Divisi</div>
           <div style="font-size:18px;font-weight:700;color:var(--text-2);font-family:var(--font-mono)">${active.filter(e=>!(e.divisi||e.departemen)).length}</div>
         </div>
@@ -212,12 +212,12 @@ const EmployeeModule = (() => {
           const hasFace = active.filter(e=>e.faceDescriptors?.length).length;
           const total = active.length;
           return `
-          <div style="background:var(--surface);border:1px solid ${hasKtp<total?'rgba(245,158,11,.3)':'rgba(16,185,129,.3)'};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer"
+          <div style="background:var(--surface);border:1px solid ${hasKtp<total?'rgba(245,158,11,.3)':'rgba(16,185,129,.3)'};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.08)"
             onclick="EmployeeModule.setFilter('ktp','missing')" title="Filter: belum punya KTP">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">🪪 KTP</div>
             <div style="font-size:18px;font-weight:700;color:${hasKtp<total?'#f59e0b':'#10b981'};font-family:var(--font-mono)">${hasKtp}/${total}</div>
           </div>
-          <div style="background:var(--surface);border:1px solid ${hasFace<total?'rgba(245,158,11,.3)':'rgba(99,102,241,.3)'};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer"
+          <div style="background:var(--surface);border:1px solid ${hasFace<total?'rgba(245,158,11,.3)':'rgba(99,102,241,.3)'};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.08)"
             onclick="EmployeeModule.setFilter('face','missing')" title="Filter: belum daftar wajah">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">📷 Face</div>
             <div style="font-size:18px;font-weight:700;color:${hasFace<total?'#f59e0b':'#6366f1'};font-family:var(--font-mono)">${hasFace}/${total}</div>
@@ -227,7 +227,7 @@ const EmployeeModule = (() => {
 
 
       ${canFinance ? `<!-- Total Gaji Card -->
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:var(--s3)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:var(--s3);box-shadow:0 1px 4px rgba(0,0,0,.08)">
         <div>
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Total Gaji Keseluruhan</div>
           <div style="font-size:18px;font-weight:800;color:var(--primary-h);font-family:var(--font-mono);margin-top:2px">
@@ -420,9 +420,9 @@ const EmployeeModule = (() => {
     const canFinance = Auth.can('emp_finance','view');
 
     return `<div onclick="EmployeeModule.viewCard('${emp.id}')" style="cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-                         overflow:hidden;transition:all .2s;"
+                         overflow:hidden;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.08)"
                   onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)';this.style.boxShadow='var(--shadow-md)'"
-                  onmouseout="this.style.borderColor='var(--border)';this.style.transform='';this.style.boxShadow=''">
+                  onmouseout="this.style.borderColor='var(--border)';this.style.transform='';this.style.boxShadow='0 1px 4px rgba(0,0,0,.08)'">
 
       <!-- Card Header -->
       <div style="background:linear-gradient(135deg,rgba(99,102,241,.15),rgba(139,92,246,.1));padding:20px;
@@ -494,7 +494,7 @@ const EmployeeModule = (() => {
       </div>
       <div style="display:grid;grid-template-columns:320px 1fr;gap:var(--s5);align-items:start">
         <!-- Profile Card -->
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(139,92,246,.15));
                       padding:30px 20px;text-align:center;border-bottom:1px solid var(--border)">
             <div style="margin:0 auto 12px;display:flex;justify-content:center">
@@ -547,7 +547,7 @@ const EmployeeModule = (() => {
         <div style="display:flex;flex-direction:column;gap:var(--s4)">
 
         <!-- Foto KTP -->
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
             <div style="font-size:14px;font-weight:700;color:var(--heading)">🪪 Foto KTP</div>
             ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="EmployeeModule.openEmpModal('${emp.id}')">Edit / Upload KTP</button>` : ''}
@@ -561,7 +561,7 @@ const EmployeeModule = (() => {
         </div>
 
         <!-- Log History -->
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
             <div style="font-size:14px;font-weight:700;color:var(--heading)">Riwayat Log (${empLogs.length})</div>
             ${canFinance ? (()=>{
@@ -629,7 +629,7 @@ const EmployeeModule = (() => {
    {l:'Sisa Hutang',   v:Utils.formatRupiah(saldo,false),        c:saldo>0?'var(--danger)':'var(--success)'},
           {l:'Total Records', v:_logs.length+' entri',                 c:'var(--text-2)'},
         ].map(s=>`
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 16px;min-width:130px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 16px;min-width:130px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
             <div style="font-size:10px;color:var(--text-3);margin-bottom:2px">${s.l}</div>
             <div class="lb-summary-card" style="font-size:15px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
           </div>`).join('')}
@@ -2086,15 +2086,15 @@ const EmployeeModule = (() => {
       </div>
       ${monthPay.length ? `
       <div style="display:flex;gap:var(--s3);flex-wrap:wrap;margin-bottom:var(--s4)">
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 150px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 150px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="font-size:11px;color:var(--text-3)">Total Gaji Kotor</div>
           <div style="font-size:16px;font-weight:700;font-family:var(--font-mono)">${Utils.formatRupiah(totalGross,false)}</div>
         </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 150px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 150px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="font-size:11px;color:var(--text-3)">Total Take-Home</div>
           <div style="font-size:16px;font-weight:700;font-family:var(--font-mono);color:var(--success)">${Utils.formatRupiah(totalNet,false)}</div>
         </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 120px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 120px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
           <div style="font-size:11px;color:var(--text-3)">Status Pembayaran</div>
           <div style="font-size:16px;font-weight:700">${lunas}/${monthPay.length} Lunas</div>
         </div>

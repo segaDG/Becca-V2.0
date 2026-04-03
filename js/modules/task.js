@@ -620,9 +620,9 @@ const TaskModule = (() => {
       style="background:${cardBg};border:1px solid ${cardBorder};
         border-left:3px solid ${borderLeft};border-radius:8px;
         padding:10px 12px;opacity:${isArsip?'.65':'1'};cursor:grab;
-        transition:box-shadow .15s,transform .15s,opacity .15s"
+        transition:box-shadow .15s,transform .15s,opacity .15s;box-shadow:0 1px 4px rgba(0,0,0,.08)"
       onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'"
-      onmouseleave="this.style.boxShadow=''"
+      onmouseleave="this.style.boxShadow='0 1px 4px rgba(0,0,0,.08)'"
       onclick="TaskModule.openModal('${t.id}')">
       <div style="display:flex;justify-content:flex-end;margin-bottom:1px;opacity:.2;font-size:12px;cursor:grab;letter-spacing:2px"
         title="Drag untuk ubah urutan">⠿⠿</div>

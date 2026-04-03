@@ -59,7 +59,7 @@ const DashboardModule = (() => {
       </div>
       <div id="dash-content"><div style="text-align:center;padding:60px;color:var(--text-3)">Memuat...</div></div>
       <style>
-        .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5);cursor:pointer;transition:all .2s;position:relative;overflow:hidden;user-select:none}
+        .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5);cursor:pointer;transition:all .2s;position:relative;overflow:hidden;user-select:none;box-shadow:0 1px 4px rgba(0,0,0,.06)}
         .stat-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.25)}
         .stat-card:hover .stat-arrow{opacity:1;transform:translateX(0)}
         .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--r-lg) var(--r-lg) 0 0}
@@ -269,7 +269,7 @@ const DashboardModule = (() => {
 
   function _renderRecentKasTable(rows) {
     const nav = "App.navigate(\'kas\')";
-    let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">'
+    let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">'
       + '<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(239,68,68,.1);display:flex;align-items:center;justify-content:center;font-size:15px">💰</div>'
       + '<div style="font-size:14px;font-weight:700">Transaksi Kas Terbaru</div></div>'
@@ -294,7 +294,7 @@ const DashboardModule = (() => {
 
   function _renderLowStockCard(lowStock) {
     const nav = "App.navigate(\'inventory\')";
-    let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">'
+    let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">'
       + '<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(245,158,11,.1);display:flex;align-items:center;justify-content:center;font-size:15px">⚠️</div>'
       + '<div><div style="font-size:14px;font-weight:700">Stok Menipis</div>'
@@ -320,7 +320,7 @@ const DashboardModule = (() => {
 
   function _renderHutangTable(topHutang) {
     const nav = "App.navigate(\'employee\')";
-    let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-top:var(--s5)">'
+    let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-top:var(--s5);box-shadow:0 1px 4px rgba(0,0,0,.08)">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">'
       + '<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(245,158,11,.1);display:flex;align-items:center;justify-content:center;font-size:15px">💳</div>'
       + '<div style="font-size:14px;font-weight:700">Hutang Karyawan Terbesar</div></div>'
