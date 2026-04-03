@@ -15,6 +15,7 @@ const PersonalModule = (() => {
   function _fmtRp(v) { const n=Number(v)||0; return n?'Rp '+n.toLocaleString('id'):'-'; }
   function _fmtDate(s) { if(!s) return '-'; try{return new Date(s+'T12:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'});}catch{return s;} }
   function _mask(val,visible) { if(!val) return '-'; return visible ? val : '\u2022\u2022\u2022\u2022\u2022\u2022'; }
+  function _esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
   function _toggleField(field) {
     _showData[field] = !_showData[field];
     localStorage.setItem(_SHOW_KEY, JSON.stringify(_showData));
@@ -292,13 +293,13 @@ const PersonalModule = (() => {
       body = todos.slice(0,5).map(t =>
         `<div style="display:flex;align-items:center;gap:6px;padding:2px 0">
           <span style="width:14px;height:14px;border-radius:3px;border:2px solid ${c.fold};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:9px;color:${c.fold}">${t.done?'\u2713':''}</span>
-          <span style="font-size:12px;${t.done?'text-decoration:line-through;opacity:.5':''}">${t.text}</span>
+          <span style="font-size:12px;${t.done?'text-decoration:line-through;opacity:.5':''}">${_esc(t.text)}</span>
         </div>`
       ).join('');
       if (todos.length > 5) body += `<div style="font-size:10px;color:${c.fold};margin-top:2px">+${todos.length-5} more</div>`;
       if (todos.length) body += `<div style="font-size:10px;margin-top:4px;color:${c.fold};font-weight:600">${doneCount}/${todos.length} selesai</div>`;
     } else {
-      body = `<div style="font-size:12px;max-height:80px;overflow:hidden;line-height:1.6;white-space:pre-wrap">${(n.content||'').slice(0,200)}</div>`;
+      body = `<div style="font-size:12px;max-height:80px;overflow:hidden;line-height:1.6;white-space:pre-wrap">${_esc((n.content||'').slice(0,200))}</div>`;
     }
 
     return `<div style="position:relative;padding-bottom:44px;animation-delay:${delay}ms">
@@ -307,7 +308,7 @@ const PersonalModule = (() => {
         box-shadow:2px 3px 12px rgba(0,0,0,.1);min-height:120px;position:relative;transform:rotate(${(idx%2===0?-0.5:0.5)}deg)"
         ontouchstart="this._sy=event.touches[0].clientY" ontouchmove="PersonalModule._noteSwipe(this,event)" ontouchend="PersonalModule._noteSwipeEnd(this)">
         <div class="sticky-fold" style="border-width:0 24px 24px 0;border-color:transparent ${c.fold} transparent transparent"></div>
-        <div style="font-size:15px;font-weight:700;margin-bottom:8px;padding-right:20px">${n.title||'Tanpa judul'}</div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:8px;padding-right:20px">${_esc(n.title)||'Tanpa judul'}</div>
         ${body}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
           ${hasReminder?`<span style="font-size:9px;font-weight:600;color:${c.fold}">\u23f0 ${new Date(n.reminderAt).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>`:`<span></span>`}
@@ -331,16 +332,19 @@ const PersonalModule = (() => {
 
   // Touch swipe down to reveal actions
   function _noteSwipe(el, e) {
+    e.preventDefault(); // prevent scroll
     const dy = e.touches[0].clientY - (el._sy||0);
-    if (dy > 20) { el.style.transform = `translateY(${Math.min(dy-20,50)}px)`; el.classList.add('swiped'); }
+    if (dy > 20) { el.style.transform = `translateY(${Math.min(dy-20,50)}px)`; el.classList.add('swiped'); el._didSwipe=true; }
     else { el.style.transform = ''; el.classList.remove('swiped'); }
   }
   function _noteSwipeEnd(el) {
-    const wasSwiped = el.classList.contains('swiped');
     el.style.transform = '';
-    if (!wasSwiped) el.classList.remove('swiped');
-    // Auto-hide actions after 3s
-    if (wasSwiped) setTimeout(()=>el.classList.remove('swiped'), 3000);
+    if (el._didSwipe) {
+      // Block click that fires after swipe
+      el.addEventListener('click', function block(ev){ev.stopPropagation();ev.preventDefault();el.removeEventListener('click',block,true);}, {capture:true,once:true});
+      setTimeout(()=>el.classList.remove('swiped'), 4000);
+      el._didSwipe = false;
+    } else { el.classList.remove('swiped'); }
   }
 
   async function _archiveNote(noteId) {
@@ -366,7 +370,7 @@ const PersonalModule = (() => {
         <div id="note-todo-list" style="margin-bottom:var(--s2)">
           ${todos.map((t,i)=>`<div style="display:flex;align-items:center;gap:var(--s2);margin-bottom:4px" class="todo-row">
             <input type="checkbox" ${t.done?'checked':''} style="accent-color:var(--primary);width:16px;height:16px;cursor:pointer">
-            <input type="text" class="form-control" value="${t.text||''}" placeholder="Item..." style="flex:1;min-height:32px;padding:4px 8px;font-size:13px">
+            <input type="text" class="form-control" value="${_esc(t.text)}" placeholder="Item..." style="flex:1;min-height:32px;padding:4px 8px;font-size:13px">
             <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px">\u00d7</button>
           </div>`).join('')}
         </div>
@@ -494,7 +498,9 @@ const PersonalModule = (() => {
 
   function _saveFloatPos() {
     const el = document.getElementById('floating-note');
-    if (el) _floatPos = { top: el.style.top, left: el.style.left, right: el.style.right, bottom: el.style.bottom };
+    if (!el) return;
+    // Only save if position was set (dragged at least once)
+    if (el.style.top && el.style.left) _floatPos = { top:el.style.top, left:el.style.left, right:'auto', bottom:'auto' };
   }
 
   function _renderFloat() {
@@ -524,7 +530,7 @@ const PersonalModule = (() => {
       body = `<div style="padding:8px 14px;flex:1;overflow-y:auto" id="float-todo-list">
         ${todos.map((t,i)=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0">
           <input type="checkbox" ${t.done?'checked':''} onchange="PersonalModule._floatTodoToggle(${i})" style="accent-color:${c.fold};width:15px;height:15px;cursor:pointer;flex-shrink:0">
-          <span style="font-size:12px;line-height:1.4;${t.done?'text-decoration:line-through;opacity:.5':''}">${t.text}</span>
+          <span style="font-size:12px;line-height:1.4;${t.done?'text-decoration:line-through;opacity:.5':''}">${_esc(t.text)}</span>
           ${editing?`<button onclick="PersonalModule._floatTodoRemove(${i})" style="background:none;border:none;color:${c.fold};cursor:pointer;font-size:13px;margin-left:auto;opacity:.5">\u00d7</button>`:''}
         </div>`).join('')}
         <div style="display:flex;gap:4px;margin-top:6px;padding-top:4px;border-top:1px dashed ${c.border}">
@@ -535,12 +541,12 @@ const PersonalModule = (() => {
         ${todos.length?`<div style="font-size:10px;color:${c.fold};font-weight:600;margin-top:4px">${doneCount}/${todos.length} selesai</div>`:''}
       </div>`;
     } else if (editing) {
-      body = `<input id="floating-note-title" value="${note.title||''}" placeholder="Judul..." style="border:none;background:transparent;padding:8px 14px 2px;font-size:14px;font-weight:700;color:${c.text};outline:none;font-family:var(--font)">
-        <textarea id="floating-note-content" placeholder="Tulis catatan..." style="flex:1;border:none;background:transparent;padding:4px 14px 12px;font-size:12px;color:${c.text};outline:none;resize:none;font-family:var(--font);line-height:1.6">${note.content||''}</textarea>`;
+      body = `<input id="floating-note-title" value="${_esc(note.title)}" placeholder="Judul..." style="border:none;background:transparent;padding:8px 14px 2px;font-size:14px;font-weight:700;color:${c.text};outline:none;font-family:var(--font)">
+        <textarea id="floating-note-content" placeholder="Tulis catatan..." style="flex:1;border:none;background:transparent;padding:4px 14px 12px;font-size:12px;color:${c.text};outline:none;resize:none;font-family:var(--font);line-height:1.6">${_esc(note.content)}</textarea>`;
     } else {
       body = `<div style="padding:10px 14px;flex:1;overflow-y:auto;cursor:pointer" ondblclick="PersonalModule._floatEnterEdit()">
         <div style="font-size:14px;font-weight:700;margin-bottom:6px">${note.title||'Tanpa judul'}</div>
-        <div style="font-size:12px;line-height:1.6;white-space:pre-wrap">${note.content||'(double-click untuk edit)'}</div>
+        <div style="font-size:12px;line-height:1.6;white-space:pre-wrap">${_esc(note.content)||'(double-click untuk edit)'}</div>
       </div>`;
     }
 
@@ -644,28 +650,29 @@ const PersonalModule = (() => {
 
   function _makeDraggable(el, handle) {
     let sx=0, sy=0;
-    handle.onmousedown = (e) => {
+    function _move(cx, cy) {
+      el.style.top = (el.offsetTop + cy - sy) + 'px';
+      el.style.left = (el.offsetLeft + cx - sx) + 'px';
+      el.style.right = 'auto'; el.style.bottom = 'auto';
+      sx=cx; sy=cy;
+    }
+    // Mouse
+    handle.addEventListener('mousedown', (e) => {
       e.preventDefault(); sx=e.clientX; sy=e.clientY;
-      document.onmousemove = (ev) => {
-        el.style.top = (el.offsetTop + ev.clientY - sy) + 'px';
-        el.style.left = (el.offsetLeft + ev.clientX - sx) + 'px';
-        el.style.right = 'auto'; el.style.bottom = 'auto';
-        sx=ev.clientX; sy=ev.clientY;
-      };
-      document.onmouseup = () => { document.onmousemove=null; document.onmouseup=null; };
-    };
-    // Touch support
-    handle.ontouchstart = (e) => {
+      const onMove = (ev) => _move(ev.clientX, ev.clientY);
+      const onUp = () => { document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    // Touch
+    handle.addEventListener('touchstart', (e) => {
+      e.preventDefault();
       const t=e.touches[0]; sx=t.clientX; sy=t.clientY;
-      handle.ontouchmove = (ev) => {
-        const t2=ev.touches[0];
-        el.style.top = (el.offsetTop + t2.clientY - sy) + 'px';
-        el.style.left = (el.offsetLeft + t2.clientX - sx) + 'px';
-        el.style.right = 'auto'; el.style.bottom = 'auto';
-        sx=t2.clientX; sy=t2.clientY;
-      };
-      handle.ontouchend = () => { handle.ontouchmove=null; };
-    };
+      const onMove = (ev) => { ev.preventDefault(); const t2=ev.touches[0]; _move(t2.clientX, t2.clientY); };
+      const onEnd = () => { document.removeEventListener('touchmove',onMove); document.removeEventListener('touchend',onEnd); };
+      document.addEventListener('touchmove', onMove, {passive:false});
+      document.addEventListener('touchend', onEnd);
+    }, {passive:false});
   }
 
   return {
