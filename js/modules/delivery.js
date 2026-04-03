@@ -23,35 +23,44 @@ const DeliveryModule = (() => {
     cancelled:  { label:'Batal',      color:'var(--danger)',   bg:'var(--danger-bg)',  icon:'✕' },
   };
 
+  const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+
   /* ═══ HELPERS ═══ */
+  // Local YYYY-MM-DD (tanpa timezone shift dari toISOString)
+  function _toStr(dt) {
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth()+1).padStart(2,'0');
+    const d = String(dt.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
   function _getMonday(d) {
-    const dt = new Date(d); dt.setHours(0,0,0,0);
+    const dt = new Date(d); dt.setHours(12,0,0,0); // noon to avoid DST edge
     const day = dt.getDay(); // 0=Sun
     const diff = day === 0 ? -6 : 1 - day;
     dt.setDate(dt.getDate() + diff);
-    return dt.toISOString().slice(0,10);
+    return _toStr(dt);
   }
   function _weekDays(monday) {
     const days = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(monday + 'T00:00:00');
+      const d = new Date(monday + 'T12:00:00');
       d.setDate(d.getDate() + i);
-      days.push(d.toISOString().slice(0,10));
+      days.push(_toStr(d));
     }
     return days;
   }
   function _fmtDate(s) {
     if (!s) return '-';
-    const d = new Date(s + 'T00:00:00');
+    const d = new Date(s + 'T12:00:00');
     return d.getDate() + '/' + (d.getMonth()+1);
   }
   function _fmtDateFull(s) {
     if (!s) return '-';
-    try { return new Date(s + 'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}); }
+    try { return new Date(s + 'T12:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}); }
     catch { return s; }
   }
   function _dayName(s) {
-    const d = new Date(s + 'T00:00:00');
+    const d = new Date(s + 'T12:00:00');
     return DAYS[d.getDay() === 0 ? 6 : d.getDay() - 1];
   }
   function _isToday(s) { return s === new Date().toISOString().slice(0,10); }
@@ -194,7 +203,10 @@ const DeliveryModule = (() => {
             <div style="padding:var(--s3);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:${today?'var(--primary-bg)':'var(--surface2)'}">
               <div>
                 <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${today?'var(--primary-h)':'var(--text-3)'}">${DAYS_SHORT[i]}</div>
-                <div style="font-size:16px;font-weight:700;color:${today?'var(--primary)':'var(--heading)'}">${new Date(date+'T00:00:00').getDate()}</div>
+                <div style="display:flex;align-items:baseline;gap:4px">
+                  <span style="font-size:16px;font-weight:700;color:${today?'var(--primary)':'var(--heading)'}">${new Date(date+'T12:00:00').getDate()}</span>
+                  <span style="font-size:10px;font-weight:600;color:${today?'var(--primary-h)':'var(--text-3)'}">${MONTHS_SHORT[new Date(date+'T12:00:00').getMonth()]}</span>
+                </div>
               </div>
               <div style="text-align:right">
                 ${total > 0 ? `<div style="font-size:10px;color:var(--text-3)">${delivered}/${total}</div>` : ''}
@@ -259,15 +271,15 @@ const DeliveryModule = (() => {
 
   /* ═══ WEEK NAVIGATION ═══ */
   function prevWeek() {
-    const d = new Date(_weekStart + 'T00:00:00');
+    const d = new Date(_weekStart + 'T12:00:00');
     d.setDate(d.getDate() - 7);
-    _weekStart = d.toISOString().slice(0,10);
+    _weekStart = _toStr(d);
     _renderFull();
   }
   function nextWeek() {
-    const d = new Date(_weekStart + 'T00:00:00');
+    const d = new Date(_weekStart + 'T12:00:00');
     d.setDate(d.getDate() + 7);
-    _weekStart = d.toISOString().slice(0,10);
+    _weekStart = _toStr(d);
     _renderFull();
   }
   function goToday() {
