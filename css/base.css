@@ -5,51 +5,80 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
 :root {
-  /* === Background — deeper, richer dark palette === */
-  --bg:        #090c10;
-  --surface:   #0f1318;
-  --surface2:  #171c24;
-  --surface3:  #1f2632;
+  /* ═══════════════════════════════════════════
+     THEME TEMPLATE — Indigo Navy
+     Ubah warna di sini, seluruh UI ikut berubah.
+     Hierarki: sidebar (terang) → header (sedang) → content (gelap)
+     ═══════════════════════════════════════════ */
+
+  /* --- Chrome: Sidebar (paling terang — elevated) --- */
+  --sidebar-bg:       #1e2545;
+  --sidebar-brand-bg: #1a2040;
+  --sidebar-hover:    #2a3262;
+  --sidebar-active:   #303a6e;
+  --sidebar-border:   rgba(130,145,220,0.15);
+  --sidebar-text:     #c8cfe4;
+  --sidebar-text-dim: #7e8aaa;
+  --sidebar-accent:   #a5b4fc;
+  --sidebar-section:  rgba(165,180,252,0.5);
+
+  /* --- Chrome: Header (sedang) --- */
+  --header-bg:        #161b38;
+  --header-border:    rgba(130,145,220,0.12);
+  --header-text:      #eef0f6;
+  --header-text-dim:  #8e99b8;
+
+  /* --- Chrome: Table head (senada sidebar) --- */
+  --thead-bg:         #1c2248;
+  --thead-text:       #b0b8d4;
+  --thead-border:     rgba(130,145,220,0.15);
+  --thead-hover:      #a5b4fc;
+
+  /* --- Content area (paling gelap — recedes) --- */
+  --bg:        #0c1020;
+  --surface:   #121830;
+  --surface2:  #1a2045;
+  --surface3:  #232a52;
   --overlay:   rgba(0,0,0,0.75);
 
-  /* === Border — subtle, layered === */
-  --border:    rgba(255,255,255,.06);
-  --border2:   rgba(255,255,255,.1);
+  /* --- Border --- */
+  --border:    rgba(130,145,220,0.1);
+  --border2:   rgba(130,145,220,0.16);
 
-  /* === Brand / Accent === */
+  /* --- Brand / Accent --- */
   --primary:   #6366f1;
   --primary-h: #818cf8;
-  --primary-bg:rgba(99,102,241,0.08);
+  --primary-bg:rgba(99,102,241,0.1);
 
-  /* === Status — vibrant but balanced === */
+  /* --- Status — vibrant but balanced --- */
   --success:   #10b981;
-  --success-bg:rgba(16,185,129,0.1);
+  --success-bg:rgba(16,185,129,0.12);
   --warning:   #f59e0b;
-  --warning-bg:rgba(245,158,11,0.1);
+  --warning-bg:rgba(245,158,11,0.12);
   --danger:    #ef4444;
-  --danger-bg: rgba(239,68,68,0.1);
+  --danger-bg: rgba(239,68,68,0.12);
   --info:      #3b82f6;
-  --info-bg:   rgba(59,130,246,0.1);
+  --info-bg:   rgba(59,130,246,0.12);
 
-  /* === Text — better contrast hierarchy === */
-  --text:      #e8edf4;
-  --text-2:    #8b95a8;
-  --text-3:    #4a5568;
-  --heading:   #f7f9fc;
+  /* --- Text — high contrast on dark navy --- */
+  --text:      #e4e9f2;
+  --text-2:    #9aa3be;
+  --text-3:    #5d6785;
+  --heading:   #f2f4f8;
 
   /* === Spacing (8px scale) === */
   --s1: 4px;  --s2: 8px;  --s3: 12px;
   --s4: 16px; --s5: 20px; --s6: 24px;
   --s8: 32px; --s10:40px; --s12:48px;
 
-  /* === Border Radius — slightly rounder === */
+  /* === Border Radius === */
   --r-sm:  8px;
   --r-md:  12px;
   --r-lg:  16px;
   --r-xl:  22px;
   --r-full:9999px;
 
-  /* === Shadow — softer, more layered === */
+  /* === Shadow === */
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.15);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.2);
   --shadow-lg: 0 12px 40px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.25);
@@ -63,7 +92,7 @@
   --t-base:  0.2s ease;
   --t-slow:  0.3s ease;
 
-  /* === Sidebar === */
+  /* === Layout === */
   --sidebar-w: 240px;
   --header-h:  56px;
 }

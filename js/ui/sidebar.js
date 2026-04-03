@@ -54,13 +54,13 @@ const Sidebar = {
     if (compName) {
       nameHtml = `<div class="sidebar-name" style="line-height:1.2">
         <div>${compName}</div>
-        ${tagline ? `<div style="font-size:10px;font-weight:400;color:#7b86a0;overflow:hidden;text-overflow:ellipsis">${tagline}</div>` : ''}
+        ${tagline ? `<div style="font-size:10px;font-weight:400;color:var(--sidebar-text-dim);overflow:hidden;text-overflow:ellipsis">${tagline}</div>` : ''}
       </div>`;
     } else {
       nameHtml = `<div class="sidebar-name">BECCA <span style="opacity:.5;font-weight:400;font-size:12px">v2.0</span></div>`;
     }
 
-    const sectionStyle = 'font-size:9px;font-weight:700;letter-spacing:.08em;color:rgba(165,180,252,0.45);padding-left:var(--s4);';
+    const sectionStyle = 'font-size:9px;font-weight:700;letter-spacing:.08em;color:var(--sidebar-section);padding-left:var(--s4);';
     let html = `
       <div class="sidebar-brand">
         ${logoContent}
@@ -98,8 +98,8 @@ const Sidebar = {
               <div class="user-role">${user.role}</div>
             </div>
           </div>
-          <div style="text-align:center;padding:4px 0 2px;font-size:9px;color:#5a6380;letter-spacing:.04em">
-            Powered by <strong style="color:#818cf8">BECCA</strong> System
+          <div style="text-align:center;padding:4px 0 2px;font-size:9px;color:var(--sidebar-text-dim);letter-spacing:.04em">
+            Powered by <strong style="color:var(--primary-h)">BECCA</strong> System
           </div>
         </div>
       `;
