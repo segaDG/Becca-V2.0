@@ -273,6 +273,9 @@ const PersonalModule = (() => {
         <button class="note-action-btn" style="background:#ef4444;color:#fff" onclick="event.stopPropagation();PersonalModule.deleteNote('${n.id}')" title="Hapus">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
         </button>
+        <button class="note-action-btn" style="background:${c.fold};color:#fff" onclick="event.stopPropagation();PersonalModule.toggleFloating('${n.id}')" title="Floating">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </button>
         <button class="note-action-btn" style="background:var(--surface2);color:var(--text)" onclick="event.stopPropagation();PersonalModule._archiveNote('${n.id}')" title="Arsip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 8v13H3V8M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
         </button>
@@ -425,34 +428,53 @@ const PersonalModule = (() => {
     _notes.forEach(n => { if(n.reminderAt && !n.reminderSent) _scheduleReminder(n); });
   }
 
-  /* ═══ FLOATING NOTES ═══ */
-  function toggleFloating() {
-    _floatingActive = !_floatingActive;
-    if (_floatingActive) _showFloating();
-    else _hideFloating();
+  /* ═══ FLOATING STICKY NOTE ═══ */
+  function toggleFloating(noteId) {
+    if (_floatingActive && !noteId) { _hideFloating(); _floatingActive=false; _renderNotes(); return; }
+    const note = noteId ? _notes.find(n=>n.id===noteId) : _notes[0] || null;
+    _hideFloating();
+    _floatingActive = true;
+    _showFloating(note);
     _renderNotes();
   }
 
-  function _showFloating() {
-    if (document.getElementById('floating-note')) return;
-    const lastNote = _notes[0];
+  function _showFloating(note) {
+    if (document.getElementById('floating-note')) document.getElementById('floating-note').remove();
+    const c = NOTE_COLORS[note ? (note.id||'').charCodeAt(0) % NOTE_COLORS.length : 0];
+    const isTodo = note?.type === 'todo';
+    const todos = note?.todos || [];
     const div = document.createElement('div');
     div.id = 'floating-note';
-    div.style.cssText = 'position:fixed;right:24px;bottom:24px;width:320px;max-height:400px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);z-index:500;display:flex;flex-direction:column;resize:both;overflow:hidden';
+    div.style.cssText = `position:fixed;right:24px;bottom:24px;width:300px;min-height:200px;max-height:420px;
+      background:${c.bg};color:${c.text};border-radius:2px 2px 2px 16px;
+      box-shadow:4px 6px 20px rgba(0,0,0,.18);z-index:500;display:flex;flex-direction:column;resize:both;overflow:hidden`;
+
+    const todoHTML = isTodo ? todos.map((t,i) =>
+      `<div style="display:flex;align-items:center;gap:6px;padding:2px 0">
+        <input type="checkbox" ${t.done?'checked':''} onchange="PersonalModule._floatTodoToggle(${i})" style="accent-color:${c.fold};width:15px;height:15px;cursor:pointer;flex-shrink:0">
+        <span style="font-size:12px;line-height:1.4;${t.done?'text-decoration:line-through;opacity:.5':''}">${t.text}</span>
+      </div>`).join('') + `<div style="display:flex;gap:4px;margin-top:4px">
+        <input id="float-todo-new" placeholder="Tambah item..." style="flex:1;border:none;border-bottom:1px dashed ${c.fold};background:transparent;color:${c.text};font-size:11px;padding:3px 0;outline:none;font-family:var(--font)"
+          onkeydown="if(event.key==='Enter')PersonalModule._floatTodoAdd()">
+        <button onclick="PersonalModule._floatTodoAdd()" style="background:none;border:none;color:${c.fold};cursor:pointer;font-size:14px;font-weight:700">+</button>
+      </div>` : '';
+
     div.innerHTML = `
-      <div id="floating-note-header" style="padding:8px 12px;background:var(--surface2);border-bottom:1px solid var(--border);cursor:move;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;user-select:none">
-        <span style="font-size:12px;font-weight:700;color:var(--heading)">\ud83d\udcdd Quick Notes</span>
-        <div style="display:flex;gap:4px">
-          <button onclick="PersonalModule.saveFloatingContent()" style="background:none;border:none;cursor:pointer;color:var(--success);font-size:11px;font-weight:600">Simpan</button>
-          <button onclick="PersonalModule.toggleFloating()" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:16px">\u00d7</button>
+      <div id="floating-note-header" style="padding:8px 12px;cursor:move;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;user-select:none;border-bottom:1px dashed ${c.border}">
+        <span style="font-size:11px;font-weight:700">${isTodo?'TO-DO':'\ud83d\udcdd'} ${(note?.title||'Quick Notes').slice(0,25)}</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button onclick="PersonalModule.saveFloatingContent()" style="background:none;border:none;cursor:pointer;color:${c.fold};font-size:10px;font-weight:700">Simpan</button>
+          <button onclick="PersonalModule.toggleFloating()" style="background:none;border:none;cursor:pointer;color:${c.text};font-size:15px;opacity:.5">\u00d7</button>
         </div>
       </div>
-      <input id="floating-note-title" value="${lastNote?.title||''}" placeholder="Judul..." style="border:none;background:transparent;padding:8px 12px;font-size:13px;font-weight:600;color:var(--heading);outline:none;font-family:var(--font)">
-      <textarea id="floating-note-content" placeholder="Tulis catatan..." style="flex:1;border:none;background:transparent;padding:4px 12px 12px;font-size:12px;color:var(--text);outline:none;resize:none;font-family:var(--font);line-height:1.6">${lastNote?.content||''}</textarea>
+      ${!isTodo ? `
+        <input id="floating-note-title" value="${note?.title||''}" placeholder="Judul..." style="border:none;background:transparent;padding:8px 12px 2px;font-size:14px;font-weight:700;color:${c.text};outline:none;font-family:var(--font)">
+        <textarea id="floating-note-content" placeholder="Tulis catatan..." style="flex:1;border:none;background:transparent;padding:4px 12px 12px;font-size:12px;color:${c.text};outline:none;resize:none;font-family:var(--font);line-height:1.6">${note?.content||''}</textarea>
+      ` : `<div style="padding:8px 12px;flex:1;overflow-y:auto" id="float-todo-list">${todoHTML}</div>`}
+      <div style="position:absolute;top:0;right:0;width:0;height:0;border-style:solid;border-width:0 20px 20px 0;border-color:transparent ${c.fold} transparent transparent"></div>
     `;
     document.body.appendChild(div);
-    _floatingNote = lastNote;
-    // Make draggable
+    _floatingNote = note;
     _makeDraggable(div, div.querySelector('#floating-note-header'));
   }
 
@@ -461,26 +483,47 @@ const PersonalModule = (() => {
     if (el) el.remove();
   }
 
+  function _floatTodoToggle(idx) {
+    if (!_floatingNote?.todos?.[idx]) return;
+    _floatingNote.todos[idx].done = !_floatingNote.todos[idx].done;
+    _showFloating(_floatingNote); // re-render
+  }
+
+  function _floatTodoAdd() {
+    const inp = document.getElementById('float-todo-new');
+    const text = (inp?.value||'').trim();
+    if (!text || !_floatingNote) return;
+    if (!_floatingNote.todos) _floatingNote.todos = [];
+    _floatingNote.todos.push({text, done:false});
+    _showFloating(_floatingNote);
+  }
+
   async function saveFloatingContent() {
-    const title = (document.getElementById('floating-note-title')?.value||'').trim();
-    const content = (document.getElementById('floating-note-content')?.value||'').trim();
-    if (!title && !content) return;
+    if (!_floatingNote) return;
     const user = Auth.currentUser();
-    const data = {
-      id: _floatingNote?.id || Utils.uid(),
-      userId: user?.id, username: user?.username,
-      title, content,
-      reminderAt: _floatingNote?.reminderAt || '',
-      reminderSent: _floatingNote?.reminderSent || false,
-      createdAt: _floatingNote?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    const isTodo = _floatingNote.type === 'todo';
+    let data;
+    if (isTodo) {
+      data = { ..._floatingNote, updatedAt: new Date().toISOString() };
+    } else {
+      const title = (document.getElementById('floating-note-title')?.value||'').trim();
+      const content = (document.getElementById('floating-note-content')?.value||'').trim();
+      if (!title && !content) return;
+      data = {
+        ..._floatingNote,
+        id: _floatingNote.id || Utils.uid(),
+        userId: user?.id, username: user?.username,
+        type: 'note', title, content,
+        updatedAt: new Date().toISOString(),
+        createdAt: _floatingNote.createdAt || new Date().toISOString(),
+      };
+    }
     try {
       await DB.savePersonalNote(data);
       const idx = _notes.findIndex(n=>n.id===data.id);
       if (idx>=0) _notes[idx]=data; else _notes.unshift(data);
       _floatingNote = data;
-      Notify.success('Catatan disimpan');
+      Notify.success('Disimpan');
     } catch(e) { Notify.error('Gagal'); }
   }
 
@@ -504,7 +547,7 @@ const PersonalModule = (() => {
     init, switchTab, _toggleField,
     openNoteModal, saveNote, deleteNote, _addTodoRow, _archiveNote,
     _noteSwipe, _noteSwipeEnd,
-    toggleFloating, saveFloatingContent,
+    toggleFloating, saveFloatingContent, _floatTodoToggle, _floatTodoAdd,
   };
 })();
 window.PersonalModule = PersonalModule;
