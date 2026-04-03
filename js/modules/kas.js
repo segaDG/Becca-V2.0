@@ -250,7 +250,7 @@ const KasModule = (() => {
     const bulanOpts= [...new Set(_kas.map(r=>r.bulan).filter(Boolean))].sort();
 
     document.getElementById('kas-tab-transaksi').innerHTML = `
-      <div style="display:flex;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap" id="kas-strip-wrap">${_summaryStrip(filtered)}<div id="kas-balance-cards" style="display:contents"></div></div>
+      <div style="margin-bottom:var(--s4)" id="kas-strip-wrap">${_summaryStrip(filtered)}<div id="kas-balance-cards" style="margin-top:var(--s3)"></div></div>
       <div class="filter-bar" style="margin-bottom:var(--s3)">
         <input type="date" class="form-control" value="${_filter.dateFrom}" onchange="KasModule.setFilter('dateFrom',this.value)" style="width:140px">
         <input type="date" class="form-control" value="${_filter.dateTo}"   onchange="KasModule.setFilter('dateTo',this.value)"   style="width:140px">
@@ -1369,17 +1369,18 @@ const KasModule = (() => {
           + (canEditSaldo ? ' <span style="font-size:10px;color:var(--text-3);cursor:pointer" onclick="KasModule.editSaldoAwal()" title="Edit">✎</span>' : '');
       }
       
-      // Render Kas Masuk card - clickable, buka modal filter
-      container.innerHTML = cards.map(c =>
-        '<div onclick="KasModule.filterKasMasukType()" '
-        + 'style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);'
-        + 'padding:12px 18px;flex:1 1 140px;min-width:0;max-width:220px;cursor:pointer;transition:all .15s" '
-        + 'onmouseover="this.style.outline=\'2px solid var(--primary)\'" '
-        + 'onmouseout="this.style.outline=\'\'">'
-        + '<div style="font-size:11px;color:var(--text-3);margin-bottom:4px">'+c.label+' <span style="font-size:9px;opacity:.6">▼</span></div>'
-        + '<div style="font-size:18px;font-weight:700;color:'+c.color+';font-family:var(--font-mono)">'+(c.prefix||'')+c.value+'</div>'
-        + '</div>'
-      ).join('');
+      // Render Kas Masuk card
+      container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--s3)">
+        ${cards.map(c =>
+          `<div onclick="KasModule.filterKasMasukType()" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;min-width:0;cursor:pointer;transition:all .2s;position:relative;overflow:hidden" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.15)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${c.color}"></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <span style="font-size:11px;color:var(--text-2);font-weight:600">${c.label} <span style="font-size:9px;opacity:.6">\u25bc</span></span>
+            </div>
+            <div style="font-size:20px;font-weight:800;color:${c.color};font-family:var(--font-mono);letter-spacing:-.01em">${c.value}</div>
+          </div>`
+        ).join('')}
+      </div>`;
     } catch(e) {
       console.error('Balance cards error:', e);
     }
