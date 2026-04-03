@@ -154,7 +154,7 @@ const MenuModule = (() => {
         ${m.resep?`<div class="form-group"><label class="form-label">Resep</label><div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">${_esc(m.resep)}</div></div>`
           :`<div style="text-align:center;padding:var(--s4);color:var(--text-3)">
             <p style="margin-bottom:var(--s3)">Resep belum tersedia</p>
-            <button class="btn btn-ghost btn-sm" onclick="Notify.info('Fitur AI Resep coming soon')">Tanya AI untuk Resep</button>
+            <button class="btn btn-ghost btn-sm" onclick="MenuModule._aiResep('${m.id}')">Tanya AI untuk Resep</button>
           </div>`}
         ${m.estimasiBahan?`<div style="font-size:11px;color:var(--text-3);margin-top:var(--s3)">Est. bahan mentah: ${m.estimasiBahan}</div>`:''}`,
       footer:`<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
@@ -240,7 +240,10 @@ const MenuModule = (() => {
     return `<div class="card" style="margin-bottom:var(--s4);padding:0;overflow:hidden">
       <div style="padding:var(--s3) var(--s4);background:var(--thead-bg);display:flex;align-items:center;justify-content:space-between">
         <span style="font-size:14px;font-weight:700;color:var(--thead-text)">${_esc(custName)}</span>
-        <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._editKomposisi('${custId}')">Komposisi: ${komposisi.join(', ')}</button>
+        <div style="display:flex;gap:var(--s2)">
+          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._editKomposisi('${custId}')">Komposisi: ${komposisi.join(', ')}</button>
+          <button class="btn btn-primary btn-sm" style="font-size:10px" onclick="MenuModule._aiGenerateMenu('${custId}')">AI Generate</button>
+        </div>
       </div>
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;min-width:900px;font-size:12px">
@@ -342,14 +345,20 @@ const MenuModule = (() => {
     const mid = 'komp-'+Date.now();
     Modal.open({id:mid, title:'Komposisi Menu: '+(cust.namaShort||cust.nama), size:'modal-md',
       body:`
-        <p style="font-size:12px;color:var(--text-2);margin-bottom:var(--s3)">Sesuaikan komposisi menu untuk customer ini. Tambah/hapus sesuai kebutuhan.</p>
+        <style>
+          .komp-row{display:flex;align-items:center;gap:var(--s2);margin-bottom:4px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);cursor:grab;transition:background .15s}
+          .komp-row:active{cursor:grabbing;background:var(--primary-bg);border-color:var(--primary)}
+          .komp-row.drag-over{border-top:2px solid var(--primary)}
+        </style>
+        <p style="font-size:12px;color:var(--text-2);margin-bottom:var(--s3)">Drag untuk ubah urutan. Tambah/hapus sesuai kebutuhan.</p>
         <div id="komp-list">
-          ${current.map((k,i)=>`<div style="display:flex;align-items:center;gap:var(--s2);margin-bottom:4px">
-            <input type="text" class="form-control komp-input" value="${_esc(k)}" style="flex:1;min-height:32px;font-size:13px">
-            <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px">\u00d7</button>
+          ${current.map((k,i)=>`<div class="komp-row" draggable="true" ondragstart="MenuModule._kompDragStart(event,this)" ondragover="MenuModule._kompDragOver(event,this)" ondragleave="this.classList.remove('drag-over')" ondrop="MenuModule._kompDrop(event,this)" ondragend="MenuModule._kompDragEnd()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0;opacity:.3"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg>
+            <input type="text" class="form-control komp-input" value="${_esc(k)}" style="flex:1;min-height:30px;font-size:13px;background:transparent;border:none;padding:2px 6px">
+            <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;flex-shrink:0">\u00d7</button>
           </div>`).join('')}
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('komp-list').insertAdjacentHTML('beforeend','<div style=\\'display:flex;align-items:center;gap:var(--s2);margin-bottom:4px\\'><input type=\\'text\\' class=\\'form-control komp-input\\' placeholder=\\'Nama komponen...\\' style=\\'flex:1;min-height:32px;font-size:13px\\'><button onclick=\\'this.parentElement.remove()\\' style=\\'background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px\\'>\u00d7</button></div>')">+ Tambah Komponen</button>`,
+        <button class="btn btn-ghost btn-sm" style="margin-top:var(--s2)" onclick="MenuModule._kompAdd()">+ Tambah Komponen</button>`,
       footer:`<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
         <button class="btn btn-primary" onclick="MenuModule._saveKomposisi('${custId}','${mid}')">Simpan</button>`,
     });
@@ -366,6 +375,134 @@ const MenuModule = (() => {
     Modal.close(modalId);
     _renderGenerator();
     Notify.success('Komposisi disimpan');
+  }
+
+  /* ═══ KOMPOSISI DRAG & DROP ═══ */
+  let _kompDragging = null;
+  function _kompDragStart(e, el) { _kompDragging=el; el.style.opacity='.5'; e.dataTransfer.effectAllowed='move'; }
+  function _kompDragOver(e, el) { e.preventDefault(); e.dataTransfer.dropEffect='move'; document.querySelectorAll('.komp-row').forEach(r=>r.classList.remove('drag-over')); el.classList.add('drag-over'); }
+  function _kompDrop(e, el) { e.preventDefault(); el.classList.remove('drag-over'); if(_kompDragging&&_kompDragging!==el) { const list=document.getElementById('komp-list'); list.insertBefore(_kompDragging,el); } }
+  function _kompDragEnd() { if(_kompDragging) _kompDragging.style.opacity='1'; _kompDragging=null; document.querySelectorAll('.komp-row').forEach(r=>r.classList.remove('drag-over')); }
+  function _kompAdd() {
+    const list=document.getElementById('komp-list');
+    if(!list) return;
+    const div=document.createElement('div');
+    div.className='komp-row'; div.draggable=true;
+    div.setAttribute('ondragstart','MenuModule._kompDragStart(event,this)');
+    div.setAttribute('ondragover','MenuModule._kompDragOver(event,this)');
+    div.setAttribute('ondragleave',"this.classList.remove('drag-over')");
+    div.setAttribute('ondrop','MenuModule._kompDrop(event,this)');
+    div.setAttribute('ondragend','MenuModule._kompDragEnd()');
+    div.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0;opacity:.3"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg>
+      <input type="text" class="form-control komp-input" placeholder="Nama komponen..." style="flex:1;min-height:30px;font-size:13px;background:transparent;border:none;padding:2px 6px">
+      <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;flex-shrink:0">\u00d7</button>`;
+    list.appendChild(div);
+    div.querySelector('input').focus();
+  }
+
+  /* ═══ AI INTEGRATION ═══ */
+  async function _aiGenerateMenu(custId) {
+    const cust = _customers.find(c=>c.id===custId);
+    if (!cust) return;
+    const komposisi = cust.menuKomposisi || [...DEFAULT_KOMPOSISI];
+    const custName = cust.namaShort || cust.nama;
+
+    // Build prompt from library
+    const menuByKat = {};
+    _library.forEach(m => { if(!menuByKat[m.klasifikasi]) menuByKat[m.klasifikasi]=[]; menuByKat[m.klasifikasi].push(m.nama); });
+
+    const prompt = `Buatkan menu catering untuk ${custName} selama 7 hari (Senin-Minggu), 3 shift (S1, S2, S3).
+Komposisi per shift: ${komposisi.join(', ')}.
+Menu TIDAK BOLEH berulang dalam seminggu.
+Tiap hari beri tema masakan daerah yang berbeda.
+Pilih dari daftar menu berikut:
+${Object.entries(menuByKat).map(([k,items])=>`${k}: ${items.slice(0,30).join(', ')}`).join('\n')}
+
+Format output sebagai JSON: { "S1": { "0": { "tema": "...", "menu": { "${komposisi[0]}": "...", ... } }, "1": {...}, ... }, "S2": {...}, "S3": {...} }
+Hanya output JSON, tanpa penjelasan.`;
+
+    Notify.info('AI sedang membuat menu untuk ' + custName + '...');
+
+    // Try using available AI — if no API, show prompt for manual copy
+    const mid = 'ai-gen-'+Date.now();
+    Modal.open({id:mid, title:'AI Menu Generator: '+custName, size:'modal-xl',
+      body:`
+        <div class="form-group">
+          <label class="form-label">Prompt (copy ke ChatGPT/Claude lalu paste hasilnya)</label>
+          <textarea id="ai-prompt" class="form-control" rows="6" style="font-size:11px;font-family:var(--font-mono)" readonly>${_esc(prompt)}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Paste hasil AI (JSON)</label>
+          <textarea id="ai-result" class="form-control" rows="8" placeholder='Paste JSON result dari AI di sini...' style="font-family:var(--font-mono);font-size:11px"></textarea>
+        </div>`,
+      footer:`<button class="btn btn-ghost" onclick="navigator.clipboard.writeText(document.getElementById('ai-prompt').value);Notify.success('Prompt di-copy!')">Copy Prompt</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="MenuModule._aiApplyResult('${custId}','${mid}')">Terapkan</button>`,
+    });
+  }
+
+  function _aiApplyResult(custId, modalId) {
+    const raw = (document.getElementById('ai-result')?.value||'').trim();
+    if (!raw) { Notify.warning('Paste hasil AI terlebih dahulu'); return; }
+    try {
+      // Extract JSON from response (handle markdown code blocks)
+      const jsonStr = raw.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
+      const result = JSON.parse(jsonStr);
+      // Apply to pending plan
+      if (!_pendingPlan) {
+        const existing = _plans.find(p=>p.weekStart===_genWeekStart);
+        _pendingPlan = existing ? {...existing, data:{...existing.data}} : {id:Utils.uid(), weekStart:_genWeekStart, customers:_genCustomers, data:{}};
+      }
+      _pendingPlan.data[custId] = result;
+      _pendingPlan.customers = _genCustomers;
+      Modal.close(modalId);
+      _renderGenerator();
+      Notify.success('Menu AI berhasil diterapkan! Klik Simpan untuk menyimpan.');
+    } catch(e) { Notify.error('Format JSON tidak valid: '+e.message); }
+  }
+
+  async function _aiResep(menuId) {
+    const m = _library.find(x=>x.id===menuId);
+    if (!m) return;
+    const prompt = `Berikan resep lengkap untuk "${m.nama}" (masakan ${m.category}, ${m.tema}).
+Untuk 100 porsi catering.
+Format:
+BAHAN:
+- (daftar bahan + takaran untuk 100 porsi)
+
+CARA MEMBUAT:
+1. (langkah-langkah)
+
+ESTIMASI BAHAN MENTAH: (per porsi)`;
+
+    const mid = 'ai-resep-'+Date.now();
+    Modal.open({id:mid, title:'AI Resep: '+m.nama, size:'modal-lg',
+      body:`
+        <div class="form-group">
+          <label class="form-label">Prompt (copy ke ChatGPT/Claude)</label>
+          <textarea id="ai-resep-prompt" class="form-control" rows="4" style="font-size:11px;font-family:var(--font-mono)" readonly>${_esc(prompt)}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Paste hasil AI</label>
+          <textarea id="ai-resep-result" class="form-control" rows="10" placeholder="Paste resep dari AI..." style="font-size:12px"></textarea>
+        </div>`,
+      footer:`<button class="btn btn-ghost" onclick="navigator.clipboard.writeText(document.getElementById('ai-resep-prompt').value);Notify.success('Prompt di-copy!')">Copy Prompt</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="MenuModule._aiSaveResep('${menuId}','${mid}')">Simpan Resep</button>`,
+    });
+  }
+
+  async function _aiSaveResep(menuId, modalId) {
+    const resep = (document.getElementById('ai-resep-result')?.value||'').trim();
+    if (!resep) { Notify.warning('Paste resep terlebih dahulu'); return; }
+    const m = _library.find(x=>x.id===menuId);
+    if (!m) return;
+    m.resep = resep;
+    await DB.saveMenuItem(m).catch(()=>{});
+    Modal.close(modalId);
+    Notify.success('Resep disimpan');
   }
 
   /* ═══════════════════════════════════════════
@@ -531,6 +668,8 @@ const MenuModule = (() => {
     _genAddCustomer, _genRemoveCustomer, _genSetCell, _genSave,
     _genPrevWeek, _genNextWeek, _genThisWeek,
     _editKomposisi, _saveKomposisi,
+    _kompDragStart, _kompDragOver, _kompDrop, _kompDragEnd, _kompAdd,
+    _aiGenerateMenu, _aiApplyResult, _aiResep, _aiSaveResep,
   };
 })();
 window.MenuModule = MenuModule;
