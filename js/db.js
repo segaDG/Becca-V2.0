@@ -208,8 +208,8 @@ const DB = (() => {
 
   // In-memory cache — cleared on save/delete
   const _memCache = {};
-  const _CACHE_TTL = 1800000; // 30 menit — data stabil (employees, customers, items)
-  const _CACHE_TTL_SHORT = 300000; // 5 menit — data yang sering berubah
+  const _CACHE_TTL = 120000; // 2 menit — realtime-friendly (Pro plan)
+  const _CACHE_TTL_SHORT = 30000; // 30 detik — data volatile, near-realtime
   const _SHORT_CACHE_TABLES = new Set(['kas','orders','inv_activities','daily_order_forms','delivery_tracking_logs']);
   let _settingsCache = null, _settingsCacheTs = 0;
 
@@ -242,19 +242,6 @@ const DB = (() => {
       return cached.data;
     }
 
-    // 2. localStorage cache — serve immediately, avoid network if data exists
-    // For non-NO_CACHE tables, use localStorage as long-term cache
-    if (!NO_CACHE.includes(table)) {
-      const lsData = JSON.parse(localStorage.getItem('becca_' + table) || '[]');
-      const lsTs = parseInt(localStorage.getItem('becca_' + table + '_ts') || '0');
-      // If localStorage has data and is less than 1 hour old, use it + populate memCache
-      if (Array.isArray(lsData) && lsData.length > 0 && (Date.now() - lsTs) < 3600000) {
-        _memCache[table] = { data: lsData, ts: Date.now() };
-        return lsData;
-      }
-    }
-
-    // 3. Fetch from Supabase (only if cache miss)
     const data = await _fetchAll(sb, table);
     let result = _fromRows(data);
 
