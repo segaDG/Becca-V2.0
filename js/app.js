@@ -331,9 +331,6 @@ const App = {
         <span class="page-title" id="header-page-title">Dashboard</span>
       </div>
       <div class="header-right">
-        <!-- Online Users -->
-        <div id="online-users-bar" style="display:flex;align-items:center;gap:4px;margin-right:4px"></div>
-
         <!-- Hidden theme elements for JS reference -->
         <span id="btn-color" style="display:none"></span>
         <svg id="icon-dark" style="display:none"><path/></svg>
@@ -348,12 +345,14 @@ const App = {
             font-size:8px;font-weight:700;color:white;border:1.5px solid var(--surface);
             align-items:center;justify-content:center;padding:0 2px"></span>
         </button>
-        <!-- Online users badge (Supabase Realtime) -->
-        <div id="online-users-wrap" style="display:flex;align-items:center;gap:4px;
-          font-size:10px;color:var(--text-3);padding:0 4px" title="User online">
-          <span style="width:7px;height:7px;border-radius:50%;background:var(--success);
-            display:inline-block;animation:pulse 2s infinite"></span>
-          <span id="online-indicator" style="font-size:10px;color:var(--text-3)">...</span>
+        <!-- Online users (avatar + count) -->
+        <div style="display:flex;align-items:center;gap:4px">
+          <div id="online-users-bar" style="display:flex;align-items:center;gap:4px"></div>
+          <div id="online-users-wrap" style="display:flex;align-items:center;gap:4px;
+            font-size:10px;color:var(--text-3)" title="User online">
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block"></span>
+            <span id="online-indicator" style="font-size:10px;color:var(--text-3)">...</span>
+          </div>
         </div>
         <!-- User Dropdown -->
         <div style="position:relative">
