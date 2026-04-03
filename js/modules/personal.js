@@ -106,9 +106,11 @@ const PersonalModule = (() => {
     }
     const e = _emp;
     const s = _showData;
-    // Kasbon — hitung dari logbook
-    const totalHutang = _logs.reduce((sum,l) => sum + (Number(l.hutang)||0), 0);
-    const totalBayar  = _logs.reduce((sum,l) => sum + (Number(l.bayar)||0), 0);
+    // Kasbon — hitung dari logbook (support format lama: jenis+jumlah, dan baru: hutang/bayar)
+    const _lh = l => Number(l.hutang) || (l.jenis==='BERHUTANG'?Number(l.jumlah):0) || 0;
+    const _lb = l => Number(l.bayar)  || (l.jenis==='BAYAR HUTANG'?Number(l.jumlah):0) || 0;
+    const totalHutang = _logs.reduce((sum,l) => sum + _lh(l), 0);
+    const totalBayar  = _logs.reduce((sum,l) => sum + _lb(l), 0);
     const sisaHutang  = Number(e.sisaHutang) || (totalHutang - totalBayar);
     // Absensi summary
     const thisMonth = new Date().toISOString().slice(0,7);
@@ -193,7 +195,7 @@ const PersonalModule = (() => {
           </tr></thead>
           <tbody>
             ${_logs.length ? _logs.map(l => {
-              const h = Number(l.hutang)||0, b = Number(l.bayar)||0;
+              const h = _lh(l), b = _lb(l);
               const stIcon = l.status==='\u2713'||l.status==='done'?'\u2713':l.status==='\u2014'?'\u2014':l.status||'\u2014';
               return `<tr>
                 <td style="white-space:nowrap;font-size:12px">${_fmtDate(l.tanggal||l.tgl)}</td>
