@@ -19,7 +19,7 @@ const App = {
     ap        : 'js/modules/ap.js?v=20260403a',
     po        : 'js/modules/po.js?v=20260402d',
     task      : 'js/modules/task.js?v=20260330i',
-    delivery  : 'js/modules/delivery.js?v=20260405c',
+    delivery  : 'js/modules/delivery.js?v=20260405d',
     report    : 'js/modules/report.js?v=20260326r',
     settings  : 'js/modules/settings.js?v=20260401b',
   },

@@ -19,10 +19,12 @@ const DeliveryModule = (() => {
     delivered:  { label:'Terkirim', color:'var(--success)',  bg:'var(--success-bg)' },
     cancelled:  { label:'Batal',    color:'var(--danger)',   bg:'var(--danger-bg)'  },
   };
+  const SHIFT_ORDER = ['S1','S2','S3','all'];
   const SHIFT_C = {
-    S1: { bg:'rgba(99,102,241,.15)',  text:'#818cf8', card:'rgba(99,102,241,.05)', border:'rgba(99,102,241,.2)'  },
-    S2: { bg:'rgba(16,185,129,.15)',  text:'#34d399', card:'rgba(16,185,129,.05)', border:'rgba(16,185,129,.2)'  },
-    S3: { bg:'rgba(245,158,11,.15)',  text:'#fbbf24', card:'rgba(245,158,11,.05)', border:'rgba(245,158,11,.2)'  },
+    S1:  { bg:'rgba(59,130,246,.15)',  text:'#60a5fa', card:'rgba(59,130,246,.06)', border:'rgba(59,130,246,.22)', label:'S1', head:'rgba(59,130,246,.1)' },
+    S2:  { bg:'rgba(16,185,129,.15)',  text:'#34d399', card:'rgba(16,185,129,.06)', border:'rgba(16,185,129,.22)', label:'S2', head:'rgba(16,185,129,.1)' },
+    S3:  { bg:'rgba(245,158,11,.15)',  text:'#fbbf24', card:'rgba(245,158,11,.06)', border:'rgba(245,158,11,.22)', label:'S3', head:'rgba(245,158,11,.1)' },
+    all: { bg:'rgba(148,163,184,.12)', text:'#94a3b8', card:'rgba(148,163,184,.04)',border:'rgba(148,163,184,.15)',label:'All',head:'rgba(148,163,184,.08)' },
   };
 
   /* ═══ HELPERS ═══ */
@@ -126,7 +128,10 @@ const DeliveryModule = (() => {
       <div class="page-header">
         <div class="page-header-left"><h2>Delivery Schedule</h2><p>Jadwal pengiriman mingguan</p></div>
         <div class="page-header-right">
-          ${canEdit?`<button class="btn btn-ghost" onclick="DeliveryModule.autoPopulate()">
+          ${canEdit?`<button class="btn btn-danger btn-sm" onclick="DeliveryModule.resetWeek()" title="Hapus semua jadwal minggu ini">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            Reset</button>
+          <button class="btn btn-ghost" onclick="DeliveryModule.autoPopulate()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9"/></svg>
             Auto dari Order</button>`:''}
         </div>
@@ -153,8 +158,15 @@ const DeliveryModule = (() => {
         const entries = _getEntriesForDate(date), today = _isToday(date);
         const delivered = entries.filter(e=>e.status==='delivered').length, total = entries.length;
         const cmap = _buildConflictMap(entries);
-        const drvGrp = {};
-        entries.forEach(e => { const dk = e.driverName||'\u2014 No driver'; if(!drvGrp[dk])drvGrp[dk]=[]; drvGrp[dk].push(e); });
+        // Group by shift, then driver inside each shift
+        const shiftGrp = {};
+        entries.forEach(e => {
+          const s = e.shift||'all';
+          if (!shiftGrp[s]) shiftGrp[s] = {};
+          const dk = e.driverName||'\u2014 No driver';
+          if (!shiftGrp[s][dk]) shiftGrp[s][dk] = [];
+          shiftGrp[s][dk].push(e);
+        });
         const dt = new Date(date+'T12:00:00');
         return `<div style="background:var(--surface);border:1px solid ${today?'var(--primary)':'var(--border)'};border-radius:var(--r-md);display:flex;flex-direction:column;min-width:0;overflow:hidden;${today?'box-shadow:0 0 0 2px rgba(99,102,241,.15)':''}">
           <div style="padding:var(--s3);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:${today?'var(--primary-bg)':'var(--surface2)'}">
@@ -172,13 +184,20 @@ const DeliveryModule = (() => {
           </div>
           <div style="flex:1;overflow-y:auto;padding:var(--s2)">
             ${!total?'<div style="text-align:center;padding:var(--s6) var(--s2);color:var(--text-3);font-size:11px">Belum ada</div>':
-              Object.entries(drvGrp).map(([drv,items])=>`<div style="margin-bottom:var(--s2)">
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--info);padding:2px 0;margin-bottom:2px;display:flex;align-items:center;gap:4px;overflow:hidden">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="9" height="9" style="flex-shrink:0"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${drv}</span>
-                </div>
-                ${items.map(e=>_renderCard(e,canEdit,cmap)).join('')}
-              </div>`).join('')}
+              SHIFT_ORDER.filter(s=>shiftGrp[s]).map(s=>{
+                const sc=SHIFT_C[s]||SHIFT_C.all;
+                const drivers=shiftGrp[s];
+                return `<div style="margin-bottom:var(--s3)">
+                  <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 6px;border-radius:4px;display:inline-block;background:${sc.head};color:${sc.text};margin-bottom:3px">${sc.label}</div>
+                  ${Object.entries(drivers).map(([drv,items])=>`<div style="margin-bottom:2px">
+                    <div style="font-size:8px;font-weight:700;color:var(--text-3);padding:1px 0;display:flex;align-items:center;gap:3px;overflow:hidden">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="8" height="8" style="flex-shrink:0"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${drv}</span>
+                    </div>
+                    ${items.map(e=>_renderCard(e,canEdit,cmap)).join('')}
+                  </div>`).join('')}
+                </div>`;
+              }).join('')}
           </div>
         </div>`;
       }).join('')}
@@ -190,13 +209,10 @@ const DeliveryModule = (() => {
   function _renderCard(entry, canEdit, cmap) {
     const st = STATUS[entry.status]||STATUS.pending;
     const conflict = _picHasConflict(entry, cmap);
-    const sc = SHIFT_C[entry.shift]||null;
+    const sc = SHIFT_C[entry.shift]||SHIFT_C.all;
     const picLabel = (entry.picNames||[]).join(', ');
-    // Card colors: conflict=red, else shift-tinted, else default
-    const bg = conflict ? 'rgba(239,68,68,.07)' : (sc ? sc.card : 'var(--surface2)');
-    const bdr = conflict ? 'var(--danger)' : (sc ? sc.border : 'var(--border)');
-    // Shift badge
-    const sBadge = sc ? `<span style="font-size:8px;font-weight:800;padding:1px 5px;border-radius:var(--r-full);background:${sc.bg};color:${sc.text}">${entry.shift}</span>` : '';
+    const bg = conflict ? 'rgba(239,68,68,.07)' : sc.card;
+    const bdr = conflict ? 'var(--danger)' : sc.border;
 
     return `<div onclick="${canEdit?`DeliveryModule.openModal('${entry.id}','${entry.date}')`:'void(0)'}"
       style="background:${bg};border:1px solid ${bdr};border-radius:var(--r-sm);padding:var(--s2) var(--s3);margin-bottom:4px;cursor:${canEdit?'pointer':'default'};transition:all var(--t-fast)"
@@ -205,7 +221,6 @@ const DeliveryModule = (() => {
         <span onclick="event.stopPropagation();DeliveryModule.cycleStatus('${entry.id}')" title="${st.label}"
           style="width:8px;height:8px;border-radius:50%;background:${st.color};cursor:pointer;flex-shrink:0"></span>
         <div style="font-size:11px;font-weight:700;color:var(--heading);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${_custShort(entry.customerName)}</div>
-        ${sBadge}
       </div>
       ${picLabel?`<div style="font-size:9px;color:${conflict?'var(--danger)':'var(--text-2)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${conflict?'font-weight:700':''}">
         ${picLabel}${conflict?' \u26a0':''}
@@ -373,6 +388,16 @@ const DeliveryModule = (() => {
     _renderWeekGrid();
   }
 
-  return { init, prevWeek, nextWeek, goToday, openModal, saveEntry, deleteEntry, cycleStatus, autoPopulate, _filterPIC };
+  /* ═══ RESET WEEK ═══ */
+  async function resetWeek() {
+    const sc = _currentSchedule();
+    if (!sc || !(sc.entries||[]).length) { Notify.info('Tidak ada jadwal untuk direset'); return; }
+    if (!confirm('Hapus SEMUA jadwal delivery minggu ini? (' + sc.entries.length + ' entry)')) return;
+    sc.entries = [];
+    try { await DB.saveDeliverySchedule(sc); Notify.success('Jadwal minggu ini direset'); } catch(e) { Notify.error('Gagal: '+e.message); }
+    _renderWeekGrid();
+  }
+
+  return { init, prevWeek, nextWeek, goToday, openModal, saveEntry, deleteEntry, cycleStatus, autoPopulate, resetWeek, _filterPIC };
 })();
 window.DeliveryModule = DeliveryModule;
