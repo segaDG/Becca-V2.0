@@ -194,60 +194,148 @@ const PersonalModule = (() => {
     </div>`;
   }
 
-  /* ═══ NOTES TAB ═══ */
+  /* ═══ NOTES TAB — Sticky Note UI ═══ */
+  const NOTE_COLORS = [
+    {bg:'#fef9c3',text:'#854d0e',border:'#fde047',fold:'#facc15'}, // yellow
+    {bg:'#dbeafe',text:'#1e3a5f',border:'#93c5fd',fold:'#60a5fa'}, // blue
+    {bg:'#fce7f3',text:'#831843',border:'#f9a8d4',fold:'#f472b6'}, // pink
+    {bg:'#d1fae5',text:'#064e3b',border:'#6ee7b7',fold:'#34d399'}, // green
+    {bg:'#ede9fe',text:'#3b0764',border:'#c4b5fd',fold:'#a78bfa'}, // purple
+    {bg:'#ffedd5',text:'#7c2d12',border:'#fdba74',fold:'#fb923c'}, // orange
+  ];
+
   function _renderNotes() {
     const el = document.getElementById('personal-tab-notes');
     if (!el) return;
-    const user = Auth.currentUser();
-
     el.innerHTML = `
+      <style>
+        @keyframes noteIn{from{opacity:0;transform:translateY(16px) rotate(-1deg)}to{opacity:1;transform:translateY(0) rotate(0)}}
+        .sticky-note{animation:noteIn .3s ease both;position:relative;transition:transform .15s,box-shadow .15s}
+        .sticky-note:hover{transform:translateY(-3px) rotate(0.5deg)!important;box-shadow:0 8px 24px rgba(0,0,0,.15)!important}
+        .sticky-fold{position:absolute;top:0;right:0;width:0;height:0;border-style:solid}
+        .note-actions{position:absolute;bottom:-40px;left:50%;transform:translateX(-50%);display:flex;gap:8px;opacity:0;transition:opacity .2s;pointer-events:none}
+        .sticky-note.swiped .note-actions{opacity:1;pointer-events:all}
+        .note-action-btn{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);transition:transform .15s}
+        .note-action-btn:hover{transform:scale(1.15)}
+      </style>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s4)">
         <span style="font-size:13px;color:var(--text-2)">${_notes.length} catatan</span>
         <div style="display:flex;gap:var(--s2)">
-          <button class="btn btn-ghost btn-sm" onclick="PersonalModule.toggleFloating()" id="floating-toggle">
-            ${_floatingActive?'\u00d7 Tutup Floating':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Floating Notes'}
+          <button class="btn btn-ghost btn-sm" onclick="PersonalModule.toggleFloating()">
+            ${_floatingActive?'\u00d7 Tutup Floating':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Floating'}
           </button>
-          <button class="btn btn-primary btn-sm" onclick="PersonalModule.openNoteModal()">+ Catatan Baru</button>
+          <button class="btn btn-ghost btn-sm" onclick="PersonalModule.openNoteModal(null,'todo')">+ To-Do List</button>
+          <button class="btn btn-primary btn-sm" onclick="PersonalModule.openNoteModal()">+ Catatan</button>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s3)">
-        ${_notes.length ? _notes.map(n => _noteCard(n)).join('') : UI.empty({iconKey:'list', title:'Belum ada catatan', desc:'Klik "+ Catatan Baru" untuk mulai'})}
-      </div>
-    `;
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:var(--s5)">
+        ${_notes.length ? _notes.map((n,i) => _noteCard(n,i)).join('') : UI.empty({iconKey:'list', title:'Belum ada catatan', desc:'Buat catatan atau to-do list baru'})}
+      </div>`;
   }
 
-  function _noteCard(n) {
+  function _noteCard(n, idx=0) {
+    const c = NOTE_COLORS[(n.id||'').charCodeAt(0) % NOTE_COLORS.length];
     const hasReminder = n.reminderAt && new Date(n.reminderAt) > new Date();
-    const reminderLabel = hasReminder ? `<span style="font-size:9px;color:var(--warning);font-weight:600">\u23f0 ${new Date(n.reminderAt).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>` : '';
-    const colors = ['rgba(99,102,241,.08)','rgba(16,185,129,.08)','rgba(245,158,11,.08)','rgba(236,72,153,.08)','rgba(59,130,246,.08)'];
-    const bg = colors[(n.id||'').charCodeAt(0) % colors.length];
-    return `<div onclick="PersonalModule.openNoteModal('${n.id}')" style="background:${bg};border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s4);cursor:pointer;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.06)"
-      onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='var(--shadow-md)'"
-      onmouseout="this.style.transform='';this.style.boxShadow='0 1px 4px rgba(0,0,0,.06)'">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s2)">
-        <div style="font-size:14px;font-weight:700;color:var(--heading);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${n.title||'Tanpa judul'}</div>
-        ${reminderLabel}
+    const isTodo = n.type === 'todo';
+    const todos = isTodo ? (n.todos || []) : [];
+    const doneCount = todos.filter(t=>t.done).length;
+    const delay = Math.min(idx*50, 400);
+
+    let body = '';
+    if (isTodo) {
+      body = todos.slice(0,5).map(t =>
+        `<div style="display:flex;align-items:center;gap:6px;padding:2px 0">
+          <span style="width:14px;height:14px;border-radius:3px;border:2px solid ${c.fold};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:9px;color:${c.fold}">${t.done?'\u2713':''}</span>
+          <span style="font-size:12px;${t.done?'text-decoration:line-through;opacity:.5':''}">${t.text}</span>
+        </div>`
+      ).join('');
+      if (todos.length > 5) body += `<div style="font-size:10px;color:${c.fold};margin-top:2px">+${todos.length-5} more</div>`;
+      if (todos.length) body += `<div style="font-size:10px;margin-top:4px;color:${c.fold};font-weight:600">${doneCount}/${todos.length} selesai</div>`;
+    } else {
+      body = `<div style="font-size:12px;max-height:80px;overflow:hidden;line-height:1.6;white-space:pre-wrap">${(n.content||'').slice(0,200)}</div>`;
+    }
+
+    return `<div style="position:relative;padding-bottom:44px;animation-delay:${delay}ms">
+      <div class="sticky-note" data-nid="${n.id}" onclick="PersonalModule.openNoteModal('${n.id}')"
+        style="background:${c.bg};color:${c.text};border-radius:2px 2px 2px 12px;padding:16px 18px 14px;cursor:pointer;
+        box-shadow:2px 3px 12px rgba(0,0,0,.1);min-height:120px;position:relative;transform:rotate(${(idx%2===0?-0.5:0.5)}deg)"
+        ontouchstart="this._sy=event.touches[0].clientY" ontouchmove="PersonalModule._noteSwipe(this,event)" ontouchend="PersonalModule._noteSwipeEnd(this)">
+        <div class="sticky-fold" style="border-width:0 24px 24px 0;border-color:transparent ${c.fold} transparent transparent"></div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:8px;padding-right:20px">${n.title||'Tanpa judul'}</div>
+        ${body}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+          ${hasReminder?`<span style="font-size:9px;font-weight:600;color:${c.fold}">\u23f0 ${new Date(n.reminderAt).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>`:`<span></span>`}
+          <span style="font-size:9px;opacity:.5">${_fmtDate((n.updatedAt||n.createdAt||'').slice(0,10))}</span>
+        </div>
+        ${isTodo?`<div style="position:absolute;top:12px;right:28px;font-size:9px;font-weight:700;color:${c.fold}">TO-DO</div>`:''}
       </div>
-      <div style="font-size:12px;color:var(--text-2);max-height:60px;overflow:hidden;line-height:1.5;white-space:pre-wrap">${(n.content||'').slice(0,150)}${(n.content||'').length>150?'...':''}</div>
-      <div style="font-size:10px;color:var(--text-3);margin-top:var(--s2)">${_fmtDate((n.updatedAt||n.createdAt||'').slice(0,10))}</div>
+      <div class="note-actions">
+        <button class="note-action-btn" style="background:#ef4444;color:#fff" onclick="event.stopPropagation();PersonalModule.deleteNote('${n.id}')" title="Hapus">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        </button>
+        <button class="note-action-btn" style="background:var(--surface2);color:var(--text)" onclick="event.stopPropagation();PersonalModule._archiveNote('${n.id}')" title="Arsip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 8v13H3V8M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+        </button>
+      </div>
     </div>`;
   }
 
-  /* ═══ NOTE MODAL ═══ */
-  function openNoteModal(noteId) {
+  // Touch swipe down to reveal actions
+  function _noteSwipe(el, e) {
+    const dy = e.touches[0].clientY - (el._sy||0);
+    if (dy > 20) { el.style.transform = `translateY(${Math.min(dy-20,50)}px)`; el.classList.add('swiped'); }
+    else { el.style.transform = ''; el.classList.remove('swiped'); }
+  }
+  function _noteSwipeEnd(el) {
+    const wasSwiped = el.classList.contains('swiped');
+    el.style.transform = '';
+    if (!wasSwiped) el.classList.remove('swiped');
+    // Auto-hide actions after 3s
+    if (wasSwiped) setTimeout(()=>el.classList.remove('swiped'), 3000);
+  }
+
+  async function _archiveNote(noteId) {
+    const n = _notes.find(x=>x.id===noteId);
+    if (!n) return;
+    n.archived = true; n.updatedAt = new Date().toISOString();
+    await DB.savePersonalNote(n).catch(()=>{});
+    _notes = _notes.filter(x=>x.id!==noteId);
+    Notify.success('Catatan diarsipkan');
+    _renderNotes();
+  }
+
+  /* ═══ NOTE MODAL — supports note + todo ═══ */
+  function openNoteModal(noteId, forceType) {
     const existing = noteId ? _notes.find(n=>n.id===noteId) : null;
+    const type = existing?.type || forceType || 'note';
+    const isTodo = type === 'todo';
+    const todos = existing?.todos || [];
     const mid = 'note-'+Date.now();
-    Modal.open({ id:mid, title:existing?'Edit Catatan':'Catatan Baru', size:'modal-lg',
+
+    const todoListHTML = isTodo ? `
+      <div class="form-group"><label class="form-label">To-Do Items</label>
+        <div id="note-todo-list" style="margin-bottom:var(--s2)">
+          ${todos.map((t,i)=>`<div style="display:flex;align-items:center;gap:var(--s2);margin-bottom:4px" class="todo-row">
+            <input type="checkbox" ${t.done?'checked':''} style="accent-color:var(--primary);width:16px;height:16px;cursor:pointer">
+            <input type="text" class="form-control" value="${t.text||''}" placeholder="Item..." style="flex:1;min-height:32px;padding:4px 8px;font-size:13px">
+            <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px">\u00d7</button>
+          </div>`).join('')}
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="PersonalModule._addTodoRow()">+ Tambah Item</button>
+      </div>` : `
+      <div class="form-group"><label class="form-label">Isi</label>
+        <textarea id="note-content" class="form-control" rows="8" placeholder="Tulis catatan...">${existing?.content||''}</textarea>
+      </div>`;
+
+    Modal.open({ id:mid, title:existing?'Edit '+(isTodo?'To-Do':'Catatan'):(isTodo?'To-Do List Baru':'Catatan Baru'), size:'modal-lg',
       body:`
+        <input type="hidden" id="note-type" value="${type}">
         <div class="form-group"><label class="form-label">Judul</label>
-          <input id="note-title" class="form-control" value="${existing?.title||''}" placeholder="Judul catatan...">
+          <input id="note-title" class="form-control" value="${existing?.title||''}" placeholder="${isTodo?'Nama to-do list...':'Judul catatan...'}">
         </div>
-        <div class="form-group"><label class="form-label">Isi</label>
-          <textarea id="note-content" class="form-control" rows="8" placeholder="Tulis catatan...">${existing?.content||''}</textarea>
-        </div>
+        ${todoListHTML}
         <div class="form-group"><label class="form-label">Reminder (opsional)</label>
           <input id="note-reminder" type="datetime-local" class="form-control" value="${existing?.reminderAt?existing.reminderAt.slice(0,16):''}">
-          <div style="font-size:10px;color:var(--text-3);margin-top:2px">Akan dikirim push notification saat waktunya tiba</div>
         </div>`,
       footer:`${existing?`<button class="btn btn-danger" onclick="PersonalModule.deleteNote('${noteId}','${mid}')">Hapus</button>`:''}
         <div style="flex:1"></div>
@@ -256,17 +344,39 @@ const PersonalModule = (() => {
     });
   }
 
+  function _addTodoRow() {
+    const list = document.getElementById('note-todo-list');
+    if (!list) return;
+    list.insertAdjacentHTML('beforeend',
+      `<div style="display:flex;align-items:center;gap:var(--s2);margin-bottom:4px" class="todo-row">
+        <input type="checkbox" style="accent-color:var(--primary);width:16px;height:16px;cursor:pointer">
+        <input type="text" class="form-control" placeholder="Item..." style="flex:1;min-height:32px;padding:4px 8px;font-size:13px">
+        <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px">\u00d7</button>
+      </div>`);
+    list.lastElementChild.querySelector('input[type="text"]').focus();
+  }
+
   async function saveNote(noteId, modalId) {
     const user = Auth.currentUser();
     const title = (document.getElementById('note-title')?.value||'').trim();
-    const content = (document.getElementById('note-content')?.value||'').trim();
+    const type = document.getElementById('note-type')?.value || 'note';
+    const isTodo = type === 'todo';
+    let content = '', todos = [];
+    if (isTodo) {
+      document.querySelectorAll('.todo-row').forEach(row => {
+        const text = row.querySelector('input[type="text"]')?.value?.trim();
+        if (text) todos.push({ text, done: !!row.querySelector('input[type="checkbox"]')?.checked });
+      });
+      if (!title && !todos.length) { Notify.warning('Isi judul atau tambah item'); return; }
+    } else {
+      content = (document.getElementById('note-content')?.value||'').trim();
+      if (!title && !content) { Notify.warning('Isi judul atau catatan'); return; }
+    }
     const reminderAt = document.getElementById('note-reminder')?.value || '';
-    if (!title && !content) { Notify.warning('Isi judul atau catatan'); return; }
-
     const data = {
       id: noteId || Utils.uid(),
       userId: user?.id, username: user?.username,
-      title, content,
+      type, title, content, todos,
       reminderAt: reminderAt ? new Date(reminderAt).toISOString() : '',
       reminderSent: false,
       createdAt: noteId ? (_notes.find(n=>n.id===noteId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
@@ -276,9 +386,8 @@ const PersonalModule = (() => {
       await DB.savePersonalNote(data);
       if (noteId) { const idx=_notes.findIndex(n=>n.id===noteId); if(idx>=0) _notes[idx]=data; else _notes.unshift(data); }
       else _notes.unshift(data);
-      // Schedule reminder check
       if (data.reminderAt) _scheduleReminder(data);
-      Notify.success(noteId?'Catatan diperbarui':'Catatan disimpan');
+      Notify.success(noteId?'Diperbarui':'Disimpan');
     } catch(e) { Notify.error('Gagal: '+e.message); }
     Modal.close(modalId);
     _renderNotes();
@@ -286,8 +395,8 @@ const PersonalModule = (() => {
 
   async function deleteNote(noteId, modalId) {
     if (!confirm('Hapus catatan ini?')) return;
-    try { await DB.deletePersonalNote(noteId); _notes=_notes.filter(n=>n.id!==noteId); Notify.success('Catatan dihapus'); } catch { Notify.error('Gagal'); }
-    Modal.close(modalId);
+    try { await DB.deletePersonalNote(noteId); _notes=_notes.filter(n=>n.id!==noteId); Notify.success('Dihapus'); } catch { Notify.error('Gagal'); }
+    if (modalId) Modal.close(modalId);
     _renderNotes();
   }
 
@@ -393,7 +502,8 @@ const PersonalModule = (() => {
 
   return {
     init, switchTab, _toggleField,
-    openNoteModal, saveNote, deleteNote,
+    openNoteModal, saveNote, deleteNote, _addTodoRow, _archiveNote,
+    _noteSwipe, _noteSwipeEnd,
     toggleFloating, saveFloatingContent,
   };
 })();
