@@ -96,17 +96,26 @@ const DeliveryModule = (() => {
   }
 
   function _customerOptions(date) {
-    // Hanya customer yang punya order pada tanggal ini
-    const names = new Set();
+    // Hanya customer yang punya order pada tanggal ini, enriched dengan customerId + namaShort
+    const map = {};
     _orders.forEach(o => {
-      if ((o.tanggal||o.tglOrder) === date && o.namaPerusahaan) names.add(o.namaPerusahaan);
+      if (o.tglOrder === date && o.namaPerusahaan) {
+        const name = o.namaPerusahaan;
+        if (!map[name]) {
+          const cust = _customers.find(c => (c.nama||'').toLowerCase() === name.toLowerCase());
+          const id = cust?.customerId || '';
+          const short = cust?.namaShort || '';
+          const label = (id ? '['+id+'] ' : '') + name + (short ? ' ('+short+')' : '');
+          map[name] = { label, value: name };
+        }
+      }
     });
-    return [...names].sort();
+    return Object.values(map).sort((a,b) => a.label.localeCompare(b.label));
   }
 
   function _calcPax(customerName, date) {
     const n = v => Number(v)||0;
-    return _orders.filter(o => o.namaPerusahaan === customerName && (o.tanggal||o.tglOrder) === date)
+    return _orders.filter(o => o.namaPerusahaan === customerName && o.tglOrder === date)
       .reduce((sum, o) => {
         return sum + n(o.breakfast) + n(o.shift1) + n(o.spare1) + n(o.ot1) + n(o.snack1)
           + n(o.shift2) + n(o.spare2) + n(o.ot2) + n(o.snack2)
@@ -318,10 +327,8 @@ const DeliveryModule = (() => {
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Customer <span class="req">*</span></label>
-            <select id="dlv-customer" class="form-control">
-              <option value="">— Pilih Customer —</option>
-              ${custOpts.map(c => `<option value="${c}" ${existing && existing.customerName===c?'selected':''}>${c}</option>`).join('')}
-            </select>
+            <input type="text" id="dlv-customer" class="form-control" placeholder="Ketik nama customer..." value="${existing?.customerName||''}" autocomplete="off">
+            <div style="font-size:10px;color:var(--text-3);margin-top:2px">Hanya customer yang punya order di tanggal ini</div>
           </div>
           <div class="form-group">
             <label class="form-label">Driver</label>
@@ -390,14 +397,20 @@ const DeliveryModule = (() => {
       `,
     });
 
-    // Auto-calc pax when customer selected
-    const custSel = document.getElementById('dlv-customer');
-    if (custSel && !existing) {
-      custSel.addEventListener('change', () => {
-        const paxEl = document.getElementById('dlv-pax');
-        if (paxEl && custSel.value) {
-          const pax = _calcPax(custSel.value, date);
-          if (pax > 0) paxEl.value = pax;
+    // Searchable customer combobox
+    const custInput = document.getElementById('dlv-customer');
+    if (custInput) {
+      Utils.initCombo(custInput, custOpts, {
+        onSelect(item) {
+          custInput.value = item.value; // store the plain nama for saving
+          // Auto-calc pax
+          if (!existing) {
+            const paxEl = document.getElementById('dlv-pax');
+            if (paxEl) {
+              const pax = _calcPax(item.value, date);
+              if (pax > 0) paxEl.value = pax;
+            }
+          }
         }
       });
     }
@@ -412,8 +425,11 @@ const DeliveryModule = (() => {
 
   /* ═══ SAVE ENTRY ═══ */
   async function saveEntry(entryId, date, modalId) {
-    const customerName = document.getElementById('dlv-customer').value;
+    let customerName = document.getElementById('dlv-customer').value.trim();
     if (!customerName) { Notify.warning('Pilih customer terlebih dahulu'); return; }
+    // Jika user mengetik label format "[ID] Nama (Short)", extract nama asli
+    const custMatch = _customers.find(c => customerName === c.nama || (c.namaShort && customerName.includes(c.namaShort)));
+    if (custMatch) customerName = custMatch.nama;
 
     const driverSel = document.getElementById('dlv-driver');
     const driverId = driverSel.value;
@@ -534,7 +550,7 @@ const DeliveryModule = (() => {
     let added = 0;
     days.forEach(date => {
       // Find customers with orders on this date
-      const dayOrders = _orders.filter(o => (o.tanggal||o.tglOrder) === date);
+      const dayOrders = _orders.filter(o => o.tglOrder === date);
       const custMap = {};
       dayOrders.forEach(o => {
         const name = o.namaPerusahaan;
