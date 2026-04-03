@@ -11,20 +11,20 @@
      Hierarki: sidebar (terang) → header (sedang) → content (gelap)
      ═══════════════════════════════════════════ */
 
-  /* --- Chrome: Sidebar (paling terang — elevated) --- */
-  --sidebar-bg:       #1e2545;
-  --sidebar-brand-bg: #1a2040;
-  --sidebar-hover:    #2a3262;
-  --sidebar-active:   #303a6e;
-  --sidebar-border:   rgba(130,145,220,0.15);
-  --sidebar-text:     #c8cfe4;
-  --sidebar-text-dim: #7e8aaa;
+  /* --- Chrome: Sidebar (lebih gelap dari header) --- */
+  --sidebar-bg:       #121838;
+  --sidebar-brand-bg: #0f1530;
+  --sidebar-hover:    #1c2450;
+  --sidebar-active:   #222c5c;
+  --sidebar-border:   rgba(130,145,220,0.12);
+  --sidebar-text:     #c0c8e0;
+  --sidebar-text-dim: #7080a8;
   --sidebar-accent:   #a5b4fc;
-  --sidebar-section:  rgba(165,180,252,0.5);
+  --sidebar-section:  rgba(165,180,252,0.45);
 
-  /* --- Chrome: Header (sedang) --- */
-  --header-bg:        #161b38;
-  --header-border:    rgba(130,145,220,0.12);
+  /* --- Chrome: Header (lebih terang dari sidebar) --- */
+  --header-bg:        #1a2248;
+  --header-border:    rgba(130,145,220,0.15);
   --header-text:      #eef0f6;
   --header-text-dim:  #8e99b8;
 
