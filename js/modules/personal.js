@@ -103,9 +103,10 @@ const PersonalModule = (() => {
     }
     const e = _emp;
     const s = _showData;
-    // Kasbon
-    const kasbon = _payroll.reduce((sum,p) => sum + (Number(p.potonganHutang)||0), 0);
-    const sisaHutang = Number(e.sisaHutang)||0;
+    // Kasbon — hitung dari logbook
+    const totalHutang = _logs.reduce((sum,l) => sum + (Number(l.hutang)||0), 0);
+    const totalBayar  = _logs.reduce((sum,l) => sum + (Number(l.bayar)||0), 0);
+    const sisaHutang  = Number(e.sisaHutang) || (totalHutang - totalBayar);
     // Absensi summary
     const thisMonth = new Date().toISOString().slice(0,7);
     const absThisMonth = _absensi.filter(a => (a.tgl||'').startsWith(thisMonth));
@@ -144,12 +145,24 @@ const PersonalModule = (() => {
           </div>
         </div>
 
-        <!-- Kasbon -->
+        <!-- Kasbon Summary -->
         <div class="card">
-          <div class="card-header"><span class="card-title">Kasbon / Hutang</span></div>
-          <div style="text-align:center;padding:var(--s4)">
-            <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;font-weight:600;margin-bottom:4px">Sisa Hutang</div>
-            <div style="font-size:28px;font-weight:800;color:${sisaHutang>0?'var(--danger)':'var(--success)'};font-family:var(--font-mono)">${_mask(_fmtRp(sisaHutang), s.hutang)} ${_eyeBtn('hutang')}</div>
+          <div class="card-header"><span class="card-title">Kasbon / Hutang</span>${_eyeBtn('hutang')}</div>
+          <div style="padding:var(--s3)">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);text-align:center;margin-bottom:var(--s3)">
+              <div>
+                <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;font-weight:600">Total Hutang</div>
+                <div style="font-size:18px;font-weight:800;color:var(--danger);font-family:var(--font-mono)">${_mask(_fmtRp(totalHutang), s.hutang)}</div>
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;font-weight:600">Total Bayar</div>
+                <div style="font-size:18px;font-weight:800;color:var(--success);font-family:var(--font-mono)">${_mask(_fmtRp(totalBayar), s.hutang)}</div>
+              </div>
+            </div>
+            <div style="text-align:center;padding:var(--s2);border-top:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text-3);font-weight:600">SISA HUTANG</div>
+              <div style="font-size:22px;font-weight:800;color:${sisaHutang>0?'var(--danger)':'var(--success)'};font-family:var(--font-mono)">${_mask(_fmtRp(sisaHutang), s.hutang)}</div>
+            </div>
           </div>
         </div>
 
@@ -165,28 +178,49 @@ const PersonalModule = (() => {
         </div>
       </div>
 
-      <!-- Logbook -->
+      <!-- Logbook Lengkap -->
       <div class="card" style="margin-bottom:var(--s4)">
-        <div class="card-header"><span class="card-title">Logbook Terakhir</span><span style="font-size:11px;color:var(--text-3)">${_logs.length} catatan</span></div>
+        <div class="card-header"><span class="card-title">Logbook</span><span style="font-size:11px;color:var(--text-3)">${_logs.length} catatan</span></div>
         <div class="table-scroll"><table class="table">
-          <thead><tr><th>Tanggal</th><th>Catatan</th></tr></thead>
+          <thead><tr>
+            <th>Tanggal</th><th>Keterangan</th><th>Penanggung Jawab</th>
+            <th class="num" style="color:var(--danger)">Hutang</th>
+            <th class="num" style="color:var(--success)">Bayar</th>
+            <th>Status</th>
+          </tr></thead>
           <tbody>
-            ${_logs.slice(0,10).map(l => `<tr><td style="white-space:nowrap">${_fmtDate(l.tgl)}</td><td>${l.catatan||l.keterangan||'-'}</td></tr>`).join('')
-              || '<tr><td colspan="2" style="text-align:center;color:var(--text-3);padding:var(--s4)">Belum ada logbook</td></tr>'}
+            ${_logs.length ? _logs.map(l => {
+              const h = Number(l.hutang)||0, b = Number(l.bayar)||0;
+              const stIcon = l.status==='\u2713'||l.status==='done'?'\u2713':l.status==='\u2014'?'\u2014':l.status||'\u2014';
+              return `<tr>
+                <td style="white-space:nowrap;font-size:12px">${_fmtDate(l.tanggal||l.tgl)}</td>
+                <td style="font-size:12px">${l.catatan||l.keterangan||'-'}</td>
+                <td style="font-size:12px;color:var(--text-2)">${l.penanggungJawab||l.pj||'-'}</td>
+                <td class="num" style="font-family:var(--font-mono);font-size:12px;color:${h?'var(--danger)':'var(--text-3)'}">${h?_fmtRp(h):'-'}</td>
+                <td class="num" style="font-family:var(--font-mono);font-size:12px;color:${b?'var(--success)':'var(--text-3)'}">${b?_fmtRp(b):'-'}</td>
+                <td style="text-align:center">${stIcon}</td>
+              </tr>`; }).join('')
+              : '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:var(--s4)">Belum ada logbook</td></tr>'}
           </tbody>
+          ${_logs.length ? `<tfoot><tr style="font-weight:700">
+            <td colspan="3" style="font-size:12px">Subtotal (${_logs.length} entri)</td>
+            <td class="num" style="font-family:var(--font-mono);font-size:12px;color:var(--danger)">${_fmtRp(totalHutang)}</td>
+            <td class="num" style="font-family:var(--font-mono);font-size:12px;color:var(--success)">${_fmtRp(totalBayar)}</td>
+            <td></td>
+          </tr></tfoot>` : ''}
         </table></div>
       </div>
 
       <!-- Riwayat Absensi -->
       <div class="card">
         <div class="card-header"><span class="card-title">Riwayat Absensi</span><span style="font-size:11px;color:var(--text-3)">${_absensi.length} record</span></div>
-        <div class="table-scroll"><table class="table">
+        <div class="table-scroll" style="max-height:400px;overflow-y:auto"><table class="table">
           <thead><tr><th>Tanggal</th><th>Status</th><th>Keterangan</th></tr></thead>
           <tbody>
-            ${_absensi.slice(0,20).map(a => {
+            ${_absensi.length ? _absensi.map(a => {
               const sc = a.status==='Hadir'?'var(--success)':a.status==='Alpha'?'var(--danger)':a.status==='Sakit'?'var(--info)':'var(--warning)';
-              return `<tr><td style="white-space:nowrap">${_fmtDate(a.tgl)}</td><td><span style="font-size:11px;font-weight:600;color:${sc}">${a.status||'-'}</span></td><td>${a.ket||'-'}</td></tr>`;
-            }).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-3);padding:var(--s4)">Belum ada data absensi</td></tr>'}
+              return `<tr><td style="white-space:nowrap;font-size:12px">${_fmtDate(a.tgl)}</td><td><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:var(--r-full);background:${sc}18;color:${sc}">${a.status||'-'}</span></td><td style="font-size:12px">${a.ket||'-'}</td></tr>`;
+            }).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--text-3);padding:var(--s4)">Belum ada data absensi</td></tr>'}
           </tbody>
         </table></div>
       </div>
