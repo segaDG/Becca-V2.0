@@ -592,6 +592,14 @@ const DB = (() => {
   const getDeliveryTrackingLogs  = ()     => _get('delivery_tracking_logs');
   const saveDeliveryTrackingLog  = (data) => { if (!data.id) data.id = Utils.uid(); return _save('delivery_tracking_logs', data); };
 
+  // ── MENU ──────────────────────────────────────────────────
+  const getMenuLibrary  = ()     => _get('menu_library');
+  const saveMenuItem    = (data) => { if (!data.id) data.id = Utils.uid(); return _save('menu_library', data); };
+  const deleteMenuItem  = (id)   => _delete('menu_library', id);
+  const getMenuPlans    = ()     => _get('menu_plans');
+  const saveMenuPlan    = (data) => { if (!data.id) data.id = Utils.uid(); return _save('menu_plans', data); };
+  const deleteMenuPlan  = (id)   => _delete('menu_plans', id);
+
   // ── PERSONAL NOTES ────────────────────────────────────────
   const getPersonalNotes   = ()     => _get('personal_notes');
   const savePersonalNote   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('personal_notes', data); };
@@ -1086,6 +1094,9 @@ const DB = (() => {
     getDeliverySchedules, saveDeliverySchedule, deleteDeliverySchedule,
     getDeliveryCheckpoints, saveDeliveryCheckpoint, deleteDeliveryCheckpoint,
     getDeliveryTrackingLogs, saveDeliveryTrackingLog,
+    // Menu
+    getMenuLibrary, saveMenuItem, deleteMenuItem,
+    getMenuPlans, saveMenuPlan, deleteMenuPlan,
     // Personal Notes
     getPersonalNotes, savePersonalNote, deletePersonalNote,
     // AP
