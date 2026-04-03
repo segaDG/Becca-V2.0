@@ -803,19 +803,19 @@ const KasModule = (() => {
     const tbc    = keluar.filter(r=>r.status==='TBC');
     const noSt   = keluar.filter(r=>!r.status);
     const _card = (icon, label, value, color, accent, onclick='') => {
-      return `<div ${onclick?`onclick="${onclick}"`:''}  class="ks-strip-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;min-width:0;transition:all .2s;position:relative;overflow:hidden;${onclick?'cursor:pointer':''}"
-        onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.15)'"
+      return `<div ${onclick?`onclick="${onclick}"`:''}  class="ks-strip-card" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s3) var(--s4);min-width:0;transition:all .2s;position:relative;overflow:hidden;${onclick?'cursor:pointer':''}"
+        onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='var(--shadow-sm)'"
         onmouseout="this.style.transform='';this.style.boxShadow=''">
         <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${accent}"></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <div style="width:28px;height:28px;border-radius:7px;background:${accent}18;display:flex;align-items:center;justify-content:center;font-size:13px">${icon}</div>
-          <span style="font-size:11px;color:var(--text-2);font-weight:600">${label}</span>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <span style="font-size:12px">${icon}</span>
+          <span style="font-size:10px;color:var(--text-2);font-weight:600">${label}</span>
         </div>
-        <div style="font-size:20px;font-weight:800;color:${color};font-family:var(--font-mono);letter-spacing:-.01em">${value}</div>
+        <div style="font-size:14px;font-weight:800;color:${color};font-family:var(--font-mono);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${value}</div>
       </div>`;
     };
     const masuk = data.filter(r=>r.type==='Kas');
-    return `<style>.ks-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s3);width:100%}@media(max-width:1100px){.ks-cards{grid-template-columns:repeat(3,1fr)}}@media(max-width:600px){.ks-cards{grid-template-columns:repeat(2,1fr)}}</style>
+    return `<style>.ks-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s2);width:100%;align-items:stretch}@media(max-width:1100px){.ks-cards{grid-template-columns:repeat(3,1fr)}}@media(max-width:600px){.ks-cards{grid-template-columns:repeat(2,1fr)}}</style>
     <div class="ks-cards">
       ${_card('\ud83d\udce4','Total Keluar', Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)), 'var(--danger)', '#ef4444')}
       ${_card('\u2705','Confirmed',    Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),   'var(--success)', '#22c55e')}
