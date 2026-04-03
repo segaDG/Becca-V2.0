@@ -277,15 +277,20 @@ const DeliveryModule = (() => {
             <input type="text" id="dlv-driver" class="form-control" placeholder="Klik atau ketik untuk cari..." value="${existing?.driverName||''}" autocomplete="off">
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">PIC / Pramusaji</label>
-            <input type="text" id="dlv-pic-input" class="form-control" placeholder="Klik atau ketik untuk cari PIC..." autocomplete="off">
-            <div id="dlv-pic-selected" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:var(--s2)">
-              ${selPics.map(pid=>{const emp=_employees.find(x=>x.id===pid); return emp?`<span class="dlv-pic-tag" data-id="${pid}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:var(--r-full);background:var(--primary-bg);color:var(--primary-h);font-size:11px;font-weight:600">
-                ${emp.nama} <span onclick="DeliveryModule._removePIC('${pid}')" style="cursor:pointer;font-size:13px;line-height:1">\u00d7</span>
-              </span>`:'';}).join('')}
-            </div>
+        <div class="form-group">
+          <label class="form-label">PIC / Pramusaji</label>
+          <input type="text" id="dlv-pic-search" class="form-control" placeholder="Cari nama PIC..." oninput="DeliveryModule._filterPIC(this.value)" style="margin-bottom:var(--s2)">
+          <div id="dlv-pic-list" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-sm);padding:var(--s2)">
+            ${picList.map(e=>{
+              const cnt = picUsage[e.id]||0;
+              const bColor = cnt>=3?'var(--danger)':cnt>=2?'var(--warning)':'var(--info)';
+              const bBg = cnt>=3?'var(--danger-bg)':cnt>=2?'var(--warning-bg)':'var(--info-bg)';
+              const badge = cnt?`<span style="font-size:9px;font-weight:700;padding:0 6px;border-radius:var(--r-full);background:${bBg};color:${bColor};margin-left:auto;flex-shrink:0">${cnt}x</span>`:'';
+              return `<label class="form-check dlv-pic-item" style="padding:5px var(--s2);display:flex;align-items:center;border-radius:var(--r-sm);cursor:pointer" data-name="${(e.nama||'').toLowerCase()}">
+                <input type="checkbox" value="${e.id}" data-nama="${e.nama}" ${selPics.includes(e.id)?'checked':''} style="accent-color:var(--primary);width:16px;height:16px;cursor:pointer;flex-shrink:0">
+                <span style="flex:1;margin-left:var(--s2);font-size:13px">${e.nama}${e.jabatan?` <span style="color:var(--text-3);font-size:11px">\u00b7 ${e.jabatan}</span>`:''}</span>
+                ${badge}
+              </label>`;}).join('')}
           </div>
         </div>
         <div class="form-row-3">
@@ -328,36 +333,18 @@ const DeliveryModule = (() => {
     if (di) {
       const dOpts = driverList.map(e=>{
         const cnt = drvUsage[e.id]||0;
-        const tag = cnt ? ` [${cnt}x]` : '';
+        const tag = cnt ? ` (${cnt}x)` : '';
         return {label:e.nama+(e.jabatan?' \u00b7 '+e.jabatan:'')+tag, value:e.id, nama:e.nama};
       });
       Utils.initCombo(di, dOpts, { onSelect(item){di.value=item.nama;di.dataset.id=item.value;} });
       if (existing?.driverId) di.dataset.id=existing.driverId;
     }
-    // PIC — dropdown multi-select (click to add tag, click x to remove)
-    const pi = document.getElementById('dlv-pic-input');
-    if (pi) {
-      const picOpts = picList.map(e=>{
-        const cnt = picUsage[e.id]||0;
-        const tag = cnt ? ` [${cnt}x]` : '';
-        return {label:e.nama+(e.jabatan?' \u00b7 '+e.jabatan:'')+tag, value:e.id, nama:e.nama};
-      });
-      Utils.initCombo(pi, picOpts, {
-        onSelect(item) {
-          pi.value = '';
-          // Skip if already selected
-          if (document.querySelector(`.dlv-pic-tag[data-id="${item.value}"]`)) return;
-          const cont = document.getElementById('dlv-pic-selected');
-          if (cont) cont.insertAdjacentHTML('beforeend',
-            `<span class="dlv-pic-tag" data-id="${item.value}" data-nama="${item.nama}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:var(--r-full);background:var(--primary-bg);color:var(--primary-h);font-size:11px;font-weight:600">
-              ${item.nama} <span onclick="DeliveryModule._removePIC('${item.value}')" style="cursor:pointer;font-size:13px;line-height:1">\u00d7</span>
-            </span>`);
-        }
-      });
-    }
   }
 
-  function _removePIC(id) { const el=document.querySelector(`.dlv-pic-tag[data-id="${id}"]`); if(el) el.remove(); }
+  function _filterPIC(q) {
+    const l = q.toLowerCase();
+    document.querySelectorAll('.dlv-pic-item').forEach(el => { el.style.display = el.dataset.name.includes(l) ? '' : 'none'; });
+  }
 
   /* ═══ SAVE ═══ */
   async function saveEntry(entryId, date, modalId) {
@@ -365,8 +352,8 @@ const DeliveryModule = (() => {
     if (!customerName) { Notify.warning('Pilih customer'); return; }
     const di = document.getElementById('dlv-driver');
     const driverId = di?.dataset?.id||'', driverName = (di?.value||'').trim();
-    const picTags = document.querySelectorAll('.dlv-pic-tag');
-    const picIds=[...picTags].map(t=>t.dataset.id), picNames=[...picTags].map(t=>t.dataset.nama);
+    const picChecks = document.querySelectorAll('#dlv-pic-list input[type="checkbox"]:checked');
+    const picIds=[...picChecks].map(c=>c.value), picNames=[...picChecks].map(c=>c.dataset.nama);
     const status = (document.querySelector('input[name="dlv-status"]:checked')||{}).value||'pending';
     const shift = document.getElementById('dlv-shift').value;
     const deliveryTime = document.getElementById('dlv-time').value;
@@ -444,6 +431,6 @@ const DeliveryModule = (() => {
     _renderWeekGrid();
   }
 
-  return { init, prevWeek, nextWeek, goToday, openModal, saveEntry, deleteEntry, cycleStatus, autoPopulate, resetWeek, _removePIC };
+  return { init, prevWeek, nextWeek, goToday, openModal, saveEntry, deleteEntry, cycleStatus, autoPopulate, resetWeek, _filterPIC };
 })();
 window.DeliveryModule = DeliveryModule;
