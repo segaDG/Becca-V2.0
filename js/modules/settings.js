@@ -380,19 +380,19 @@ else { window.SettingsModule = (() => {
     `;
   }
 
+  let _empListCache = [];
   async function openUserModal(idOrUsername=null, isDefault=false) {
     let d = null;
     if (idOrUsername) {
-      // Try cache first (populated by renderUsers) to avoid re-fetch issues
       d = _usersCache.find(u=>u.id===idOrUsername||u.username===idOrUsername);
-      if (!d) {
-        const users = await DB.getUsers().catch(()=>[]);
-        d = users.find(u=>u.id===idOrUsername||u.username===idOrUsername);
-      }
+      if (!d) { const users = await DB.getUsers().catch(()=>[]); d = users.find(u=>u.id===idOrUsername||u.username===idOrUsername); }
       if (!d) d = Auth._defaultUsers.find(u=>u.id===idOrUsername||u.username===idOrUsername);
     }
     d = d || { aktif:true, role:'operator' };
     const isEdit = !!idOrUsername;
+    // Load employees for link dropdown
+    if (!_empListCache.length) _empListCache = await DB.getEmployees().catch(()=>[]);
+    _empListCache = _empListCache.filter(e=>e.status!=='nonaktif'&&e.status!=='resign').sort((a,b)=>(a.nama||'').localeCompare(b.nama||''));
 
     const mid = Utils.uid(); Modal.open({ id: mid,
       title: isEdit ? `Edit User: ${d.nama||''}` : 'Tambah User Baru',
@@ -437,7 +437,15 @@ else { window.SettingsModule = (() => {
             <div class="form-group">
               <label class="form-label">No. WhatsApp</label>
               <input name="noWA" type="tel" class="form-control" value="${d.noWA||''}" placeholder="628xxxxxxxxx" style="font-family:var(--font-mono)">
-              <div style="font-size:10px;color:var(--text-3);margin-top:3px">Format: 628xxx (tanpa + atau spasi). Digunakan untuk share task via WA.</div>
+              <div style="font-size:10px;color:var(--text-3);margin-top:3px">Format: 628xxx (tanpa + atau spasi)</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Link Karyawan</label>
+              <select name="empId" class="form-control">
+                <option value="">— Tidak terhubung —</option>
+                ${(_empListCache||[]).map(e=>`<option value="${e.id}" ${d.empId===e.id?'selected':''}>${e.nama}${e.jabatan?' \u00b7 '+e.jabatan:''}</option>`).join('')}
+              </select>
+              <div style="font-size:10px;color:var(--text-3);margin-top:3px">Hubungkan dengan data karyawan untuk halaman Personal</div>
             </div>
           </div>
         </form>

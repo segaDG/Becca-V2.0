@@ -44,12 +44,13 @@ const PersonalModule = (() => {
       DB.getPersonalNotes().catch(()=>[]),
     ]);
     _employees = employees;
-    // Match current user to employee — try multiple strategies
+    // Match user to employee: 1) explicit empId link, 2) name fallback
+    const uEmpId = user?.empId;
     const uName = (user?.nama||'').toLowerCase();
     const uUsername = (user?.username||'').toLowerCase();
-    _emp = employees.find(e => (e.nama||'').toLowerCase() === uName)
+    _emp = (uEmpId && employees.find(e => e.id === uEmpId))
+        || employees.find(e => (e.nama||'').toLowerCase() === uName)
         || employees.find(e => (e.nama||'').toLowerCase().replace(/\s+/g,'') === uUsername)
-        || employees.find(e => uName && (e.nama||'').toLowerCase().includes(uName))
         || employees.find(e => uUsername && (e.nama||'').toLowerCase().replace(/[\s.]+/g,'').includes(uUsername))
         || null;
     const eid = _emp?.id;
