@@ -169,11 +169,11 @@ else { window.SettingsModule = (() => {
                 <label class="form-label">Email</label>
                 <input name="email" type="email" class="form-control" value="${settings.email||''}">
               </div>
-              <div class="cf-section" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin:var(--s4) 0 var(--s3);padding-bottom:var(--s2);border-bottom:1px solid var(--border)">Default Food Cost</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--s3);margin-bottom:var(--s4)">
-                <div class="form-group"><label class="form-label">Food Cost (Rp)</label><input name="defaultFoodCost" type="number" min="0" class="form-control" value="${settings.defaultFoodCost||''}" placeholder="Harga default makanan" style="font-family:var(--font-mono)"></div>
-                <div class="form-group"><label class="form-label">Snack Cost (Rp)</label><input name="defaultSnackCost" type="number" min="0" class="form-control" value="${settings.defaultSnackCost||''}" placeholder="Harga default snack" style="font-family:var(--font-mono)"></div>
-                <div class="form-group"><label class="form-label">Snack Berat Cost (Rp)</label><input name="defaultSnackBeratCost" type="number" min="0" class="form-control" value="${settings.defaultSnackBeratCost||''}" placeholder="Harga default snack berat" style="font-family:var(--font-mono)"></div>
+              <div class="cf-section" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin:var(--s4) 0 var(--s3);padding-bottom:var(--s2);border-bottom:1px solid var(--border)">Default Food Cost (Daily Order)</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--s3);margin-bottom:var(--s3)">
+                <div class="form-group"><label class="form-label">Food Cost (%)</label><input name="defaultFoodCostPct" type="number" min="0" max="100" step="0.5" class="form-control" value="${settings.defaultFoodCostPct||'54'}" style="font-family:var(--font-mono)"><div style="font-size:10px;color:var(--text-3);margin-top:2px">Default: 54%</div></div>
+                <div class="form-group"><label class="form-label">Snack Cost (%)</label><input name="defaultSnackCostPct" type="number" min="0" max="100" step="0.5" class="form-control" value="${settings.defaultSnackCostPct||'70'}" style="font-family:var(--font-mono)"><div style="font-size:10px;color:var(--text-3);margin-top:2px">Default: 70%</div></div>
+                <div class="form-group"><label class="form-label">Snack Berat Cost (%)</label><input name="defaultSnackBeratCostPct" type="number" min="0" max="100" step="0.5" class="form-control" value="${settings.defaultSnackBeratCostPct||'65'}" style="font-family:var(--font-mono)"><div style="font-size:10px;color:var(--text-3);margin-top:2px">Default: 65%</div></div>
               </div>
               <div class="cf-section" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin:var(--s4) 0 var(--s3);padding-bottom:var(--s2);border-bottom:1px solid var(--border)">Lokasi BPS (Delivery Tracking)</div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);margin-bottom:var(--s3)">

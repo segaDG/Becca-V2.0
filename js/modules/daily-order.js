@@ -19,7 +19,9 @@ const DailyOrderModule = (() => {
   /* ─── CONSTANTS ─── */
   const _SATS        = ['Kg','Pcs','Liter','Pack','Bal','Ikat','Bks','Lusin','Karton','Gram','ML'];
   const _DAY_LABELS  = ['Mg','Sn','Sl','Rb','Km','Jm','Sb'];
-  const _DEFAULT_FCP = 54; // default food cost %
+  let _DEFAULT_FCP = 54; // default food cost % — overridden by settings
+  let _SNACK_FCP = 70;   // default snack cost %
+  let _SNACK_BERAT_FCP = 65; // default snack berat cost %
   const _ALLOWED_META_FIELDS = new Set(['foodCostPct','budgetBelanja','status']);
 
   /* ─── HELPERS ─── */
@@ -44,8 +46,8 @@ const DailyOrderModule = (() => {
   }
   function _isSnack(s) { return s === 'SNK1' || s === 'SNK2' || s === 'SNK3' || s === 'SNK4'; }
   function _defaultFcp(shift) {
-    if (shift === 'SNK4') return 65;
-    if (_isSnack(shift)) return 70;
+    if (shift === 'SNK4') return _SNACK_BERAT_FCP;
+    if (_isSnack(shift)) return _SNACK_FCP;
     return _DEFAULT_FCP;
   }
 
@@ -202,6 +204,13 @@ const DailyOrderModule = (() => {
   async function init() {
     const page = document.getElementById('page-daily-order');
     if (!page) return;
+    // Load food cost defaults from settings
+    try {
+      const cfg = await DB.getSettings().catch(()=>({}));
+      if (cfg.defaultFoodCostPct)      _DEFAULT_FCP     = parseFloat(cfg.defaultFoodCostPct) || 54;
+      if (cfg.defaultSnackCostPct)     _SNACK_FCP       = parseFloat(cfg.defaultSnackCostPct) || 70;
+      if (cfg.defaultSnackBeratCostPct) _SNACK_BERAT_FCP = parseFloat(cfg.defaultSnackBeratCostPct) || 65;
+    } catch {}
     try {
       const [forms, orders, invItems, invLogs, custs] = await Promise.all([
         DB.getDailyOrderForms().catch(() => []),
