@@ -103,7 +103,7 @@ const MenuModule = (() => {
           return `<div onclick="MenuModule._libFilter('kat','${k}')" style="flex-shrink:0;padding:8px 14px;border-radius:var(--r-sm);cursor:pointer;border:1px solid ${active?c+'50':'var(--border)'};background:${active?c+'12':'var(--surface)'};display:flex;align-items:center;gap:6px;transition:all .15s;box-shadow:0 1px 3px rgba(0,0,0,.06)"
             onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
             <span style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0"></span>
-            <span style="font-size:12px;font-weight:600;color:${active?c:'var(--text)');white-space:nowrap">${k}</span>
+            <span style="font-size:12px;font-weight:600;color:${active?c:'var(--text)'};white-space:nowrap">${k}</span>
             <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:var(--r-full);background:${active?c+'20':'var(--surface2)'};color:${active?c:'var(--text-2)'}">${katCounts[k]}</span>
           </div>`;
         }).join('')}
