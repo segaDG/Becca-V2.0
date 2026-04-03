@@ -323,20 +323,28 @@ const DeliveryModule = (() => {
       title: existing ? 'Edit Delivery' : 'Tambah Delivery',
       size: 'modal-lg',
       body: `
+        <input type="hidden" id="dlv-modal-date" value="${date}">
         <div style="font-size:13px;color:var(--primary-h);font-weight:600;margin-bottom:var(--s4)">${dayLabel}</div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Customer <span class="req">*</span></label>
-            <input type="text" id="dlv-customer" class="form-control" placeholder="Ketik nama customer..." value="${existing?.customerName||''}" autocomplete="off">
-            <div style="font-size:10px;color:var(--text-3);margin-top:2px">Hanya customer yang punya order di tanggal ini</div>
+        <div class="form-group">
+          <label class="form-label">Customer <span class="req">*</span></label>
+          <input type="text" id="dlv-cust-search" class="form-control" placeholder="Cari customer..." oninput="DeliveryModule._filterCust(this.value)" style="margin-bottom:var(--s2)">
+          <div id="dlv-cust-list" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-sm);padding:var(--s2)">
+            ${custOpts.length ? custOpts.map(c => `
+              <label class="form-check dlv-cust-item" style="padding:5px var(--s2);border-radius:var(--r-sm);cursor:pointer;display:flex;align-items:center;gap:var(--s2)" data-search="${c.label.toLowerCase()}" onclick="this.querySelector('input').checked=true;DeliveryModule._onCustSelect('${c.value.replace(/'/g,"\\'")}')">
+                <input type="radio" name="dlv-customer" value="${c.value}" ${existing && existing.customerName===c.value?'checked':''} style="accent-color:var(--primary);width:16px;height:16px;cursor:pointer">
+                <span style="font-size:13px;font-weight:500">${c.label}</span>
+              </label>
+            `).join('') : '<div style="padding:var(--s4);text-align:center;color:var(--text-3);font-size:12px">Tidak ada order pada tanggal ini</div>'}
           </div>
-          <div class="form-group">
-            <label class="form-label">Driver</label>
-            <select id="dlv-driver" class="form-control">
-              <option value="">— Pilih Driver —</option>
-              ${driverList.map(e => `<option value="${e.id}" ${existing && existing.driverId===e.id?'selected':''}>${e.nama}${e.jabatan?' · '+e.jabatan:''}</option>`).join('')}
-            </select>
-          </div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:3px">${custOpts.length} customer dengan order di tanggal ini</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Driver</label>
+          <select id="dlv-driver" class="form-control">
+            <option value="">— Pilih Driver —</option>
+            ${driverList.map(e => `<option value="${e.id}" ${existing && existing.driverId===e.id?'selected':''}>${e.nama}${e.jabatan?' · '+e.jabatan:''}</option>`).join('')}
+          </select>
         </div>
 
         <div class="form-group">
@@ -397,22 +405,35 @@ const DeliveryModule = (() => {
       `,
     });
 
-    // Searchable customer combobox
-    const custInput = document.getElementById('dlv-customer');
-    if (custInput) {
-      Utils.initCombo(custInput, custOpts, {
-        onSelect(item) {
-          custInput.value = item.value; // store the plain nama for saving
-          // Auto-calc pax
-          if (!existing) {
-            const paxEl = document.getElementById('dlv-pax');
-            if (paxEl) {
-              const pax = _calcPax(item.value, date);
-              if (pax > 0) paxEl.value = pax;
-            }
-          }
+    // Auto-select first customer if only one option
+    if (custOpts.length === 1 && !existing) {
+      const radio = document.querySelector('input[name="dlv-customer"]');
+      if (radio) { radio.checked = true; _onCustSelect(custOpts[0].value); }
+    }
+  }
+
+  function _filterCust(q) {
+    const lower = q.toLowerCase();
+    document.querySelectorAll('.dlv-cust-item').forEach(el => {
+      el.style.display = el.dataset.search.includes(lower) ? '' : 'none';
+    });
+  }
+
+  function _onCustSelect(custName) {
+    // Auto-calc pax
+    const paxEl = document.getElementById('dlv-pax');
+    if (paxEl) {
+      // Get date from the modal's day label — find from checked radio's context
+      const radio = document.querySelector('input[name="dlv-customer"]:checked');
+      if (radio && radio.value) {
+        // _weekStart + entries context to find date — use simpler approach: store date on modal
+        const dateEl = document.getElementById('dlv-modal-date');
+        const date = dateEl ? dateEl.value : '';
+        if (date) {
+          const pax = _calcPax(radio.value, date);
+          if (pax > 0) paxEl.value = pax;
         }
-      });
+      }
     }
   }
 
@@ -425,11 +446,9 @@ const DeliveryModule = (() => {
 
   /* ═══ SAVE ENTRY ═══ */
   async function saveEntry(entryId, date, modalId) {
-    let customerName = document.getElementById('dlv-customer').value.trim();
+    const custRadio = document.querySelector('input[name="dlv-customer"]:checked');
+    const customerName = custRadio ? custRadio.value : '';
     if (!customerName) { Notify.warning('Pilih customer terlebih dahulu'); return; }
-    // Jika user mengetik label format "[ID] Nama (Short)", extract nama asli
-    const custMatch = _customers.find(c => customerName === c.nama || (c.namaShort && customerName.includes(c.namaShort)));
-    if (custMatch) customerName = custMatch.nama;
 
     const driverSel = document.getElementById('dlv-driver');
     const driverId = driverSel.value;
@@ -608,7 +627,7 @@ const DeliveryModule = (() => {
     prevWeek, nextWeek, goToday,
     openModal, saveEntry, deleteEntry,
     cycleStatus, autoPopulate,
-    _filterPIC,
+    _filterCust, _onCustSelect, _filterPIC,
   };
 })();
 window.DeliveryModule = DeliveryModule;
