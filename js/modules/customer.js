@@ -371,7 +371,7 @@ const CustomerModule = (() => {
         <table style="width:100%;border-collapse:collapse;min-width:2400px;font-size:11px">
 
                <thead>
-            <tr style="background:var(--primary-h)">
+            <tr style="background:var(--thead-bg)">
               ${_th('#','','center','36px','cst-s0')}
               ${_th('ID','','center','52px','cst-s1')}
               ${_thS('nama','Nama Perusahaan','220px','left','cst-s2')}
@@ -521,7 +521,7 @@ const CustomerModule = (() => {
     return `<th class="${cls||''}" colspan="${colspan}" style="padding:5px 10px;text-align:${align||'left'};font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ca3af;border-right:1px solid rgba(255,255,255,.06);${bg?'background:'+bg:'background:#1e1e2e'}">${label}</th>`;
   }
   function _th(label, field, align, width, cls) {
-    return `<th class="${cls||''}" style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;white-space:nowrap;border-right:1px solid rgba(255,255,255,.08);${width?'width:'+width:''}">
+    return `<th class="${cls||''}" style="padding:8px 10px;text-align:${align||'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--thead-text);white-space:nowrap;border-right:1px solid var(--thead-border);${width?'width:'+width:''}">
       ${label}
     </th>`;
   }

@@ -143,7 +143,7 @@ const KasModule = (() => {
     s.id = 'kas-ss-style';
     s.textContent = `
       .ks-tbl{width:100%;border-collapse:collapse;font-size:13px;}
-      .ks-tbl th{background:var(--surface2);color:var(--text-3);font-size:10px;text-transform:uppercase;
+      .ks-tbl th{background:var(--thead-bg);color:var(--thead-text);font-size:10px;text-transform:uppercase;
         letter-spacing:.05em;padding:7px 8px;border:1px solid var(--border);white-space:nowrap;
         position:sticky;top:0;z-index:2;}
       .ks-tbl td{border:1px solid var(--border);padding:0;height:32px;background:var(--surface);vertical-align:middle;}

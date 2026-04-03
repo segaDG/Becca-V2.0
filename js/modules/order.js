@@ -119,7 +119,7 @@ const OrderModule = (() => {
 
     page.innerHTML = `
     <style>
-      .ord-th { padding:9px 8px;font-size:10px;font-weight:700;text-transform:uppercase;color:#fff;white-space:nowrap;text-align:center;border-right:1px solid rgba(255,255,255,.06) }
+      .ord-th { padding:9px 8px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--thead-text);white-space:nowrap;text-align:center;border-right:1px solid var(--thead-border) }
       .ord-td { padding:7px 6px;border-bottom:1px solid var(--border);font-size:11px;text-align:center;vertical-align:middle }
       .ord-cell { cursor:pointer;min-width:28px;border-radius:3px;display:inline-block;width:100% }
       .ord-cell:hover { background:rgba(99,102,241,.18)!important }
@@ -205,7 +205,7 @@ const OrderModule = (() => {
     });
     grp += `<th colspan="2" class="ord-th" style="background:#1e1e2e;font-size:9px;color:#9ca3af;letter-spacing:.1em">INFO</th></tr>`;
 
-    let col = `<tr style="background:var(--primary-h)">
+    let col = `<tr style="background:var(--thead-bg)">
       <th class="ord-th" style="width:32px">#</th>
       <th class="ord-th" style="text-align:left;min-width:110px">Timestamp</th>
       <th class="ord-th" style="text-align:left;min-width:110px">Pelapor</th>
@@ -403,12 +403,12 @@ const OrderModule = (() => {
         <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">Klik header kolom di tabel untuk rename cepat.</p>
         <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:16px">
           <table style="width:100%;border-collapse:collapse;font-size:11px">
-            <thead><tr style="background:var(--primary-h)">
-              <th style="padding:7px 10px;text-align:left;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase">Key</th>
-              <th style="padding:7px 10px;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase">Label</th>
-              <th style="padding:7px 10px;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase">Grup</th>
-              <th style="padding:7px 10px;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase">Editable</th>
-              <th style="padding:7px 10px;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase">Hapus</th>
+            <thead><tr style="background:var(--thead-bg)">
+              <th style="padding:7px 10px;text-align:left;color:var(--thead-text);font-size:10px;font-weight:700;text-transform:uppercase">Key</th>
+              <th style="padding:7px 10px;color:var(--thead-text);font-size:10px;font-weight:700;text-transform:uppercase">Label</th>
+              <th style="padding:7px 10px;color:var(--thead-text);font-size:10px;font-weight:700;text-transform:uppercase">Grup</th>
+              <th style="padding:7px 10px;color:var(--thead-text);font-size:10px;font-weight:700;text-transform:uppercase">Editable</th>
+              <th style="padding:7px 10px;color:var(--thead-text);font-size:10px;font-weight:700;text-transform:uppercase">Hapus</th>
             </tr></thead>
             <tbody id="col-mgr-tbody">${_buildColTable()}</tbody>
           </table>

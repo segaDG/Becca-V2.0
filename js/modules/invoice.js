@@ -265,7 +265,7 @@ const InvoiceModule = (() => {
       .inv-card{background:var(--surface);border:1px solid var(--border);border-radius:0 0 12px 12px;overflow:clip}
       .inv-toolbar{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
       .inv-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-      .inv-th{padding:9px 8px;font-size:10px;font-weight:700;text-transform:uppercase;color:#fff;white-space:nowrap;text-align:center}
+      .inv-th{padding:9px 8px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--thead-text);white-space:nowrap;text-align:center}
       .inv-td{padding:7px 8px;border-bottom:1px solid var(--border)}
       .client-bar{padding:8px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
       .client-bar:last-child{border-bottom:none}
@@ -381,7 +381,7 @@ const InvoiceModule = (() => {
     <div class="inv-scroll">
       <table style="width:100%;border-collapse:collapse;min-width:900px;font-size:11px">
         <thead>
-          <tr style="background:var(--primary-h)">
+          <tr style="background:var(--thead-bg)">
             <th class="inv-th" style="text-align:center;width:36px">#</th>
             <th class="inv-th" style="text-align:center;width:44px">ID</th>
             <th class="inv-th" style="text-align:left;min-width:180px">Customer</th>
@@ -440,7 +440,7 @@ const InvoiceModule = (() => {
         <div class="inv-scroll">
           <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:600px">
             <thead>
-              <tr style="background:var(--primary-h)">
+              <tr style="background:var(--thead-bg)">
                 <th class="inv-th" style="text-align:left;width:36px">#</th>
                 <th class="inv-th" style="text-align:left">Bulan</th>
                 <th class="inv-th" style="text-align:right">Omzet Invoice</th>
@@ -562,7 +562,7 @@ const InvoiceModule = (() => {
     <div class="inv-scroll">
       <table style="width:100%;border-collapse:collapse;font-size:11px">
         <thead>
-          <tr style="background:var(--primary-h)">
+          <tr style="background:var(--thead-bg)">
             <th class="inv-th" style="text-align:center;width:36px">#</th>
             <th class="inv-th" style="text-align:center;width:44px">ID</th>
             <th class="inv-th" style="text-align:left">Customer</th>
@@ -706,7 +706,7 @@ const InvoiceModule = (() => {
         <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px">
           <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:500px">
             <thead>
-              <tr style="background:var(--primary-h)">
+              <tr style="background:var(--thead-bg)">
                 <th style="padding:6px 8px;color:#fff;font-weight:700;text-align:center;white-space:nowrap">DD</th>
                 <th style="padding:6px 8px;color:#fff;font-weight:700;text-align:center;white-space:nowrap">Bulan</th>
                 ${activeCols.map(c=>`<th style="padding:6px 5px;color:#fff;font-weight:700;text-align:center">${c.label}</th>`).join('')}
@@ -1666,7 +1666,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
       <div style="overflow-x:auto;border-radius:6px;border:1px solid var(--border)">
         <table style="width:100%;border-collapse:collapse;font-size:10px">
           <thead>
-            <tr style="background:var(--primary-h)">
+            <tr style="background:var(--thead-bg)">
               <th style="padding:6px 8px;color:#fff;font-weight:700;text-align:left">Tgl Order</th>
               ${visibleCols.map(c=>`<th style="padding:6px 5px;color:#fff;font-weight:700;text-align:center">${c.label}</th>`).join('')}
             </tr>
