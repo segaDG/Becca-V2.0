@@ -45,6 +45,9 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status ON public.tasks ((data->>'status'));
 CREATE INDEX IF NOT EXISTS idx_push_username ON public.push_tokens (username);
 CREATE INDEX IF NOT EXISTS idx_push_role ON public.push_tokens (role);
 
+-- DELIVERY_SCHEDULES — sering di-filter by weekStart
+CREATE INDEX IF NOT EXISTS idx_dlv_week ON public.delivery_schedules ((data->>'weekStart'));
+
 -- SETTINGS — hanya 1 row, tidak perlu index
 
 -- PRESENCE — sering di-filter by last_seen

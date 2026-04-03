@@ -19,6 +19,7 @@ const App = {
     ap        : 'js/modules/ap.js?v=20260403a',
     po        : 'js/modules/po.js?v=20260402d',
     task      : 'js/modules/task.js?v=20260330i',
+    delivery  : 'js/modules/delivery.js?v=20260403a',
     report    : 'js/modules/report.js?v=20260326r',
     settings  : 'js/modules/settings.js?v=20260401b',
   },
@@ -63,6 +64,7 @@ const App = {
       ap        : typeof APModule         !== 'undefined' ? APModule         : null,
       po        : typeof POModule         !== 'undefined' ? POModule         : null,
       task      : typeof TaskModule       !== 'undefined' ? TaskModule       : null,
+      delivery  : typeof DeliveryModule   !== 'undefined' ? DeliveryModule   : null,
       report    : typeof ReportModule     !== 'undefined' ? ReportModule     : null,
       settings  : typeof SettingsModule   !== 'undefined' ? SettingsModule   : null,
     };
@@ -490,6 +492,7 @@ const App = {
       ap        : 'Account Payable',
       po        : 'Purchase Order',
       task      : 'Task',
+      delivery  : 'Delivery Schedule',
       report    : 'Laporan',
       settings  : 'Pengaturan',
     };

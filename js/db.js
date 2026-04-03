@@ -574,6 +574,11 @@ const DB = (() => {
   const saveEmpJadwal   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('emp_jadwal', data); };
   const deleteEmpJadwal = (id)   => _delete('emp_jadwal', id);
 
+  // ── DELIVERY SCHEDULES ────────────────────────────────────
+  const getDeliverySchedules   = ()     => _get('delivery_schedules');
+  const saveDeliverySchedule   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('delivery_schedules', data); };
+  const deleteDeliverySchedule = (id)   => _delete('delivery_schedules', id);
+
   // ── ACCOUNT PAYABLE ───────────────────────────────────────
   const getAP         = ()     => _get('ap');
   const saveAP        = (data) => { if (!data.id) data.id = Utils.uid(); return _save('ap', data); };
@@ -1057,6 +1062,8 @@ const DB = (() => {
     getEmpAbsensi, saveEmpAbsensi, deleteEmpAbsensi,
     getEmpPayroll, saveEmpPayroll, deleteEmpPayroll,
     getEmpJadwal, saveEmpJadwal, deleteEmpJadwal,
+    // Delivery
+    getDeliverySchedules, saveDeliverySchedule, deleteDeliverySchedule,
     // AP
     getAP, saveAP, deleteAP, getSuppliers, saveSupplier, deleteSupplier,
     // News & Pengumuman
