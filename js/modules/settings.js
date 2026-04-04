@@ -181,6 +181,12 @@ else { window.SettingsModule = (() => {
                 <div class="form-group"><label class="form-label">Longitude</label><input name="bpsLng" class="form-control" type="number" step="any" value="${settings.bpsLng||''}" placeholder="107.xxxxx"></div>
               </div>
               <div class="form-group" style="margin-bottom:var(--s4)"><label class="form-label">Nama Lokasi</label><input name="bpsLocationName" class="form-control" value="${settings.bpsLocationName||'BPS Office'}"></div>
+              <div class="cf-section" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin:var(--s4) 0 var(--s3);padding-bottom:var(--s2);border-bottom:1px solid var(--border)">AI Integration (Google Gemini)</div>
+              <div class="form-group" style="margin-bottom:var(--s4)">
+                <label class="form-label">Gemini API Key</label>
+                <input name="geminiApiKey" type="password" class="form-control" value="${settings.geminiApiKey||''}" placeholder="AIzaSy..." style="font-family:var(--font-mono)">
+                <div style="font-size:10px;color:var(--text-3);margin-top:2px">Gratis dari <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--primary-h)">Google AI Studio</a>. Digunakan untuk AI Resep & Menu Generator.</div>
+              </div>
               <button type="button" class="btn btn-primary" onclick="SettingsModule.saveGeneralSettings()">💾 Simpan</button>
             </form>
           </div>

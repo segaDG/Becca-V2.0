@@ -473,109 +473,108 @@ const MenuModule = (() => {
     div.querySelector('input').focus();
   }
 
-  /* ═══ AI INTEGRATION ═══ */
+  /* ═══ AI INTEGRATION — Google Gemini API ═══ */
+  async function _getApiKey() {
+    const settings = await DB.getSettings().catch(()=>({}));
+    return settings.geminiApiKey || '';
+  }
+
+  async function _callGemini(prompt) {
+    const apiKey = await _getApiKey();
+    if (!apiKey) { Notify.error('API Key Gemini belum diisi. Buka Settings \u2192 Pengaturan Umum.'); return null; }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    });
+    if (!res.ok) { const err = await res.text(); Notify.error('Gemini API error: ' + (res.status === 403 ? 'API key tidak valid' : res.status)); console.error(err); return null; }
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  }
+
   async function _aiGenerateMenu(custId) {
     const cust = _customers.find(c=>c.id===custId);
     if (!cust) return;
     const komposisi = cust.menuKomposisi || [...DEFAULT_KOMPOSISI];
     const custName = cust.namaShort || cust.nama;
 
-    // Build prompt from library
     const menuByKat = {};
-    _library.forEach(m => { if(!menuByKat[m.klasifikasi]) menuByKat[m.klasifikasi]=[]; menuByKat[m.klasifikasi].push(m.nama); });
+    _library.forEach(m => { if(!menuByKat[m.klasifikasi]) menuByKat[m.klasifikasi]=[]; if(menuByKat[m.klasifikasi].length<25) menuByKat[m.klasifikasi].push(m.nama); });
 
-    const prompt = `Buatkan menu catering untuk ${custName} selama 7 hari (Senin-Minggu), 3 shift (S1, S2, S3).
+    const prompt = `Buatkan menu catering untuk "${custName}" selama 7 hari (Senin-Minggu), 3 shift (S1, S2, S3).
 Komposisi per shift: ${komposisi.join(', ')}.
 Menu TIDAK BOLEH berulang dalam seminggu.
-Tiap hari beri tema masakan daerah yang berbeda.
-Pilih dari daftar menu berikut:
-${Object.entries(menuByKat).map(([k,items])=>`${k}: ${items.slice(0,30).join(', ')}`).join('\n')}
+Tiap hari beri tema masakan daerah Indonesia yang berbeda.
+Pilih dari menu berikut:
+${Object.entries(menuByKat).map(([k,items])=>`${k}: ${items.join(', ')}`).join('\n')}
 
-Format output sebagai JSON: { "S1": { "0": { "tema": "...", "menu": { "${komposisi[0]}": "...", ... } }, "1": {...}, ... }, "S2": {...}, "S3": {...} }
-Hanya output JSON, tanpa penjelasan.`;
+PENTING: Output HANYA JSON valid, tanpa markdown, tanpa penjelasan.
+Format: {"S1":{"0":{"tema":"...","menu":{"${komposisi.join('":"...","')}":"..."}},"1":{...},...},"S2":{...},"S3":{...}}
+Key hari: 0=Senin, 1=Selasa, ..., 6=Minggu.`;
 
-    Notify.info('AI sedang membuat menu untuk ' + custName + '...');
+    Notify.info('\ud83e\udd16 AI sedang membuat menu ' + custName + '...');
+    const result = await _callGemini(prompt);
+    if (!result) return;
 
-    // Try using available AI — if no API, show prompt for manual copy
-    const mid = 'ai-gen-'+Date.now();
-    Modal.open({id:mid, title:'AI Menu Generator: '+custName, size:'modal-xl',
-      body:`
-        <div class="form-group">
-          <label class="form-label">Prompt (copy ke ChatGPT/Claude lalu paste hasilnya)</label>
-          <textarea id="ai-prompt" class="form-control" rows="6" style="font-size:11px;font-family:var(--font-mono)" readonly>${_esc(prompt)}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Paste hasil AI (JSON)</label>
-          <textarea id="ai-result" class="form-control" rows="8" placeholder='Paste JSON result dari AI di sini...' style="font-family:var(--font-mono);font-size:11px"></textarea>
-        </div>`,
-      footer:`<button class="btn btn-ghost" onclick="navigator.clipboard.writeText(document.getElementById('ai-prompt').value);Notify.success('Prompt di-copy!')">Copy Prompt</button>
-        <div style="flex:1"></div>
-        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        <button class="btn btn-primary" onclick="MenuModule._aiApplyResult('${custId}','${mid}')">Terapkan</button>`,
-    });
-  }
-
-  function _aiApplyResult(custId, modalId) {
-    const raw = (document.getElementById('ai-result')?.value||'').trim();
-    if (!raw) { Notify.warning('Paste hasil AI terlebih dahulu'); return; }
     try {
-      // Extract JSON from response (handle markdown code blocks)
-      const jsonStr = raw.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
-      const result = JSON.parse(jsonStr);
-      // Apply to pending plan
+      const jsonStr = result.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
+      const parsed = JSON.parse(jsonStr);
       if (!_pendingPlan) {
         const existing = _plans.find(p=>p.weekStart===_genWeekStart);
         _pendingPlan = existing ? {...existing, data:{...existing.data}} : {id:Utils.uid(), weekStart:_genWeekStart, customers:_genCustomers, data:{}};
       }
-      _pendingPlan.data[custId] = result;
+      _pendingPlan.data[custId] = parsed;
       _pendingPlan.customers = _genCustomers;
-      Modal.close(modalId);
       _renderGenerator();
-      Notify.success('Menu AI berhasil diterapkan! Klik Simpan untuk menyimpan.');
-    } catch(e) { Notify.error('Format JSON tidak valid: '+e.message); }
+      Notify.success('\u2713 Menu AI diterapkan! Klik Simpan untuk menyimpan.');
+    } catch(e) { Notify.error('AI response bukan JSON valid: '+e.message); console.log('Raw AI:', result); }
   }
 
   async function _aiResep(menuId) {
     const m = _library.find(x=>x.id===menuId);
     if (!m) return;
-    const prompt = `Berikan resep lengkap untuk "${m.nama}" (masakan ${m.category}, ${m.tema}).
-Untuk 100 porsi catering.
-Format:
-BAHAN:
-- (daftar bahan + takaran untuk 100 porsi)
+    const mid = 'ai-resep-'+Date.now();
+    Modal.open({id:mid, title:'\ud83e\udd16 AI Resep: '+m.nama, size:'modal-lg',
+      body:`<div id="ai-resep-body" style="text-align:center;padding:var(--s8);color:var(--text-3)">
+        <div style="font-size:24px;margin-bottom:var(--s3);animation:spin 1s linear infinite">\ud83e\udd16</div>
+        <div>Generating resep untuk <strong>${_esc(m.nama)}</strong>...</div>
+        <div style="font-size:11px;margin-top:var(--s2)">Menggunakan Google Gemini AI</div>
+      </div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>`,
+      footer:`<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+
+    const prompt = `Berikan resep lengkap untuk "${m.nama}" (masakan ${m.category}, tema ${m.tema}).
+Untuk 100 porsi catering massal.
+
+Format jawaban:
+
+BAHAN (100 porsi):
+- (daftar bahan + takaran)
 
 CARA MEMBUAT:
-1. (langkah-langkah)
+1. (langkah detail)
 
-ESTIMASI BAHAN MENTAH: (per porsi)`;
+TIPS CATERING:
+- (tips untuk masak skala besar)
 
-    const mid = 'ai-resep-'+Date.now();
-    Modal.open({id:mid, title:'AI Resep: '+m.nama, size:'modal-lg',
-      body:`
-        <div class="form-group">
-          <label class="form-label">Prompt (copy ke ChatGPT/Claude)</label>
-          <textarea id="ai-resep-prompt" class="form-control" rows="4" style="font-size:11px;font-family:var(--font-mono)" readonly>${_esc(prompt)}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Paste hasil AI</label>
-          <textarea id="ai-resep-result" class="form-control" rows="10" placeholder="Paste resep dari AI..." style="font-size:12px"></textarea>
-        </div>`,
-      footer:`<button class="btn btn-ghost" onclick="navigator.clipboard.writeText(document.getElementById('ai-resep-prompt').value);Notify.success('Prompt di-copy!')">Copy Prompt</button>
-        <div style="flex:1"></div>
-        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        <button class="btn btn-primary" onclick="MenuModule._aiSaveResep('${menuId}','${mid}')">Simpan Resep</button>`,
-    });
-  }
+ESTIMASI BIAYA BAHAN: Rp ... per porsi`;
 
-  async function _aiSaveResep(menuId, modalId) {
-    const resep = (document.getElementById('ai-resep-result')?.value||'').trim();
-    if (!resep) { Notify.warning('Paste resep terlebih dahulu'); return; }
-    const m = _library.find(x=>x.id===menuId);
-    if (!m) return;
-    m.resep = resep;
-    await DB.saveMenuItem(m).catch(()=>{});
-    Modal.close(modalId);
-    Notify.success('Resep disimpan');
+    const result = await _callGemini(prompt);
+    const body = document.getElementById('ai-resep-body');
+    if (!body) return;
+
+    if (result) {
+      m.resep = result;
+      await DB.saveMenuItem(m).catch(()=>{});
+      body.innerHTML = `<div style="text-align:left;font-size:13px;line-height:1.7;white-space:pre-wrap;color:var(--text)">${_esc(result)}</div>`;
+      // Update footer with saved indicator
+      const footer = body.closest('.modal')?.querySelector('.modal-footer');
+      if (footer) footer.innerHTML = `<span style="font-size:11px;color:var(--success);font-weight:600">\u2713 Resep disimpan otomatis</span><div style="flex:1"></div><button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`;
+      Notify.success('Resep berhasil di-generate & disimpan');
+    } else {
+      body.innerHTML = `<div style="text-align:center;padding:var(--s6);color:var(--danger)">Gagal generate resep. Cek API key di Settings.</div>`;
+    }
   }
 
   /* ═══════════════════════════════════════════
@@ -819,7 +818,7 @@ ESTIMASI BAHAN MENTAH: (per porsi)`;
     _genPrevWeek, _genNextWeek, _genThisWeek,
     _editKomposisi, _saveKomposisi,
     _kompDragStart, _kompDragOver, _kompDrop, _kompDragEnd, _kompAdd,
-    _aiGenerateMenu, _aiApplyResult, _aiResep, _aiSaveResep,
+    _aiGenerateMenu, _aiResep,
   };
 })();
 window.MenuModule = MenuModule;
