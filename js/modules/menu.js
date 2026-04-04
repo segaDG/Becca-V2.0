@@ -482,7 +482,7 @@ const MenuModule = (() => {
   async function _callGemini(prompt) {
     const apiKey = await _getApiKey();
     if (!apiKey) { Notify.error('API Key Gemini belum diisi. Buka Settings \u2192 Pengaturan Umum.'); return null; }
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     try {
       const res = await fetch(url, {
         method: 'POST',
