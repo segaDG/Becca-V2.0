@@ -105,26 +105,48 @@ const App = {
     if (document.getElementById('chat-fab')) return;
     const div = document.createElement('div');
     div.id = 'chat-fab';
+    div.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:450';
     div.innerHTML = `
       <style>
-        #chat-fab{position:fixed;bottom:24px;right:24px;z-index:450}
-        #chat-fab .cfab-btn{width:52px;height:52px;border-radius:50%;
+        #chat-fab .cfab-btn{width:52px;height:52px;border-radius:50%;position:relative;
           background:rgba(99,102,241,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
           color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;
-          box-shadow:0 4px 16px rgba(99,102,241,.3);transition:all .25s;border:1px solid rgba(255,255,255,.15)}
+          box-shadow:0 4px 16px rgba(99,102,241,.3);transition:all .25s;border:1px solid rgba(255,255,255,.15);
+          animation:chatFabIn .4s cubic-bezier(.34,1.56,.64,1)}
         #chat-fab .cfab-btn:hover{transform:scale(1.08);background:rgba(99,102,241,.65);box-shadow:0 6px 20px rgba(99,102,241,.4)}
         #chat-fab .cfab-btn:active{transform:scale(.95)}
-        #chat-fab .cfab-badge{position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;
-          background:var(--danger);color:white;border-radius:50%;font-size:9px;font-weight:700;
-          display:none;align-items:center;justify-content:center;border:2px solid var(--bg)}
+        @keyframes chatFabIn{from{opacity:0;transform:scale(.5) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
         @media(max-width:768px){#chat-fab{bottom:16px;right:16px}#chat-fab .cfab-btn{width:48px;height:48px}}
       </style>
       <div class="cfab-btn" onclick="App.navigate('chat')" title="Chat">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        <span class="cfab-badge" id="chat-fab-badge"></span>
+        <span id="chat-fab-badge" style="position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;background:#ef4444;color:white;border-radius:50%;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;border:2px solid var(--bg,#0c1020);padding:0 4px"></span>
       </div>
     `;
     document.body.appendChild(div);
+    // Start checking unread messages
+    this._checkChatUnread();
+    setInterval(() => this._checkChatUnread(), 30000); // check every 30s
+  },
+
+  async _checkChatUnread() {
+    const badge = document.getElementById('chat-fab-badge');
+    if (!badge) return;
+    try {
+      const me = Auth.currentUser(); if (!me) return;
+      const rooms = DB.getCached('chat_rooms') || await DB.getChatRooms().catch(()=>[]);
+      // Count rooms where lastSender is not me
+      let unread = 0;
+      const lastRead = JSON.parse(localStorage.getItem('becca_chat_lastread') || '{}');
+      rooms.forEach(r => {
+        if (!r.lastMessageAt) return;
+        if (r.lastSender === me.nama || r.lastSender === me.username) return;
+        const lr = lastRead[r.id] || '';
+        if (r.lastMessageAt > lr) unread++;
+      });
+      if (unread > 0) { badge.textContent = unread > 9 ? '9+' : String(unread); badge.style.display = 'flex'; }
+      else { badge.style.display = 'none'; }
+    } catch {}
   },
 
   async _deferredBoot() {

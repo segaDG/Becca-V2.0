@@ -111,10 +111,12 @@ const ChatModule = (() => {
   async function openRoom(roomId) {
     _activeRoom = _rooms.find(r=>r.id===roomId); if (!_activeRoom) return;
     _renderRoomList();
-    // Fetch only this room's messages (server-side filter, last 50)
     _messages = await DB.getChatMessagesByRoom(roomId, 50).catch(()=>[]);
     _messages.forEach(m=>_msgIds.add(m.id));
     _renderChat();
+    // Mark as read
+    try { const lr=JSON.parse(localStorage.getItem('becca_chat_lastread')||'{}'); lr[roomId]=new Date().toISOString(); localStorage.setItem('becca_chat_lastread',JSON.stringify(lr)); } catch{}
+    if (typeof App!=='undefined'&&App._checkChatUnread) App._checkChatUnread();
   }
 
   function _renderChat() {
