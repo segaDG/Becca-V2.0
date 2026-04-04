@@ -630,7 +630,7 @@ const DailyOrderModule = (() => {
                   <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
                     <th style="padding:7px 5px;text-align:center;width:28px">
                       <input type="checkbox" title="Pilih semua" onchange="DailyOrderModule._bulkToggleAll(this.checked)"
-                        style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+                        style="cursor:pointer">
                     </th>
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600;width:30px">#</th>
                     <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600;min-width:140px">ITEM / BAHAN</th>
@@ -1118,7 +1118,7 @@ const DailyOrderModule = (() => {
         <td style="padding:7px 5px;text-align:center" onclick="event.stopPropagation()">
           <input type="checkbox" class="do-bulk-chk" data-id="${it.id}" ${_bulkSelected.has(it.id)?'checked':''}
             onchange="DailyOrderModule._bulkToggle('${it.id}',this.checked)"
-            style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+            style="cursor:pointer">
         </td>
         <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${i+1}</td>
         <td data-field="di-item" style="padding:7px 5px;font-weight:600">${it.item}</td>

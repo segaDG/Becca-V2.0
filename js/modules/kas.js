@@ -299,7 +299,7 @@ const KasModule = (() => {
           <thead><tr>
             ${canEdit ? `<th style="width:28px;padding:0;text-align:center">
               <input type="checkbox" title="Pilih semua" onchange="KasModule._bulkToggleAll(this.checked)"
-                style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+                style="cursor:pointer">
             </th>` : ''}
             <th style="width:32px;padding:0;text-align:center">
               ${canEdit
@@ -356,7 +356,7 @@ const KasModule = (() => {
       ${canEdit?`<td style="width:28px;padding:0;text-align:center" onclick="event.stopPropagation()">
         <input type="checkbox" class="ks-bulk-chk" data-id="${r.id}" ${_bulkSelected.has(r.id)?'checked':''}
           onchange="KasModule._bulkToggle('${r.id}',this.checked)"
-          style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+          style="cursor:pointer">
       </td>`:''}
       <td style="width:28px">
         <div class="ks-cell" style="justify-content:center;font-size:11px;color:var(--text-3)">

@@ -1227,7 +1227,7 @@ const InventoryModule = (() => {
           <thead><tr>
             ${canEdit ? `<th style="width:28px;padding:0;text-align:center">
               <input type="checkbox" title="Pilih semua" onchange="InventoryModule._bulkToggleAll(this.checked)"
-                style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+                style="cursor:pointer">
             </th>` : ''}
             <th style="width:32px;padding:0;text-align:center">
               ${canEdit
@@ -1278,7 +1278,7 @@ const InventoryModule = (() => {
       ${canEdit?`<td style="width:28px;padding:0;text-align:center" onclick="event.stopPropagation()">
         <input type="checkbox" class="iv-bulk-chk" data-id="${r.id}" ${_bulkSelected.has(r.id)?'checked':''}
           onchange="InventoryModule._bulkToggle('${r.id}',this.checked)"
-          style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+          style="cursor:pointer">
       </td>`:''}
       <td onclick="event.stopPropagation();${_invLocked.has(r.id)?`InventoryModule.unlockInvRow('${r.id}')`:'void(0)'}"
           title="${_invLocked.has(r.id)?'Klik untuk buka kunci':''}"
