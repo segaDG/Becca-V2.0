@@ -482,24 +482,33 @@ const MenuModule = (() => {
   async function _callGemini(prompt) {
     const apiKey = await _getApiKey();
     if (!apiKey) { Notify.error('API Key Gemini belum diisi. Buka Settings \u2192 Pengaturan Umum.'); return null; }
-    // Try models in order: 2.0-flash → 1.5-flash (fallback jika rate limited)
-    const models = ['gemini-2.0-flash','gemini-1.5-flash-latest','gemini-2.0-flash-lite'];
-    for (const model of models) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    try {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
       });
-      if (res.status === 429) { console.warn('[AI] Rate limited on '+model+', trying next...'); continue; }
-      if (res.status === 403) { Notify.error('API key Gemini tidak valid. Cek di Settings.'); return null; }
-      if (!res.ok) { const err = await res.text(); console.error('[AI]', err); continue; }
+      if (res.status === 429) {
+        Notify.warning('AI rate limit — tunggu 1 menit lalu coba lagi');
+        return null;
+      }
+      if (res.status === 403 || res.status === 401) {
+        Notify.error('API key Gemini tidak valid. Cek di Settings.');
+        return null;
+      }
+      if (!res.ok) {
+        const err = await res.text();
+        console.error('[AI]', err);
+        Notify.error('AI error: ' + res.status);
+        return null;
+      }
       const data = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) return text;
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    } catch(e) {
+      Notify.error('Gagal menghubungi AI: ' + e.message);
+      return null;
     }
-    Notify.error('AI rate limit — coba lagi dalam 1 menit');
-    return null;
   }
 
   async function _aiGenerateMenu(custId) {
