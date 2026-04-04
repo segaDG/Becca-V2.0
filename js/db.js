@@ -447,7 +447,7 @@ const DB = (() => {
 
     if (error) {
       console.error('[DB] save ' + table + ' FAILED:', error.message);
-      // Data sudah di localStorage (pre-save). Return obj tapi beri tanda gagal.
+      if (typeof Notify !== 'undefined') Notify.error('Gagal simpan ke server: ' + (error.message||'').slice(0,80));
       obj._syncPending = true;
       return obj;
     }
@@ -476,7 +476,7 @@ const DB = (() => {
     const { error } = await sb.from(table).delete().eq('id', id);
     if (error) {
       console.warn('[DB] delete ' + table + ':', error.message);
-      // Tetap hapus dari localStorage agar UI konsisten
+      if (typeof Notify !== 'undefined') Notify.error('Gagal hapus dari server');
       _lsDelete(table, id);
       _invalidateCache(table);
       throw new Error('[DB] delete ' + table + ' failed: ' + error.message);

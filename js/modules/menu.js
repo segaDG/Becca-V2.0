@@ -271,7 +271,7 @@ const MenuModule = (() => {
           </select>
           <button class="btn btn-primary btn-sm" onclick="MenuModule._genAddCustomer()">Tambah</button>
           <div style="flex:1"></div>
-          ${canEdit&&plan?`<button class="btn btn-ghost btn-sm" onclick="MenuModule._genSave()">Simpan</button>`:''}
+          ${canEdit?`<button class="btn btn-primary btn-sm" onclick="MenuModule._genSave()">\ud83d\udcbe Simpan</button>`:''}
         </div>
         ${_genCustomers.length?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:var(--s2)">
           ${_genCustomers.map(cid=>{

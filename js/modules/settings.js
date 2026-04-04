@@ -245,9 +245,13 @@ else { window.SettingsModule = (() => {
     // Preserve logoUrl dari DB (disimpan terpisah oleh _handleLogoUpload)
     const existing = await DB.getSettings().catch(()=>({}));
     if (existing.logoUrl) data.logoUrl = existing.logoUrl;
-    await DB.saveSettings(data);
-    Sidebar.render();  // Refresh sidebar
-    Notify.success('Pengaturan disimpan!');
+    try {
+      await DB.saveSettings(data);
+      Sidebar.render();
+      Notify.success('Pengaturan disimpan!');
+    } catch(e) {
+      Notify.error('Gagal menyimpan: ' + (e.message||''));
+    }
   }
 
   /* ===================== CHANGE PASSWORD ===================== */
