@@ -153,7 +153,12 @@ const MenuModule = (() => {
         ${m.jenis==='Paketan'?'<span class="badge badge-warning" style="font-size:9px">Paketan</span>':''}
       </div>
       ${m.bahan?`<div style="font-size:11px;color:var(--text-2);max-height:40px;overflow:hidden;line-height:1.4">${_esc(m.bahan)}</div>`:''}
-      <div style="display:flex;gap:4px;margin-top:var(--s2);justify-content:flex-end">
+      <div style="display:flex;gap:4px;margin-top:var(--s2);align-items:center">
+        <button onclick="event.stopPropagation();MenuModule._aiResep('${m.id}')" style="background:none;border:1px solid var(--primary);border-radius:var(--r-full);padding:2px 8px;cursor:pointer;font-size:9px;font-weight:600;color:var(--primary-h);display:flex;align-items:center;gap:3px;transition:all .15s" onmouseover="this.style.background='var(--primary-bg)'" onmouseout="this.style.background='none'" title="Tanya AI untuk resep">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="M12 2a4 4 0 014 4c0 1.1-.9 2-2 2h-4a2 2 0 01-2-2 4 4 0 014-4zM8 8v8m8-8v8m-8 0h8m-4-4v8"/></svg>
+          AI Resep
+        </button>
+        <div style="flex:1"></div>
         <button class="btn-icon" style="width:26px;height:26px" onclick="event.stopPropagation();MenuModule.openMenuForm('${m.id}')" title="Edit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
