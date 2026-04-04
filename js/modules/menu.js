@@ -245,15 +245,19 @@ const MenuModule = (() => {
     // Find or create plan for this week
     let plan = _plans.find(p=>p.weekStart===_genWeekStart);
 
+    const _weekEnd = new Date(new Date(_genWeekStart+'T12:00:00').getTime() + 6*86400000);
+    const _fmtPeriod = (s) => { const d=new Date(s+'T12:00:00'); return d.getDate()+' '+['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][d.getMonth()]+' '+d.getFullYear(); };
+    const weekEndStr = _weekEnd.getFullYear()+'-'+String(_weekEnd.getMonth()+1).padStart(2,'0')+'-'+String(_weekEnd.getDate()).padStart(2,'0');
+
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="MenuModule._genPrevWeek()">\u2039 Minggu Lalu</button>
         <button class="btn btn-ghost btn-sm" onclick="MenuModule._genThisWeek()">Minggu Ini</button>
         <button class="btn btn-ghost btn-sm" onclick="MenuModule._genNextWeek()">Minggu Depan \u203a</button>
         <div style="flex:1"></div>
-        <span style="font-size:13px;font-weight:600;color:var(--heading);background:var(--surface);border:1px solid var(--border2);padding:6px 16px;border-radius:var(--r-full);box-shadow:var(--shadow-sm)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="vertical-align:-2px"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-          ${_genWeekStart}
+        <span style="font-size:13px;font-weight:600;color:var(--heading);background:var(--surface);border:1px solid var(--border2);padding:6px 16px;border-radius:var(--r-full);box-shadow:var(--shadow-sm);display:inline-flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          ${_fmtPeriod(_genWeekStart)} \u2014 ${_fmtPeriod(weekEndStr)}
         </span>
       </div>
 
@@ -313,7 +317,13 @@ const MenuModule = (() => {
           <thead>
             <tr style="background:var(--surface2)">
               <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--text-3);width:80px">SHIFT</th>
-              ${DAYS.map(d=>`<th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--text-3)">${d}</th>`).join('')}
+              ${DAYS.map((d,di)=>{
+                const dt=new Date(new Date(_genWeekStart+'T12:00:00').getTime()+di*86400000);
+                return `<th style="padding:6px 8px;text-align:center;font-size:10px;color:var(--text-3)">
+                  <div>${d}</div>
+                  <div style="font-size:9px;font-weight:400">${dt.getDate()}/${dt.getMonth()+1}</div>
+                </th>`;
+              }).join('')}
             </tr>
           </thead>
           <tbody>
