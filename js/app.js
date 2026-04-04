@@ -108,7 +108,7 @@ const App = {
     div.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:450';
     div.innerHTML = `
       <style>
-        #chat-fab .cfab-btn{width:52px;height:52px;border-radius:50%;position:relative;
+        #chat-fab .cfab-btn{width:43px;height:43px;border-radius:50%;position:relative;
           background:rgba(99,102,241,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
           color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;
           box-shadow:0 4px 16px rgba(99,102,241,.3);transition:all .25s;border:1px solid rgba(255,255,255,.15);
@@ -116,7 +116,7 @@ const App = {
         #chat-fab .cfab-btn:hover{transform:scale(1.08);background:rgba(99,102,241,.65);box-shadow:0 6px 20px rgba(99,102,241,.4)}
         #chat-fab .cfab-btn:active{transform:scale(.95)}
         @keyframes chatFabIn{from{opacity:0;transform:scale(.5) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
-        @media(max-width:768px){#chat-fab{bottom:16px;right:16px}#chat-fab .cfab-btn{width:48px;height:48px}}
+        @media(max-width:768px){#chat-fab{bottom:16px;right:16px}#chat-fab .cfab-btn{width:43px;height:43px}}
       </style>
       <div class="cfab-btn" onclick="App.navigate('chat')" title="Chat">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
@@ -165,7 +165,7 @@ const App = {
         .nf-item span{font-size:11px;font-weight:600;color:#fff;background:rgba(30,35,55,.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:4px 12px;border-radius:9999px;box-shadow:0 1px 3px rgba(0,0,0,.15);white-space:nowrap;border:1px solid rgba(255,255,255,.1)}
         .nf-item div{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15);cursor:pointer;transition:transform .15s;opacity:.85}
         .nf-item div:hover{transform:scale(1.1)}
-        .nf-main{width:44px;height:44px;border-radius:50%;background:rgba(139,92,246,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(139,92,246,.25);transition:all .25s;font-size:18px;border:1px solid rgba(255,255,255,.15)}
+        .nf-main{width:43px;height:43px;border-radius:50%;background:rgba(139,92,246,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(139,92,246,.25);transition:all .25s;font-size:18px;border:1px solid rgba(255,255,255,.15)}
         .nf-main:hover{transform:scale(1.08);background:rgba(139,92,246,.6)}
         #notes-fab.open .nf-main{transform:rotate(45deg);background:rgba(239,68,68,.45)}
         @media(max-width:768px){#notes-fab{display:none!important}}
@@ -187,6 +187,13 @@ const App = {
       <div class="nf-main" onclick="document.getElementById('notes-fab').classList.toggle('open')" title="Quick Notes">+</div>
     `;
     document.body.appendChild(div);
+    // Close FAB menu when clicking anywhere outside
+    document.addEventListener('click', e => {
+      const fab = document.getElementById('notes-fab');
+      if (fab && fab.classList.contains('open') && !fab.contains(e.target)) {
+        fab.classList.remove('open');
+      }
+    });
   },
 
   async _deferredBoot() {
