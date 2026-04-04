@@ -522,7 +522,25 @@ const PersonalModule = (() => {
       : 'right:24px;bottom:24px';
     div.style.cssText = `position:fixed;${pos};width:300px;min-height:180px;max-height:420px;
       background:${c.bg};color:${c.text};border-radius:2px 2px 2px 16px;
-      box-shadow:4px 6px 20px rgba(0,0,0,.18);z-index:500;display:flex;flex-direction:column;overflow:hidden;${editing?'resize:both':''}`;
+      box-shadow:4px 6px 24px rgba(0,0,0,.2);z-index:500;display:flex;flex-direction:column;overflow:hidden;
+      ${editing?'resize:both;':''}
+      animation:floatIn .35s cubic-bezier(.34,1.56,.64,1);
+      transform-origin:bottom right`;
+    // Inject animation CSS once
+    if (!document.getElementById('float-anim-css')) {
+      const css = document.createElement('style'); css.id='float-anim-css';
+      css.textContent=`
+        @keyframes floatIn{from{opacity:0;transform:scale(.8) translateY(20px) rotate(-3deg)}to{opacity:1;transform:scale(1) translateY(0) rotate(0)}}
+        @keyframes floatOut{to{opacity:0;transform:scale(.85) translateY(16px) rotate(2deg)}}
+        @keyframes floatSave{0%{transform:scale(1)}30%{transform:scale(1.04)}60%{transform:scale(.98)}100%{transform:scale(1)}}
+        @keyframes floatSaveBtnIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+        #floating-note{transition:box-shadow .2s}
+        #floating-note:hover{box-shadow:6px 8px 30px rgba(0,0,0,.25)}
+        .float-save-btn{animation:floatSaveBtnIn .2s ease;transition:all .15s}
+        .float-save-btn:hover{transform:scale(1.05)}
+      `;
+      document.head.appendChild(css);
+    }
 
     // BODY
     let body = '';
@@ -550,14 +568,15 @@ const PersonalModule = (() => {
       </div>`;
     }
 
-    // HEADER BUTTONS
+    // HEADER BUTTONS — Save only visible when editing/dirty
     let hBtns = '';
     if (editing) {
-      hBtns = `<button onclick="PersonalModule.saveFloatingContent()" style="background:none;border:none;cursor:pointer;color:${c.fold};font-size:10px;font-weight:700">\u2713 Simpan</button>`;
+      hBtns = `<button class="float-save-btn" onclick="PersonalModule.saveFloatingContent()" style="background:${c.fold};color:#fff;border:none;cursor:pointer;font-size:10px;font-weight:700;padding:2px 10px;border-radius:var(--r-full)">\u2713 Simpan</button>`;
       if (!isTodo) hBtns += `<button onclick="PersonalModule._floatExitEdit()" style="background:none;border:none;cursor:pointer;color:${c.text};font-size:10px;opacity:.5">Batal</button>`;
     } else {
-      if (!isTodo) hBtns = `<button onclick="PersonalModule._floatEnterEdit()" style="background:none;border:none;cursor:pointer;color:${c.fold};font-size:10px;font-weight:600">\u270e Edit</button>`;
-      else hBtns = `<button onclick="PersonalModule.saveFloatingContent()" style="background:none;border:none;cursor:pointer;color:${c.fold};font-size:10px;font-weight:700">\u2713 Save</button>`;
+      if (!isTodo) hBtns = `<button onclick="PersonalModule._floatEnterEdit()" style="background:none;border:none;cursor:pointer;color:${c.fold};font-size:10px;font-weight:600;opacity:.6">\u270e</button>`;
+      // Todo: Save hidden by default, shown via _floatMarkDirty()
+      if (isTodo) hBtns = `<span id="float-save-wrap"></span>`;
     }
 
     div.innerHTML = `
@@ -577,13 +596,25 @@ const PersonalModule = (() => {
 
   function _hideFloating() {
     const el = document.getElementById('floating-note');
-    if (el) el.remove();
+    if (el) {
+      el.style.animation = 'floatOut .25s ease forwards';
+      setTimeout(()=>el.remove(), 250);
+    }
     _floatPos = null;
+  }
+
+  function _floatMarkDirty() {
+    const wrap = document.getElementById('float-save-wrap');
+    if (wrap && !wrap.innerHTML) {
+      const c = NOTE_COLORS[(_floatingNote?.id||'').charCodeAt(0) % NOTE_COLORS.length];
+      wrap.innerHTML = `<button class="float-save-btn" onclick="PersonalModule.saveFloatingContent()" style="background:${c.fold};color:#fff;border:none;cursor:pointer;font-size:10px;font-weight:700;padding:2px 10px;border-radius:var(--r-full)">\u2713</button>`;
+    }
   }
 
   function _floatTodoToggle(idx) {
     if (!_floatingNote?.todos?.[idx]) return;
     _floatingNote.todos[idx].done = !_floatingNote.todos[idx].done;
+    _floatMarkDirty();
     // Update checkbox in-place (no re-render = keep position)
     const checks = document.querySelectorAll('#float-todo-list input[type="checkbox"]');
     const spans = document.querySelectorAll('#float-todo-list span');
@@ -604,9 +635,9 @@ const PersonalModule = (() => {
     if (!text || !_floatingNote) return;
     if (!_floatingNote.todos) _floatingNote.todos = [];
     _floatingNote.todos.push({text, done:false});
-    _renderFloat(); // re-render needed for new item
-    // Focus input again
-    setTimeout(()=>document.getElementById('float-todo-new')?.focus(), 50);
+    _floatEditing = true; // show delete buttons
+    _renderFloat();
+    setTimeout(()=>{document.getElementById('float-todo-new')?.focus(); _floatMarkDirty();}, 50);
   }
 
   function _floatTodoRemove(idx) {
@@ -644,6 +675,9 @@ const PersonalModule = (() => {
       _floatingNote = data;
       _floatEditing = false;
       _renderFloat();
+      // Bounce animation on save
+      const floatEl = document.getElementById('floating-note');
+      if (floatEl) { floatEl.style.animation='floatSave .3s ease'; setTimeout(()=>floatEl.style.animation='',350); }
       Notify.success('Disimpan');
     } catch(e) { Notify.error('Gagal'); }
   }
