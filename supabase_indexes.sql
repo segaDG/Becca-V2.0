@@ -56,3 +56,24 @@ CREATE INDEX IF NOT EXISTS idx_trk_date ON public.delivery_tracking_logs ((data-
 
 -- PRESENCE — sering di-filter by last_seen
 CREATE INDEX IF NOT EXISTS idx_presence_seen ON public.presence (last_seen);
+
+-- ============================================
+-- REALTIME — Enable Supabase Realtime for key tables
+-- Run once after creating tables
+-- ============================================
+ALTER PUBLICATION supabase_realtime ADD TABLE public.kas;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.customers;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.employees;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.employee_logs;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.emp_absensi;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.inv_activities;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.inv_products;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.daily_order_forms;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.delivery_schedules;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.menu_library;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.menu_plans;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.news;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.settings;

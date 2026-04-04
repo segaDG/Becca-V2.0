@@ -206,12 +206,62 @@ const DB = (() => {
     },
   };
 
-  // In-memory cache — cleared on save/delete
+  // In-memory cache — updated in-place via Realtime subscriptions
   const _memCache = {};
-  const _CACHE_TTL = 120000; // 2 menit — realtime-friendly (Pro plan)
-  const _CACHE_TTL_SHORT = 30000; // 30 detik — data volatile, near-realtime
+  const _CACHE_TTL = 1800000; // 30 menit — Realtime keeps cache fresh via WebSocket
+  const _CACHE_TTL_SHORT = 600000; // 10 menit — volatile tables, still Realtime-backed
   const _SHORT_CACHE_TABLES = new Set(['kas','orders','inv_activities','daily_order_forms','delivery_tracking_logs']);
   let _settingsCache = null, _settingsCacheTs = 0;
+  const _realtimeActive = new Set(); // tables with active Realtime subscription
+  const _realtimeListeners = {}; // table → [callback, ...] for UI re-render
+
+  // Subscribe to Realtime changes for a table — updates _memCache in-place
+  function _subscribeRealtime(table) {
+    if (_realtimeActive.has(table)) return;
+    _realtimeActive.add(table);
+    subscribe(table, (payload) => {
+      const cache = _memCache[table];
+      if (!cache) return;
+      const row = payload.new ? _fromRow(payload.new) : null;
+      const oldRow = payload.old;
+      if (payload.eventType === 'INSERT' && row) {
+        cache.data.unshift(row);
+        cache.ts = Date.now();
+      } else if (payload.eventType === 'UPDATE' && row) {
+        const idx = cache.data.findIndex(r => r.id === row.id);
+        if (idx >= 0) cache.data[idx] = row; else cache.data.unshift(row);
+        cache.ts = Date.now();
+      } else if (payload.eventType === 'DELETE' && oldRow) {
+        cache.data = cache.data.filter(r => r.id !== oldRow.id);
+        cache.ts = Date.now();
+      }
+      // Also update localStorage
+      if (!NO_CACHE.includes(table)) {
+        try { localStorage.setItem('becca_' + table, JSON.stringify(cache.data)); } catch {}
+      }
+      // Notify listeners
+      (_realtimeListeners[table] || []).forEach(fn => { try { fn(payload); } catch {} });
+    });
+  }
+
+  // Register a callback when table data changes via Realtime
+  function onRealtimeChange(table, callback) {
+    if (!_realtimeListeners[table]) _realtimeListeners[table] = [];
+    _realtimeListeners[table].push(callback);
+    _subscribeRealtime(table); // ensure subscribed
+  }
+
+  // Parse a single Supabase row into app object
+  function _fromRow(row) {
+    if (!row) return null;
+    if (row.data) {
+      const parsed = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+      if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return { ...parsed, id: row.id || parsed.id };
+      }
+    }
+    return row;
+  }
 
   // Fetch semua baris dengan auto-pagination (Supabase max_rows=1000 per request)
   async function _fetchAll(sb, table) {
@@ -279,6 +329,9 @@ const DB = (() => {
 
     // Simpan ke memory cache SETELAH merge LS agar hasil konsisten
     _memCache[table] = { ts: Date.now(), data: result };
+
+    // Auto-subscribe Realtime setelah first fetch — updates cache in-place
+    _subscribeRealtime(table);
 
     return result;
   }
@@ -1066,7 +1119,7 @@ const DB = (() => {
   // ── Public API ─────────────────────────────────────────────
   return {
     init,
-    subscribe, unsubscribeAll, setupRealtime,
+    subscribe, unsubscribeAll, setupRealtime, onRealtimeChange,
     migrateFromLocalStorage,
     isReady: () => _ready,
     getCached, getPage,
