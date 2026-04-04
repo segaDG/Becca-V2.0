@@ -66,7 +66,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.customers;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.employees;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.employee_logs;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.emp_logs;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.emp_absensi;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.inv_activities;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.inv_products;
