@@ -157,34 +157,38 @@ const MenuModule = (() => {
     return 0;
   }
 
-  function _hppBadge(hpp) {
+  function _hppBadge(hpp, isPaketan) {
     if (!hpp) return '';
-    let sign, color;
-    if (hpp <= 2000)      { sign='$'; color='#10b981'; }
-    else if (hpp <= 3500) { sign='$$'; color='#22c55e'; }
-    else if (hpp <= 5000) { sign='$$$'; color='#f59e0b'; }
-    else if (hpp <= 6000) { sign='$$$$'; color='#f97316'; }
-    else                  { sign='$$$$$'; color='#ef4444'; }
-    return `<span title="HPP ~Rp ${hpp.toLocaleString('id')}/porsi" style="font-size:10px;font-weight:800;color:${color};letter-spacing:1px">${sign}</span>`;
+    const maxHpp = isPaketan ? 10000 : 6000;
+    let sign, color, bg;
+    if (hpp <= 2000)          { sign='$'; color='#10b981'; bg='rgba(16,185,129,.1)'; }
+    else if (hpp <= 3500)     { sign='$$'; color='#22c55e'; bg='rgba(34,197,94,.1)'; }
+    else if (hpp <= 5000)     { sign='$$$'; color='#f59e0b'; bg='rgba(245,158,11,.1)'; }
+    else if (hpp <= maxHpp)   { sign='$$$$'; color='#f97316'; bg='rgba(249,115,22,.1)'; }
+    else                      { sign='$$$$$'; color='#ef4444'; bg='rgba(239,68,68,.1)'; }
+    return `<span title="HPP ~Rp ${hpp.toLocaleString('id')}/porsi" style="font-size:9px;font-weight:800;color:${color};background:${bg};padding:2px 6px;border-radius:var(--r-full);letter-spacing:1px">${sign}</span>`;
   }
 
   function _menuCard(m) {
     const katColor = {'Nasi':'#f59e0b','Lauk Kering':'#ef4444','Lauk Kuah':'#f97316','Pendamping':'#8b5cf6','Sayur':'#10b981','Sambel':'#ec4899','Buah':'#06b6d4','Minuman':'#3b82f6','Paketan':'#6366f1'}[m.klasifikasi]||'var(--text-3)';
     const hasResep = !!m.resep;
+    const isPaketan = m.jenis==='Paketan' || m.klasifikasi==='Paketan';
     const hpp = _extractHpp(m);
     return `<div class="card" style="padding:var(--s3);cursor:pointer;transition:all .2s" onclick="MenuModule.openMenuDetail('${m.id}')"
       onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='var(--shadow-md)'"
       onmouseout="this.style.transform='';this.style.boxShadow='0 1px 4px rgba(0,0,0,.06)'">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s2)">
-        <span style="font-size:14px;font-weight:700;color:var(--heading)">${_esc(m.nama)}</span>
-        <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:var(--r-full);background:${katColor}18;color:${katColor}">${m.klasifikasi}</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s2);gap:4px">
+        <span style="font-size:14px;font-weight:700;color:var(--heading);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(m.nama)}</span>
+        <div style="display:flex;gap:3px;align-items:center;flex-shrink:0">
+          <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:var(--r-full);background:${katColor}18;color:${katColor}">${m.klasifikasi}</span>
+          ${_hppBadge(hpp, isPaketan)}
+        </div>
       </div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:var(--s2);align-items:center">
         <span class="badge badge-primary" style="font-size:9px">${m.category}</span>
         <span class="badge badge-neutral" style="font-size:9px">${m.tema}</span>
-        ${m.jenis==='Paketan'&&m.klasifikasi!=='Paketan'?'<span class="badge badge-warning" style="font-size:9px">Paketan</span>':''}
+        ${isPaketan&&m.klasifikasi!=='Paketan'?'<span class="badge badge-warning" style="font-size:9px">Paketan</span>':''}
         ${hasResep?'<span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:var(--r-full);background:var(--success-bg);color:var(--success)">\u2713 Resep</span>':''}
-        ${_hppBadge(hpp)}
       </div>
       ${m.bahan?`<div style="font-size:11px;color:var(--text-2);max-height:36px;overflow:hidden;line-height:1.4">${_esc(m.bahan)}</div>`:''}
       <div style="display:flex;gap:4px;margin-top:var(--s2);align-items:center">
@@ -732,6 +736,13 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
       ['Gyoza','Gyoza ayam/sayur','Jepang'],['Pad Thai Side','Pad thai mini porsi','Thailand'],
     ];
     pendamping.forEach(([n,b,t])=>_m(n,'Pendamping','Indonesia',t));
+    // Aneka Gorengan (Pendamping)
+    ['Tahu Crispy','Tempe Crispy','Bakwan Jagung','Bakwan Udang','Pisang Goreng','Ubi Goreng','Singkong Goreng',
+     'Cireng','Comro','Misro','Gehu Pedas','Tahu Walik','Martabak Tahu','Risol Mayo','Pastel Ayam',
+     'Lumpia Sayur','Lumpia Semarang','Pangsit Goreng','Wonton Goreng','Tahu Sumedang',
+     'Tempe Kemul','Sukun Goreng','Talas Goreng','Bala-Bala','Onde-Onde',
+     'Kroket Kentang','Donat Kentang','Roti Goreng','Cakwe','Tahu Gejrot',
+    ].forEach(n=>_m(n,'Pendamping','Indonesia','Umum','Regular','Gorengan'));
 
     // === SAYUR ===
     const sayur = [
@@ -751,6 +762,19 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
       ['Terancam','Terancam sayur mentah','Sunda'],['Selada Air Rebus','Selada air + bumbu kacang','Umum'],
     ];
     sayur.forEach(([n,b,t])=>_m(n,'Sayur','Indonesia',t));
+    // Aneka Sayur Nusantara
+    [['Sayur Tewel','Tewel nangka muda khas jawa','Jawa'],['Sayur Bening Kelor','Daun kelor bening','Jawa'],
+     ['Sayur Bening Labu','Labu siam bening','Jawa'],['Sayur Santan Labu','Labu kuning santan','Umum'],
+     ['Oseng Genjer','Genjer tumis','Sunda'],['Tumis Pare','Pare tumis telur','Jawa'],
+     ['Tumis Kacang Panjang','Kacang panjang tumis','Umum'],['Tumis Jagung Muda','Jagung muda tumis','Umum'],
+     ['Tumis Daun Pepaya','Daun pepaya tumis teri','Umum'],['Tumis Rebung','Rebung tumis','Umum'],
+     ['Tumis Jantung Pisang','Jantung pisang tumis','Jawa'],['Sayur Kuning','Sayur kuning santan','Umum'],
+     ['Tongseng Sayur','Tongseng sayur santan','Jawa'],['Gulai Pakis','Pakis gulai padang','Padang'],
+     ['Sayur Lilin','Sayur lilin labu siam','Sunda'],['Trancam','Trancam sayur mentah','Jawa'],
+     ['Asinan Sayur','Asinan sayur betawi','Betawi'],['Lotek','Lotek sayur sunda','Sunda'],
+     ['Pecal Kacang','Pecal kacang panjang','Jawa'],['Sayur Gambas','Gambas tumis','Umum'],
+     ['Tumis Toge Tahu','Toge + tahu tumis','Umum'],['Sayur Kacang Merah','Kacang merah santan','Umum'],
+    ].forEach(([n,b,t])=>_m(n,'Sayur','Indonesia',t));
 
     // === SAMBEL ===
     const sambel = [
@@ -764,6 +788,17 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
       ['Sambal Petis','Sambal petis surabaya','Jawa'],['Acar','Acar timun wortel','Umum'],
     ];
     sambel.forEach(([n,b,t])=>_m(n,'Sambel','Indonesia',t));
+    // Aneka Sambal Nusantara
+    [['Sambal Korek','Sambal korek bawang merah','Jawa'],['Sambal Ulek Mentah','Sambal mentah ulek','Umum'],
+     ['Sambal Teri','Sambal teri medan','Medan'],['Sambal Goreng Teri','Teri goreng sambal','Umum'],
+     ['Sambal Lalapan','Sambal tomat lalapan','Umum'],['Sambal Embe','Sambal embe manado','Manado'],
+     ['Sambal Cabe Ijo','Sambal cabe hijau goreng','Padang'],['Sambal Cuka','Sambal cuka khas palembang','Umum'],
+     ['Sambal Kemiri','Sambal kemiri bakar','Umum'],['Sambal Kelapa','Sambal kelapa parut','Bali'],
+     ['Sambal Dendeng','Sambal dendeng kering','Padang'],['Sambal Goreng Pete','Sambal goreng pete','Jawa'],
+     ['Sambal Cibiuk','Sambal cibiuk garut','Sunda'],['Sambal Oncom','Sambal oncom sunda','Sunda'],
+     ['Sambal Jambal','Sambal jambal ikan asin','Sunda'],['Sambal Tumpang','Sambal tumpang tempe','Jawa'],
+     ['Sambal Rica','Sambal rica manado pedas','Manado'],['Sambal Cakalang','Sambal cakalang fufu','Manado'],
+    ].forEach(([n,b,t])=>_m(n,'Sambel','Indonesia',t));
 
     // === BUAH ===
     ['Semangka','Melon','Pepaya','Pisang','Jeruk','Apel','Pir','Mangga','Salak','Jambu Biji','Nanas','Buah Naga'].forEach(n=>_m(n,'Buah','Indonesia','Umum'));
