@@ -565,18 +565,25 @@ Key hari: 0=Senin, 1=Selasa, ..., 6=Minggu.`;
     const prompt = `Berikan resep lengkap untuk "${m.nama}" (masakan ${m.category}, tema ${m.tema}).
 Untuk 100 porsi catering massal.
 
+PENTING: Ini untuk catering industri dengan budget ketat.
+- HPP MAKSIMAL Rp 6.000 per porsi (rekomendasi Rp 1.500 - Rp 4.000)
+- Harga jual 1 set komposisi lengkap hanya Rp 15.000-20.000
+- Gunakan bahan yang murah dan mudah didapat di pasar tradisional
+- Lauk bahan mentah di bawah Rp 150.000/kg
+- Prioritaskan efisiensi biaya tanpa mengorbankan rasa
+
 Format jawaban:
 
 BAHAN (100 porsi):
-- (daftar bahan + takaran)
+- (daftar bahan + takaran + estimasi harga bahan)
 
 CARA MEMBUAT:
 1. (langkah detail)
 
 TIPS CATERING:
-- (tips untuk masak skala besar)
+- (tips efisiensi biaya + masak skala besar)
 
-ESTIMASI BIAYA BAHAN: Rp ... per porsi`;
+ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
 
     const result = await _callGemini(prompt);
     const body = document.getElementById('ai-resep-body');
