@@ -34,7 +34,13 @@ const MenuModule = (() => {
     _library = library; _plans = plans;
     _customers = customers.filter(c=>(c.status||'AKTIF')==='AKTIF').sort((a,b)=>(a.nama||'').localeCompare(b.nama||''));
     // Seed library if empty
-    if (!_library.length) { await _seedLibrary(); _library = await DB.getMenuLibrary().catch(()=>[]); }
+    // Seed v2: adds new items not yet in library (checks by name, skips existing)
+    const SEED_VER = 'becca_menu_seed_v2';
+    if (!localStorage.getItem(SEED_VER)) {
+      await _seedLibrary();
+      localStorage.setItem(SEED_VER, '1');
+      _library = await DB.getMenuLibrary().catch(()=>[]);
+    }
     _renderFull(page);
   }
 
@@ -648,9 +654,13 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
      SEED LIBRARY — 1500+ menu items
      ═══════════════════════════════════════════ */
   async function _seedLibrary() {
-    Notify.info('Menyiapkan Menu Library (1500+ menu)...');
+    // Build set of existing menu names to skip duplicates
+    const existingNames = new Set(_library.map(m=>(m.nama||'').toLowerCase()));
     const items = [];
-    const _m = (nama,klasifikasi,category,tema,jenis,bahan) => items.push({id:Utils.uid(),nama,klasifikasi,category,tema,jenis:jenis||'Regular',bahan:bahan||'',resep:'',archived:false});
+    const _m = (nama,klasifikasi,category,tema,jenis,bahan) => {
+      if (existingNames.has(nama.toLowerCase())) return; // skip existing
+      items.push({id:Utils.uid(),nama,klasifikasi,category,tema,jenis:jenis||'Regular',bahan:bahan||'',resep:'',archived:false});
+    };
 
     // === NASI ===
     ['Nasi Putih','Nasi Uduk','Nasi Kuning','Nasi Liwet','Nasi Goreng','Nasi Kebuli','Nasi Jagung','Nasi Merah','Nasi Tim','Nasi Bakar','Nasi Tutug Oncom','Nasi Gurih','Lontong','Ketupat','Bubur Ayam'].forEach(n=>_m(n,'Nasi','Indonesia','Umum'));
@@ -824,12 +834,14 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     // === MINUMAN ===
     ['Es Teh Manis','Es Jeruk','Air Mineral','Teh Hangat','Kopi','Es Cincau','Es Kelapa','Jus Jambu','Jus Jeruk','Jus Alpukat','Susu','Wedang Jahe'].forEach(n=>_m(n,'Minuman','Indonesia','Umum'));
 
-    // Batch save — 50 items per batch to reduce Supabase calls
+    if (!items.length) { return; } // no new items to add
+    Notify.info('Menambahkan ' + items.length + ' menu baru...');
+    // Batch save — 50 items per batch
     for (let i=0; i<items.length; i+=50) {
       const batch = items.slice(i, i+50);
       await Promise.all(batch.map(item => DB.saveMenuItem(item).catch(()=>{}))).catch(()=>{});
     }
-    Notify.success(items.length + ' menu berhasil disimpan ke library');
+    Notify.success(items.length + ' menu baru ditambahkan ke library');
   }
 
   /* ═══ MENU CRUD ═══ */
