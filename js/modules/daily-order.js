@@ -15,6 +15,7 @@ const DailyOrderModule = (() => {
   let _saving       = false; // guard against double-save race condition
   let _inventory    = [];
   let _customers    = [];
+  let _bulkSelected = new Set();
 
   /* ─── CONSTANTS ─── */
   const _SATS        = ['Kg','Pcs','Liter','Pack','Bal','Ikat','Bks','Lusin','Karton','Gram','ML'];
@@ -627,6 +628,10 @@ const DailyOrderModule = (() => {
               <table id="do-grid" data-grid-select style="width:100%;border-collapse:collapse;font-size:11px;min-width:700px">
                 <thead>
                   <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
+                    <th style="padding:7px 5px;text-align:center;width:28px">
+                      <input type="checkbox" title="Pilih semua" onchange="DailyOrderModule._bulkToggleAll(this.checked)"
+                        style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+                    </th>
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600;width:30px">#</th>
                     <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600;min-width:140px">ITEM / BAHAN</th>
                     <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">EST QTY</th>
@@ -649,7 +654,7 @@ const DailyOrderModule = (() => {
                 </thead>
                 <tbody>
                   ${items.length === 0 && _editingItemId !== 'new'
-                    ? `<tr><td colspan="11" style="padding:28px;text-align:center;color:var(--text-3)">
+                    ? `<tr><td colspan="12" style="padding:28px;text-align:center;color:var(--text-3)">
                         <span style="font-size:20px">📦</span>
                         <div style="margin-top:8px;font-size:13px;font-weight:600">Belum ada bahan ditambahkan</div>
                         <div style="font-size:11px;margin-top:2px">Klik "+ Tambah Bahan" untuk menambah bahan produksi</div>
@@ -661,7 +666,7 @@ const DailyOrderModule = (() => {
                 ${items.length > 0 ? `
                   <tfoot>
                     <tr style="background:var(--surface2);border-top:2px solid var(--border);font-weight:700">
-                      <td colspan="5" style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px;letter-spacing:.03em">TOTAL ESTIMASI</td>
+                      <td colspan="6" style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px;letter-spacing:.03em">TOTAL ESTIMASI</td>
                       <td style="padding:9px 5px;text-align:right;color:#6366f1">${_fmtRp(totalEst)}</td>
                       <td style="padding:9px 5px;text-align:right;color:var(--text-3);font-size:10px">AKTUAL</td>
                       <td style="padding:9px 5px;text-align:right;color:#10b981">${_fmtRp(totalAkt)}</td>
@@ -1110,6 +1115,11 @@ const DailyOrderModule = (() => {
     const sumber = it.sumber || _calcSumber(_n(it.stokGudang), _n(it.aktQty));
     return `
       <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''};cursor:pointer" ondblclick="DailyOrderModule.startEditItem('${it.id}',event.target.closest('td')?.dataset?.field)" title="Double-klik untuk edit">
+        <td style="padding:7px 5px;text-align:center" onclick="event.stopPropagation()">
+          <input type="checkbox" class="do-bulk-chk" data-id="${it.id}" ${_bulkSelected.has(it.id)?'checked':''}
+            onchange="DailyOrderModule._bulkToggle('${it.id}',this.checked)"
+            style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+        </td>
         <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${i+1}</td>
         <td data-field="di-item" style="padding:7px 5px;font-weight:600">${it.item}</td>
         <td data-field="di-estqty" style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
@@ -1143,6 +1153,7 @@ const DailyOrderModule = (() => {
     const inp    = p => `padding:3px 5px;font-size:11px;${p}`;
     return `
       <tr style="border-bottom:1px solid var(--border);background:rgba(99,102,241,.04)">
+        <td style="padding:4px 3px;text-align:center;width:28px"></td>
         <td style="padding:4px 3px;text-align:center;color:var(--primary);font-size:11px;font-weight:700">${isNew?'✦':idx+1}</td>
         <td style="padding:4px 3px;min-width:140px">
           <input type="hidden" id="di-stok" value="${stok0}">
@@ -1971,6 +1982,53 @@ const DailyOrderModule = (() => {
     setTimeout(() => { _initItemCombo(); document.getElementById(focusField || 'di-item')?.focus(); }, 60);
   }
 
+  /* ── Bulk Delete ── */
+  function _bulkToggle(id, checked) {
+    if (checked) _bulkSelected.add(id); else _bulkSelected.delete(id);
+    _renderBulkBar();
+  }
+  function _bulkToggleAll(checked) {
+    document.querySelectorAll('.do-bulk-chk').forEach(c => { if (checked) _bulkSelected.add(c.dataset.id); else _bulkSelected.delete(c.dataset.id); c.checked = checked; });
+    _renderBulkBar();
+  }
+  function _renderBulkBar() {
+    let bar = document.getElementById('do-bulk-bar');
+    if (_bulkSelected.size === 0) { if (bar) bar.remove(); return; }
+    if (!bar) {
+      bar = document.createElement('div'); bar.id = 'do-bulk-bar';
+      bar.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:500;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.25);';
+      document.body.appendChild(bar);
+    }
+    bar.innerHTML = `
+      <span style="font-size:13px;font-weight:600;color:var(--text)">${_bulkSelected.size} dipilih</span>
+      <button onclick="DailyOrderModule._bulkDelete()" style="padding:6px 16px;border-radius:8px;border:none;background:#ef4444;color:#fff;font-size:12px;font-weight:600;cursor:pointer">🗑 Hapus</button>
+      <button onclick="DailyOrderModule._bulkClear()" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;cursor:pointer">Batal</button>`;
+  }
+  function _bulkClear() {
+    _bulkSelected.clear();
+    document.querySelectorAll('.do-bulk-chk').forEach(c => c.checked = false);
+    const hdr = document.querySelector('#do-grid thead input[type="checkbox"]');
+    if (hdr) hdr.checked = false;
+    _renderBulkBar();
+  }
+  async function _bulkDelete() {
+    const form = _currentForm();
+    if (!form) return;
+    const count = _bulkSelected.size;
+    const ok = await Modal.confirm({ title:'Hapus Bulk', message:`Hapus <strong>${count}</strong> bahan dari form ini?`, danger:true, confirmText:`Hapus ${count} Bahan` });
+    if (!ok) return;
+    const ids = [..._bulkSelected];
+    form.items = (form.items||[]).filter(i => !ids.includes(i.id));
+    form.updatedAt = new Date().toISOString();
+    try {
+      await DB.saveDailyOrderForm(form);
+      _bulkSelected.clear();
+      const bar = document.getElementById('do-bulk-bar'); if (bar) bar.remove();
+      _renderContent();
+      Notify.success(`${count} bahan dihapus`);
+    } catch(e) { Notify.error('Gagal menghapus'); }
+  }
+
   async function deleteItem(itemId) {
     const form = _currentForm();
     if (!form) return;
@@ -2012,7 +2070,7 @@ const DailyOrderModule = (() => {
     init, setView, setDate, setShift, setMonth,
     setFormMonth, prevFormMonth, nextFormMonth,
     createForm, addEvent, saveEventMeta, copyEstToAkt, syncToInventory, openCopyFormModal, doCopyForm, printForm, toggleStatus, deleteForm, updateFormMeta,
-    startAddItem, startEditItem, deleteItem, goToDate,
+    startAddItem, startEditItem, deleteItem, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, goToDate,
     _saveEditRow, _cancelEdit, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
   };

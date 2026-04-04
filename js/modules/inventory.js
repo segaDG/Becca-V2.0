@@ -24,6 +24,7 @@ const InventoryModule = (() => {
   let _opnamePeriod = new Date().toISOString().slice(0,7); // period filter for opname
   let _opnameDraft  = {}; // itemId → value (string, as typed) — live draft state
   let _opnameTgl    = new Date().toISOString().slice(0,10);  // tanggal opname
+  let _bulkSelected = new Set(); // bulk delete selection
 
   const KATEGORIS = ['Bahan Baku','Bumbu','Minuman','Kemasan','Peralatan','Sembako','Fresh','Lain-lain'];
   const SATUANS   = ['kg','gr','liter','ml','pcs','pack','karton','lusin','botol','sachet'];
@@ -1224,6 +1225,10 @@ const InventoryModule = (() => {
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;border:1px solid var(--border);border-radius:var(--r-lg)">
         <table class="iv-tbl" id="inv-grid" data-grid-select>
           <thead><tr>
+            ${canEdit ? `<th style="width:28px;padding:0;text-align:center">
+              <input type="checkbox" title="Pilih semua" onchange="InventoryModule._bulkToggleAll(this.checked)"
+                style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+            </th>` : ''}
             <th style="width:32px;padding:0;text-align:center">
               ${canEdit
                 ? `<button title="Tambah Baris Baru" onclick="InventoryModule.addLogRow()"
@@ -1255,7 +1260,7 @@ const InventoryModule = (() => {
           </tr></thead>
           <tbody id="inv-tbody">
             ${pageData.length ? pageData.map((r,i)=>_ivRowView(r,i+1+offset,canEdit)).join('') :
-              `<tr><td colspan="${canEdit?12:11}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data. Klik + di header untuk mulai.</td></tr>`}
+              `<tr><td colspan="${canEdit?14:11}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data. Klik + di header untuk mulai.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1270,6 +1275,11 @@ const InventoryModule = (() => {
     const syncClass = isBPSync ? ' iv-bp-synced' : isSync ? ' iv-synced' : '';
     return `<tr class="iv-view${syncClass}" id="iv-row-${r.id}" data-id="${r.id}"
               ${canEdit && !_invLocked.has(r.id) ? `ondblclick="InventoryModule.startLogEdit('${r.id}',event.target.closest('td')?.dataset?.field)"` : ''}>
+      ${canEdit?`<td style="width:28px;padding:0;text-align:center" onclick="event.stopPropagation()">
+        <input type="checkbox" class="iv-bulk-chk" data-id="${r.id}" ${_bulkSelected.has(r.id)?'checked':''}
+          onchange="InventoryModule._bulkToggle('${r.id}',this.checked)"
+          style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+      </td>`:''}
       <td onclick="event.stopPropagation();${_invLocked.has(r.id)?`InventoryModule.unlockInvRow('${r.id}')`:'void(0)'}"
           title="${_invLocked.has(r.id)?'Klik untuk buka kunci':''}"
           style="cursor:${_invLocked.has(r.id)?'pointer':'default'}">
@@ -1311,6 +1321,7 @@ const InventoryModule = (() => {
     const jenisOpts = ['MASUK','KELUAR'].map(j=>`<option value="${j}" ${r.jenis===j?'selected':''}>${j}</option>`).join('');
     const curNama   = r.itemId ? (_items.find(i=>i.id===r.itemId)?.nama || r.itemNama || '') : '';
     return `<tr class="iv-editing" id="iv-row-${r.id}" data-id="${r.id}" onclick="event.stopPropagation()">
+      <td style="width:28px"></td>
       <td><div class="ivc" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
       <td><input class="iv-inp" type="date" value="${r.tgl||''}" id="ivf-tgl-${r.id}" onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"></td>
       <td style="position:relative;min-width:150px">
@@ -1786,6 +1797,55 @@ const InventoryModule = (() => {
         });
       });
     } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
+  /* ── Bulk Delete ── */
+  function _bulkToggle(id, checked) {
+    if (checked) _bulkSelected.add(id); else _bulkSelected.delete(id);
+    _renderBulkBar();
+  }
+  function _bulkToggleAll(checked) {
+    const chks = document.querySelectorAll('.iv-bulk-chk');
+    chks.forEach(c => { if (checked) _bulkSelected.add(c.dataset.id); else _bulkSelected.delete(c.dataset.id); c.checked = checked; });
+    _renderBulkBar();
+  }
+  function _renderBulkBar() {
+    let bar = document.getElementById('iv-bulk-bar');
+    if (_bulkSelected.size === 0) { if (bar) bar.remove(); return; }
+    if (!bar) {
+      bar = document.createElement('div'); bar.id = 'iv-bulk-bar';
+      bar.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:500;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.25);';
+      document.body.appendChild(bar);
+    }
+    bar.innerHTML = `
+      <span style="font-size:13px;font-weight:600;color:var(--text)">${_bulkSelected.size} dipilih</span>
+      <button onclick="InventoryModule._bulkDelete()" style="padding:6px 16px;border-radius:8px;border:none;background:#ef4444;color:#fff;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px">
+        🗑 Hapus
+      </button>
+      <button onclick="InventoryModule._bulkClear()" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;cursor:pointer">Batal</button>`;
+  }
+  function _bulkClear() {
+    _bulkSelected.clear();
+    document.querySelectorAll('.iv-bulk-chk').forEach(c => c.checked = false);
+    const hdr = document.querySelector('#inv-grid thead input[type="checkbox"]');
+    if (hdr) hdr.checked = false;
+    _renderBulkBar();
+  }
+  async function _bulkDelete() {
+    const count = _bulkSelected.size;
+    const ok = await Modal.confirm({ title:'Hapus Bulk', message:`Hapus <strong>${count}</strong> baris inventory secara permanen?`, danger:true, confirmText:`Hapus ${count} Baris` });
+    if (!ok) return;
+    const ids = [..._bulkSelected];
+    let deleted = 0;
+    for (const id of ids) {
+      try { await DB.deleteInventoryLog(id); _logs = _logs.filter(r=>r.id!==id); deleted++; } catch {}
+    }
+    _bulkSelected.clear();
+    const bar = document.getElementById('iv-bulk-bar'); if (bar) bar.remove();
+    _recalcStok();
+    renderTransaksi(); renderStok();
+    Notify.success(`${deleted} baris dihapus`);
+    DB.logActivity({type:'bulk_delete_inventory', detail:`${deleted} baris dihapus`});
   }
 
   async function deleteLogRow(id) {
@@ -2830,7 +2890,7 @@ const InventoryModule = (() => {
     _logRowKeyDown,
     unlockInvRow,
     addLogRow,
-    deleteLogRow,
+    deleteLogRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear,
     goInvLogPage,
     goStokPage,
     setStokPerPage,

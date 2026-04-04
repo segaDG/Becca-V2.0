@@ -8,6 +8,7 @@ const KasModule = (() => {
   let _kas        = [];
   let _masuk      = [];
   let _saldoAwal  = 0;  // Saldo awal kas, bisa di-edit user
+  let _bulkSelected = new Set();
 
   async function _loadSaldoAwal() {
     try {
@@ -296,6 +297,10 @@ const KasModule = (() => {
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;border:1px solid var(--border);border-radius:var(--r-lg)">
         <table class="ks-tbl" id="kas-grid" data-grid-select>
           <thead><tr>
+            ${canEdit ? `<th style="width:28px;padding:0;text-align:center">
+              <input type="checkbox" title="Pilih semua" onchange="KasModule._bulkToggleAll(this.checked)"
+                style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+            </th>` : ''}
             <th style="width:32px;padding:0;text-align:center">
               ${canEdit
                 ? `<button title="Tambah Baris Baru" onclick="KasModule.addRow()"
@@ -348,6 +353,11 @@ const KasModule = (() => {
     const rowColorClass = isBP ? 'ks-row-bp' : r.type==='Kas' ? 'ks-row-kas' : r.status==='DONE' ? 'ks-row-done' : r.status==='TBC' ? 'ks-row-tbc' : '';
     const ksOnDbl = !_kasLocked.has(r.id) ? `KasModule.startEdit('${r.id}',event.target.closest('td')?.dataset?.field)` : '';
     return `<tr class="ks-view ${rowColorClass}" id="ks-row-${r.id}" data-id="${r.id}" style="${_kasLocked.has(r.id)?'opacity:.75':''};cursor:pointer" ondblclick="${ksOnDbl}">
+      ${canEdit?`<td style="width:28px;padding:0;text-align:center" onclick="event.stopPropagation()">
+        <input type="checkbox" class="ks-bulk-chk" data-id="${r.id}" ${_bulkSelected.has(r.id)?'checked':''}
+          onchange="KasModule._bulkToggle('${r.id}',this.checked)"
+          style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary)">
+      </td>`:''}
       <td style="width:28px">
         <div class="ks-cell" style="justify-content:center;font-size:11px;color:var(--text-3)">
           ${_kasLocked.has(r.id)?'<span style="opacity:.4">'+rowNum+'</span>':rowNum}
@@ -387,6 +397,7 @@ const KasModule = (() => {
     const statusOpts = ['-','DONE','TBC'].map(s=>`<option value="${s==='-'?'':s}" ${(r.status||'')===(s==='-'?'':s)?'selected':''}>${s}</option>`).join('');
     const bulanOpts  = MONTHS.map(m=>`<option value="${m}" ${r.bulan===m?'selected':''}>${m}</option>`).join('');
     return `<tr class="ks-editing" id="ks-row-${r.id}" data-id="${r.id}" onclick="event.stopPropagation()">
+      <td style="width:28px"></td>
       <td><div class="ks-cell" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
       <td><input class="ks-inp" type="date" value="${r.tgl||''}" id="ks-tgl-${r.id}"
             onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
@@ -751,6 +762,49 @@ const KasModule = (() => {
       renderTransaksi();
       setTimeout(()=>startEdit(saved.id), 80);
     } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
+  /* ── Bulk Delete ── */
+  function _bulkToggle(id, checked) {
+    if (checked) _bulkSelected.add(id); else _bulkSelected.delete(id);
+    _renderBulkBar();
+  }
+  function _bulkToggleAll(checked) {
+    document.querySelectorAll('.ks-bulk-chk').forEach(c => { if (checked) _bulkSelected.add(c.dataset.id); else _bulkSelected.delete(c.dataset.id); c.checked = checked; });
+    _renderBulkBar();
+  }
+  function _renderBulkBar() {
+    let bar = document.getElementById('ks-bulk-bar');
+    if (_bulkSelected.size === 0) { if (bar) bar.remove(); return; }
+    if (!bar) {
+      bar = document.createElement('div'); bar.id = 'ks-bulk-bar';
+      bar.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:500;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.25);';
+      document.body.appendChild(bar);
+    }
+    bar.innerHTML = `
+      <span style="font-size:13px;font-weight:600;color:var(--text)">${_bulkSelected.size} dipilih</span>
+      <button onclick="KasModule._bulkDelete()" style="padding:6px 16px;border-radius:8px;border:none;background:#ef4444;color:#fff;font-size:12px;font-weight:600;cursor:pointer">🗑 Hapus</button>
+      <button onclick="KasModule._bulkClear()" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;cursor:pointer">Batal</button>`;
+  }
+  function _bulkClear() {
+    _bulkSelected.clear();
+    document.querySelectorAll('.ks-bulk-chk').forEach(c => c.checked = false);
+    const hdr = document.querySelector('#kas-grid thead input[type="checkbox"]');
+    if (hdr) hdr.checked = false;
+    _renderBulkBar();
+  }
+  async function _bulkDelete() {
+    const count = _bulkSelected.size;
+    const ok = await Modal.confirm({ title:'Hapus Bulk', message:`Hapus <strong>${count}</strong> baris kas secara permanen?`, danger:true, confirmText:`Hapus ${count} Baris` });
+    if (!ok) return;
+    const ids = [..._bulkSelected];
+    let deleted = 0;
+    for (const id of ids) { try { await DB.deleteKas(id); _kas = _kas.filter(r=>r.id!==id); deleted++; } catch {} }
+    _bulkSelected.clear();
+    const bar = document.getElementById('ks-bulk-bar'); if (bar) bar.remove();
+    renderTransaksi();
+    Notify.success(`${deleted} baris dihapus`);
+    DB.logActivity({type:'bulk_delete_kas', detail:`${deleted} baris dihapus`});
   }
 
   async function deleteRow(id) {
@@ -1858,6 +1912,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
+  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
 })();
 window.KasModule = KasModule;
