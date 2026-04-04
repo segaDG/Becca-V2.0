@@ -65,6 +65,48 @@ const PersonalModule = (() => {
 
     _renderFull(page);
     _checkReminders();
+    _injectFAB();
+  }
+
+  /* ═══ QUICK ACCESS FAB (desktop only) ═══ */
+  function _injectFAB() {
+    if (document.getElementById('notes-fab')) return;
+    if (window.innerWidth < 768) return; // mobile: skip
+    const fab = document.createElement('div');
+    fab.id = 'notes-fab';
+    fab.innerHTML = `
+      <style>
+        #notes-fab{position:fixed;bottom:24px;right:24px;z-index:400;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+        #notes-fab .fab-menu{display:none;flex-direction:column;gap:6px;align-items:flex-end}
+        #notes-fab.open .fab-menu{display:flex;animation:fabMenuIn .2s ease}
+        @keyframes fabMenuIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        .fab-item{display:flex;align-items:center;gap:8px;cursor:pointer;transition:transform .15s}
+        .fab-item:hover{transform:translateX(-4px)}
+        .fab-item span{font-size:11px;font-weight:600;color:var(--heading);background:var(--surface);padding:4px 12px;border-radius:var(--r-full);box-shadow:var(--shadow-md);white-space:nowrap}
+        .fab-item div{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-md);cursor:pointer;transition:transform .15s}
+        .fab-item div:hover{transform:scale(1.1)}
+        .fab-main{width:52px;height:52px;border-radius:50%;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(99,102,241,.4);transition:all .25s;font-size:22px}
+        .fab-main:hover{transform:scale(1.08);box-shadow:0 6px 20px rgba(99,102,241,.5)}
+        #notes-fab.open .fab-main{transform:rotate(45deg);background:var(--danger)}
+        @media(max-width:768px){#notes-fab{display:none!important}}
+      </style>
+      <div class="fab-menu">
+        <div class="fab-item" onclick="App.navigate('personal');setTimeout(()=>PersonalModule.switchTab('notes'),300)">
+          <span>\ud83d\udcdd Catatan</span>
+          <div style="background:var(--success);color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg></div>
+        </div>
+        <div class="fab-item" onclick="App.navigate('personal');setTimeout(()=>{PersonalModule.switchTab('notes');PersonalModule.openNoteModal(null,'todo')},300)">
+          <span>\u2611 To-Do</span>
+          <div style="background:var(--warning);color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+        </div>
+        <div class="fab-item" onclick="PersonalModule.toggleFloating()">
+          <span>\ud83d\udccb Floating</span>
+          <div style="background:var(--info);color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+        </div>
+      </div>
+      <div class="fab-main" onclick="document.getElementById('notes-fab').classList.toggle('open')" title="Quick Notes">+</div>
+    `;
+    document.body.appendChild(fab);
   }
 
   /* ═══ RENDER FULL ═══ */
@@ -551,7 +593,7 @@ const PersonalModule = (() => {
           <span style="font-size:12px;line-height:1.4;${t.done?'text-decoration:line-through;opacity:.5':''}">${_esc(t.text)}</span>
           ${editing?`<button onclick="PersonalModule._floatTodoRemove(${i})" style="background:none;border:none;color:${c.fold};cursor:pointer;font-size:13px;margin-left:auto;opacity:.5">\u00d7</button>`:''}
         </div>`).join('')}
-        <div style="display:flex;gap:4px;margin-top:6px;padding-top:4px;border-top:1px dashed ${c.border}">
+        <div style="display:flex;gap:4px;margin-top:6px;padding-top:4px">
           <input id="float-todo-new" placeholder="Tambah item..." style="flex:1;border:none;background:transparent;color:${c.text};font-size:11px;padding:3px 0;outline:none;font-family:var(--font)"
             onkeydown="if(event.key==='Enter')PersonalModule._floatTodoAdd()">
           <button onclick="PersonalModule._floatTodoAdd()" style="background:none;border:none;color:${c.fold};cursor:pointer;font-size:14px;font-weight:700">+</button>
@@ -580,7 +622,7 @@ const PersonalModule = (() => {
     }
 
     div.innerHTML = `
-      <div id="floating-note-header" style="padding:7px 12px;cursor:move;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;user-select:none;border-bottom:1px dashed ${c.border}">
+      <div id="floating-note-header" style="padding:7px 12px;cursor:move;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;user-select:none">
         <span style="font-size:11px;font-weight:700">${isTodo?'\u2611 TO-DO':'\ud83d\udcdd Note'} ${(note.title||'').slice(0,18)}</span>
         <div style="display:flex;gap:6px;align-items:center">
           ${hBtns}

@@ -21,7 +21,7 @@ const App = {
     task      : 'js/modules/task.js?v=20260330i',
     delivery  : 'js/modules/delivery.js?v=20260405n',
     menu      : 'js/modules/menu.js?v=20260404f',
-    personal  : 'js/modules/personal.js?v=20260405j',
+    personal  : 'js/modules/personal.js?v=20260405k',
     report    : 'js/modules/report.js?v=20260326r',
     settings  : 'js/modules/settings.js?v=20260401b',
   },
