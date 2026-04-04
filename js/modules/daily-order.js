@@ -628,10 +628,6 @@ const DailyOrderModule = (() => {
               <table id="do-grid" data-grid-select style="width:100%;border-collapse:collapse;font-size:11px;min-width:700px">
                 <thead>
                   <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
-                    <th style="padding:7px 5px;text-align:center;width:28px">
-                      <input type="checkbox" title="Pilih semua" onchange="DailyOrderModule._bulkToggleAll(this.checked)"
-                        style="cursor:pointer">
-                    </th>
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600;width:30px">#</th>
                     <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600;min-width:140px">ITEM / BAHAN</th>
                     <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">EST QTY</th>
@@ -650,6 +646,7 @@ const DailyOrderModule = (() => {
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600">SUMBER</th>
                     <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600">CATATAN</th>
                     <th style="padding:7px 5px;width:50px"></th>
+                    <th style="padding:7px 5px;text-align:center;width:28px"><input type="checkbox" title="Pilih semua" onchange="DailyOrderModule._bulkToggleAll(this.checked)" style="cursor:pointer"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1115,11 +1112,6 @@ const DailyOrderModule = (() => {
     const sumber = it.sumber || _calcSumber(_n(it.stokGudang), _n(it.aktQty));
     return `
       <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''};cursor:pointer" ondblclick="DailyOrderModule.startEditItem('${it.id}',event.target.closest('td')?.dataset?.field)" title="Double-klik untuk edit">
-        <td style="padding:7px 5px;text-align:center" onclick="event.stopPropagation()">
-          <input type="checkbox" class="do-bulk-chk" data-id="${it.id}" ${_bulkSelected.has(it.id)?'checked':''}
-            onchange="DailyOrderModule._bulkToggle('${it.id}',this.checked)"
-            style="cursor:pointer">
-        </td>
         <td style="padding:7px 5px;text-align:center;color:var(--text-3)">${i+1}</td>
         <td data-field="di-item" style="padding:7px 5px;font-weight:600">${it.item}</td>
         <td data-field="di-estqty" style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">${it.estQty||'-'}</td>
@@ -1140,6 +1132,10 @@ const DailyOrderModule = (() => {
           <button onclick="DailyOrderModule.deleteItem('${it.id}')" title="Hapus"
             style="width:22px;height:22px;border-radius:4px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);cursor:pointer;color:#ef4444;font-size:11px;margin-left:2px">✕</button>
         </td>
+        <td style="padding:7px 5px;text-align:center" onclick="event.stopPropagation()">
+          <input type="checkbox" class="do-bulk-chk" data-id="${it.id}" ${_bulkSelected.has(it.id)?'checked':''}
+            onchange="DailyOrderModule._bulkToggle('${it.id}',this.checked)" style="cursor:pointer">
+        </td>
       </tr>`;
   }
 
@@ -1153,7 +1149,6 @@ const DailyOrderModule = (() => {
     const inp    = p => `padding:3px 5px;font-size:11px;${p}`;
     return `
       <tr style="border-bottom:1px solid var(--border);background:rgba(99,102,241,.04)">
-        <td style="padding:4px 3px;text-align:center;width:28px"></td>
         <td style="padding:4px 3px;text-align:center;color:var(--primary);font-size:11px;font-weight:700">${isNew?'✦':idx+1}</td>
         <td style="padding:4px 3px;min-width:140px">
           <input type="hidden" id="di-stok" value="${stok0}">
@@ -1206,6 +1201,7 @@ const DailyOrderModule = (() => {
           <button onclick="DailyOrderModule._cancelEdit()" title="Batal [Esc]"
             style="width:24px;height:24px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:12px;margin-left:2px;line-height:1">✕</button>
         </td>
+        <td style="width:28px"></td>
       </tr>`;
   }
 

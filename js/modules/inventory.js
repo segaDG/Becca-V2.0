@@ -1225,10 +1225,6 @@ const InventoryModule = (() => {
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;border:1px solid var(--border);border-radius:var(--r-lg)">
         <table class="iv-tbl" id="inv-grid" data-grid-select>
           <thead><tr>
-            ${canEdit ? `<th style="width:28px;padding:0;text-align:center">
-              <input type="checkbox" title="Pilih semua" onchange="InventoryModule._bulkToggleAll(this.checked)"
-                style="cursor:pointer">
-            </th>` : ''}
             <th style="width:32px;padding:0;text-align:center">
               ${canEdit
                 ? `<button title="Tambah Baris Baru" onclick="InventoryModule.addLogRow()"
@@ -1257,6 +1253,7 @@ const InventoryModule = (() => {
             <th style="width:130px">Penanggung Jawab</th>
             <th style="min-width:140px">Catatan</th>
             ${canEdit ? '<th style="width:32px"></th>' : ''}
+            ${canEdit ? `<th style="width:28px;padding:0;text-align:center"><input type="checkbox" title="Pilih semua" onchange="InventoryModule._bulkToggleAll(this.checked)" style="cursor:pointer"></th>` : ''}
           </tr></thead>
           <tbody id="inv-tbody">
             ${pageData.length ? pageData.map((r,i)=>_ivRowView(r,i+1+offset,canEdit)).join('') :
@@ -1275,11 +1272,6 @@ const InventoryModule = (() => {
     const syncClass = isBPSync ? ' iv-bp-synced' : isSync ? ' iv-synced' : '';
     return `<tr class="iv-view${syncClass}" id="iv-row-${r.id}" data-id="${r.id}"
               ${canEdit && !_invLocked.has(r.id) ? `ondblclick="InventoryModule.startLogEdit('${r.id}',event.target.closest('td')?.dataset?.field)"` : ''}>
-      ${canEdit?`<td style="width:28px;padding:0;text-align:center" onclick="event.stopPropagation()">
-        <input type="checkbox" class="iv-bulk-chk" data-id="${r.id}" ${_bulkSelected.has(r.id)?'checked':''}
-          onchange="InventoryModule._bulkToggle('${r.id}',this.checked)"
-          style="cursor:pointer">
-      </td>`:''}
       <td onclick="event.stopPropagation();${_invLocked.has(r.id)?`InventoryModule.unlockInvRow('${r.id}')`:'void(0)'}"
           title="${_invLocked.has(r.id)?'Klik untuk buka kunci':''}"
           style="cursor:${_invLocked.has(r.id)?'pointer':'default'}">
@@ -1314,6 +1306,10 @@ const InventoryModule = (() => {
             <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='12' height='12'><polyline points='3,6 5,6 21,6'/><path d='M19 6l-1 14H6L5 6'/></svg>
           </button>
         </div>
+      </td>`:''}
+      ${canEdit?`<td style="width:28px;padding:0;text-align:center" onclick="event.stopPropagation()">
+        <input type="checkbox" class="iv-bulk-chk" data-id="${r.id}" ${_bulkSelected.has(r.id)?'checked':''}
+          onchange="InventoryModule._bulkToggle('${r.id}',this.checked)" style="cursor:pointer">
       </td>`:''}\n    </tr>`;
   }
 
@@ -1321,7 +1317,6 @@ const InventoryModule = (() => {
     const jenisOpts = ['MASUK','KELUAR'].map(j=>`<option value="${j}" ${r.jenis===j?'selected':''}>${j}</option>`).join('');
     const curNama   = r.itemId ? (_items.find(i=>i.id===r.itemId)?.nama || r.itemNama || '') : '';
     return `<tr class="iv-editing" id="iv-row-${r.id}" data-id="${r.id}" onclick="event.stopPropagation()">
-      <td style="width:28px"></td>
       <td><div class="ivc" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
       <td><input class="iv-inp" type="date" value="${r.tgl||''}" id="ivf-tgl-${r.id}" onkeydown="InventoryModule._logRowKeyDown(event,'${r.id}')"></td>
       <td style="position:relative;min-width:150px">
@@ -1359,6 +1354,7 @@ const InventoryModule = (() => {
       ${canEdit?`<td><button class="iv-del" style="color:var(--success)" onclick="event.stopPropagation();InventoryModule.commitLogEdit('${r.id}')" title="Simpan">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="20,6 9,17 4,12"/></svg>
       </button></td>`:''}
+      ${canEdit?'<td style="width:28px"></td>':''}
     </tr>`;
   }
 

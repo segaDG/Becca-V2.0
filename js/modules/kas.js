@@ -297,10 +297,6 @@ const KasModule = (() => {
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;border:1px solid var(--border);border-radius:var(--r-lg)">
         <table class="ks-tbl" id="kas-grid" data-grid-select>
           <thead><tr>
-            ${canEdit ? `<th style="width:28px;padding:0;text-align:center">
-              <input type="checkbox" title="Pilih semua" onchange="KasModule._bulkToggleAll(this.checked)"
-                style="cursor:pointer">
-            </th>` : ''}
             <th style="width:32px;padding:0;text-align:center">
               ${canEdit
                 ? `<button title="Tambah Baris Baru" onclick="KasModule.addRow()"
@@ -326,6 +322,7 @@ const KasModule = (() => {
             <th style="width:100px">Penerima</th>
             <th style="width:75px">Status</th>
             ${canEdit ? '<th style="width:32px"></th>' : ''}
+            ${canEdit ? `<th style="width:28px;padding:0;text-align:center"><input type="checkbox" title="Pilih semua" onchange="KasModule._bulkToggleAll(this.checked)" style="cursor:pointer"></th>` : ''}
           </tr></thead>
           <tbody id="kas-tbody">
             ${paged.map((r,i)=>_rowView(r,(_page-1)*_perPage+i+1,canEdit)).join('')}
@@ -353,11 +350,6 @@ const KasModule = (() => {
     const rowColorClass = isBP ? 'ks-row-bp' : r.type==='Kas' ? 'ks-row-kas' : r.status==='DONE' ? 'ks-row-done' : r.status==='TBC' ? 'ks-row-tbc' : '';
     const ksOnDbl = !_kasLocked.has(r.id) ? `KasModule.startEdit('${r.id}',event.target.closest('td')?.dataset?.field)` : '';
     return `<tr class="ks-view ${rowColorClass}" id="ks-row-${r.id}" data-id="${r.id}" style="${_kasLocked.has(r.id)?'opacity:.75':''};cursor:pointer" ondblclick="${ksOnDbl}">
-      ${canEdit?`<td style="width:28px;padding:0;text-align:center" onclick="event.stopPropagation()">
-        <input type="checkbox" class="ks-bulk-chk" data-id="${r.id}" ${_bulkSelected.has(r.id)?'checked':''}
-          onchange="KasModule._bulkToggle('${r.id}',this.checked)"
-          style="cursor:pointer">
-      </td>`:''}
       <td style="width:28px">
         <div class="ks-cell" style="justify-content:center;font-size:11px;color:var(--text-3)">
           ${_kasLocked.has(r.id)?'<span style="opacity:.4">'+rowNum+'</span>':rowNum}
@@ -388,6 +380,10 @@ const KasModule = (() => {
             <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='12' height='12'><polyline points='3,6 5,6 21,6'/><path d='M19 6l-1 14H6L5 6'/></svg>
           </button>
         </div>
+      </td>`:''}
+      ${canEdit?`<td style="width:28px;padding:0;text-align:center" onclick="event.stopPropagation()">
+        <input type="checkbox" class="ks-bulk-chk" data-id="${r.id}" ${_bulkSelected.has(r.id)?'checked':''}
+          onchange="KasModule._bulkToggle('${r.id}',this.checked)" style="cursor:pointer">
       </td>`:''}\n    </tr>`;
   }
 
@@ -397,7 +393,6 @@ const KasModule = (() => {
     const statusOpts = ['-','DONE','TBC'].map(s=>`<option value="${s==='-'?'':s}" ${(r.status||'')===(s==='-'?'':s)?'selected':''}>${s}</option>`).join('');
     const bulanOpts  = MONTHS.map(m=>`<option value="${m}" ${r.bulan===m?'selected':''}>${m}</option>`).join('');
     return `<tr class="ks-editing" id="ks-row-${r.id}" data-id="${r.id}" onclick="event.stopPropagation()">
-      <td style="width:28px"></td>
       <td><div class="ks-cell" style="justify-content:center;color:var(--primary-h);font-size:11px">${rowNum}</div></td>
       <td><input class="ks-inp" type="date" value="${r.tgl||''}" id="ks-tgl-${r.id}"
             onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
@@ -432,6 +427,7 @@ const KasModule = (() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
             <polyline points="20,6 9,17 4,12"/>
           </svg></button></td>`:''}
+      ${canEdit?'<td style="width:28px"></td>':''}
     </tr>`;
   }
 
