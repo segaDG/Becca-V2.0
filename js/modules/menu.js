@@ -127,13 +127,14 @@ const MenuModule = (() => {
           <option value="">Semua Jenis</option>
           ${JENIS.map(j=>`<option value="${j}" ${_libJenis===j?'selected':''}>${j}</option>`).join('')}
         </select>
-        <span style="font-size:11px;color:var(--text-3);white-space:nowrap">${list.length} menu</span>
+        <span id="menu-lib-count" style="font-size:11px;color:var(--text-3);white-space:nowrap">${list.length} menu</span>
+        <button class="btn btn-primary btn-sm" onclick="MenuModule.openMenuForm()">+ Tambah Menu</button>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s3)">
+      <div id="menu-lib-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s3)">
         ${list.slice(0,100).map(m => _menuCard(m)).join('')}
       </div>
-      ${list.length>100?`<div style="text-align:center;padding:var(--s4);color:var(--text-3);font-size:12px">Menampilkan 100 dari ${list.length} menu. Gunakan filter untuk mempersempit.</div>`:''}
+      ${list.length>100?`<div style="text-align:center;padding:var(--s4);color:var(--text-3);font-size:12px">Menampilkan 100 dari ${list.length} menu. Gunakan filter.</div>`:''}
     `;
   }
 
@@ -152,16 +153,47 @@ const MenuModule = (() => {
         ${m.jenis==='Paketan'?'<span class="badge badge-warning" style="font-size:9px">Paketan</span>':''}
       </div>
       ${m.bahan?`<div style="font-size:11px;color:var(--text-2);max-height:40px;overflow:hidden;line-height:1.4">${_esc(m.bahan)}</div>`:''}
+      <div style="display:flex;gap:4px;margin-top:var(--s2);justify-content:flex-end">
+        <button class="btn-icon" style="width:26px;height:26px" onclick="event.stopPropagation();MenuModule.openMenuForm('${m.id}')" title="Edit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="btn-icon" style="width:26px;height:26px;color:var(--danger)" onclick="event.stopPropagation();MenuModule.deleteMenu('${m.id}')" title="Hapus">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        </button>
+      </div>
     </div>`;
   }
 
+  let _libSearchTimer = null;
   function _libFilter(key, val) {
-    if (key==='search') _libSearch=val;
-    else if (key==='kat') _libKat=val;
+    if (key==='search') {
+      _libSearch=val;
+      // Debounce search — render setelah 200ms berhenti ketik
+      clearTimeout(_libSearchTimer);
+      _libSearchTimer = setTimeout(() => {
+        _renderLibraryGrid();
+      }, 200);
+      return;
+    }
+    if (key==='kat') _libKat=val;
     else if (key==='cat') _libCat=val;
     else if (key==='tema') _libTema=val;
     else if (key==='jenis') _libJenis=val;
     _renderLibrary();
+  }
+
+  // Re-render hanya grid (bukan filter bar) — preserves search input focus
+  function _renderLibraryGrid() {
+    let list = _library.filter(m=>!m.archived);
+    if (_libSearch) { const q=_libSearch.toLowerCase(); list=list.filter(m=>(m.nama||'').toLowerCase().includes(q)||(m.bahan||'').toLowerCase().includes(q)); }
+    if (_libKat) list=list.filter(m=>m.klasifikasi===_libKat);
+    if (_libCat) list=list.filter(m=>m.category===_libCat);
+    if (_libTema) list=list.filter(m=>m.tema===_libTema);
+    if (_libJenis) list=list.filter(m=>m.jenis===_libJenis);
+    const grid = document.getElementById('menu-lib-grid');
+    const count = document.getElementById('menu-lib-count');
+    if (grid) grid.innerHTML = list.slice(0,100).map(m=>_menuCard(m)).join('') + (list.length>100?`<div style="text-align:center;padding:var(--s4);color:var(--text-3);font-size:12px;grid-column:1/-1">Menampilkan 100 dari ${list.length}. Gunakan filter.</div>`:'');
+    if (count) count.textContent = list.length + ' menu';
   }
 
   function openMenuDetail(id) {
@@ -688,9 +720,86 @@ ESTIMASI BAHAN MENTAH: (per porsi)`;
     Notify.success(items.length + ' menu berhasil disimpan ke library');
   }
 
+  /* ═══ MENU CRUD ═══ */
+  function openMenuForm(menuId) {
+    const existing = menuId ? _library.find(m=>m.id===menuId) : null;
+    const mid = 'mf-'+Date.now();
+    Modal.open({id:mid, title:existing?'Edit Menu':'Tambah Menu Baru', size:'modal-lg',
+      body:`
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Nama Menu <span class="req">*</span></label>
+            <input id="mf-nama" class="form-control" value="${_esc(existing?.nama||'')}" placeholder="Nama menu...">
+          </div>
+          <div class="form-group"><label class="form-label">Klasifikasi</label>
+            <select id="mf-kat" class="form-control">
+              ${KATEGORI.map(k=>`<option value="${k}" ${existing?.klasifikasi===k?'selected':''}>${k}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group"><label class="form-label">Category</label>
+            <select id="mf-cat" class="form-control">
+              ${CATEGORY.map(c=>`<option value="${c}" ${existing?.category===c?'selected':''}>${c}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Tema</label>
+            <select id="mf-tema" class="form-control">
+              ${TEMA.map(t=>`<option value="${t}" ${existing?.tema===t?'selected':''}>${t}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Jenis</label>
+            <select id="mf-jenis" class="form-control">
+              ${JENIS.map(j=>`<option value="${j}" ${existing?.jenis===j?'selected':''}>${j}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-group"><label class="form-label">Bahan</label>
+          <textarea id="mf-bahan" class="form-control" rows="3" placeholder="Daftar bahan...">${_esc(existing?.bahan||'')}</textarea>
+        </div>
+        <div class="form-group"><label class="form-label">Resep</label>
+          <textarea id="mf-resep" class="form-control" rows="4" placeholder="Resep (opsional)...">${_esc(existing?.resep||'')}</textarea>
+        </div>`,
+      footer:`${existing?`<button class="btn btn-danger" onclick="MenuModule.deleteMenu('${menuId}','${mid}')">Hapus</button>`:''}
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="MenuModule._saveMenu('${menuId||''}','${mid}')">Simpan</button>`,
+    });
+  }
+
+  async function _saveMenu(menuId, modalId) {
+    const nama = (document.getElementById('mf-nama')?.value||'').trim();
+    if (!nama) { Notify.warning('Nama menu wajib diisi'); return; }
+    const data = {
+      id: menuId || Utils.uid(),
+      nama,
+      klasifikasi: document.getElementById('mf-kat').value,
+      category: document.getElementById('mf-cat').value,
+      tema: document.getElementById('mf-tema').value,
+      jenis: document.getElementById('mf-jenis').value,
+      bahan: (document.getElementById('mf-bahan')?.value||'').trim(),
+      resep: (document.getElementById('mf-resep')?.value||'').trim(),
+      archived: false,
+    };
+    try {
+      await DB.saveMenuItem(data);
+      if (menuId) { const idx=_library.findIndex(m=>m.id===menuId); if(idx>=0) _library[idx]=data; }
+      else _library.unshift(data);
+      Notify.success(menuId?'Menu diperbarui':'Menu ditambahkan');
+    } catch(e) { Notify.error('Gagal: '+e.message); }
+    Modal.close(modalId);
+    _renderLibrary();
+  }
+
+  async function deleteMenu(menuId, modalId) {
+    if (!confirm('Hapus menu ini?')) return;
+    try { await DB.deleteMenuItem(menuId); _library=_library.filter(m=>m.id!==menuId); Notify.success('Menu dihapus'); } catch { Notify.error('Gagal'); }
+    if (modalId) Modal.close(modalId);
+    _renderLibrary();
+  }
+
   return {
     init, switchTab,
-    _libFilter, openMenuDetail,
+    _libFilter, openMenuDetail, openMenuForm, _saveMenu, deleteMenu,
     _genAddCustomer, _genRemoveCustomer, _genSetCell, _genSave,
     _genPrevWeek, _genNextWeek, _genThisWeek,
     _editKomposisi, _saveKomposisi,
