@@ -231,7 +231,7 @@ const ChatModule = (() => {
       <div id="nc-dm">
         <input class="form-control" placeholder="Cari user..." style="margin-bottom:var(--s2)" oninput="ChatModule._filt(this.value)">
         <div id="nc-list" style="max-height:280px;overflow-y:auto">
-          ${others.map(u=>`<div class="cht-ri nc-u" data-n="${(u.nama||'').toLowerCase()}" onclick="ChatModule._dm('${u.id}','${mid}')">
+          ${others.map(u=>`<div class="cht-ri nc-u" data-n="${(u.nama||'').toLowerCase()}" onclick="ChatModule._dm('${u.id}','${u.username}','${mid}')">
             <div style="width:34px;height:34px;border-radius:50%;background:${_uc(u.nama)};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${_initials(u.nama)}</div>
             <div><div style="font-size:13px;font-weight:600">${_esc(u.nama)}</div><div style="font-size:10px;color:var(--text-3)">${u.role||''}</div></div>
           </div>`).join('')}
@@ -252,10 +252,24 @@ const ChatModule = (() => {
 
   function _filt(q) { const l=q.toLowerCase(); document.querySelectorAll('.nc-u').forEach(el=>{el.style.display=el.dataset.n.includes(l)?'':'none';}); }
 
-  async function _dm(uid,mid) {
+  async function _dm(uid,uname,mid) {
     const me=_me();
-    let room=_rooms.find(r=>r.type==='dm'&&(r.members||[]).includes(me?.id)&&(r.members||[]).includes(uid));
-    if (!room) { room={id:Utils.uid(),type:'dm',members:[me?.id,uid],createdAt:new Date().toISOString(),lastMessage:'',lastMessageAt:''}; await DB.saveChatRoom(room).catch(()=>{}); _rooms.unshift(room); }
+    // Find existing room by both id AND username to prevent duplicates
+    let room=_rooms.find(r=>{
+      if(r.type!=='dm') return false;
+      const m=r.members||[]; const mu=r.memberUsernames||[];
+      const hasMe = m.includes(me?.id) || mu.includes(me?.username);
+      const hasThem = m.includes(uid) || mu.includes(uname);
+      return hasMe && hasThem;
+    });
+    if (!room) {
+      room={id:Utils.uid(),type:'dm',members:[me?.id,uid],memberUsernames:[me?.username,uname],createdAt:new Date().toISOString(),lastMessage:'',lastMessageAt:''};
+      await DB.saveChatRoom(room).catch(()=>{}); _rooms.unshift(room);
+    } else if (!room.memberUsernames) {
+      // Backfill memberUsernames on existing rooms
+      room.memberUsernames=[me?.username,uname];
+      DB.saveChatRoom(room).catch(()=>{});
+    }
     Modal.close(mid); openRoom(room.id);
   }
 

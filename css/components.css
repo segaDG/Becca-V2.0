@@ -353,7 +353,13 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   appearance: none; -webkit-appearance: none;
   border: 1.5px solid rgba(180,180,190,.45);
   border-radius: 3px; background: transparent;
-  position: relative;
+  position: relative; flex-shrink: 0;
+}
+@media(max-width:480px){
+  .iv-bulk-chk,.ks-bulk-chk,.do-bulk-chk,
+  #inv-grid thead input[type="checkbox"],
+  #kas-grid thead input[type="checkbox"],
+  #do-grid thead input[type="checkbox"]{width:11px;height:11px}
 }
 .iv-bulk-chk:checked, .ks-bulk-chk:checked, .do-bulk-chk:checked,
 #inv-grid thead input[type="checkbox"]:checked,

@@ -646,7 +646,7 @@ const DailyOrderModule = (() => {
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600">SUMBER</th>
                     <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600">CATATAN</th>
                     <th style="padding:7px 5px;width:50px"></th>
-                    <th style="padding:7px 5px;text-align:center;width:28px"><input type="checkbox" title="Pilih semua" onchange="DailyOrderModule._bulkToggleAll(this.checked)" style="cursor:pointer"></th>
+                    <th style="padding:4px 2px;text-align:center;width:20px"><input type="checkbox" title="Pilih semua" onchange="DailyOrderModule._bulkToggleAll(this.checked)" style="cursor:pointer"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1132,7 +1132,7 @@ const DailyOrderModule = (() => {
           <button onclick="DailyOrderModule.deleteItem('${it.id}')" title="Hapus"
             style="width:22px;height:22px;border-radius:4px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);cursor:pointer;color:#ef4444;font-size:11px;margin-left:2px">✕</button>
         </td>
-        <td style="padding:7px 5px;text-align:center" onclick="event.stopPropagation()">
+        <td style="padding:4px 2px;text-align:center;width:20px" onclick="event.stopPropagation()">
           <input type="checkbox" class="do-bulk-chk" data-id="${it.id}" ${_bulkSelected.has(it.id)?'checked':''}
             onchange="DailyOrderModule._bulkToggle('${it.id}',this.checked)" style="cursor:pointer">
         </td>
@@ -1201,7 +1201,7 @@ const DailyOrderModule = (() => {
           <button onclick="DailyOrderModule._cancelEdit()" title="Batal [Esc]"
             style="width:24px;height:24px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:12px;margin-left:2px;line-height:1">✕</button>
         </td>
-        <td style="width:28px"></td>
+        <td style="width:20px"></td>
       </tr>`;
   }
 

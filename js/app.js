@@ -12,16 +12,16 @@ const App = {
     invoice   : 'js/modules/invoice.js?v=20260402b',
     customer  : 'js/modules/customer.js?v=20260331j',
     news      : 'js/modules/news.js?v=20260401a',
-    kas       : 'js/modules/kas.js?v=20260405c',
-    'daily-order': 'js/modules/daily-order.js?v=20260405c',
-    inventory : 'js/modules/inventory.js?v=20260405c',
+    kas       : 'js/modules/kas.js?v=20260405d',
+    'daily-order': 'js/modules/daily-order.js?v=20260405d',
+    inventory : 'js/modules/inventory.js?v=20260405d',
     employee  : 'js/modules/employee.js?v=20260401b',
     ap        : 'js/modules/ap.js?v=20260403a',
     po        : 'js/modules/po.js?v=20260402d',
     task      : 'js/modules/task.js?v=20260330i',
     delivery  : 'js/modules/delivery.js?v=20260405n',
     menu      : 'js/modules/menu.js?v=20260404f',
-    chat      : 'js/modules/chat.js?v=20260404a',
+    chat      : 'js/modules/chat.js?v=20260405a',
     personal  : 'js/modules/personal.js?v=20260405k',
     report    : 'js/modules/report.js?v=20260326r',
     settings  : 'js/modules/settings.js?v=20260401b',
@@ -171,15 +171,15 @@ const App = {
         @media(max-width:768px){#notes-fab{display:none!important}}
       </style>
       <div class="fab-menu">
-        <div class="nf-item" onclick="App.navigate('personal');setTimeout(()=>{if(typeof PersonalModule!=='undefined')PersonalModule.switchTab('notes')},300)">
+        <div class="nf-item" onclick="document.getElementById('notes-fab').classList.remove('open');App.navigate('personal');setTimeout(()=>{if(typeof PersonalModule!=='undefined'){PersonalModule.switchTab('notes');PersonalModule.openNoteModal(null,'note')}},400)">
           <span>\ud83d\udcdd Catatan</span>
           <div style="background:#10b981;color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg></div>
         </div>
-        <div class="nf-item" onclick="App.navigate('personal');setTimeout(()=>{if(typeof PersonalModule!=='undefined'){PersonalModule.switchTab('notes');PersonalModule.openNoteModal(null,'todo')}},300)">
+        <div class="nf-item" onclick="document.getElementById('notes-fab').classList.remove('open');App.navigate('personal');setTimeout(()=>{if(typeof PersonalModule!=='undefined'){PersonalModule.switchTab('notes');PersonalModule.openNoteModal(null,'todo')}},400)">
           <span>\u2611 To-Do</span>
           <div style="background:#f59e0b;color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
         </div>
-        <div class="nf-item" onclick="if(typeof PersonalModule!=='undefined')PersonalModule.toggleFloating()">
+        <div class="nf-item" onclick="document.getElementById('notes-fab').classList.remove('open');if(typeof PersonalModule!=='undefined')PersonalModule.toggleFloating()">
           <span>\ud83d\udccb Floating</span>
           <div style="background:#3b82f6;color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
         </div>
