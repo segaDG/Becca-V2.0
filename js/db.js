@@ -662,6 +662,16 @@ const DB = (() => {
   const getChatRooms    = ()     => _get('chat_rooms');
   const saveChatRoom    = (data) => { if (!data.id) data.id = Utils.uid(); return _save('chat_rooms', data); };
   const getChatMessages = ()     => _get('chat_messages');
+  // Fetch messages for a specific room only (server-side filter)
+  const getChatMessagesByRoom = async (roomId, limit=50) => {
+    const sb = await _initClient();
+    if (!sb) return [];
+    const { data, error } = await sb.from('chat_messages').select('*')
+      .filter('data->>roomId','eq',roomId)
+      .order('created_at',{ascending:false}).limit(limit);
+    if (error) { console.warn('[DB] getChatMessagesByRoom:', error.message); return []; }
+    return _fromRows(data||[]).reverse();
+  };
   const saveChatMessage = (data) => { if (!data.id) data.id = Utils.uid(); return _save('chat_messages', data); };
 
   // ── PERSONAL NOTES ────────────────────────────────────────
@@ -1162,7 +1172,7 @@ const DB = (() => {
     getMenuLibrary, saveMenuItem, deleteMenuItem,
     getMenuPlans, saveMenuPlan, deleteMenuPlan,
     // Chat
-    getChatRooms, saveChatRoom, getChatMessages, saveChatMessage,
+    getChatRooms, saveChatRoom, getChatMessages, getChatMessagesByRoom, saveChatMessage,
     // Personal Notes
     getPersonalNotes, savePersonalNote, deletePersonalNote,
     // AP
