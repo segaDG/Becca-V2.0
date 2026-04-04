@@ -531,7 +531,7 @@ PENTING: Output HANYA JSON valid, tanpa markdown, tanpa penjelasan.
 Format: {"S1":{"0":{"tema":"...","menu":{"${komposisi.join('":"...","')}":"..."}},"1":{...},...},"S2":{...},"S3":{...}}
 Key hari: 0=Senin, 1=Selasa, ..., 6=Minggu.`;
 
-    Notify.info('\ud83e\udd16 AI sedang membuat menu ' + custName + '...');
+    Notify.info('AI sedang membuat menu ' + custName + '...');
     const result = await _callGemini(prompt);
     if (!result) return;
 
@@ -553,12 +553,12 @@ Key hari: 0=Senin, 1=Selasa, ..., 6=Minggu.`;
     const m = _library.find(x=>x.id===menuId);
     if (!m) return;
     const mid = 'ai-resep-'+Date.now();
-    Modal.open({id:mid, title:'\ud83e\udd16 AI Resep: '+m.nama, size:'modal-lg',
+    Modal.open({id:mid, title:'<span style="display:inline-flex;align-items:center;gap:6px">AI Resep: '+_esc(m.nama)+' <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:var(--r-full);background:var(--primary-bg);color:var(--primary-h)">AI</span></span>', size:'modal-lg',
       body:`<div id="ai-resep-body" style="text-align:center;padding:var(--s8);color:var(--text-3)">
-        <div style="font-size:24px;margin-bottom:var(--s3);animation:spin 1s linear infinite">\ud83e\udd16</div>
+        <img src="/img/logo-bps.png" style="width:48px;height:48px;margin-bottom:var(--s3);animation:pulse 1.5s ease-in-out infinite" onerror="this.style.display='none'">
         <div>Generating resep untuk <strong>${_esc(m.nama)}</strong>...</div>
-        <div style="font-size:11px;margin-top:var(--s2)">Menggunakan Google Gemini AI</div>
-      </div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>`,
+        <div style="font-size:11px;margin-top:var(--s2);color:var(--primary-h)">Menggunakan Google Gemini AI</div>
+      </div><style>@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.05)}}</style>`,
       footer:`<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
     });
 
