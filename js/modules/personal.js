@@ -65,49 +65,9 @@ const PersonalModule = (() => {
 
     _renderFull(page);
     _checkReminders();
-    _injectFAB();
   }
 
-  /* ═══ QUICK ACCESS FAB (desktop only) ═══ */
-  function _injectFAB() {
-    if (document.getElementById('notes-fab')) return;
-    if (window.innerWidth < 768) return; // mobile: skip
-    const fab = document.createElement('div');
-    fab.id = 'notes-fab';
-    fab.innerHTML = `
-      <style>
-        #notes-fab{position:fixed;bottom:88px;right:24px;z-index:400;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
-        #notes-fab .fab-menu{display:none;flex-direction:column;gap:6px;align-items:flex-end}
-        #notes-fab.open .fab-menu{display:flex;animation:fabMenuIn .2s ease}
-        @keyframes fabMenuIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        .fab-item{display:flex;align-items:center;gap:8px;cursor:pointer;transition:transform .15s}
-        .fab-item:hover{transform:translateX(-4px)}
-        .fab-item span{font-size:11px;font-weight:600;color:var(--heading);background:rgba(var(--surface-rgb,15,19,24),.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:4px 12px;border-radius:var(--r-full);box-shadow:var(--shadow-sm);white-space:nowrap;border:1px solid rgba(255,255,255,.08)}
-        .fab-item div{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm);cursor:pointer;transition:transform .15s;opacity:.85}
-        .fab-item div:hover{transform:scale(1.1)}
-        .fab-main{width:52px;height:52px;border-radius:50%;background:rgba(99,102,241,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(99,102,241,.25);transition:all .25s;font-size:22px;border:1px solid rgba(255,255,255,.15)}
-        .fab-main:hover{transform:scale(1.08);background:rgba(99,102,241,.6);box-shadow:0 6px 20px rgba(99,102,241,.35)}
-        #notes-fab.open .fab-main{transform:rotate(45deg);background:rgba(239,68,68,.45)}
-        @media(max-width:768px){#notes-fab{display:none!important}}
-      </style>
-      <div class="fab-menu">
-        <div class="fab-item" onclick="App.navigate('personal');setTimeout(()=>PersonalModule.switchTab('notes'),300)">
-          <span>\ud83d\udcdd Catatan</span>
-          <div style="background:var(--success);color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg></div>
-        </div>
-        <div class="fab-item" onclick="App.navigate('personal');setTimeout(()=>{PersonalModule.switchTab('notes');PersonalModule.openNoteModal(null,'todo')},300)">
-          <span>\u2611 To-Do</span>
-          <div style="background:var(--warning);color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
-        </div>
-        <div class="fab-item" onclick="PersonalModule.toggleFloating()">
-          <span>\ud83d\udccb Floating</span>
-          <div style="background:var(--info);color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
-        </div>
-      </div>
-      <div class="fab-main" onclick="document.getElementById('notes-fab').classList.toggle('open')" title="Quick Notes">+</div>
-    `;
-    document.body.appendChild(fab);
-  }
+  /* Notes FAB moved to app.js _injectNotesFAB() — always visible from boot */
 
   /* ═══ RENDER FULL ═══ */
   function _renderFull(page) {

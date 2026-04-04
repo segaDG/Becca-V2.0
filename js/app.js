@@ -97,8 +97,8 @@ const App = {
     }
     // === DEFERRED: all heavy ops run AFTER UI is interactive ===
     setTimeout(() => this._deferredBoot(), 2000);
-    // Chat FAB — always visible
-    setTimeout(() => this._injectChatFAB(), 500);
+    // FABs — always visible
+    setTimeout(() => { this._injectChatFAB(); this._injectNotesFAB(); }, 500);
   },
 
   _injectChatFAB() {
@@ -147,6 +147,46 @@ const App = {
       if (unread > 0) { badge.textContent = unread > 9 ? '9+' : String(unread); badge.style.display = 'flex'; }
       else { badge.style.display = 'none'; }
     } catch {}
+  },
+
+  _injectNotesFAB() {
+    if (document.getElementById('notes-fab')) return;
+    if (window.innerWidth < 768) return;
+    const div = document.createElement('div');
+    div.id = 'notes-fab';
+    div.innerHTML = `
+      <style>
+        #notes-fab{position:fixed;bottom:88px;right:24px;z-index:400;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+        #notes-fab .fab-menu{display:none;flex-direction:column;gap:6px;align-items:flex-end}
+        #notes-fab.open .fab-menu{display:flex;animation:nfIn .2s ease}
+        @keyframes nfIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        .nf-item{display:flex;align-items:center;gap:8px;cursor:pointer;transition:transform .15s}
+        .nf-item:hover{transform:translateX(-4px)}
+        .nf-item span{font-size:11px;font-weight:600;color:#fff;background:rgba(30,35,55,.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:4px 12px;border-radius:9999px;box-shadow:0 1px 3px rgba(0,0,0,.15);white-space:nowrap;border:1px solid rgba(255,255,255,.1)}
+        .nf-item div{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15);cursor:pointer;transition:transform .15s;opacity:.85}
+        .nf-item div:hover{transform:scale(1.1)}
+        .nf-main{width:44px;height:44px;border-radius:50%;background:rgba(139,92,246,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(139,92,246,.25);transition:all .25s;font-size:18px;border:1px solid rgba(255,255,255,.15)}
+        .nf-main:hover{transform:scale(1.08);background:rgba(139,92,246,.6)}
+        #notes-fab.open .nf-main{transform:rotate(45deg);background:rgba(239,68,68,.45)}
+        @media(max-width:768px){#notes-fab{display:none!important}}
+      </style>
+      <div class="fab-menu">
+        <div class="nf-item" onclick="App.navigate('personal');setTimeout(()=>{if(typeof PersonalModule!=='undefined')PersonalModule.switchTab('notes')},300)">
+          <span>\ud83d\udcdd Catatan</span>
+          <div style="background:#10b981;color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg></div>
+        </div>
+        <div class="nf-item" onclick="App.navigate('personal');setTimeout(()=>{if(typeof PersonalModule!=='undefined'){PersonalModule.switchTab('notes');PersonalModule.openNoteModal(null,'todo')}},300)">
+          <span>\u2611 To-Do</span>
+          <div style="background:#f59e0b;color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+        </div>
+        <div class="nf-item" onclick="if(typeof PersonalModule!=='undefined')PersonalModule.toggleFloating()">
+          <span>\ud83d\udccb Floating</span>
+          <div style="background:#3b82f6;color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+        </div>
+      </div>
+      <div class="nf-main" onclick="document.getElementById('notes-fab').classList.toggle('open')" title="Quick Notes">+</div>
+    `;
+    document.body.appendChild(div);
   },
 
   async _deferredBoot() {
