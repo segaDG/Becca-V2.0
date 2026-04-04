@@ -1002,17 +1002,24 @@ const TaskModule = (() => {
           </div>
         </form>`,
       footer: `
-        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        ${editId ? `
-          <button class="btn btn-ghost" style="color:var(--danger)"
-            onclick="event.stopPropagation();TaskModule.deleteTask('${editId}');Modal.close('${mid}')">
-            🗑 Hapus</button>
-          <button onclick="TaskModule.shareWA('${editId}')"
-            style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:7px 14px;
-                   cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px;font-weight:600">
-            ${_WA_SVG.replace('width="12" height="12"','width="13" height="13"')} WA
-          </button>` : ''}
-        <button class="btn btn-primary" onclick="TaskModule._submit('${mid}','${editId||''}')">Simpan</button>`,
+        <div style="display:flex;align-items:center;gap:8px;width:100%">
+          <button onclick="Modal.close('${mid}')"
+            style="padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+                   border:1px solid var(--border);background:var(--surface);color:var(--text)">Batal</button>
+          ${editId ? `
+            <button onclick="event.stopPropagation();TaskModule.deleteTask('${editId}');Modal.close('${mid}')"
+              style="padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+                     border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.1);color:#ef4444">
+              🗑 Hapus</button>
+            <button onclick="TaskModule.shareWA('${editId}')"
+              style="padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+                     border:none;background:#25d366;color:#fff;display:flex;align-items:center;gap:5px">
+              ${_WA_SVG.replace('width="12" height="12"','width="13" height="13"')} WA
+            </button>` : ''}
+          <button onclick="TaskModule._submit('${mid}','${editId||''}')"
+            style="margin-left:auto;padding:8px 24px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+                   border:none;background:var(--primary);color:#fff">Simpan</button>
+        </div>`,
     });
     return mid;
   }
