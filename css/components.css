@@ -337,7 +337,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   display: flex; align-items: center; justify-content: flex-end;
   gap: var(--s2);
   flex-shrink: 0;
-  background: rgba(15,19,24,0.5);
+  background: var(--surface);
 }
 
 /* ===========================
