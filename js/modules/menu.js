@@ -35,7 +35,7 @@ const MenuModule = (() => {
     _customers = customers.filter(c=>(c.status||'AKTIF')==='AKTIF').sort((a,b)=>(a.nama||'').localeCompare(b.nama||''));
     // Seed library if empty
     // Seed v2: adds new items not yet in library (checks by name, skips existing)
-    const SEED_VER = 'becca_menu_seed_v2';
+    const SEED_VER = 'becca_menu_seed_v3';
     if (!localStorage.getItem(SEED_VER)) {
       await _seedLibrary();
       localStorage.setItem(SEED_VER, '1');
@@ -810,6 +810,21 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
      ['Sambal Rica','Sambal rica manado pedas','Manado'],['Sambal Cakalang','Sambal cakalang fufu','Manado'],
     ].forEach(([n,b,t])=>_m(n,'Sambel','Indonesia',t));
 
+    // === ANEKA TELUR (Lauk Kering) ===
+    [['Telur Dadar Padang','Telur dadar tebal bumbu padang','Padang'],['Telur Balado Padang','Telur rebus balado pedas','Padang'],
+     ['Telur Bumbu Bali','Telur goreng bumbu bali','Bali'],['Telur Kecap','Telur ceplok kecap manis','Umum'],
+     ['Telur Bumbu Rujak','Telur goreng bumbu rujak','Jawa'],['Telur Sambal Goreng','Telur sambal goreng kering','Jawa'],
+     ['Telur Opor','Telur rebus opor santan','Jawa'],['Telur Gulai','Telur rebus gulai kuning','Padang'],
+     ['Telur Semur','Telur rebus semur kecap','Betawi'],['Telur Rendang','Telur rebus rendang kering','Padang'],
+     ['Telur Asin','Telur asin rebus','Umum'],['Telur Goreng Crispy','Telur goreng tepung crispy','Umum'],
+     ['Telur Bumbu Kuning','Telur rebus bumbu kuning','Umum'],['Telur Petis','Telur goreng petis','Jawa'],
+     ['Telur Dadar Sayur','Telur dadar isi sayur','Umum'],['Telur Dadar Kornet','Telur dadar isi kornet','Umum'],
+     ['Telur Mata Sapi Sambal','Telur ceplok + sambal bawang','Umum'],['Telur Saus Tiram','Telur goreng saus tiram','Umum'],
+     ['Telur Puyuh Balado','Telur puyuh goreng balado','Padang'],['Telur Puyuh Kecap','Telur puyuh semur kecap','Jawa'],
+     ['Telur Puyuh Bacem','Telur puyuh bacem manis','Jawa'],['Telur Dadar Gulung','Telur dadar gulung isi','Umum'],
+     ['Fuyunghai','Telur fuyunghai saus asam manis','Umum'],['Omurice','Nasi goreng bungkus telur dadar','Jepang'],
+    ].forEach(([n,b,t])=>_m(n,'Lauk Kering','Indonesia',t,'Regular',b));
+
     // === BUAH ===
     ['Semangka','Melon','Pepaya','Pisang','Jeruk','Apel','Pir','Mangga','Salak','Jambu Biji','Nanas','Buah Naga'].forEach(n=>_m(n,'Buah','Indonesia','Umum'));
 
@@ -830,6 +845,30 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
       ['Cap Cay Kuah','Capcay kuah + nasi','Umum'],['Nasi Hainan','Nasi hainan + ayam','Umum'],
     ];
     paketan.forEach(([n,b,t])=>_m(n,'Paketan','Indonesia',t,'Paketan',b));
+    // Aneka Paketan Nusantara
+    [['Soto Betawi','Soto daging santan betawi','Betawi'],['Soto Banjar','Soto ayam khas banjar','Kalimantan'],
+     ['Soto Lamongan','Soto ayam kuah kuning','Jawa'],['Soto Kudus','Soto kerbau khas kudus','Jawa'],
+     ['Soto Mie','Soto mie bogor','Sunda'],['Bakso Malang','Bakso urat + tahu bakso','Jawa'],
+     ['Bakso Aci','Bakso aci kuah pedas','Sunda'],['Mie Ayam Ceker','Mie ayam + ceker ayam','Umum'],
+     ['Mie Ayam Pangsit','Mie ayam + pangsit goreng','Umum'],['Mie Goreng Aceh','Mie goreng bumbu aceh','Aceh'],
+     ['Mie Rebus Medan','Mie rebus kuah khas medan','Medan'],['Mie Kocok','Mie kocok bandung','Sunda'],
+     ['Kwetiau Goreng Seafood','Kwetiau goreng campur','Umum'],['Bihun Goreng Spesial','Bihun goreng + telur + ayam','Umum'],
+     ['Nasi Goreng Kampung','Nasi goreng pete + teri','Umum'],['Nasi Goreng Rendang','Nasi goreng + rendang cincang','Padang'],
+     ['Nasi Bakar Teri','Nasi bakar isi teri sambal','Umum'],['Nasi Bakar Cumi','Nasi bakar isi cumi asin','Umum'],
+     ['Nasi Tutug Oncom Komplit','Nasi tutug oncom + lauk','Sunda'],['Nasi Timbel Komplit','Nasi timbel + lauk sunda','Sunda'],
+     ['Kupat Tahu','Kupat tahu + bumbu kacang','Sunda'],['Tahu Gejrot Komplit','Tahu gejrot + gorengan','Sunda'],
+     ['Sate Padang','Sate padang kuah kental','Padang'],['Sate Madura','Sate ayam bumbu kacang','Jawa'],
+     ['Sate Lilit Bali','Sate lilit ikan khas bali','Bali'],['Sate Taichan','Sate taichan + sambal','Umum'],
+     ['Nasi Megono','Nasi megono pekalongan','Jawa'],['Nasi Bogana','Nasi bogana tegal','Jawa'],
+     ['Gudeg Komplit','Gudeg + ayam + telur + krecek','Jawa'],['Rawon Komplit','Rawon + telur asin + taoge','Jawa'],
+     ['Tongseng Kambing Komplit','Tongseng kambing + nasi','Jawa'],['Gulai Kambing Komplit','Gulai kambing + nasi','Padang'],
+     ['Lontong Balap','Lontong balap surabaya','Jawa'],['Lontong Cap Go Meh','Lontong opor + sambal goreng','Jawa'],
+     ['Tahu Tek','Tahu tek surabaya','Jawa'],['Rujak Cingur Komplit','Rujak cingur + lontong','Jawa'],
+     ['Pecel Lele Komplit','Pecel lele + nasi + sambal','Jawa'],['Ayam Penyet Komplit','Ayam penyet + nasi + sambal','Jawa'],
+     ['Empal Gentong Komplit','Empal gentong + nasi','Jawa'],['Coto Makassar','Coto makassar + ketupat','Makassar'],
+     ['Pallubasa','Pallubasa makassar + nasi','Makassar'],['Konro Bakar','Konro bakar + nasi','Makassar'],
+     ['Sop Konro','Sop konro + nasi','Makassar'],['Papeda Ikan Kuah Kuning','Papeda + ikan kuah kuning','Umum'],
+    ].forEach(([n,b,t])=>_m(n,'Paketan','Indonesia',t,'Paketan',b));
 
     // === MINUMAN ===
     ['Es Teh Manis','Es Jeruk','Air Mineral','Teh Hangat','Kopi','Es Cincau','Es Kelapa','Jus Jambu','Jus Jeruk','Jus Alpukat','Susu','Wedang Jahe'].forEach(n=>_m(n,'Minuman','Indonesia','Umum'));
