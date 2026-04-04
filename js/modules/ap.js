@@ -170,13 +170,11 @@ const APModule = (() => {
                 <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:100px">Harga/Item</th>
                 <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:100px">Total</th>
                 <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:100px">Tgl Bayar</th>
-                <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:110px">Kode Aktivitas</th>
-                <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:82px;white-space:nowrap">Jth Tempo</th>
                 <th style="padding:10px 12px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:72px">Status</th>
                 ${canEdit?'<th style="padding:10px 12px;width:56px"></th>':''}
               </tr>
             </thead>
-            <tbody id="ap-tbody"><tr><td colspan="13" style="text-align:center;padding:48px;color:var(--text-3)">Memuat data...</td></tr></tbody>
+            <tbody id="ap-tbody"><tr><td colspan="11" style="text-align:center;padding:48px;color:var(--text-3)">Memuat data...</td></tr></tbody>
           </table>
         </div>
         <!-- Footer total -->
@@ -272,8 +270,6 @@ const APModule = (() => {
         +'<td style="'+tdR+'">'+((r.hargaSatuan||r.harga_satuan) ? Utils.formatRupiah(r.hargaSatuan||r.harga_satuan) : '-')+'</td>'
         +'<td style="'+tdR+';font-weight:600">'+Utils.formatRupiah(r.total)+'</td>'
         +'<td style="'+tdL+';white-space:nowrap">'+(r.tglBayar||r.tgl_bayar||'-')+'</td>'
-        +'<td style="'+tdL+'">'+(r.kodeAktivitas||'-')+'</td>'
-        +'<td style="'+tdC+'">'+(r.jatuhTempo||'-')+'</td>'
         +'<td style="'+tdC+'">'+badge+'</td>'
         +acts
         +'</tr>';
@@ -1240,7 +1236,7 @@ const APModule = (() => {
     if (!tr) return;
     const row = _ap.find(r=>r.id===id);
     if (!row) return;
-    row._orig = JSON.stringify({tgl:row.tgl,supplier:row.supplier,keterangan:row.keterangan,qty:row.qty,satuan:row.satuan,hargaSatuan:row.hargaSatuan,total:row.total,terbayar:row.terbayar,status:row.status,jatuhTempo:row.jatuhTempo,kodeAktivitas:row.kodeAktivitas});
+    row._orig = JSON.stringify({tgl:row.tgl,supplier:row.supplier,keterangan:row.keterangan,qty:row.qty,satuan:row.satuan,hargaSatuan:row.hargaSatuan,total:row.total,terbayar:row.terbayar,status:row.status,jatuhTempo:row.jatuhTempo});
     tr.outerHTML = _apRowEdit(row);
     document.getElementById('ap-row-'+id)?.querySelector('input,select')?.focus();
     setTimeout(() => document.addEventListener('click', _apOutsideClick), 50);
@@ -1268,15 +1264,12 @@ const APModule = (() => {
     const hs  = parseFloat(g('hargaSatuan'))||0;
     const ket = (g('keterangan')||'').trim();
     const sat = (g('satuan')||'').trim();
-    const kode = (g('kodeAktivitas')||'').trim();
-
     // Validasi field wajib
     const missing = [];
     if (!ket)   missing.push('Nama Barang');
     if (!sat)   missing.push('Jenis/Satuan');
     if (!qty)   missing.push('Jumlah');
     if (!hs)    missing.push('Harga');
-    if (!kode)  missing.push('Kode Aktivitas');
     if (missing.length) {
       Notify.warning('Lengkapi field: ' + missing.join(', '));
       // Kembalikan listener agar bisa edit lagi
@@ -1290,7 +1283,6 @@ const APModule = (() => {
       hargaSatuan:hs, total:qty&&hs?qty*hs:(parseFloat(g('total'))||row.total||0),
       terbayar:parseFloat(g('terbayar'))||0, status:g('status')||row.status,
       jatuhTempo:g('jatuhTempo')||row.jatuhTempo,
-      kodeAktivitas:kode,
     });
     const origData = row._orig ? JSON.parse(row._orig) : null;
     delete row._orig;
@@ -1350,8 +1342,6 @@ const APModule = (() => {
       +'<td style="'+p+'">'+inp('hargaSatuan',r.hargaSatuan,'number','min=0')+'</td>'
       +'<td style="'+p+'">'+inp('total',r.total,'number','min=0')+'</td>'
       +'<td style="'+p+'">'+inp('terbayar',r.terbayar,'number','min=0')+'</td>'
-      +'<td style="'+p+'">'+inp('kodeAktivitas',r.kodeAktivitas||'')+'</td>'
-      +'<td style="'+p+'">'+inp('jatuhTempo',r.jatuhTempo,'date')+'</td>'
       +'<td style="'+p+'"><select data-f="status" style="width:100%;border:none;outline:none;background:transparent;font-size:11px;font-weight:700;padding:0 4px">'+stOpts+'</select></td>'
       +'<td style="'+p+'"></td>'
       +'</tr>';
