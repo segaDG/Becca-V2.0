@@ -82,12 +82,12 @@ const PersonalModule = (() => {
         @keyframes fabMenuIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         .fab-item{display:flex;align-items:center;gap:8px;cursor:pointer;transition:transform .15s}
         .fab-item:hover{transform:translateX(-4px)}
-        .fab-item span{font-size:11px;font-weight:600;color:var(--heading);background:var(--surface);padding:4px 12px;border-radius:var(--r-full);box-shadow:var(--shadow-md);white-space:nowrap}
-        .fab-item div{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-md);cursor:pointer;transition:transform .15s}
+        .fab-item span{font-size:11px;font-weight:600;color:var(--heading);background:rgba(var(--surface-rgb,15,19,24),.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:4px 12px;border-radius:var(--r-full);box-shadow:var(--shadow-sm);white-space:nowrap;border:1px solid rgba(255,255,255,.08)}
+        .fab-item div{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm);cursor:pointer;transition:transform .15s;opacity:.85}
         .fab-item div:hover{transform:scale(1.1)}
-        .fab-main{width:52px;height:52px;border-radius:50%;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(99,102,241,.4);transition:all .25s;font-size:22px}
-        .fab-main:hover{transform:scale(1.08);box-shadow:0 6px 20px rgba(99,102,241,.5)}
-        #notes-fab.open .fab-main{transform:rotate(45deg);background:var(--danger)}
+        .fab-main{width:52px;height:52px;border-radius:50%;background:rgba(99,102,241,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(99,102,241,.25);transition:all .25s;font-size:22px;border:1px solid rgba(255,255,255,.15)}
+        .fab-main:hover{transform:scale(1.08);background:rgba(99,102,241,.6);box-shadow:0 6px 20px rgba(99,102,241,.35)}
+        #notes-fab.open .fab-main{transform:rotate(45deg);background:rgba(239,68,68,.45)}
         @media(max-width:768px){#notes-fab{display:none!important}}
       </style>
       <div class="fab-menu">
