@@ -77,3 +77,5 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.menu_plans;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.news;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.settings;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_rooms;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;

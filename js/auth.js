@@ -16,10 +16,10 @@ const Auth = {
 
   _defaultPrivileges: {
     superadmin: { all: true },
-    admin:    { dashboard:'view', order:'all', invoice:'all', customer:'all', employee:'all', emp_finance:'all', inventory:'all', kas:'all', ap:'all', task:'all', 'daily-order':'all', delivery:'all', menu:'all', personal:'all', report:'view', settings:'all', news:'all' },
-    finance:  { dashboard:'view', kas:'all', employee:'view', emp_finance:'all', personal:'all', report:'view', news:'view' },
-    operator: { dashboard:'view', order:'all', invoice:'view', customer:'view', inventory:'all', kas:'view', task:'all', 'daily-order':'all', delivery:'all', personal:'all', report:'view', news:'view' },
-    viewer:   { dashboard:'view', order:'view', invoice:'view', customer:'view', personal:'all', report:'view', news:'view' },
+    admin:    { dashboard:'view', order:'all', invoice:'all', customer:'all', employee:'all', emp_finance:'all', inventory:'all', kas:'all', ap:'all', task:'all', 'daily-order':'all', delivery:'all', menu:'all', chat:'all', personal:'all', report:'view', settings:'all', news:'all' },
+    finance:  { dashboard:'view', kas:'all', employee:'view', emp_finance:'all', chat:'all', personal:'all', report:'view', news:'view' },
+    operator: { dashboard:'view', order:'all', invoice:'view', customer:'view', inventory:'all', kas:'view', task:'all', 'daily-order':'all', delivery:'all', chat:'all', personal:'all', report:'view', news:'view' },
+    viewer:   { dashboard:'view', order:'view', invoice:'view', customer:'view', chat:'all', personal:'all', report:'view', news:'view' },
   },
 
   /* ===================== INIT ===================== */

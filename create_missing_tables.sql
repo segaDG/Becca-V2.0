@@ -105,6 +105,25 @@ CREATE TABLE IF NOT EXISTS public.menu_plans (
 ALTER TABLE public.menu_plans DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.menu_plans TO anon;
 
+-- ── chat_rooms ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.chat_rooms (
+  id         TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  data       JSONB
+);
+ALTER TABLE public.chat_rooms DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.chat_rooms TO anon;
+
+-- ── chat_messages ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+  id         TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  data       JSONB
+);
+ALTER TABLE public.chat_messages DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.chat_messages TO anon;
+
 -- ── personal_notes ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.personal_notes (
   id         TEXT PRIMARY KEY,

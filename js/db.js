@@ -658,6 +658,12 @@ const DB = (() => {
   const saveMenuPlan    = (data) => { if (!data.id) data.id = Utils.uid(); return _save('menu_plans', data); };
   const deleteMenuPlan  = (id)   => _delete('menu_plans', id);
 
+  // ── CHAT ──────────────────────────────────────────────────
+  const getChatRooms    = ()     => _get('chat_rooms');
+  const saveChatRoom    = (data) => { if (!data.id) data.id = Utils.uid(); return _save('chat_rooms', data); };
+  const getChatMessages = ()     => _get('chat_messages');
+  const saveChatMessage = (data) => { if (!data.id) data.id = Utils.uid(); return _save('chat_messages', data); };
+
   // ── PERSONAL NOTES ────────────────────────────────────────
   const getPersonalNotes   = ()     => _get('personal_notes');
   const savePersonalNote   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('personal_notes', data); };
@@ -1155,6 +1161,8 @@ const DB = (() => {
     // Menu
     getMenuLibrary, saveMenuItem, deleteMenuItem,
     getMenuPlans, saveMenuPlan, deleteMenuPlan,
+    // Chat
+    getChatRooms, saveChatRoom, getChatMessages, saveChatMessage,
     // Personal Notes
     getPersonalNotes, savePersonalNote, deletePersonalNote,
     // AP
