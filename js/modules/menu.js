@@ -86,7 +86,11 @@ const MenuModule = (() => {
     const allItems = _library.filter(m=>!m.archived);
     const katCounts = {};
     KATEGORI.forEach(k => katCounts[k] = 0);
-    allItems.forEach(m => { if(katCounts[m.klasifikasi]!==undefined) katCounts[m.klasifikasi]++; });
+    allItems.forEach(m => {
+      if(katCounts[m.klasifikasi]!==undefined) katCounts[m.klasifikasi]++;
+      // Also count Paketan by jenis (if klasifikasi is different like Nasi)
+      if(m.jenis==='Paketan' && m.klasifikasi!=='Paketan') katCounts['Paketan']++;
+    });
     const katColors = {'Nasi':'#f59e0b','Lauk Kering':'#ef4444','Lauk Kuah':'#f97316','Pendamping':'#8b5cf6','Sayur':'#10b981','Sambel':'#ec4899','Buah':'#06b6d4','Minuman':'#3b82f6','Paketan':'#6366f1'};
 
     el.innerHTML = `
@@ -138,26 +142,36 @@ const MenuModule = (() => {
     `;
   }
 
-  function _hppBadge(m) {
-    // Extract HPP from resep text (look for "Rp X.XXX" near "HPP" or "per porsi")
-    if (!m.resep) return '';
-    const match = m.resep.match(/(?:HPP|per porsi)[^\d]*(?:Rp\.?\s*)([\d.,]+)/i);
-    if (!match) return '';
-    const hpp = parseInt(match[1].replace(/[.,]/g,'')) || 0;
-    if (hpp <= 0) return '';
+  function _extractHpp(m) {
+    if (!m.resep) return 0;
+    // Try multiple patterns to extract HPP value
+    const patterns = [
+      /HPP[^\d]*(?:Rp\.?\s*)([\d.,]+)/i,
+      /per porsi[^\d]*(?:Rp\.?\s*)([\d.,]+)/i,
+      /Rp\.?\s*([\d.,]+)\s*(?:\/|per)\s*porsi/i,
+    ];
+    for (const re of patterns) {
+      const match = m.resep.match(re);
+      if (match) { const v = parseInt(match[1].replace(/[.,]/g,'')); if (v > 0 && v < 100000) return v; }
+    }
+    return 0;
+  }
+
+  function _hppBadge(hpp) {
+    if (!hpp) return '';
     let sign, color;
     if (hpp <= 2000)      { sign='$'; color='#10b981'; }
     else if (hpp <= 3500) { sign='$$'; color='#22c55e'; }
     else if (hpp <= 5000) { sign='$$$'; color='#f59e0b'; }
     else if (hpp <= 6000) { sign='$$$$'; color='#f97316'; }
     else                  { sign='$$$$$'; color='#ef4444'; }
-    return `<span title="HPP ~Rp ${hpp.toLocaleString('id')}/porsi" style="font-size:9px;font-weight:800;color:${color}">${sign}</span>`;
+    return `<span title="HPP ~Rp ${hpp.toLocaleString('id')}/porsi" style="font-size:10px;font-weight:800;color:${color};letter-spacing:1px">${sign}</span>`;
   }
 
   function _menuCard(m) {
     const katColor = {'Nasi':'#f59e0b','Lauk Kering':'#ef4444','Lauk Kuah':'#f97316','Pendamping':'#8b5cf6','Sayur':'#10b981','Sambel':'#ec4899','Buah':'#06b6d4','Minuman':'#3b82f6','Paketan':'#6366f1'}[m.klasifikasi]||'var(--text-3)';
     const hasResep = !!m.resep;
-    const hpp = _hppBadge(m);
+    const hpp = _extractHpp(m);
     return `<div class="card" style="padding:var(--s3);cursor:pointer;transition:all .2s" onclick="MenuModule.openMenuDetail('${m.id}')"
       onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='var(--shadow-md)'"
       onmouseout="this.style.transform='';this.style.boxShadow='0 1px 4px rgba(0,0,0,.06)'">
@@ -168,17 +182,20 @@ const MenuModule = (() => {
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:var(--s2);align-items:center">
         <span class="badge badge-primary" style="font-size:9px">${m.category}</span>
         <span class="badge badge-neutral" style="font-size:9px">${m.tema}</span>
-        ${m.jenis==='Paketan'?'<span class="badge badge-warning" style="font-size:9px">Paketan</span>':''}
-        ${hasResep?'<span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:var(--r-full);background:var(--success-bg);color:var(--success)">Resep</span>':''}
-        ${hpp}
+        ${m.jenis==='Paketan'&&m.klasifikasi!=='Paketan'?'<span class="badge badge-warning" style="font-size:9px">Paketan</span>':''}
+        ${hasResep?'<span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:var(--r-full);background:var(--success-bg);color:var(--success)">\u2713 Resep</span>':''}
+        ${_hppBadge(hpp)}
       </div>
-      ${m.bahan?`<div style="font-size:11px;color:var(--text-2);max-height:40px;overflow:hidden;line-height:1.4">${_esc(m.bahan)}</div>`:''}
-      <div style="display:flex;gap:4px;margin-top:var(--s2);align-items:center;justify-content:flex-end">
-        <button class="btn-icon" style="width:26px;height:26px" onclick="event.stopPropagation();MenuModule.openMenuForm('${m.id}')" title="Edit">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      ${m.bahan?`<div style="font-size:11px;color:var(--text-2);max-height:36px;overflow:hidden;line-height:1.4">${_esc(m.bahan)}</div>`:''}
+      <div style="display:flex;gap:4px;margin-top:var(--s2);align-items:center">
+        ${hpp?`<span style="font-size:10px;font-weight:600;color:var(--text-3);font-family:var(--font-mono)">Rp ${hpp.toLocaleString('id')}/pax</span>`:''}
+        ${!hasResep?`<button onclick="event.stopPropagation();MenuModule._aiResep('${m.id}')" style="background:none;border:1px solid var(--primary);border-radius:var(--r-full);padding:2px 8px;cursor:pointer;font-size:9px;font-weight:600;color:var(--primary-h);transition:all .15s" onmouseover="this.style.background='var(--primary-bg)'" onmouseout="this.style.background='none'"><span style="font-size:8px;padding:0 3px;border-radius:3px;background:var(--primary-bg);margin-right:2px">AI</span>Resep</button>`:''}
+        <div style="flex:1"></div>
+        <button class="btn-icon" style="width:24px;height:24px" onclick="event.stopPropagation();MenuModule.openMenuForm('${m.id}')" title="Edit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
-        <button class="btn-icon" style="width:26px;height:26px;color:var(--danger)" onclick="event.stopPropagation();MenuModule.deleteMenu('${m.id}')" title="Hapus">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        <button class="btn-icon" style="width:24px;height:24px;color:var(--danger)" onclick="event.stopPropagation();MenuModule.deleteMenu('${m.id}')" title="Hapus">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
         </button>
       </div>
     </div>`;
