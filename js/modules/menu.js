@@ -138,8 +138,26 @@ const MenuModule = (() => {
     `;
   }
 
+  function _hppBadge(m) {
+    // Extract HPP from resep text (look for "Rp X.XXX" near "HPP" or "per porsi")
+    if (!m.resep) return '';
+    const match = m.resep.match(/(?:HPP|per porsi)[^\d]*(?:Rp\.?\s*)([\d.,]+)/i);
+    if (!match) return '';
+    const hpp = parseInt(match[1].replace(/[.,]/g,'')) || 0;
+    if (hpp <= 0) return '';
+    let sign, color;
+    if (hpp <= 2000)      { sign='$'; color='#10b981'; }
+    else if (hpp <= 3500) { sign='$$'; color='#22c55e'; }
+    else if (hpp <= 5000) { sign='$$$'; color='#f59e0b'; }
+    else if (hpp <= 6000) { sign='$$$$'; color='#f97316'; }
+    else                  { sign='$$$$$'; color='#ef4444'; }
+    return `<span title="HPP ~Rp ${hpp.toLocaleString('id')}/porsi" style="font-size:9px;font-weight:800;color:${color}">${sign}</span>`;
+  }
+
   function _menuCard(m) {
     const katColor = {'Nasi':'#f59e0b','Lauk Kering':'#ef4444','Lauk Kuah':'#f97316','Pendamping':'#8b5cf6','Sayur':'#10b981','Sambel':'#ec4899','Buah':'#06b6d4','Minuman':'#3b82f6','Paketan':'#6366f1'}[m.klasifikasi]||'var(--text-3)';
+    const hasResep = !!m.resep;
+    const hpp = _hppBadge(m);
     return `<div class="card" style="padding:var(--s3);cursor:pointer;transition:all .2s" onclick="MenuModule.openMenuDetail('${m.id}')"
       onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='var(--shadow-md)'"
       onmouseout="this.style.transform='';this.style.boxShadow='0 1px 4px rgba(0,0,0,.06)'">
@@ -147,18 +165,15 @@ const MenuModule = (() => {
         <span style="font-size:14px;font-weight:700;color:var(--heading)">${_esc(m.nama)}</span>
         <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:var(--r-full);background:${katColor}18;color:${katColor}">${m.klasifikasi}</span>
       </div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:var(--s2)">
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:var(--s2);align-items:center">
         <span class="badge badge-primary" style="font-size:9px">${m.category}</span>
         <span class="badge badge-neutral" style="font-size:9px">${m.tema}</span>
         ${m.jenis==='Paketan'?'<span class="badge badge-warning" style="font-size:9px">Paketan</span>':''}
+        ${hasResep?'<span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:var(--r-full);background:var(--success-bg);color:var(--success)">Resep</span>':''}
+        ${hpp}
       </div>
       ${m.bahan?`<div style="font-size:11px;color:var(--text-2);max-height:40px;overflow:hidden;line-height:1.4">${_esc(m.bahan)}</div>`:''}
-      <div style="display:flex;gap:4px;margin-top:var(--s2);align-items:center">
-        <button onclick="event.stopPropagation();MenuModule._aiResep('${m.id}')" style="background:none;border:1px solid var(--primary);border-radius:var(--r-full);padding:2px 8px;cursor:pointer;font-size:9px;font-weight:600;color:var(--primary-h);display:flex;align-items:center;gap:3px;transition:all .15s" onmouseover="this.style.background='var(--primary-bg)'" onmouseout="this.style.background='none'" title="Tanya AI untuk resep">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="M12 2a4 4 0 014 4c0 1.1-.9 2-2 2h-4a2 2 0 01-2-2 4 4 0 014-4zM8 8v8m8-8v8m-8 0h8m-4-4v8"/></svg>
-          AI Resep
-        </button>
-        <div style="flex:1"></div>
+      <div style="display:flex;gap:4px;margin-top:var(--s2);align-items:center;justify-content:flex-end">
         <button class="btn-icon" style="width:26px;height:26px" onclick="event.stopPropagation();MenuModule.openMenuForm('${m.id}')" title="Edit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
@@ -214,10 +229,16 @@ const MenuModule = (() => {
           <span class="badge badge-neutral">${m.klasifikasi}</span>
         </div>
         ${m.bahan?`<div class="form-group"><label class="form-label">Bahan</label><div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">${_esc(m.bahan)}</div></div>`:''}
-        ${m.resep?`<div class="form-group"><label class="form-label">Resep</label><div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">${_esc(m.resep)}</div></div>`
-          :`<div style="text-align:center;padding:var(--s4);color:var(--text-3)">
+        ${m.resep?`<div class="form-group">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s2)">
+              <label class="form-label" style="margin:0">Resep</label>
+              <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="Modal.close('${mid}');MenuModule._aiResep('${m.id}')"><span style="font-size:9px;padding:1px 5px;border-radius:var(--r-full);background:var(--primary-bg);color:var(--primary-h);font-weight:700;margin-right:3px">AI</span> Re-generate</button>
+            </div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">${_esc(m.resep)}</div>
+          </div>`
+          :`<div style="text-align:center;padding:var(--s4);border:1px dashed var(--border);border-radius:var(--r-md);color:var(--text-3)">
             <p style="margin-bottom:var(--s3)">Resep belum tersedia</p>
-            <button class="btn btn-ghost btn-sm" onclick="MenuModule._aiResep('${m.id}')">Tanya AI untuk Resep</button>
+            <button class="btn btn-primary btn-sm" onclick="Modal.close('${mid}');MenuModule._aiResep('${m.id}')"><span style="font-size:9px;padding:1px 5px;border-radius:var(--r-full);background:rgba(255,255,255,.2);margin-right:3px">AI</span> Generate Resep</button>
           </div>`}
         ${m.estimasiBahan?`<div style="font-size:11px;color:var(--text-3);margin-top:var(--s3)">Est. bahan mentah: ${m.estimasiBahan}</div>`:''}`,
       footer:`<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
