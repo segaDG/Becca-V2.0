@@ -76,7 +76,7 @@ const PersonalModule = (() => {
     fab.id = 'notes-fab';
     fab.innerHTML = `
       <style>
-        #notes-fab{position:fixed;bottom:24px;right:24px;z-index:400;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+        #notes-fab{position:fixed;bottom:24px;right:88px;z-index:400;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
         #notes-fab .fab-menu{display:none;flex-direction:column;gap:6px;align-items:flex-end}
         #notes-fab.open .fab-menu{display:flex;animation:fabMenuIn .2s ease}
         @keyframes fabMenuIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}

@@ -97,6 +97,34 @@ const App = {
     }
     // === DEFERRED: all heavy ops run AFTER UI is interactive ===
     setTimeout(() => this._deferredBoot(), 2000);
+    // Chat FAB — always visible
+    setTimeout(() => this._injectChatFAB(), 500);
+  },
+
+  _injectChatFAB() {
+    if (document.getElementById('chat-fab')) return;
+    const div = document.createElement('div');
+    div.id = 'chat-fab';
+    div.innerHTML = `
+      <style>
+        #chat-fab{position:fixed;bottom:24px;right:24px;z-index:450}
+        #chat-fab .cfab-btn{width:52px;height:52px;border-radius:50%;
+          background:rgba(99,102,241,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+          color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;
+          box-shadow:0 4px 16px rgba(99,102,241,.3);transition:all .25s;border:1px solid rgba(255,255,255,.15)}
+        #chat-fab .cfab-btn:hover{transform:scale(1.08);background:rgba(99,102,241,.65);box-shadow:0 6px 20px rgba(99,102,241,.4)}
+        #chat-fab .cfab-btn:active{transform:scale(.95)}
+        #chat-fab .cfab-badge{position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;
+          background:var(--danger);color:white;border-radius:50%;font-size:9px;font-weight:700;
+          display:none;align-items:center;justify-content:center;border:2px solid var(--bg)}
+        @media(max-width:768px){#chat-fab{bottom:16px;right:16px}#chat-fab .cfab-btn{width:48px;height:48px}}
+      </style>
+      <div class="cfab-btn" onclick="App.navigate('chat')" title="Chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span class="cfab-badge" id="chat-fab-badge"></span>
+      </div>
+    `;
+    document.body.appendChild(div);
   },
 
   async _deferredBoot() {
