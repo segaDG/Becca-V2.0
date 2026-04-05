@@ -1274,7 +1274,7 @@ const DailyOrderModule = (() => {
       if (val) {
         const dl = document.getElementById('di-item-list');
         if (dl) {
-          const match = [...dl.options].find(o => o.value.toLowerCase().startsWith(val.toLowerCase()));
+          const match = [...dl.options].find(o => o.value.toLowerCase().includes(val.toLowerCase()));
           if (match && match.value !== val) el.value = match.value;
         }
         _autoFillFromInventory(); _liveCompute();
