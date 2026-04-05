@@ -1152,9 +1152,10 @@ const DailyOrderModule = (() => {
         <td style="padding:4px 3px;text-align:center;color:var(--primary);font-size:11px;font-weight:700">${isNew?'✦':idx+1}</td>
         <td style="padding:4px 3px;min-width:140px">
           <input type="hidden" id="di-stok" value="${stok0}">
-          <input id="di-item" class="form-control" style="${inp('min-width:120px')}"
-            placeholder="Nama bahan..." value="${it?.item||''}"
+          <input id="di-item" class="form-control" list="di-item-list" style="${inp('min-width:120px')}"
+            placeholder="Nama bahan..." value="${it?.item||''}" autocomplete="off"
             onchange="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
+            oninput="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._editKeyDown(event,'di-estqty')">
         </td>
         <td style="padding:4px 3px">
@@ -1949,7 +1950,14 @@ const DailyOrderModule = (() => {
   }
 
   function _initItemCombo() {
-    // No-op: suggestion box removed from daily-order table input
+    // Build native <datalist> from inventory items
+    let dl = document.getElementById('di-item-list');
+    if (dl) dl.remove();
+    dl = document.createElement('datalist');
+    dl.id = 'di-item-list';
+    const names = [...new Set(_inventory.map(i => i.nama).filter(Boolean))].sort();
+    dl.innerHTML = names.map(n => `<option value="${n}">`).join('');
+    document.body.appendChild(dl);
   }
 
   function startAddItem() {
