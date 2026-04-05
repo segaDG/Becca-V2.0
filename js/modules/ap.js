@@ -1266,33 +1266,37 @@ const APModule = (() => {
     if (!id) return;
     document.removeEventListener('click', _apOutsideClick);
     const tr = document.getElementById('ap-row-'+id);
-    if (!tr) { _apEditId=null; return; }
+    if (!tr) { _apEditId=null; applyFilter(); return; }
     const row = _ap.find(r=>r.id===id);
-    if (!row) { _apEditId=null; return; }
-    const g = f => tr.querySelector('[data-f="'+f+'"]')?.value ?? row[f];
-    const qty = parseFloat(g('qty'))||0;
-    const hs  = parseFloat(g('hargaSatuan'))||0;
-    const ket = (g('keterangan')||'').trim();
-    const sat = (g('satuan')||'').trim();
-    // Validasi field wajib
-    const missing = [];
-    if (!ket)   missing.push('Nama Barang');
-    if (!sat)   missing.push('Jenis/Satuan');
-    if (!qty)   missing.push('Jumlah');
-    if (!hs)    missing.push('Harga');
-    if (missing.length) {
-      Notify.warning('Lengkapi field: ' + missing.join(', '));
-      // Kembalikan listener agar bisa edit lagi
-      setTimeout(() => document.addEventListener('click', _apOutsideClick), 50);
-      return;
+    if (!row) { _apEditId=null; applyFilter(); return; }
+    const g = f => { const el = tr.querySelector('[data-f="'+f+'"]'); return el ? el.value : undefined; };
+    const ket = (g('keterangan') ?? row.keterangan ?? row.item ?? row.ket ?? '').trim();
+    const sat = (g('satuan') ?? row.satuan ?? '').trim();
+    const qty = parseFloat(g('qty') ?? row.qty) || 0;
+    const hs  = parseFloat(g('hargaSatuan') ?? row.hargaSatuan ?? row.harga_satuan) || 0;
+
+    // Validasi hanya untuk baris baru
+    if (row._isNew) {
+      const missing = [];
+      if (!ket) missing.push('Nama Barang');
+      if (!sat) missing.push('Jenis/Satuan');
+      if (!qty) missing.push('Jumlah');
+      if (!hs)  missing.push('Harga');
+      if (missing.length) {
+        Notify.warning('Lengkapi field: ' + missing.join(', '));
+        setTimeout(() => document.addEventListener('click', _apOutsideClick), 50);
+        return;
+      }
     }
 
     Object.assign(row, {
-      tgl:g('tgl')||row.tgl, supplier:g('supplier')||row.supplier,
-      keterangan:ket, qty, satuan:sat,
-      hargaSatuan:hs, total:qty&&hs?qty*hs:(parseFloat(g('total'))||row.total||0),
-      terbayar:parseFloat(g('terbayar'))||0, status:g('status')||row.status||'LUNAS',
-      jatuhTempo:g('jatuhTempo')||row.jatuhTempo,
+      tgl: g('tgl') ?? row.tgl,
+      supplier: g('supplier') ?? row.supplier,
+      keterangan: ket, item: ket, qty, satuan: sat,
+      hargaSatuan: hs, total: qty && hs ? qty*hs : (parseFloat(g('total') ?? row.total) || 0),
+      terbayar: parseFloat(g('terbayar') ?? row.terbayar) || 0,
+      status: g('status') ?? row.status || 'LUNAS',
+      jatuhTempo: g('jatuhTempo') ?? row.jatuhTempo,
     });
     const origData = row._orig ? JSON.parse(row._orig) : null;
     delete row._orig;
@@ -1338,7 +1342,12 @@ const APModule = (() => {
     const curSt   = r.status && r.status !== 'undefined' ? r.status : 'LUNAS';
     const stOpts  = ['BELUM','LUNAS'].map(s=>'<option value="'+s+'" '+(curSt===s?'selected':'')+'>'+s+'</option>').join('');
     const eid = (r.id||'').replace(/'/g,'');
-    const inp = (f,v,t,ex) => '<input data-f="'+f+'" data-eid="'+eid+'" type="'+(t||'text')+'" value="'+(v===0?0:v||'')+'" '+(ex||'')+' style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px;font-family:inherit" onkeydown="APModule._apKey(event)">';
+    const inp = (f,v,t,extra) => {
+      const baseStyle = 'width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px;font-family:inherit';
+      const attrs = (extra||'').replace(/style="([^"]*)"/,'');
+      const extraStyle = ((extra||'').match(/style="([^"]*)"/) || [])[1] || '';
+      return '<input data-f="'+f+'" data-eid="'+eid+'" type="'+(t||'text')+'" value="'+(v===0?0:v||'')+'" '+attrs+' style="'+baseStyle+';'+extraStyle+'" onkeydown="APModule._apKey(event)">';
+    };
     const p = 'padding:6px 8px;';
     return '<tr id="ap-row-'+eid+'" style="background:rgba(99,102,241,.06);outline:2px solid var(--primary);outline-offset:-1px">'
       +'<td style="'+p+'text-align:center"><div style="display:flex;gap:2px;justify-content:center">'
@@ -1347,7 +1356,7 @@ const APModule = (() => {
       +'</div></td>'
       +'<td style="'+p+'">'+inp('tgl',r.tgl,'date')+'</td>'
       +'<td style="'+p+'"><select data-f="supplier" data-eid="'+eid+'" onkeydown="APModule._apKey(event)" style="width:100%;border:none;outline:none;background:transparent;font-size:12px;padding:0 4px">'+supOpts+'</select></td>'
-      +'<td style="'+p+'">'+inp('keterangan',r.keterangan||r.ket)+'</td>'
+      +'<td style="'+p+'">'+inp('keterangan',r.keterangan||r.item||r.ket||'')+'</td>'
       +'<td style="'+p+'">'+inp('qty',r.qty,'number','min=0 style="text-align:right"')+'</td>'
       +'<td style="'+p+'">'+inp('satuan',r.satuan)+'</td>'
       +'<td style="'+p+'">'+inp('hargaSatuan',r.hargaSatuan,'number','min=0')+'</td>'
