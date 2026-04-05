@@ -83,7 +83,9 @@ const InventoryModule = (() => {
 
     // Render segera dengan data yang ada (cache atau kosong)
     _recalcStok();
-    switchTab('stok');
+    // Preserve active tab across re-init (e.g. navigating away and back)
+    const restoreTab = _activeTab || 'stok';
+    switchTab(restoreTab);
 
     // Fast first page for activity logs (heaviest table)
     if (!cachedLogs) {
@@ -114,10 +116,13 @@ const InventoryModule = (() => {
           item._savedHarga = item._hargaTerbaru;
         }
       });
+      // Re-render current tab without switching away
       if (_activeTab === 'stok') renderStok();
+      else if (_activeTab === 'transaksi') renderTransaksi();
       else if (_activeTab === 'laporan') renderLaporanBulanan();
       else if (_activeTab === 'summary') renderSummary();
-      else switchTab(_activeTab);
+      else if (_activeTab === 'alert') renderAlert();
+      else if (_activeTab === 'opname') renderOpnameTab();
       // Update sync badges on tab + sidebar (without needing Activity Line to be active)
       _updateSyncBadges();
     } else {
