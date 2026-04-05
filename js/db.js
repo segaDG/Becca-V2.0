@@ -716,10 +716,27 @@ const DB = (() => {
           const keys = Object.keys(parsed);
           const isCorrupted = keys.length > 0 && keys.every(k => !isNaN(k));
           if (!isCorrupted) {
-            // Sync privileges ke localStorage — DB is source of truth, REPLACE bukan merge
+            // Sync privileges ke localStorage — hanya jika DB lebih baru dari lokal
             if (parsed._privileges) {
               try {
-                localStorage.setItem('becca_privileges', JSON.stringify(parsed._privileges));
+                const localPriv = JSON.parse(localStorage.getItem('becca_privileges') || '{}');
+                const dbTime = parsed._privileges._savedAt || '';
+                const localTime = localPriv._savedAt || '';
+                // Jika ada pending sync lokal, jangan overwrite dengan data DB lama
+                const pending = localStorage.getItem('becca_privileges_pending');
+                if (!pending && (!localTime || dbTime >= localTime)) {
+                  localStorage.setItem('becca_privileges', JSON.stringify(parsed._privileges));
+                } else if (pending) {
+                  // Re-push local privileges ke DB
+                  console.log('[DB] Re-syncing pending local privileges to Supabase');
+                  const sb2 = await _initClient();
+                  if (sb2) {
+                    const m = { ...parsed, _privileges: localPriv, id: 'main' };
+                    sb2.from('settings').upsert({ id:'main', data:JSON.stringify(m), updated_at:new Date().toISOString() }, { onConflict:'id' })
+                      .then(() => { localStorage.removeItem('becca_privileges_pending'); console.log('[DB] Pending privileges synced ✓'); })
+                      .catch(() => {});
+                  }
+                }
               } catch {}
             }
             if (parsed._customRoles && Array.isArray(parsed._customRoles)) {

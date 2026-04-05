@@ -24,7 +24,7 @@ const App = {
     chat      : 'js/modules/chat.js?v=20260405a',
     personal  : 'js/modules/personal.js?v=20260405q',
     report    : 'js/modules/report.js?v=20260326r',
-    settings  : 'js/modules/settings.js?v=20260401b',
+    settings  : 'js/modules/settings.js?v=20260405a',
   },
 
   _loadScript(src) {

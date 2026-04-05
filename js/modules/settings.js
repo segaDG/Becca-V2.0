@@ -543,7 +543,13 @@ else { window.SettingsModule = (() => {
     let custom = {};
     try { custom = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
     const privs  = {};
-    _getRoles().forEach(r => { privs[r] = custom[r] || {...(Auth._defaultPrivileges[r]||{})}; });
+    _getRoles().forEach(r => {
+      if (custom[r] && typeof custom[r] === 'object') {
+        privs[r] = { ...custom[r] };
+      } else {
+        privs[r] = {...(Auth._defaultPrivileges[r]||{})};
+      }
+    });
 
     document.getElementById('set-tab-privilege').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4)">
@@ -629,17 +635,30 @@ else { window.SettingsModule = (() => {
         else                      custom[role][feat] = '';
       });
     });
-    // Simpan ke localStorage + DB (keduanya wajib)
+    // Tambah timestamp agar bisa deteksi versi terbaru
+    custom._savedAt = new Date().toISOString();
+    // Simpan ke localStorage DULU (immediate, anti-gagal)
     localStorage.setItem('becca_privileges', JSON.stringify(custom));
     if (Auth._bustPrivCache) Auth._bustPrivCache();
     const saveBtn = document.querySelector('[onclick="SettingsModule.savePrivileges()"]');
     if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '⏳ Menyimpan...'; }
-    try {
-      await DB.saveSettings({ _privileges: custom });
-      Notify.success('Hak akses disimpan! Refresh untuk menerapkan.');
-    } catch(e) {
-      console.error('[Settings] savePrivileges error:', e);
-      Notify.error('Gagal menyimpan ke server: ' + (e.message||'timeout'));
+    // Simpan ke DB — retry 1x jika gagal
+    let saved = false;
+    for (let attempt = 0; attempt < 2 && !saved; attempt++) {
+      try {
+        await DB.saveSettings({ _privileges: custom });
+        saved = true;
+      } catch(e) {
+        console.error('[Settings] savePrivileges attempt '+(attempt+1)+':', e);
+        if (attempt === 1) Notify.error('Gagal menyimpan ke server: ' + (e.message||'timeout'));
+      }
+    }
+    if (saved) {
+      Notify.success('Hak akses disimpan!');
+    } else {
+      // DB gagal, tapi localStorage sudah tersimpan. Tandai agar sync ulang nanti
+      localStorage.setItem('becca_privileges_pending', '1');
+      Notify.warning('Tersimpan lokal. Akan disinkron ke server saat koneksi pulih.');
     }
     if (saveBtn) {
       saveBtn.disabled = false;
