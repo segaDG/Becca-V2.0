@@ -1949,19 +1949,7 @@ const DailyOrderModule = (() => {
   }
 
   function _initItemCombo() {
-    const el = document.getElementById('di-item');
-    if (!el || el._comboInit) return;
-    el._comboInit = true;
-    const names = [...new Set(_inventory.map(i => i.nama).filter(Boolean))].sort();
-    // Frequency: count how many times each item name appears across all form items
-    const freq = {};
-    _forms.forEach(f => (f.items || []).forEach(it => {
-      if (it.item) freq[it.item] = (freq[it.item] || 0) + 1;
-    }));
-    Utils.initCombo(el, names, {
-      onSelect: () => { _autoFillFromInventory(); _liveCompute(); },
-      frequency: freq,
-    });
+    // No-op: suggestion box removed from daily-order table input
   }
 
   function startAddItem() {
