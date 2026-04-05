@@ -1155,8 +1155,7 @@ const DailyOrderModule = (() => {
           <input id="di-item" class="form-control" list="di-item-list" style="${inp('min-width:120px')}"
             placeholder="Nama bahan..." value="${it?.item||''}" autocomplete="off"
             onchange="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
-            oninput="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
-            onkeydown="DailyOrderModule._editKeyDown(event,'di-estqty')">
+            onkeydown="DailyOrderModule._itemKeyDown(event)">
         </td>
         <td style="padding:4px 3px">
           <input id="di-estqty" class="form-control" style="${inp('text-align:right;width:60px')}"
@@ -1261,6 +1260,27 @@ const DailyOrderModule = (() => {
   function _aktQtyKeyDown(e) {
     if (e.key === 'Escape') { e.preventDefault(); _cancelEdit(); return; }
     if (e.key === 'Enter')  { e.preventDefault(); _saveEditRow('di-aktqty'); }
+  }
+
+  /* Item field: Tab/Enter commits datalist suggestion, auto-fills inventory, moves to EST QTY */
+  function _itemKeyDown(e) {
+    if (e.key === 'Escape') { e.preventDefault(); _cancelEdit(); return; }
+    if (e.key === 'Tab' || e.key === 'Enter') {
+      e.preventDefault();
+      const el = document.getElementById('di-item');
+      if (!el) return;
+      // Accept datalist suggestion if partially typed
+      const val = el.value.trim();
+      if (val) {
+        const dl = document.getElementById('di-item-list');
+        if (dl) {
+          const match = [...dl.options].find(o => o.value.toLowerCase().startsWith(val.toLowerCase()));
+          if (match && match.value !== val) el.value = match.value;
+        }
+        _autoFillFromInventory(); _liveCompute();
+      }
+      document.getElementById('di-estqty')?.focus();
+    }
   }
 
   /* Tab/Enter key navigation between inline inputs */
@@ -1982,8 +2002,11 @@ const DailyOrderModule = (() => {
 
   function _doOutsideClick(e) {
     if (!_editingItemId) return;
-    if (e.target.closest('.becca-combo-drop,.modal-overlay,.notify-popup')) return;
+    // Ignore clicks on datalist, modals, notifications, buttons in header
+    if (e.target.closest('.modal-overlay,.notify-popup,.page-header,.tabs,.becca-combo-drop')) return;
+    const page = document.getElementById('page-daily-order');
     const grid = document.getElementById('do-grid');
+    // Only trigger if click is outside the entire daily-order table area
     if (grid && !grid.contains(e.target)) {
       document.removeEventListener('click', _doOutsideClick);
       const item = document.getElementById('di-item')?.value?.trim();
@@ -2082,7 +2105,7 @@ const DailyOrderModule = (() => {
     setFormMonth, prevFormMonth, nextFormMonth,
     createForm, addEvent, saveEventMeta, copyEstToAkt, syncToInventory, openCopyFormModal, doCopyForm, printForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, goToDate,
-    _saveEditRow, _cancelEdit, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
+    _saveEditRow, _cancelEdit, _itemKeyDown, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
   };
 })();

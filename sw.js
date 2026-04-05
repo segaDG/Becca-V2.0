@@ -36,7 +36,7 @@ self.addEventListener('notificationclick', e => {
 });
 
 // ── Static Cache — v5 (improved precache + strategy) ─────
-const CACHE_NAME = 'becca-static-v104';
+const CACHE_NAME = 'becca-static-v105';
 
 const PRECACHE = [
   '/',

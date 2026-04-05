@@ -12,17 +12,17 @@ const App = {
     invoice   : 'js/modules/invoice.js?v=20260402b',
     customer  : 'js/modules/customer.js?v=20260331j',
     news      : 'js/modules/news.js?v=20260401a',
-    kas       : 'js/modules/kas.js?v=20260405k',
-    'daily-order': 'js/modules/daily-order.js?v=20260405k',
-    inventory : 'js/modules/inventory.js?v=20260405k',
+    kas       : 'js/modules/kas.js?v=20260405m',
+    'daily-order': 'js/modules/daily-order.js?v=20260405m',
+    inventory : 'js/modules/inventory.js?v=20260405m',
     employee  : 'js/modules/employee.js?v=20260401b',
-    ap        : 'js/modules/ap.js?v=20260405k',
+    ap        : 'js/modules/ap.js?v=20260405m',
     po        : 'js/modules/po.js?v=20260402d',
     task      : 'js/modules/task.js?v=20260330i',
     delivery  : 'js/modules/delivery.js?v=20260405n',
     menu      : 'js/modules/menu.js?v=20260404f',
     chat      : 'js/modules/chat.js?v=20260405a',
-    personal  : 'js/modules/personal.js?v=20260405k',
+    personal  : 'js/modules/personal.js?v=20260405m',
     report    : 'js/modules/report.js?v=20260326r',
     settings  : 'js/modules/settings.js?v=20260401b',
   },
@@ -858,7 +858,7 @@ const App = {
     const uid = Auth.currentUser()?.username || 'default';
     localStorage.setItem('becca_theme_id_' + uid, themeId);
     const btn = document.getElementById('btn-color');
-    if (btn) btn.querySelector('div').style.background = t.primary;
+    if (btn) { const d = btn.querySelector('div'); if (d) d.style.background = t.primary; }
     Notify.success('Tema "' + t.name + '" diterapkan');
   },
 
