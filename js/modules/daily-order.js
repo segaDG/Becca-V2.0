@@ -1150,12 +1150,15 @@ const DailyOrderModule = (() => {
     return `
       <tr style="border-bottom:1px solid var(--border);background:rgba(99,102,241,.04)">
         <td style="padding:4px 3px;text-align:center;color:var(--primary);font-size:11px;font-weight:700">${isNew?'✦':idx+1}</td>
-        <td style="padding:4px 3px;min-width:140px">
+        <td style="padding:4px 3px;min-width:140px;position:relative">
           <input type="hidden" id="di-stok" value="${stok0}">
-          <input id="di-item" class="form-control" list="di-item-list" style="${inp('min-width:120px')}"
+          <input id="di-item" class="form-control" style="${inp('min-width:120px')}"
             placeholder="Nama bahan..." value="${it?.item||''}" autocomplete="off"
             onchange="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
-            onkeydown="DailyOrderModule._itemKeyDown(event)">
+            oninput="DailyOrderModule._showItemSuggest()"
+            onkeydown="DailyOrderModule._itemKeyDown(event)"
+            onfocus="DailyOrderModule._showItemSuggest()">
+          <div id="di-item-drop" style="display:none"></div>
         </td>
         <td style="padding:4px 3px">
           <input id="di-estqty" class="form-control" style="${inp('text-align:right;width:60px')}"
@@ -1262,41 +1265,44 @@ const DailyOrderModule = (() => {
     if (e.key === 'Enter')  { e.preventDefault(); _saveEditRow('di-aktqty'); }
   }
 
-  /* Item field: Tab/Enter commits datalist suggestion, auto-fills inventory, moves to EST QTY */
+  /* Item field: Arrow keys navigate suggest, Tab/Enter picks best match */
   function _itemKeyDown(e) {
-    if (e.key === 'Escape') { e.preventDefault(); _cancelEdit(); return; }
+    if (e.key === 'Escape') { e.preventDefault(); _hideSuggest(); _cancelEdit(); return; }
+    const drop = document.getElementById('di-item-drop');
+    const items = drop ? drop.querySelectorAll('.di-sug-item') : [];
+    if (e.key === 'ArrowDown' && items.length) {
+      e.preventDefault();
+      _suggestIdx = Math.min(_suggestIdx + 1, items.length - 1);
+      items.forEach((it, i) => it.style.background = i === _suggestIdx ? 'var(--surface2)' : '');
+      items[_suggestIdx]?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (e.key === 'ArrowUp' && items.length) {
+      e.preventDefault();
+      _suggestIdx = Math.max(_suggestIdx - 1, 0);
+      items.forEach((it, i) => it.style.background = i === _suggestIdx ? 'var(--surface2)' : '');
+      items[_suggestIdx]?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
     if (e.key === 'Tab' || e.key === 'Enter') {
       e.preventDefault();
       const el = document.getElementById('di-item');
       if (!el) return;
-      // Accept datalist suggestion if partially typed
-      const val = el.value.trim();
-      if (val) {
-        const dl = document.getElementById('di-item-list');
-        if (dl) {
+      // If arrow-selected, pick that
+      if (_suggestIdx >= 0 && items[_suggestIdx]) {
+        el.value = items[_suggestIdx].dataset.v;
+      } else {
+        // Auto-pick best match from _suggestNames
+        const val = el.value.trim();
+        if (val) {
           const lv = val.toLowerCase();
-          const opts = [...dl.options].map(o => o.value);
-          // Exact match first
-          let best = opts.find(o => o.toLowerCase() === lv);
-          if (!best) {
-            // Then: starts with, pick shortest
-            const sw = opts.filter(o => o.toLowerCase().startsWith(lv)).sort((a,b) => a.length - b.length);
-            best = sw[0];
-          }
-          if (!best) {
-            // Then: word starts with (e.g. "paru" matches "Paru" not "Kelapa Parut")
-            const ws = opts.filter(o => o.toLowerCase().split(/[\s@(/)]+/).some(w => w.startsWith(lv))).sort((a,b) => a.length - b.length);
-            best = ws[0];
-          }
-          if (!best) {
-            // Fallback: contains, pick shortest
-            const cn = opts.filter(o => o.toLowerCase().includes(lv)).sort((a,b) => a.length - b.length);
-            best = cn[0];
-          }
-          if (best && best !== val) el.value = best;
+          const rank = (n) => { const ln = n.toLowerCase(); if (ln === lv) return 0; if (ln.startsWith(lv)) return 1; if (ln.split(/[\s@(/)]+/).some(w => w.startsWith(lv))) return 2; if (ln.includes(lv)) return 3; return -1; };
+          const best = _suggestNames.map(n => ({ n, r: rank(n) })).filter(x => x.r >= 0).sort((a,b) => a.r - b.r || a.n.length - b.n.length)[0];
+          if (best) el.value = best.n;
         }
-        _autoFillFromInventory(); _liveCompute();
       }
+      _hideSuggest();
+      _autoFillFromInventory(); _liveCompute();
       document.getElementById('di-estqty')?.focus();
     }
   }
@@ -1987,15 +1993,56 @@ const DailyOrderModule = (() => {
     }
   }
 
+  let _suggestNames = [];
+  let _suggestIdx = -1;
+
   function _initItemCombo() {
-    // Build native <datalist> from inventory items
-    let dl = document.getElementById('di-item-list');
-    if (dl) dl.remove();
-    dl = document.createElement('datalist');
-    dl.id = 'di-item-list';
-    const names = [...new Set(_inventory.map(i => i.nama).filter(Boolean))].sort();
-    dl.innerHTML = names.map(n => `<option value="${n}">`).join('');
-    document.body.appendChild(dl);
+    _suggestNames = [...new Set(_inventory.map(i => i.nama).filter(Boolean))].sort();
+  }
+
+  function _showItemSuggest() {
+    const el = document.getElementById('di-item');
+    const drop = document.getElementById('di-item-drop');
+    if (!el || !drop) return;
+    const q = el.value.trim().toLowerCase();
+    if (!q) { drop.style.display = 'none'; return; }
+    // Rank: startsWith > word-startsWith > contains, shortest first
+    const rank = (name) => {
+      const ln = name.toLowerCase();
+      if (ln.startsWith(q)) return 0;
+      if (ln.split(/[\s@(/)]+/).some(w => w.startsWith(q))) return 1;
+      if (ln.includes(q)) return 2;
+      return -1;
+    };
+    const matches = _suggestNames.map(n => ({ n, r: rank(n) })).filter(x => x.r >= 0)
+      .sort((a,b) => a.r - b.r || a.n.length - b.n.length).slice(0, 12);
+    if (!matches.length) { drop.style.display = 'none'; return; }
+    _suggestIdx = -1;
+    drop.style.cssText = 'position:absolute;left:0;right:0;top:100%;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);max-height:200px;overflow-y:auto;display:block';
+    drop.innerHTML = matches.map((m, i) => {
+      const hl = m.n.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'), '<mark style="background:rgba(99,102,241,.25);border-radius:2px">$1</mark>');
+      return `<div class="di-sug-item" data-i="${i}" data-v="${m.n.replace(/"/g,'&quot;')}"
+        style="padding:6px 10px;cursor:pointer;font-size:11px;font-weight:500;color:var(--text);border-radius:6px;margin:2px"
+        onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''"
+        onmousedown="event.preventDefault();DailyOrderModule._pickSuggest(${i})">${hl}</div>`;
+    }).join('');
+  }
+
+  function _pickSuggest(idx) {
+    const drop = document.getElementById('di-item-drop');
+    const el = document.getElementById('di-item');
+    if (!drop || !el) return;
+    const items = drop.querySelectorAll('.di-sug-item');
+    if (items[idx]) { el.value = items[idx].dataset.v; }
+    drop.style.display = 'none';
+    _autoFillFromInventory(); _liveCompute();
+    document.getElementById('di-estqty')?.focus();
+  }
+
+  function _hideSuggest() {
+    const drop = document.getElementById('di-item-drop');
+    if (drop) drop.style.display = 'none';
+    _suggestIdx = -1;
   }
 
   function startAddItem() {
@@ -2021,7 +2068,7 @@ const DailyOrderModule = (() => {
   function _doOutsideClick(e) {
     if (!_editingItemId) return;
     // Ignore clicks on datalist, modals, notifications, buttons in header
-    if (e.target.closest('.modal-overlay,.notify-popup,.page-header,.tabs,.becca-combo-drop')) return;
+    if (e.target.closest('.modal-overlay,.notify-popup,.page-header,.tabs,.becca-combo-drop,#di-item-drop')) return;
     const page = document.getElementById('page-daily-order');
     const grid = document.getElementById('do-grid');
     // Only trigger if click is outside the entire daily-order table area
@@ -2123,7 +2170,7 @@ const DailyOrderModule = (() => {
     setFormMonth, prevFormMonth, nextFormMonth,
     createForm, addEvent, saveEventMeta, copyEstToAkt, syncToInventory, openCopyFormModal, doCopyForm, printForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, goToDate,
-    _saveEditRow, _cancelEdit, _itemKeyDown, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
+    _saveEditRow, _cancelEdit, _itemKeyDown, _showItemSuggest, _pickSuggest, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
   };
 })();
