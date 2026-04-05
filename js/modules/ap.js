@@ -1342,12 +1342,7 @@ const APModule = (() => {
     const curSt   = r.status && r.status !== 'undefined' ? r.status : 'LUNAS';
     const stOpts  = ['BELUM','LUNAS'].map(s=>'<option value="'+s+'" '+(curSt===s?'selected':'')+'>'+s+'</option>').join('');
     const eid = (r.id||'').replace(/'/g,'');
-    const inp = (f,v,t,extra) => {
-      const baseStyle = 'width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px;font-family:inherit';
-      const attrs = (extra||'').replace(/style="([^"]*)"/,'');
-      const extraStyle = ((extra||'').match(/style="([^"]*)"/) || [])[1] || '';
-      return '<input data-f="'+f+'" data-eid="'+eid+'" type="'+(t||'text')+'" value="'+(v===0?0:v||'')+'" '+attrs+' style="'+baseStyle+';'+extraStyle+'" onkeydown="APModule._apKey(event)">';
-    };
+    const inp = (f,v,t,ex) => '<input data-f="'+f+'" data-eid="'+eid+'" type="'+(t||'text')+'" value="'+(v===0?0:v||'')+'" '+(ex||'')+' style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px;font-family:inherit" onkeydown="APModule._apKey(event)">';
     const p = 'padding:6px 8px;';
     return '<tr id="ap-row-'+eid+'" style="background:rgba(99,102,241,.06);outline:2px solid var(--primary);outline-offset:-1px">'
       +'<td style="'+p+'text-align:center"><div style="display:flex;gap:2px;justify-content:center">'
