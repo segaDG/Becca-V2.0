@@ -251,8 +251,9 @@ const APModule = (() => {
     tbody.innerHTML = paged.map((r, i) => {
       const sisa = (r.status==='LUNAS'||r.status==='lunas') ? 0
                  : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
-      const badgeC = r.status==='LUNAS' ? '#10b981' : '#ef4444';
-      const badge  = '<span style="background:'+badgeC+'15;color:'+badgeC+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">'+r.status+'</span>';
+      const st = r.status && r.status !== 'undefined' ? r.status : 'BELUM';
+      const badgeC = st==='LUNAS' ? '#10b981' : '#ef4444';
+      const badge  = '<span style="background:'+badgeC+'15;color:'+badgeC+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">'+st+'</span>';
       const acts = canEdit
   ? '<td style="padding:8px 16px;text-align:center"><div style="display:flex;gap:4px;justify-content:center">'
           +'<button onclick="APModule.apStartEdit(this.dataset.id)" data-id="'+r.id+'" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:10px" title="Edit">✏️</button>'
@@ -1203,8 +1204,15 @@ const APModule = (() => {
     const k   = event.key;
     const eid = event.target?.dataset?.eid;
     if (!eid) return;
-    if (k === 'Enter')  { event.preventDefault(); APModule._apCommitAndAdd(eid); }
-    if (k === 'Escape') { APModule._apCancel(eid); }
+    if (k === 'Enter')  { event.preventDefault(); APModule._apCommit(eid); }
+    if (k === 'Escape') { event.preventDefault(); APModule._apCancel(eid); }
+    if (k === 'Tab') {
+      const tr = document.getElementById('ap-row-'+eid);
+      if (!tr) return;
+      const inputs = [...tr.querySelectorAll('input,select')];
+      const idx = inputs.indexOf(event.target);
+      if (!event.shiftKey && idx === inputs.length - 1) { event.preventDefault(); APModule._apCommit(eid); }
+    }
   }
 
   function _apLoadLocks() {
@@ -1215,6 +1223,8 @@ const APModule = (() => {
   function _apOutsideClick(e) {
     if (!_apEditId) return;
     if (document.getElementById('_val-popup')) return;
+    // Ignore clicks on modal overlays or confirm dialogs
+    if (e.target.closest('.modal-overlay,.modal-backdrop')) return;
     const tr = document.getElementById('ap-row-'+_apEditId);
     if (tr && !tr.contains(e.target)) {
       // Baris baru kosong → cancel
@@ -1281,7 +1291,7 @@ const APModule = (() => {
       tgl:g('tgl')||row.tgl, supplier:g('supplier')||row.supplier,
       keterangan:ket, qty, satuan:sat,
       hargaSatuan:hs, total:qty&&hs?qty*hs:(parseFloat(g('total'))||row.total||0),
-      terbayar:parseFloat(g('terbayar'))||0, status:g('status')||row.status,
+      terbayar:parseFloat(g('terbayar'))||0, status:g('status')||row.status||'BELUM',
       jatuhTempo:g('jatuhTempo')||row.jatuhTempo,
     });
     const origData = row._orig ? JSON.parse(row._orig) : null;
@@ -1325,7 +1335,8 @@ const APModule = (() => {
 
   function _apRowEdit(r) {
     const supOpts = _suppliers.map(s=>'<option value="'+s.nama+'" '+(r.supplier===s.nama?'selected':'')+'>'+s.nama+'</option>').join('');
-    const stOpts  = ['BELUM','LUNAS'].map(s=>'<option value="'+s+'" '+(r.status===s?'selected':'')+'>'+s+'</option>').join('');
+    const curSt   = r.status && r.status !== 'undefined' ? r.status : 'BELUM';
+    const stOpts  = ['BELUM','LUNAS'].map(s=>'<option value="'+s+'" '+(curSt===s?'selected':'')+'>'+s+'</option>').join('');
     const eid = (r.id||'').replace(/'/g,'');
     const inp = (f,v,t,ex) => '<input data-f="'+f+'" data-eid="'+eid+'" type="'+(t||'text')+'" value="'+(v===0?0:v||'')+'" '+(ex||'')+' style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px;font-family:inherit" onkeydown="APModule._apKey(event)">';
     const p = 'padding:6px 8px;';
@@ -1335,14 +1346,14 @@ const APModule = (() => {
         +'<button onclick="event.stopPropagation();APModule._apCancel(\''+eid+'\')" style="width:20px;height:20px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-3);font-size:11px;display:flex;align-items:center;justify-content:center" title="Batal">✕</button>'
       +'</div></td>'
       +'<td style="'+p+'">'+inp('tgl',r.tgl,'date')+'</td>'
-      +'<td style="'+p+'"><select data-f="supplier" style="width:100%;border:none;outline:none;background:transparent;font-size:12px;padding:0 4px">'+supOpts+'</select></td>'
+      +'<td style="'+p+'"><select data-f="supplier" data-eid="'+eid+'" onkeydown="APModule._apKey(event)" style="width:100%;border:none;outline:none;background:transparent;font-size:12px;padding:0 4px">'+supOpts+'</select></td>'
       +'<td style="'+p+'">'+inp('keterangan',r.keterangan||r.ket)+'</td>'
       +'<td style="'+p+'">'+inp('qty',r.qty,'number','min=0 style="text-align:right"')+'</td>'
       +'<td style="'+p+'">'+inp('satuan',r.satuan)+'</td>'
       +'<td style="'+p+'">'+inp('hargaSatuan',r.hargaSatuan,'number','min=0')+'</td>'
       +'<td style="'+p+'">'+inp('total',r.total,'number','min=0')+'</td>'
       +'<td style="'+p+'">'+inp('terbayar',r.terbayar,'number','min=0')+'</td>'
-      +'<td style="'+p+'"><select data-f="status" style="width:100%;border:none;outline:none;background:transparent;font-size:11px;font-weight:700;padding:0 4px">'+stOpts+'</select></td>'
+      +'<td style="'+p+'"><select data-f="status" data-eid="'+eid+'" onkeydown="APModule._apKey(event)" style="width:100%;border:none;outline:none;background:transparent;font-size:11px;font-weight:700;padding:0 4px">'+stOpts+'</select></td>'
       +'<td style="'+p+'"></td>'
       +'</tr>';
   }
