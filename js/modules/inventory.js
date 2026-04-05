@@ -1291,7 +1291,10 @@ const InventoryModule = (() => {
       <td data-field="ivf-harga-${r.id}" class="iv-num"><div class="ivc">${r.harga?Utils.formatRupiah(r.harga):'-'}</div></td>
       <td data-field="ivf-kode-${r.id}"><div class="ivc">${r.kodeAktivitas||''}</div></td>
       <td data-field="ivf-hpp-${r.id}" style="text-align:center"><div class="ivc" style="justify-content:center">
-        ${r.hpp===true||r.hpp==='ya'?'<span style="font-size:11px;font-weight:600;color:var(--success)">HPP</span>':r.hpp===false||r.hpp==='tidak'?'<span style="font-size:11px;color:var(--text-3)">Non-HPP</span>':'<span style="color:var(--text-3);font-size:11px">—</span>'}
+        ${r.jenis==='MASUK'?'<span style="font-size:11px;color:var(--text-3)">—</span>'
+          :r.hpp===true||r.hpp==='ya'?'<span style="font-size:11px;font-weight:600;color:var(--success)">HPP</span>'
+          :r.hpp===false||r.hpp==='tidak'?'<span style="font-size:11px;color:var(--text-3)">Non-HPP</span>'
+          :'<span style="font-size:11px;font-weight:600;color:var(--success)">HPP</span>'}
       </div></td>
       <td data-field="ivf-sup-${r.id}"><div class="ivc">${r.pengambil||''}</div></td>
       <td data-field="ivf-pj-${r.id}"><div class="ivc">${r.penanggungJawab||''}</div></td>
