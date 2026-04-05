@@ -1274,8 +1274,26 @@ const DailyOrderModule = (() => {
       if (val) {
         const dl = document.getElementById('di-item-list');
         if (dl) {
-          const match = [...dl.options].find(o => o.value.toLowerCase().includes(val.toLowerCase()));
-          if (match && match.value !== val) el.value = match.value;
+          const lv = val.toLowerCase();
+          const opts = [...dl.options].map(o => o.value);
+          // Exact match first
+          let best = opts.find(o => o.toLowerCase() === lv);
+          if (!best) {
+            // Then: starts with, pick shortest
+            const sw = opts.filter(o => o.toLowerCase().startsWith(lv)).sort((a,b) => a.length - b.length);
+            best = sw[0];
+          }
+          if (!best) {
+            // Then: word starts with (e.g. "paru" matches "Paru" not "Kelapa Parut")
+            const ws = opts.filter(o => o.toLowerCase().split(/[\s@(/)]+/).some(w => w.startsWith(lv))).sort((a,b) => a.length - b.length);
+            best = ws[0];
+          }
+          if (!best) {
+            // Fallback: contains, pick shortest
+            const cn = opts.filter(o => o.toLowerCase().includes(lv)).sort((a,b) => a.length - b.length);
+            best = cn[0];
+          }
+          if (best && best !== val) el.value = best;
         }
         _autoFillFromInventory(); _liveCompute();
       }
