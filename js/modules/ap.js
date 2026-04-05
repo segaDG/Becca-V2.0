@@ -251,7 +251,7 @@ const APModule = (() => {
     tbody.innerHTML = paged.map((r, i) => {
       const sisa = (r.status==='LUNAS'||r.status==='lunas') ? 0
                  : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
-      const st = r.status && r.status !== 'undefined' ? r.status : 'BELUM';
+      const st = r.status && r.status !== 'undefined' ? r.status : 'LUNAS';
       const badgeC = st==='LUNAS' ? '#10b981' : '#ef4444';
       const badge  = '<span style="background:'+badgeC+'15;color:'+badgeC+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">'+st+'</span>';
       const acts = canEdit
@@ -1291,7 +1291,7 @@ const APModule = (() => {
       tgl:g('tgl')||row.tgl, supplier:g('supplier')||row.supplier,
       keterangan:ket, qty, satuan:sat,
       hargaSatuan:hs, total:qty&&hs?qty*hs:(parseFloat(g('total'))||row.total||0),
-      terbayar:parseFloat(g('terbayar'))||0, status:g('status')||row.status||'BELUM',
+      terbayar:parseFloat(g('terbayar'))||0, status:g('status')||row.status||'LUNAS',
       jatuhTempo:g('jatuhTempo')||row.jatuhTempo,
     });
     const origData = row._orig ? JSON.parse(row._orig) : null;
@@ -1335,7 +1335,7 @@ const APModule = (() => {
 
   function _apRowEdit(r) {
     const supOpts = _suppliers.map(s=>'<option value="'+s.nama+'" '+(r.supplier===s.nama?'selected':'')+'>'+s.nama+'</option>').join('');
-    const curSt   = r.status && r.status !== 'undefined' ? r.status : 'BELUM';
+    const curSt   = r.status && r.status !== 'undefined' ? r.status : 'LUNAS';
     const stOpts  = ['BELUM','LUNAS'].map(s=>'<option value="'+s+'" '+(curSt===s?'selected':'')+'>'+s+'</option>').join('');
     const eid = (r.id||'').replace(/'/g,'');
     const inp = (f,v,t,ex) => '<input data-f="'+f+'" data-eid="'+eid+'" type="'+(t||'text')+'" value="'+(v===0?0:v||'')+'" '+(ex||'')+' style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px;font-family:inherit" onkeydown="APModule._apKey(event)">';
