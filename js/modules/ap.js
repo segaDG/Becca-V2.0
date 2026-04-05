@@ -1269,11 +1269,11 @@ const APModule = (() => {
     if (!tr) { _apEditId=null; applyFilter(); return; }
     const row = _ap.find(r=>r.id===id);
     if (!row) { _apEditId=null; applyFilter(); return; }
-    const g = f => { const el = tr.querySelector('[data-f="'+f+'"]'); return el ? el.value : undefined; };
-    const ket = (g('keterangan') ?? row.keterangan ?? row.item ?? row.ket ?? '').trim();
-    const sat = (g('satuan') ?? row.satuan ?? '').trim();
-    const qty = parseFloat(g('qty') ?? row.qty) || 0;
-    const hs  = parseFloat(g('hargaSatuan') ?? row.hargaSatuan ?? row.harga_satuan) || 0;
+    const g = f => { const el = tr.querySelector('[data-f="'+f+'"]'); return el ? el.value : null; };
+    const ket = (g('keterangan') || row.keterangan || row.item || row.ket || '').trim();
+    const sat = (g('satuan') || row.satuan || '').trim();
+    const qty = parseFloat(g('qty') || row.qty) || 0;
+    const hs  = parseFloat(g('hargaSatuan') || row.hargaSatuan || row.harga_satuan) || 0;
 
     // Validasi hanya untuk baris baru
     if (row._isNew) {
@@ -1290,13 +1290,13 @@ const APModule = (() => {
     }
 
     Object.assign(row, {
-      tgl: g('tgl') ?? row.tgl,
-      supplier: g('supplier') ?? row.supplier,
+      tgl: g('tgl') || row.tgl,
+      supplier: g('supplier') || row.supplier,
       keterangan: ket, item: ket, qty, satuan: sat,
-      hargaSatuan: hs, total: qty && hs ? qty*hs : (parseFloat(g('total') ?? row.total) || 0),
-      terbayar: parseFloat(g('terbayar') ?? row.terbayar) || 0,
-      status: g('status') ?? row.status || 'LUNAS',
-      jatuhTempo: g('jatuhTempo') ?? row.jatuhTempo,
+      hargaSatuan: hs, total: qty && hs ? qty*hs : (parseFloat(g('total') || row.total) || 0),
+      terbayar: parseFloat(g('terbayar') || row.terbayar) || 0,
+      status: g('status') || row.status || 'LUNAS',
+      jatuhTempo: g('jatuhTempo') || row.jatuhTempo,
     });
     const origData = row._orig ? JSON.parse(row._orig) : null;
     delete row._orig;
