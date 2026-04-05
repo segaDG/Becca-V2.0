@@ -108,6 +108,16 @@ const InventoryModule = (() => {
       // Auto-dedup: jika ada nama barang ganda (dari double-migration), bersihkan otomatis
       _checkAndDedup();
 
+      // One-time migration: clear HPP on MASUK rows
+      if (!localStorage.getItem('becca_hpp_masuk_fix')) {
+        const toFix = _logs.filter(l => l.jenis === 'MASUK' && (l.hpp === true || l.hpp === 'ya'));
+        if (toFix.length) {
+          console.log('[Inventory] Fixing HPP on ' + toFix.length + ' MASUK rows');
+          for (const l of toFix) { l.hpp = null; DB.saveInventoryLog({...l}).catch(()=>{}); }
+        }
+        localStorage.setItem('becca_hpp_masuk_fix', '1');
+      }
+
       // Hitung stok setiap item dari logs + auto-update hargaSatuan
       _recalcStok();
       _items.forEach(item => {
