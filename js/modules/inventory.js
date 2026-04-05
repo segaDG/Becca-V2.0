@@ -1783,6 +1783,7 @@ const InventoryModule = (() => {
       const saved = await DB.saveInventoryLog(newRow);
       saved._isNew = true;  // strict validation until first commit
       _logs.unshift(saved);
+      _invLogPage = 1;
       DB.logActivity({type:'add_inventory', detail:'Baris baru', snapshot:{after: {...saved}}});
       renderTransaksi();
       // Wait for DOM to be fully rendered before starting edit

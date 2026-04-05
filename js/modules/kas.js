@@ -755,6 +755,7 @@ const KasModule = (() => {
       const saved = await DB.saveKas(newRow);
       saved._isNew = true;
       _kas.unshift(saved);
+      _page = 1;
       renderTransaksi();
       setTimeout(()=>startEdit(saved.id), 80);
     } catch(e) { Notify.error('Gagal', e.message); }
