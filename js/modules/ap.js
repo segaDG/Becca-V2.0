@@ -158,7 +158,7 @@ const APModule = (() => {
       <!-- TABLE -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
-          <table style="width:100%;border-collapse:collapse;min-width:900px" id="ap-main-table">
+          <table style="width:100%;border-collapse:collapse;min-width:900px" id="ap-main-table" data-grid-select
             <thead>
               <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
                 <th style="padding:10px 12px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:36px">#</th>
@@ -277,8 +277,53 @@ const APModule = (() => {
     }).join('');
 
     _updateSummaryCards(data);
+    // Wire GridSelect
+    if (window.GridSelect) {
+      GridSelect.onFill('ap-main-table', _onGridFill);
+      GridSelect.onPaste('ap-main-table', _onGridPaste);
+    }
   }
 
+  const _AP_COL_MAP = ['','tgl','supplier','keterangan','qty','satuan','hargaSatuan','total','tglBayar','status'];
+
+  function _onGridFill(tblId, colIdx, srcRow, targetRows, val) {
+    const tbody = document.querySelector('#ap-main-table tbody');
+    if (!tbody) return;
+    const key = _AP_COL_MAP[colIdx]; if (!key) return;
+    const isNum = key==='qty'||key==='hargaSatuan'||key==='total';
+    const parsed = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
+    let saved = 0;
+    targetRows.forEach(ri => {
+      const tr = tbody.children[ri]; if (!tr) return;
+      const id = tr.id.replace('ap-row-','');
+      const row = _ap.find(r=>r.id===id); if (!row) return;
+      row[key] = parsed;
+      if (key==='qty'||key==='hargaSatuan') row.total=(row.qty||0)*(row.hargaSatuan||0);
+      DB.saveAP({...row}).catch(()=>{});
+      saved++;
+    });
+    if (saved) { Notify.success(saved+' baris diperbarui'); applyFilter(); }
+  }
+
+  function _onGridPaste(tblId, startRow, startCol, pasteRows) {
+    const tbody = document.querySelector('#ap-main-table tbody');
+    if (!tbody) return;
+    let saved = 0;
+    pasteRows.forEach((cols, ri) => {
+      const tr = tbody.children[startRow+ri]; if (!tr) return;
+      const id = tr.id.replace('ap-row-','');
+      const row = _ap.find(r=>r.id===id); if (!row) return;
+      cols.forEach((val, ci) => {
+        const key = _AP_COL_MAP[startCol+ci]; if (!key) return;
+        const isNum = key==='qty'||key==='hargaSatuan'||key==='total';
+        row[key] = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
+      });
+      if (row.qty && row.hargaSatuan) row.total=(row.qty||0)*(row.hargaSatuan||0);
+      DB.saveAP({...row}).catch(()=>{});
+      saved++;
+    });
+    if (saved) { Notify.success(saved+' baris diperbarui'); applyFilter(); }
+  }
 
   function _updateSummaryCards(data) {
     const el = document.getElementById('ap-footer-total');
@@ -1323,7 +1368,7 @@ const APModule = (() => {
     document.removeEventListener('click', _apOutsideClick);
     document.getElementById('_val-popup')?.remove();
     const row = _ap.find(r=>r.id===id);
-    if (row && row._isNew && !(row.keterangan||'').trim()) {
+    if (row && row._isNew && !(row.keterangan||row.item||'').trim()) {
       _apEditId = null;
       _ap = _ap.filter(r => r.id !== id);
       DB.deleteAP(id).catch(() => {});
@@ -1331,7 +1376,6 @@ const APModule = (() => {
       Notify.info('Baris baru dibatalkan');
       return;
     }
-    document.removeEventListener('click', _apOutsideClick);
     _apEditId = null;
     if (row && row._orig) { const orig=JSON.parse(row._orig); Object.keys(orig).forEach(k=>{ row[k]=orig[k]; }); delete row._orig; }
     applyFilter();

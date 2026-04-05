@@ -1345,8 +1345,8 @@ const DailyOrderModule = (() => {
   }
 
   function _cancelEdit() {
+    document.removeEventListener('click', _doOutsideClick);
     if (_editingItemId === 'new') {
-      // Keluar dari mode tambah baris baru
       _editingItemId = null;
       _renderContent();
       Notify.info('Baris baru dibatalkan');
@@ -1975,7 +1975,26 @@ const DailyOrderModule = (() => {
   function startEditItem(itemId, focusField) {
     _editingItemId = itemId;
     _renderContent();
-    setTimeout(() => { _initItemCombo(); document.getElementById(focusField || 'di-item')?.focus(); }, 60);
+    setTimeout(() => {
+      _initItemCombo();
+      document.getElementById(focusField || 'di-item')?.focus();
+      // Click outside to save & exit edit
+      document.removeEventListener('click', _doOutsideClick);
+      setTimeout(() => document.addEventListener('click', _doOutsideClick), 50);
+    }, 60);
+  }
+
+  function _doOutsideClick(e) {
+    if (!_editingItemId) return;
+    if (e.target.closest('.becca-combo-drop,.modal-overlay,.notify-popup')) return;
+    const grid = document.getElementById('do-grid');
+    if (grid && !grid.contains(e.target)) {
+      document.removeEventListener('click', _doOutsideClick);
+      const item = document.getElementById('di-item')?.value?.trim();
+      if (_editingItemId === 'new' && !item) { _cancelEdit(); return; }
+      if (item) _saveEditRow();
+      else _cancelEdit();
+    }
   }
 
   /* ── Bulk Delete ── */

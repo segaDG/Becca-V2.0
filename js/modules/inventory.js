@@ -1278,6 +1278,56 @@ const InventoryModule = (() => {
       </div>
       ${UI.pagination({ page: _invLogPage, totalPages: totalPages, total: sorted.length, perPage: _invLogPerPage, onPage: 'InventoryModule.goInvLogPage', onPerPage: 'InventoryModule.setInvLogPerPage', label: 'baris' })}
     `;
+    // Wire GridSelect drag-copy & paste
+    if (window.GridSelect) {
+      GridSelect.onFill('inv-grid', _onGridFill);
+      GridSelect.onPaste('inv-grid', _onGridPaste);
+    }
+  }
+
+  // GridSelect column map: index → field name
+  const _IV_COL_MAP = ['','tgl','itemNama','jenis','jumlah','harga','kodeAktivitas','hpp','pengambil','penanggungJawab','catatan'];
+
+  function _onGridFill(tblId, colIdx, srcRow, targetRows, val) {
+    const tbody = document.getElementById('inv-tbody');
+    if (!tbody) return;
+    const key = _IV_COL_MAP[colIdx];
+    if (!key) return;
+    const isNum = key==='jumlah'||key==='harga';
+    const parsed = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
+    let saved = 0;
+    targetRows.forEach(ri => {
+      const tr = tbody.children[ri]; if (!tr) return;
+      const id = tr.dataset.id;
+      const row = _logs.find(r=>r.id===id);
+      if (!row || _invLocked.has(id)) return;
+      row[key] = parsed;
+      if (key==='jumlah'||key==='harga') _recalcStok();
+      DB.saveInventoryLog({...row}).catch(()=>{});
+      saved++;
+    });
+    if (saved) { Notify.success(saved+' baris diperbarui'); renderTransaksi(); renderStok(); }
+  }
+
+  function _onGridPaste(tblId, startRow, startCol, pasteRows) {
+    const tbody = document.getElementById('inv-tbody');
+    if (!tbody) return;
+    let saved = 0;
+    pasteRows.forEach((cols, ri) => {
+      const tr = tbody.children[startRow+ri]; if (!tr) return;
+      const id = tr.dataset.id;
+      const row = _logs.find(r=>r.id===id);
+      if (!row || _invLocked.has(id)) return;
+      cols.forEach((val, ci) => {
+        const key = _IV_COL_MAP[startCol+ci];
+        if (!key) return;
+        const isNum = key==='jumlah'||key==='harga';
+        row[key] = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
+      });
+      DB.saveInventoryLog({...row}).catch(()=>{});
+      saved++;
+    });
+    if (saved) { _recalcStok(); Notify.success(saved+' baris diperbarui'); renderTransaksi(); renderStok(); }
   }
 
   function _ivRowView(r, rowNum, canEdit) {
