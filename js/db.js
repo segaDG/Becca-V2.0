@@ -793,6 +793,13 @@ const DB = (() => {
     // PENTING: exclude _privileges, _customRoles, _users dari local agar tidak overwrite Supabase
     const local = JSON.parse(localStorage.getItem('becca_settings') || '{}');
     delete local._privileges; delete local._customRoles; delete local._users;
+    // KRITIS: Jangan bawa _privileges dari supaBase ke merged kecuali data secara eksplisit mengandung _privileges
+    // Ini mencegah save settings lain (food cost, logo) menimpa privileges yang lebih baru
+    if (!data._privileges) {
+      delete supaBase._privileges;
+    }
+    if (!data._customRoles) delete supaBase._customRoles;
+    if (!data._users) delete supaBase._users;
     // supaBase (cloud) → local (override lokal) → data (nilai baru)
     const merged = { ...supaBase, ...local, ...data, id: 'main' };
     // Jangan simpan _privileges/_users/_customRoles di becca_settings — mereka punya storage sendiri
