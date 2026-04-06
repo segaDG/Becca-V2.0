@@ -108,6 +108,14 @@ const CustomerModule = (() => {
       _data = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(_defaultData));
     }
 
+    // One-time: clear deleted list for default customers yang mungkin salah terhapus oleh dedup
+    if (!localStorage.getItem('becca_cust_undelete_v1')) {
+      const defaultIds = new Set(_defaultData.map(d => String(d.id)));
+      const cleaned = _getDeletedIds().filter(id => !defaultIds.has(String(id)));
+      localStorage.setItem(_DELETED_KEY, JSON.stringify(cleaned));
+      localStorage.setItem('becca_cust_undelete_v1', '1');
+    }
+
     // Filter out customers yang sudah dihapus tapi masih ada di DB
     const _deletedIds = _getDeletedIds();
     if (_deletedIds.length) {
@@ -167,25 +175,29 @@ const CustomerModule = (() => {
       if (canon) c.nama = canon;
       if (!c.customerId && _ID_MAP[c.nama]) c.customerId = _ID_MAP[c.nama];
     });
-    // De-duplicate case-insensitively: keep the entry with customerId (or canonical casing)
+    // One-time recovery: re-seed missing default customers ke Supabase
+    if (!localStorage.getItem('becca_cust_recovery_v1')) {
+      const existingNames = new Set(_data.map(c => c.nama.trim().toLowerCase()));
+      const missing = _defaultData.filter(d => !existingNames.has(d.nama.trim().toLowerCase()));
+      if (missing.length) {
+        console.log('[Customer] Recovering', missing.length, 'missing customers');
+        for (const m of missing) {
+          const copy = JSON.parse(JSON.stringify(m));
+          try { const saved = await DB.saveCustomer(copy); _data.push(saved); } catch {}
+        }
+      }
+      localStorage.setItem('becca_cust_recovery_v1', '1');
+    }
+
+    // De-duplicate: DISPLAY only (tidak hapus dari DB)
     const _seen = {};
-    const _toDelete = [];
     _data = _data.filter(c => {
       const key = c.nama.trim().toLowerCase();
       if (!_seen[key]) { _seen[key] = c; return true; }
       const existing = _seen[key];
-      // Keep whichever has customerId; if tie, keep existing
-      if (!existing.customerId && c.customerId) {
-        _toDelete.push(existing.id);
-        _seen[key] = c;
-        return true;
-      }
-      _toDelete.push(c.id);
+      if (!existing.customerId && c.customerId) { _seen[key] = c; return true; }
       return false;
     });
-    if (_toDelete.length) {
-      _toDelete.forEach(id => DB.deleteCustomer(id).catch(()=>{}));
-    }
 
     // Migrate: set pb1/pph23 for known customers if not yet set
     const _TAX_BY_NAME = {
