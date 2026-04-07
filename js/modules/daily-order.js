@@ -314,6 +314,21 @@ const DailyOrderModule = (() => {
     }
     const form         = _currentForm();
     const items        = form ? (form.items || []) : [];
+    // Auto-sync harga dari inventory jika item belum punya harga
+    if (items.length && _inventory.length) {
+      let needSave = false;
+      items.forEach(it => {
+        if (_n(it.hargaSatuan)) return; // sudah ada harga
+        const inv = _inventory.find(i => (i.nama||'').toLowerCase() === (it.item||'').toLowerCase());
+        if (inv && inv.hargaSatuan) {
+          it.hargaSatuan = inv.hargaSatuan;
+          it.estTotal = _n(it.estQty) * _n(inv.hargaSatuan);
+          if (_n(it.aktQty)) it.aktTotal = _n(it.aktQty) * _n(inv.hargaSatuan);
+          needSave = true;
+        }
+      });
+      if (needSave && form) DB.saveDailyOrderForm(form).catch(()=>{});
+    }
     const totalEst     = items.reduce((s,it) => s + _n(it.estTotal), 0);
     const totalAkt     = items.reduce((s,it) => s + _n(it.aktTotal), 0);
 
