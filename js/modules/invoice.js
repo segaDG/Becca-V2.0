@@ -1164,10 +1164,10 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     const yr  = tgl1 ? tgl1.getFullYear() : '';
     const periodeStr = tgl1 && tgl2 ? `${sd} – ${ed} ${mth} ${yr}` : '--';
 
-    // Kolom aktif (tanpa spare) — pakai nama lengkap
-    const ALL_COLS_KEYS = _PRINT_COLS.map(c => c.key);
+    // Kolom aktif — semua kolom termasuk spare (agar subtotal cocok dengan item rows)
+    const ALL_COLS_KEYS = _ORDER_COLS.map(c => c.key);
     const ALL_COLS_LABEL = {};
-    _PRINT_COLS.forEach(c => { ALL_COLS_LABEL[c.key] = c.full; });
+    _ORDER_COLS.forEach(c => { ALL_COLS_LABEL[c.key] = c.full; });
 
     let activeCols = [];
     if (orderRec?.totals) {
@@ -1303,8 +1303,11 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         if (!qty) return '';
         const descMap = {
           shift1:'Food Catering Service Shift 1 — Makan Siang',
+          spare1:'Food Catering Service Shift 1 — Spare',
           shift2:'Food Catering Service Shift 2 — Makan Sore',
+          spare2:'Food Catering Service Shift 2 — Spare',
           shift3:'Food Catering Service Shift 3 — Makan Malam',
+          spare3:'Food Catering Service Shift 3 — Spare',
           snack1:'Food Catering Service Shift 1 — Snack',
           snack2:'Food Catering Service Shift 2 — Takjil',
           snack3:'Food Catering Service Shift 3 — Takjil',
