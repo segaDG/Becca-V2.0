@@ -88,13 +88,28 @@ const ChatModule = (() => {
     _renderRoomList();
   }
 
+  function _findOther(r, me) {
+    if (r.type==='group') return null;
+    // Try by id first
+    const otherId = (r.members||[]).find(m=>m!==me?.id);
+    let other = _users.find(u=>u.id===otherId);
+    // Fallback: try memberUsernames
+    if (!other && r.memberUsernames) {
+      const otherUn = r.memberUsernames.find(u=>u!==me?.username);
+      if (otherUn) other = _users.find(u=>u.username===otherUn);
+    }
+    // Fallback: try lastSender
+    if (!other && r.lastSender) other = _users.find(u=>u.nama===r.lastSender);
+    return other;
+  }
+
   function _renderRoomList() {
     const el = document.getElementById('cht-rooms'); if (!el) return;
     const me = _me();
     el.innerHTML = _rooms.map(r => {
       const isG = r.type==='group';
-      const other = !isG ? _users.find(u=>u.id===(r.members||[]).find(m=>m!==me?.id)) : null;
-      const nm = isG ? r.name : (other?.nama||'Unknown');
+      const other = _findOther(r, me);
+      const nm = isG ? r.name : (other?.nama||r.lastSender||'Unknown');
       const act = _activeRoom?.id===r.id;
       return `<div class="cht-ri ${act?'act':''}" onclick="ChatModule.openRoom('${r.id}')">
         <div style="width:38px;height:38px;border-radius:50%;background:${_uc(nm)};color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${isG?(r.name?.charAt(0)||'G'):_initials(nm)}</div>
@@ -123,13 +138,16 @@ const ChatModule = (() => {
     const el = document.getElementById('cht-area'); if (!el||!_activeRoom) return;
     const me = _me(), r = _activeRoom;
     const isG = r.type==='group';
-    const other = !isG ? _users.find(u=>u.id===(r.members||[]).find(m=>m!==me?.id)) : null;
-    const nm = isG ? r.name : (other?.nama||'Chat');
+    const other = _findOther(r, me);
+    const nm = isG ? r.name : (other?.nama||r.lastSender||'Chat');
     el.innerHTML = `
       <div style="padding:10px var(--s4);border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:var(--s3);flex-shrink:0">
         <button class="btn-icon" style="display:none" id="cht-back" onclick="ChatModule._back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
         <div style="width:34px;height:34px;border-radius:50%;background:${_uc(nm)};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${isG?(r.name?.charAt(0)||'G'):_initials(nm)}</div>
         <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--heading)">${_esc(nm)}</div></div>
+        <button onclick="ChatModule.deleteRoom('${r.id}')" title="Hapus Chat" style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);cursor:pointer;color:#ef4444;display:flex;align-items:center;justify-content:center">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        </button>
       </div>
       <div id="cht-msgs" style="flex:1;overflow-y:auto;padding:var(--s3);display:flex;flex-direction:column;gap:4px"></div>
       <div style="padding:var(--s2) var(--s3);border-top:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:var(--s2);flex-shrink:0">
@@ -286,6 +304,30 @@ const ChatModule = (() => {
 
   function _search(q) { const l=q.toLowerCase(); document.querySelectorAll('.cht-ri').forEach(el=>{el.style.display=el.textContent.toLowerCase().includes(l)?'':'none';}); }
 
-  return { init, openRoom, send, _media, newChat, _filt, _dm, _grp, _search, _back };
+  async function deleteRoom(roomId) {
+    const r = _rooms.find(x=>x.id===roomId);
+    if (!r) return;
+    const me = _me();
+    const other = _findOther(r, me);
+    const nm = r.type==='group' ? r.name : (other?.nama||r.lastSender||'Chat');
+    const ok = await Modal.confirm({
+      title: 'Hapus Chat',
+      message: `Hapus chat dengan <strong>${_esc(nm)}</strong>?<br><span style="font-size:12px;color:var(--text-3)">Semua pesan akan dihapus permanen.</span>`,
+      danger: true, confirmText: 'Hapus Chat',
+    });
+    if (!ok) return;
+    // Delete messages then room
+    try {
+      await DB.deleteChatMessagesByRoom(roomId);
+      await DB.deleteChatRoom(roomId);
+    } catch(e) { console.warn('deleteRoom:', e); }
+    _rooms = _rooms.filter(x=>x.id!==roomId);
+    _activeRoom = null; _messages = []; _msgIds.clear();
+    const page = document.getElementById('page-chat');
+    _render(page);
+    Notify.success('Chat dihapus');
+  }
+
+  return { init, openRoom, send, _media, newChat, _filt, _dm, _grp, _search, _back, deleteRoom };
 })();
 window.ChatModule = ChatModule;

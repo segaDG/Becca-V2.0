@@ -673,6 +673,19 @@ const DB = (() => {
     return _fromRows(data||[]).reverse();
   };
   const saveChatMessage = (data) => { if (!data.id) data.id = Utils.uid(); return _save('chat_messages', data); };
+  const deleteChatRoom  = (id) => _delete('chat_rooms', id);
+  const deleteChatMessagesByRoom = async (roomId) => {
+    const sb = await _initClient();
+    if (!sb) return;
+    // Fetch all message IDs for this room, then delete
+    const { data } = await sb.from('chat_messages').select('id').filter('data->>roomId','eq',roomId);
+    if (data?.length) {
+      for (const row of data) { await sb.from('chat_messages').delete().eq('id', row.id); }
+    }
+    // Also clear from cache
+    const cache = _memCache['chat_messages'];
+    if (cache) cache.data = cache.data.filter(m => m.roomId !== roomId);
+  };
 
   // ── PERSONAL NOTES ────────────────────────────────────────
   const getPersonalNotes   = ()     => _get('personal_notes');
@@ -1196,7 +1209,7 @@ const DB = (() => {
     getMenuLibrary, saveMenuItem, deleteMenuItem,
     getMenuPlans, saveMenuPlan, deleteMenuPlan,
     // Chat
-    getChatRooms, saveChatRoom, getChatMessages, getChatMessagesByRoom, saveChatMessage,
+    getChatRooms, saveChatRoom, deleteChatRoom, getChatMessages, getChatMessagesByRoom, saveChatMessage, deleteChatMessagesByRoom,
     // Personal Notes
     getPersonalNotes, savePersonalNote, deletePersonalNote,
     // AP
