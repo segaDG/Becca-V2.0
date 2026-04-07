@@ -108,29 +108,14 @@ const CustomerModule = (() => {
       _data = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(_defaultData));
     }
 
-    // One-time: clear deleted list for default customers yang mungkin salah terhapus oleh dedup
-    if (!localStorage.getItem('becca_cust_undelete_v1')) {
-      const defaultIds = new Set(_defaultData.map(d => String(d.id)));
-      const cleaned = _getDeletedIds().filter(id => !defaultIds.has(String(id)));
-      localStorage.setItem(_DELETED_KEY, JSON.stringify(cleaned));
-      localStorage.setItem('becca_cust_undelete_v1', '1');
+    // Filter out soft-deleted (trash) customers — tampilkan hanya di trash bin
+    const trash = _getTrash();
+    if (trash.length) {
+      const trashIds = new Set(trash.map(t => String(t.id)));
+      _data = _data.filter(c => !trashIds.has(String(c.id)));
     }
-
-    // Filter out customers yang sudah dihapus tapi masih ada di DB
-    const _deletedIds = _getDeletedIds();
-    if (_deletedIds.length) {
-      const delSet = new Set(_deletedIds.map(String));
-      const beforeLen = _data.length;
-      _data = _data.filter(c => !delSet.has(String(c.id)));
-      if (_data.length < beforeLen) {
-        console.log('[Customer] Filtered out', beforeLen - _data.length, 'deleted customers from DB');
-      }
-      // Retry DB deletion untuk semua ID yang masih pending
-      _deletedIds.forEach(id => DB.deleteCustomer(id).then(() => {
-        const ids = _getDeletedIds().filter(x => String(x) !== String(id));
-        localStorage.setItem(_DELETED_KEY, JSON.stringify(ids));
-      }).catch(() => {}));
-    }
+    // Auto-purge: hapus permanen dari DB setelah 30 hari di trash
+    _autoPurgeTrash();
 
     // Migrate: rename old names to canonical full names
     const _RENAME_MAP = {
@@ -175,20 +160,6 @@ const CustomerModule = (() => {
       if (canon) c.nama = canon;
       if (!c.customerId && _ID_MAP[c.nama]) c.customerId = _ID_MAP[c.nama];
     });
-    // One-time recovery: re-seed missing default customers ke Supabase
-    if (!localStorage.getItem('becca_cust_recovery_v1')) {
-      const existingNames = new Set(_data.map(c => c.nama.trim().toLowerCase()));
-      const missing = _defaultData.filter(d => !existingNames.has(d.nama.trim().toLowerCase()));
-      if (missing.length) {
-        console.log('[Customer] Recovering', missing.length, 'missing customers');
-        for (const m of missing) {
-          const copy = JSON.parse(JSON.stringify(m));
-          try { const saved = await DB.saveCustomer(copy); _data.push(saved); } catch {}
-        }
-      }
-      localStorage.setItem('becca_cust_recovery_v1', '1');
-    }
-
     // De-duplicate: DISPLAY only (tidak hapus dari DB)
     const _seen = {};
     _data = _data.filter(c => {
@@ -304,6 +275,10 @@ const CustomerModule = (() => {
           style="font-size:11px;color:var(--text-2)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
           Recalc Harga
+        </button>
+        <button class="btn btn-ghost" onclick="CustomerModule.openTrash()" title="Trash">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M8 6V4h8v2"/></svg>
+          Trash
         </button>
         <button class="btn btn-primary" onclick="CustomerModule.openModal()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
@@ -863,15 +838,25 @@ const CustomerModule = (() => {
     _render();
   }
 
-  // Daftar ID customer yang sudah dihapus (persist agar tidak muncul lagi dari DB)
-  const _DELETED_KEY = 'becca_customers_deleted';
-  function _getDeletedIds() {
-    try { return JSON.parse(localStorage.getItem(_DELETED_KEY) || '[]'); } catch { return []; }
+  /* ── TRASH BIN SYSTEM ── */
+  const _TRASH_KEY = 'becca_customers_trash';
+  const _DELETED_KEY = 'becca_customers_deleted'; // legacy compat
+
+  function _getTrash() {
+    try { return JSON.parse(localStorage.getItem(_TRASH_KEY) || '[]'); } catch { return []; }
   }
-  function _addDeletedId(id) {
-    const sid = String(id);
-    const ids = _getDeletedIds().map(String);
-    if (!ids.includes(sid)) { ids.push(sid); localStorage.setItem(_DELETED_KEY, JSON.stringify(ids)); }
+  function _saveTrash(arr) { localStorage.setItem(_TRASH_KEY, JSON.stringify(arr)); }
+
+  function _autoPurgeTrash() {
+    const trash = _getTrash();
+    const now = Date.now();
+    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+    const expired = trash.filter(t => now - new Date(t.deletedAt).getTime() > THIRTY_DAYS);
+    if (expired.length) {
+      expired.forEach(t => DB.deleteCustomer(t.id).catch(()=>{}));
+      _saveTrash(trash.filter(t => now - new Date(t.deletedAt).getTime() <= THIRTY_DAYS));
+      console.log('[Customer] Auto-purged', expired.length, 'customers from trash (>30 days)');
+    }
   }
 
   async function deleteCustomer(id) {
@@ -879,42 +864,77 @@ const CustomerModule = (() => {
     if (!cust) return;
     const ok = await Modal.confirm({
       title: 'Hapus Customer',
-      message: `Hapus <strong>${cust.nama}</strong>? Tindakan ini tidak dapat dibatalkan.`,
+      message: `<strong>${cust.nama}</strong> akan dipindahkan ke Trash.<br><span style="font-size:12px;color:var(--text-3)">Akan dihapus permanen setelah 30 hari, atau bisa di-restore dari Trash.</span>`,
       danger: true,
-      confirmText: 'Ya, Hapus',
+      confirmText: 'Pindahkan ke Trash',
     });
     if (!ok) return;
+    // Move to trash (soft delete)
+    const trash = _getTrash();
+    trash.push({ id: cust.id, nama: cust.nama, deletedAt: new Date().toISOString(), data: JSON.parse(JSON.stringify(cust)) });
+    _saveTrash(trash);
+    // Remove from active data
     const i = _data.findIndex(c=>c.id===id || String(c.id)===String(id));
-    if (i < 0) return;
-
-    // 1. Simpan ID ke daftar deleted (persist, tidak hilang meski DB gagal)
-    _addDeletedId(id);
-
-    // 2. Hapus dari memory + localStorage
-    _data.splice(i, 1);
+    if (i >= 0) _data.splice(i, 1);
     localStorage.setItem('becca_customers', JSON.stringify(_data));
-
-    // 3. Hapus dari DB (retry jika gagal)
-    let dbOk = false;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        await DB.deleteCustomer(id);
-        dbOk = true;
-        break;
-      } catch(e) {
-        console.warn(`deleteCustomer DB attempt ${attempt+1}:`, e);
-        if (attempt < 2) await new Promise(r => setTimeout(r, 500));
-      }
-    }
-
-    if (dbOk) {
-      // Berhasil hapus dari DB → bersihkan dari daftar deleted
-      const ids = _getDeletedIds().filter(x => x !== id);
-      localStorage.setItem(_DELETED_KEY, JSON.stringify(ids));
-    }
-
-    Notify.success('Customer dihapus', cust.nama);
+    Notify.success('Customer dipindahkan ke Trash');
     _render();
+  }
+
+  function openTrash() {
+    const trash = _getTrash();
+    const mid = 'cust-trash-'+Date.now();
+    const now = Date.now();
+    const THIRTY_DAYS = 30*24*60*60*1000;
+    Modal.open({
+      id: mid, title: '🗑 Trash (' + trash.length + ')', size: 'modal-lg',
+      body: !trash.length
+        ? '<div style="padding:32px;text-align:center;color:var(--text-3)">Trash kosong</div>'
+        : `<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Customer di trash akan dihapus permanen setelah 30 hari.</div>
+           <table class="table" style="font-size:12px"><thead><tr>
+             <th>Nama</th><th style="width:120px">Dihapus</th><th style="width:100px">Sisa</th><th style="width:140px">Aksi</th>
+           </tr></thead><tbody>${trash.map(t => {
+             const daysLeft = Math.max(0, Math.ceil((THIRTY_DAYS - (now - new Date(t.deletedAt).getTime())) / (24*60*60*1000)));
+             return `<tr>
+               <td>${t.nama}</td>
+               <td>${new Date(t.deletedAt).toLocaleDateString('id-ID')}</td>
+               <td><span style="color:${daysLeft<7?'var(--danger)':'var(--text-3)'}">${daysLeft} hari</span></td>
+               <td style="white-space:nowrap">
+                 <button class="btn btn-sm btn-ghost" onclick="CustomerModule._restoreFromTrash('${t.id}','${mid}')">↩ Restore</button>
+                 <button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="CustomerModule._permanentDelete('${t.id}','${mid}')">✕ Hapus</button>
+               </td>
+             </tr>`;
+           }).join('')}</tbody></table>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+  }
+
+  async function _restoreFromTrash(id, mid) {
+    const trash = _getTrash();
+    const item = trash.find(t => String(t.id) === String(id));
+    if (!item) return;
+    // Restore data
+    _data.push(item.data);
+    localStorage.setItem('becca_customers', JSON.stringify(_data));
+    // Remove from trash
+    _saveTrash(trash.filter(t => String(t.id) !== String(id)));
+    Notify.success(item.nama + ' di-restore');
+    Modal.close(mid);
+    _render();
+  }
+
+  async function _permanentDelete(id, mid) {
+    const ok = await Modal.confirm({
+      title: 'Hapus Permanen',
+      message: 'Data customer akan dihapus permanen dan tidak bisa dikembalikan.',
+      danger: true, confirmText: 'Hapus Permanen',
+    });
+    if (!ok) return;
+    const trash = _getTrash();
+    _saveTrash(trash.filter(t => String(t.id) !== String(id)));
+    DB.deleteCustomer(id).catch(()=>{});
+    Notify.success('Customer dihapus permanen');
+    Modal.close(mid);
   }
 
   function _fillAllShifts() {
@@ -1053,7 +1073,7 @@ const CustomerModule = (() => {
     Notify.success(`Koordinat berhasil diambil: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
   }
 
-  return { init, switchTab, setSearch, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, _previewLoc, _useMyLocation, _parseMapLink };
+  return { init, switchTab, setSearch, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, openTrash, _restoreFromTrash, _permanentDelete, _previewLoc, _useMyLocation, _parseMapLink };
 })();
 
 window.CustomerModule = CustomerModule;
