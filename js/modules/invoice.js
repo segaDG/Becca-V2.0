@@ -1613,13 +1613,12 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
           </table>
           <button onclick="InvoiceModule._addAdditionalRow()" style="padding:5px 12px;font-size:11px;background:#1A7340;color:#fff;border:none;border-radius:5px;cursor:pointer">+ Tambah Baris</button>
         </div>
-        <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:10px">
-          <button class="btn btn-ghost" onclick="Modal.close(window._icCreateMid)">Batal</button>
-          <button class="btn btn-primary" onclick="InvoiceModule._showConfirmPreview()" style="padding:8px 22px;font-size:13px">
-            + Create Invoice
-          </button>
-        </div>`,
-      buttons: []
+      `,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close(window._icCreateMid)">Batal</button>
+        <button class="btn btn-primary" onclick="InvoiceModule._showConfirmPreview()" style="padding:8px 22px;font-size:13px">
+          + Create Invoice
+        </button>`
     });
   }
 
