@@ -220,26 +220,28 @@ const DB = (() => {
     if (_realtimeActive.has(table)) return;
     _realtimeActive.add(table);
     subscribe(table, (payload) => {
+      // Update memory cache if it exists (optional — some modules bypass _get)
       const cache = _memCache[table];
-      if (!cache) return;
-      const row = payload.new ? _fromRow(payload.new) : null;
-      const oldRow = payload.old;
-      if (payload.eventType === 'INSERT' && row) {
-        cache.data.unshift(row);
-        cache.ts = Date.now();
-      } else if (payload.eventType === 'UPDATE' && row) {
-        const idx = cache.data.findIndex(r => r.id === row.id);
-        if (idx >= 0) cache.data[idx] = row; else cache.data.unshift(row);
-        cache.ts = Date.now();
-      } else if (payload.eventType === 'DELETE' && oldRow) {
-        cache.data = cache.data.filter(r => r.id !== oldRow.id);
-        cache.ts = Date.now();
+      if (cache) {
+        const row = payload.new ? _fromRow(payload.new) : null;
+        const oldRow = payload.old;
+        if (payload.eventType === 'INSERT' && row) {
+          cache.data.unshift(row);
+          cache.ts = Date.now();
+        } else if (payload.eventType === 'UPDATE' && row) {
+          const idx = cache.data.findIndex(r => r.id === row.id);
+          if (idx >= 0) cache.data[idx] = row; else cache.data.unshift(row);
+          cache.ts = Date.now();
+        } else if (payload.eventType === 'DELETE' && oldRow) {
+          cache.data = cache.data.filter(r => r.id !== oldRow.id);
+          cache.ts = Date.now();
+        }
+        // Also update localStorage
+        if (!NO_CACHE.includes(table)) {
+          try { localStorage.setItem('becca_' + table, JSON.stringify(cache.data)); } catch {}
+        }
       }
-      // Also update localStorage
-      if (!NO_CACHE.includes(table)) {
-        try { localStorage.setItem('becca_' + table, JSON.stringify(cache.data)); } catch {}
-      }
-      // Notify listeners
+      // ALWAYS notify listeners — even if cache is null
       (_realtimeListeners[table] || []).forEach(fn => { try { fn(payload); } catch {} });
     });
   }
@@ -665,7 +667,10 @@ const DB = (() => {
   // Fetch messages for a specific room only (server-side filter)
   const getChatMessagesByRoom = async (roomId, limit=50) => {
     const sb = await _initClient();
-    if (!sb) return [];
+    if (!sb) {
+      // Fallback: filter from localStorage
+      try { const all = JSON.parse(localStorage.getItem('becca_chat_messages')||'[]'); return all.filter(m=>m.roomId===roomId).slice(-limit); } catch { return []; }
+    }
     const { data, error } = await sb.from('chat_messages').select('*')
       .filter('data->>roomId','eq',roomId)
       .order('created_at',{ascending:false}).limit(limit);
