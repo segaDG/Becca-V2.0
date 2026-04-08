@@ -5,7 +5,7 @@
    Edit: messages editable within 1 min if unread
    Task: share existing tasks in chat
 ============================================ */
-console.log('[BECCA] ChatModule v20260408c loaded');
+console.log('[BECCA] ChatModule v20260408d loaded');
 
 const ChatModule = (() => {
   'use strict';
@@ -24,8 +24,11 @@ const ChatModule = (() => {
   /** Check if current user is a member of a room */
   function _isMember(room) {
     const me = _me(); if (!me) return false;
-    const m = room.members || [];
-    const mu = room.memberUsernames || [];
+    // Ensure arrays (guard against stringified JSON)
+    const m = Array.isArray(room.members) ? room.members : [];
+    const mu = Array.isArray(room.memberUsernames) ? room.memberUsernames : [];
+    // If room has no members data at all, hide it (legacy room — needs backfill)
+    if (!m.length && !mu.length) return false;
     return m.includes(me.id) || mu.includes(me.username);
   }
 
