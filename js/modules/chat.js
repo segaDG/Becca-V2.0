@@ -1,8 +1,11 @@
 /* ============================================
    BECCA V2.0 — Chat Module (Performance-optimized)
    Realtime messaging, photo/video via compressed URL
+   Privacy: rooms only visible to participants
+   Edit: messages editable within 1 min if unread
+   Task: share existing tasks in chat
 ============================================ */
-console.log('[BECCA] ChatModule v20260404b loaded');
+console.log('[BECCA] ChatModule v20260408a loaded');
 
 const ChatModule = (() => {
   'use strict';
@@ -17,13 +20,37 @@ const ChatModule = (() => {
   const CL = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#ef4444'];
   function _uc(n) { let h=0; for(const c of(n||'?')) h=h*31+c.charCodeAt(0); return CL[Math.abs(h)%CL.length]; }
 
+  /** Check if current user is a member of a room */
+  function _isMember(room) {
+    const me = _me(); if (!me) return false;
+    const m = room.members || [];
+    const mu = room.memberUsernames || [];
+    return m.includes(me.id) || mu.includes(me.username);
+  }
+
+  /** Check if message can be edited: sender is me, within 1 min, not yet read by others */
+  function _canEdit(msg) {
+    const me = _me(); if (!me) return false;
+    if (msg.senderId !== me.id && msg.senderUsername !== me.username) return false;
+    if (msg.type !== 'text') return false;
+    const age = (Date.now() - new Date(msg.createdAt)) / 1000;
+    if (age > 60) return false;
+    if (msg.readBy && msg.readBy.length > 0) {
+      const othersRead = msg.readBy.filter(uid => uid !== me.id && uid !== me.username);
+      if (othersRead.length > 0) return false;
+    }
+    return true;
+  }
+
   /* ═══ INIT ═══ */
   async function init() {
     const page = document.getElementById('page-chat');
     if (!page) return;
     page.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:40vh;color:var(--text-3)">Memuat chat...</div>';
     const [rooms, users] = await Promise.all([DB.getChatRooms().catch(()=>[]), DB.getUsers().catch(()=>[])]);
-    _rooms = rooms.sort((a,b)=>(b.lastMessageAt||b.createdAt||'').localeCompare(a.lastMessageAt||a.createdAt||''));
+    // Filter rooms: only show rooms where current user is a member
+    const allRooms = rooms.sort((a,b)=>(b.lastMessageAt||b.createdAt||'').localeCompare(a.lastMessageAt||a.createdAt||''));
+    _rooms = allRooms.filter(r => _isMember(r));
     _users = [...users]; Auth._defaultUsers.forEach(u=>{ if(!_users.find(x=>x.username===u.username)) _users.push(u); });
     _users = _users.filter(u=>u.aktif!==false);
     _setupRT();
@@ -33,6 +60,15 @@ const ChatModule = (() => {
   function _setupRT() {
     if (_rtSetup) return; _rtSetup = true;
     DB.onRealtimeChange('chat_messages', (pl) => {
+      if (pl.eventType === 'UPDATE') {
+        // Handle edited messages
+        const raw = pl.new; if (!raw) return;
+        const msg = raw.data ? (typeof raw.data==='string'?JSON.parse(raw.data):raw.data) : raw;
+        if (!msg) return;
+        const idx = _messages.findIndex(m=>m.id===msg.id);
+        if (idx>=0) { _messages[idx] = msg; _rerenderMsg(msg); }
+        return;
+      }
       if (pl.eventType !== 'INSERT') return;
       const raw = pl.new; if (!raw) return;
       const msg = raw.data ? (typeof raw.data==='string'?JSON.parse(raw.data):raw.data) : raw;
@@ -67,6 +103,12 @@ const ChatModule = (() => {
         .msg-b{max-width:70%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.5;animation:mi .15s ease}
         .msg-m{background:var(--primary);color:white;border-bottom-right-radius:4px;margin-left:auto}
         .msg-o{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px}
+        .msg-wrap{display:flex;flex-direction:column;position:relative}
+        .msg-edit-btn{display:none;position:absolute;top:2px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:10px;color:var(--text-2);z-index:1}
+        .msg-wrap:hover .msg-edit-btn{display:block}
+        .msg-edited{font-size:9px;font-style:italic;opacity:.6;margin-top:1px}
+        .task-card-chat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-width:200px;max-width:280px;cursor:pointer}
+        .task-card-chat:hover{border-color:var(--primary)}
         @keyframes mi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
         @media(max-width:768px){.cht-lay{grid-template-columns:1fr}.cht-side{display:${_activeRoom?'none':'flex'}}.cht-main{display:${_activeRoom?'flex':'none'}}}
       </style>
@@ -132,6 +174,20 @@ const ChatModule = (() => {
     // Mark as read
     try { const lr=JSON.parse(localStorage.getItem('becca_chat_lastread')||'{}'); lr[roomId]=new Date().toISOString(); localStorage.setItem('becca_chat_lastread',JSON.stringify(lr)); } catch{}
     if (typeof App!=='undefined'&&App._checkChatUnread) App._checkChatUnread();
+    // Mark messages as read by me
+    _markRead();
+  }
+
+  /** Mark all messages in active room as read by current user */
+  async function _markRead() {
+    if (!_activeRoom) return;
+    const me = _me(); if (!me) return;
+    const unread = _messages.filter(m => m.senderId !== me.id && m.senderUsername !== me.username && !(m.readBy||[]).includes(me.id));
+    for (const m of unread) {
+      if (!m.readBy) m.readBy = [];
+      m.readBy.push(me.id);
+      DB.saveChatMessage(m).catch(()=>{});
+    }
   }
 
   function _renderChat() {
@@ -145,6 +201,9 @@ const ChatModule = (() => {
         <button class="btn-icon" style="display:none" id="cht-back" onclick="ChatModule._back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
         <div style="width:34px;height:34px;border-radius:50%;background:${_uc(nm)};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${isG?(r.name?.charAt(0)||'G'):_initials(nm)}</div>
         <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--heading)">${_esc(nm)}</div></div>
+        <button onclick="ChatModule._shareTask()" title="Kirim Task" style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(99,102,241,.3);background:rgba(99,102,241,.07);cursor:pointer;color:var(--primary);display:flex;align-items:center;justify-content:center">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+        </button>
         <button onclick="ChatModule.deleteRoom('${r.id}')" title="Hapus Chat" style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.07);cursor:pointer;color:#ef4444;display:flex;align-items:center;justify-content:center">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
         </button>
@@ -181,25 +240,94 @@ const ChatModule = (() => {
       cont.insertAdjacentHTML('beforeend',`<div style="text-align:center;padding:2px 0"><span style="font-size:10px;padding:2px 10px;border-radius:var(--r-full);background:var(--surface2);color:var(--text-3)">${label}</span></div>`);
     }
     let content = '';
-    if (m.type==='image') content = `<img src="${m.mediaUrl}" style="max-width:220px;border-radius:8px;cursor:pointer;display:block" onclick="window.open(this.src,'_blank')" loading="lazy">${m.text?`<div style="margin-top:3px">${_esc(m.text)}</div>`:''}`;
-    else if (m.type==='video') content = `<video src="${m.mediaUrl}" controls preload="none" style="max-width:220px;border-radius:8px;display:block"></video>`;
-    else content = `<div style="white-space:pre-wrap">${_esc(m.text)}</div>`;
+    if (m.type==='task') {
+      // Task card in chat
+      const t = m.taskData || {};
+      const prioCol = t.priority==='high'?'var(--danger)':t.priority==='medium'?'var(--warning)':'var(--text-3)';
+      content = `<div class="task-card-chat" onclick="if(window.TaskModule){App.navigate('task');setTimeout(()=>TaskModule.openModal&&TaskModule.openModal('${t.id}'),300)}">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="color:var(--primary);flex-shrink:0"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+          <span style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--primary);font-weight:700">Task</span>
+        </div>
+        <div style="font-size:13px;font-weight:600;color:var(--heading);margin-bottom:4px">${_esc(t.title||t.judul||'')}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${t.status?`<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:var(--surface);border:1px solid var(--border)">${_esc(t.status)}</span>`:''}
+          ${t.priority?`<span style="font-size:10px;padding:1px 6px;border-radius:4px;color:${prioCol};background:${prioCol}15;border:1px solid ${prioCol}30">${_esc(t.priority)}</span>`:''}
+          ${t.assignee?`<span style="font-size:10px;color:var(--text-3)">${_esc(t.assignee)}</span>`:''}
+        </div>
+      </div>`;
+    } else if (m.type==='image') {
+      content = `<img src="${m.mediaUrl}" style="max-width:220px;border-radius:8px;cursor:pointer;display:block" onclick="window.open(this.src,'_blank')" loading="lazy">${m.text?`<div style="margin-top:3px">${_esc(m.text)}</div>`:''}`;
+    } else if (m.type==='video') {
+      content = `<video src="${m.mediaUrl}" controls preload="none" style="max-width:220px;border-radius:8px;display:block"></video>`;
+    } else {
+      content = `<div style="white-space:pre-wrap">${_esc(m.text)}</div>`;
+    }
     const dl = (m.type==='image'||m.type==='video')?`<a href="${m.mediaUrl}" download style="font-size:10px;color:var(--primary-h);margin-top:1px;display:block">\u2b07 Download</a>`:'';
-    cont.insertAdjacentHTML('beforeend',`<div style="display:flex;flex-direction:column;${isMine?'align-items:flex-end':'align-items:flex-start'}">
+    const editBtn = (isMine && m.type==='text' && _canEdit(m)) ? `<button class="msg-edit-btn" style="${isMine?'right:-4px':'left:-4px'}" onclick="ChatModule._editMsg('${m.id}')">Edit</button>` : '';
+    const editedTag = m.editedAt ? `<div class="msg-edited">diedit</div>` : '';
+    cont.insertAdjacentHTML('beforeend',`<div class="msg-wrap" id="msg-${m.id}" style="${isMine?'align-items:flex-end':'align-items:flex-start'}">
+      ${editBtn}
       ${!isMine&&_activeRoom?.type==='group'?`<span style="font-size:9px;font-weight:600;color:${_uc(m.senderName)};padding-left:4px">${_esc(m.senderName||'')}</span>`:''}
-      <div class="msg-b ${isMine?'msg-m':'msg-o'}">${content}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.5)':'color:var(--text-3)'};text-align:right;margin-top:1px">${_hm(m.createdAt)}</div></div>${dl}
+      <div class="msg-b ${isMine?'msg-m':'msg-o'}">${content}${editedTag}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.5)':'color:var(--text-3)'};text-align:right;margin-top:1px">${_hm(m.createdAt)}</div></div>${dl}
     </div>`);
     _scrollEnd();
+  }
+
+  /** Re-render a single message in place (after edit) */
+  function _rerenderMsg(msg) {
+    const el = document.getElementById('msg-'+msg.id);
+    if (!el) return;
+    const cont = el.parentElement;
+    const next = el.nextSibling;
+    el.remove();
+    // Create temp container, append msg, then insert before next
+    const tmp = document.createElement('div');
+    cont.appendChild(tmp);
+    _appendMsg(msg, cont);
+    // Move last child before next if needed
+    if (next && cont.lastChild !== next) {
+      cont.insertBefore(cont.lastChild, next);
+    }
+    tmp.remove();
   }
 
   function _scrollEnd() { setTimeout(()=>{ const el=document.getElementById('cht-msgs'); if(el) el.scrollTop=el.scrollHeight; },30); }
   function _back() { _activeRoom=null; _render(); }
 
+  /* ═══ EDIT MESSAGE ═══ */
+  function _editMsg(msgId) {
+    const msg = _messages.find(m=>m.id===msgId);
+    if (!msg || !_canEdit(msg)) { Notify.warning('Pesan tidak bisa diedit'); return; }
+    const mid = 'edit-msg-'+Date.now();
+    Modal.open({id:mid, title:'Edit Pesan', size:'modal-md',
+      body:`<div class="form-group">
+        <textarea id="edit-msg-text" class="form-control" rows="3" style="font-size:13px">${_esc(msg.text)}</textarea>
+      </div>`,
+      footer:`<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+              <button class="btn btn-primary" onclick="ChatModule._submitEdit('${mid}','${msgId}')">Simpan</button>`,
+    });
+    setTimeout(()=>{const t=document.getElementById('edit-msg-text');if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length);}},100);
+  }
+
+  async function _submitEdit(mid, msgId) {
+    const msg = _messages.find(m=>m.id===msgId);
+    if (!msg) return;
+    const text = (document.getElementById('edit-msg-text')?.value||'').trim();
+    if (!text) { Notify.warning('Pesan tidak boleh kosong'); return; }
+    msg.text = text;
+    msg.editedAt = new Date().toISOString();
+    await DB.saveChatMessage(msg).catch(()=>{});
+    _rerenderMsg(msg);
+    Modal.close(mid);
+    Notify.success('Pesan diedit');
+  }
+
   /* ═══ SEND TEXT ═══ */
   async function send() {
     const inp=document.getElementById('cht-inp'); const text=(inp?.value||'').trim();
     if (!text||!_activeRoom) return; inp.value='';
-    const me=_me(), msg = { id:Utils.uid(), roomId:_activeRoom.id, senderId:me?.id, senderUsername:me?.username, senderName:me?.nama||'', type:'text', text, createdAt:new Date().toISOString() };
+    const me=_me(), msg = { id:Utils.uid(), roomId:_activeRoom.id, senderId:me?.id, senderUsername:me?.username, senderName:me?.nama||'', type:'text', text, readBy:[], createdAt:new Date().toISOString() };
     _msgIds.add(msg.id); _messages.push(msg); _appendMsg(msg);
     _activeRoom.lastMessage=text.slice(0,80); _activeRoom.lastMessageAt=msg.createdAt; _activeRoom.lastSender=msg.senderName;
     await Promise.all([DB.saveChatMessage(msg).catch(()=>{}), DB.saveChatRoom(_activeRoom).catch(()=>{})]);
@@ -229,12 +357,62 @@ const ChatModule = (() => {
         // Video: compress via lower quality if possible, else raw
         url = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); });
       }
-      const me=_me(), msg = { id:Utils.uid(), roomId:_activeRoom.id, senderId:me?.id, senderUsername:me?.username, senderName:me?.nama||'', type:isImg?'image':'video', mediaUrl:url, text:'', createdAt:new Date().toISOString() };
+      const me=_me(), msg = { id:Utils.uid(), roomId:_activeRoom.id, senderId:me?.id, senderUsername:me?.username, senderName:me?.nama||'', type:isImg?'image':'video', mediaUrl:url, text:'', readBy:[], createdAt:new Date().toISOString() };
       _msgIds.add(msg.id); _messages.push(msg); _appendMsg(msg);
       _activeRoom.lastMessage=isImg?'[Foto]':'[Video]'; _activeRoom.lastMessageAt=msg.createdAt; _activeRoom.lastSender=msg.senderName;
       await Promise.all([DB.saveChatMessage(msg).catch(()=>{}), DB.saveChatRoom(_activeRoom).catch(()=>{})]);
       Notify.success('Terkirim');
     } catch(e) { Notify.error('Gagal: '+e.message); }
+  }
+
+  /* ═══ SHARE TASK ═══ */
+  async function _shareTask() {
+    if (!_activeRoom) return;
+    const tasks = await DB.getTasks().catch(()=>[]);
+    if (!tasks.length) { Notify.info('Belum ada task'); return; }
+    const mid = 'share-task-'+Date.now();
+    const sorted = [...tasks].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+    Modal.open({id:mid, title:'Kirim Task', size:'modal-md',
+      body:`<input class="form-control" placeholder="Cari task..." style="margin-bottom:var(--s2)" oninput="ChatModule._filtTask(this.value)">
+      <div id="st-list" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+        ${sorted.map(t=>{
+          const prioCol = t.priority==='high'?'var(--danger)':t.priority==='medium'?'var(--warning)':'var(--text-3)';
+          return `<div class="cht-ri st-item" data-n="${_esc((t.title||t.judul||'').toLowerCase())}" onclick="ChatModule._sendTask('${t.id}','${mid}')" style="border-radius:var(--r-sm);border:1px solid var(--border)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--heading);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(t.title||t.judul||'')}</div>
+            <div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap">
+              ${t.status?`<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:var(--surface);border:1px solid var(--border)">${_esc(t.status)}</span>`:''}
+              ${t.priority?`<span style="font-size:10px;padding:1px 6px;border-radius:4px;color:${prioCol};background:${prioCol}15;border:1px solid ${prioCol}30">${_esc(t.priority)}</span>`:''}
+              ${t.assignee?`<span style="font-size:10px;color:var(--text-3)">${_esc(t.assignee)}</span>`:''}
+            </div>
+          </div>
+        </div>`;}).join('')}
+      </div>`,
+      footer:`<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+  }
+
+  function _filtTask(q) {
+    const l = q.toLowerCase();
+    document.querySelectorAll('.st-item').forEach(el=>{el.style.display=(el.dataset.n||'').includes(l)?'':'none';});
+  }
+
+  async function _sendTask(taskId, mid) {
+    const tasks = await DB.getTasks().catch(()=>[]);
+    const task = tasks.find(t=>t.id===taskId);
+    if (!task||!_activeRoom) return;
+    Modal.close(mid);
+    const me = _me();
+    const msg = {
+      id: Utils.uid(), roomId: _activeRoom.id, senderId: me?.id, senderUsername: me?.username, senderName: me?.nama||'',
+      type: 'task', text: '[Task] '+(task.title||task.judul||''),
+      taskData: { id:task.id, title:task.title||task.judul, status:task.status, priority:task.priority, assignee:task.assignee||task.assignedTo },
+      readBy: [], createdAt: new Date().toISOString()
+    };
+    _msgIds.add(msg.id); _messages.push(msg); _appendMsg(msg);
+    _activeRoom.lastMessage='[Task] '+(task.title||task.judul||'').slice(0,60); _activeRoom.lastMessageAt=msg.createdAt; _activeRoom.lastSender=msg.senderName;
+    await Promise.all([DB.saveChatMessage(msg).catch(()=>{}), DB.saveChatRoom(_activeRoom).catch(()=>{})]);
+    Notify.success('Task dikirim');
   }
 
   /* ═══ NEW CHAT ═══ */
@@ -297,7 +475,12 @@ const ChatModule = (() => {
     const checks=[...document.querySelectorAll('#nc-grp input:checked')].map(c=>c.value);
     if (!checks.length) { Notify.warning('Pilih anggota'); return; }
     const members=[me?.id,...checks];
-    const room={id:Utils.uid(),type:'group',name,members,createdAt:new Date().toISOString(),lastMessage:'',lastMessageAt:''};
+    // Also store usernames for privacy filter
+    const memberUsernames = [me?.username, ...checks.map(id => {
+      const u = _users.find(x=>x.id===id);
+      return u?.username || '';
+    }).filter(Boolean)];
+    const room={id:Utils.uid(),type:'group',name,members,memberUsernames,createdAt:new Date().toISOString(),lastMessage:'',lastMessageAt:''};
     await DB.saveChatRoom(room).catch(()=>{}); _rooms.unshift(room);
     Modal.close(mid); openRoom(room.id); Notify.success('Grup dibuat');
   }
@@ -328,6 +511,6 @@ const ChatModule = (() => {
     Notify.success('Chat dihapus');
   }
 
-  return { init, openRoom, send, _media, newChat, _filt, _dm, _grp, _search, _back, deleteRoom };
+  return { init, openRoom, send, _media, newChat, _filt, _dm, _grp, _search, _back, deleteRoom, _editMsg, _submitEdit, _shareTask, _filtTask, _sendTask, _markRead };
 })();
 window.ChatModule = ChatModule;
