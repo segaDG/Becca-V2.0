@@ -170,8 +170,9 @@ const DBExtensions = (() => {
         if (window.App?._currentPage === 'kas') return;
       },
       daily_order_forms: () => {
-        if (window.App?._currentPage !== 'daily-order') return;
-        _rtDebounce('do', () => DailyOrderModule?.init?.(), 2000);
+        // Skip re-init when user is on daily-order page — their local state is fresh
+        // Only useful for cross-device sync (user on DIFFERENT page)
+        if (window.App?._currentPage === 'daily-order') return;
       },
       news: () => {
         if (window.App?._currentPage === 'news') _rtDebounce('news', () => NewsModule?.init?.(), 2000);
