@@ -5,7 +5,7 @@
    Edit: messages editable within 1 min if unread
    Task: share existing tasks in chat
 ============================================ */
-console.log('[BECCA] ChatModule v20260408b loaded');
+console.log('[BECCA] ChatModule v20260408c loaded');
 
 const ChatModule = (() => {
   'use strict';
@@ -334,6 +334,21 @@ const ChatModule = (() => {
     Notify.success('Pesan diedit');
   }
 
+  /* ═══ PUSH NOTIFICATION to room members ═══ */
+  async function _notifyMembers(room, senderName, preview) {
+    if (!window.PushModule || !room) return;
+    const me = _me(); if (!me) return;
+    const memberUnames = (room.memberUsernames || []).filter(u => u && u !== me.username);
+    if (!memberUnames.length) return;
+    const isGroup = room.type === 'group';
+    const title = isGroup ? `${senderName} di ${room.name||'Grup'}` : senderName;
+    const body = preview.slice(0, 100);
+    // Send push to each member (fire-and-forget)
+    memberUnames.forEach(uname => {
+      PushModule.sendToUser(uname, { title, body, data: { type: 'chat', roomId: room.id } }).catch(()=>{});
+    });
+  }
+
   /* ═══ SEND TEXT ═══ */
   async function send() {
     const inp=document.getElementById('cht-inp'); const text=(inp?.value||'').trim();
@@ -342,6 +357,7 @@ const ChatModule = (() => {
     _msgIds.add(msg.id); _messages.push(msg); _appendMsg(msg);
     _activeRoom.lastMessage=text.slice(0,80); _activeRoom.lastMessageAt=msg.createdAt; _activeRoom.lastSender=msg.senderName;
     await Promise.all([DB.saveChatMessage(msg).catch(()=>{}), DB.saveChatRoom(_activeRoom).catch(()=>{})]);
+    _notifyMembers(_activeRoom, me?.nama||'', text);
   }
 
   /* ═══ SEND MEDIA — compress + store as data URL (small images only) ═══ */
@@ -372,6 +388,7 @@ const ChatModule = (() => {
       _msgIds.add(msg.id); _messages.push(msg); _appendMsg(msg);
       _activeRoom.lastMessage=isImg?'[Foto]':'[Video]'; _activeRoom.lastMessageAt=msg.createdAt; _activeRoom.lastSender=msg.senderName;
       await Promise.all([DB.saveChatMessage(msg).catch(()=>{}), DB.saveChatRoom(_activeRoom).catch(()=>{})]);
+      _notifyMembers(_activeRoom, me?.nama||'', isImg?'Mengirim foto':'Mengirim video');
       Notify.success('Terkirim');
     } catch(e) { Notify.error('Gagal: '+e.message); }
   }
@@ -423,6 +440,8 @@ const ChatModule = (() => {
     _msgIds.add(msg.id); _messages.push(msg); _appendMsg(msg);
     _activeRoom.lastMessage='[Task] '+(task.title||task.judul||'').slice(0,60); _activeRoom.lastMessageAt=msg.createdAt; _activeRoom.lastSender=msg.senderName;
     await Promise.all([DB.saveChatMessage(msg).catch(()=>{}), DB.saveChatRoom(_activeRoom).catch(()=>{})]);
+    const me = _me();
+    _notifyMembers(_activeRoom, me?.nama||'', '[Task] '+(task.title||task.judul||''));
     Notify.success('Task dikirim');
   }
 
