@@ -5,11 +5,12 @@
    Edit: messages editable within 1 min if unread
    Task: share existing tasks in chat
 ============================================ */
-console.log('[BECCA] ChatModule v20260408a loaded');
+console.log('[BECCA] ChatModule v20260408b loaded');
 
 const ChatModule = (() => {
   'use strict';
   let _rooms = [], _messages = [], _users = [], _activeRoom = null, _rtSetup = false;
+  let _dmLock = false; // prevent double-click room creation
   const _msgIds = new Set(); // dedup
 
   function _esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -61,12 +62,17 @@ const ChatModule = (() => {
     if (_rtSetup) return; _rtSetup = true;
     DB.onRealtimeChange('chat_messages', (pl) => {
       if (pl.eventType === 'UPDATE') {
-        // Handle edited messages
+        // Handle edited messages — only re-render if text actually changed
         const raw = pl.new; if (!raw) return;
         const msg = raw.data ? (typeof raw.data==='string'?JSON.parse(raw.data):raw.data) : raw;
         if (!msg) return;
         const idx = _messages.findIndex(m=>m.id===msg.id);
-        if (idx>=0) { _messages[idx] = msg; _rerenderMsg(msg); }
+        if (idx>=0) {
+          const old = _messages[idx];
+          const textChanged = old.text !== msg.text || old.editedAt !== msg.editedAt;
+          _messages[idx] = msg;
+          if (textChanged) _rerenderMsg(msg); // skip re-render for readBy-only updates
+        }
         return;
       }
       if (pl.eventType !== 'INSERT') return;
@@ -178,15 +184,15 @@ const ChatModule = (() => {
     _markRead();
   }
 
-  /** Mark all messages in active room as read by current user */
-  async function _markRead() {
+  /** Mark all messages in active room as read by current user (fire-and-forget, no UI impact) */
+  function _markRead() {
     if (!_activeRoom) return;
     const me = _me(); if (!me) return;
     const unread = _messages.filter(m => m.senderId !== me.id && m.senderUsername !== me.username && !(m.readBy||[]).includes(me.id));
-    for (const m of unread) {
-      if (!m.readBy) m.readBy = [];
-      m.readBy.push(me.id);
-      DB.saveChatMessage(m).catch(()=>{});
+    // Update in-memory only, then save in background with delay to avoid cache thrashing
+    unread.forEach(m => { if (!m.readBy) m.readBy = []; m.readBy.push(me.id); });
+    if (unread.length) {
+      setTimeout(() => { unread.forEach(m => DB.saveChatMessage(m).catch(()=>{})); }, 2000);
     }
   }
 
@@ -279,15 +285,20 @@ const ChatModule = (() => {
     const el = document.getElementById('msg-'+msg.id);
     if (!el) return;
     const cont = el.parentElement;
-    const next = el.nextSibling;
-    el.remove();
-    // Create temp container, append msg, then insert before next
+    if (!cont) return;
+    // Build new element via temp container
     const tmp = document.createElement('div');
-    cont.appendChild(tmp);
+    tmp.style.display = 'contents';
+    cont.insertBefore(tmp, el);
+    // Remove old
+    el.remove();
+    // Use _appendMsg to build new content, it appends to cont
+    // We need to capture what was appended and move it to tmp's position
+    const beforeCount = cont.children.length;
     _appendMsg(msg, cont);
-    // Move last child before next if needed
-    if (next && cont.lastChild !== next) {
-      cont.insertBefore(cont.lastChild, next);
+    const newEl = cont.lastElementChild;
+    if (newEl && tmp.parentElement) {
+      cont.insertBefore(newEl, tmp);
     }
     tmp.remove();
   }
@@ -449,24 +460,27 @@ const ChatModule = (() => {
   function _filt(q) { const l=q.toLowerCase(); document.querySelectorAll('.nc-u').forEach(el=>{el.style.display=el.dataset.n.includes(l)?'':'none';}); }
 
   async function _dm(uid,uname,mid) {
-    const me=_me();
-    // Find existing room by both id AND username to prevent duplicates
-    let room=_rooms.find(r=>{
-      if(r.type!=='dm') return false;
-      const m=r.members||[]; const mu=r.memberUsernames||[];
-      const hasMe = m.includes(me?.id) || mu.includes(me?.username);
-      const hasThem = m.includes(uid) || mu.includes(uname);
-      return hasMe && hasThem;
-    });
-    if (!room) {
-      room={id:Utils.uid(),type:'dm',members:[me?.id,uid],memberUsernames:[me?.username,uname],createdAt:new Date().toISOString(),lastMessage:'',lastMessageAt:''};
-      await DB.saveChatRoom(room).catch(()=>{}); _rooms.unshift(room);
-    } else if (!room.memberUsernames) {
-      // Backfill memberUsernames on existing rooms
-      room.memberUsernames=[me?.username,uname];
-      DB.saveChatRoom(room).catch(()=>{});
-    }
-    Modal.close(mid); openRoom(room.id);
+    if (_dmLock) return; _dmLock = true;
+    try {
+      const me=_me();
+      // Find existing room by both id AND username to prevent duplicates
+      let room=_rooms.find(r=>{
+        if(r.type!=='dm') return false;
+        const m=r.members||[]; const mu=r.memberUsernames||[];
+        const hasMe = m.includes(me?.id) || mu.includes(me?.username);
+        const hasThem = m.includes(uid) || mu.includes(uname);
+        return hasMe && hasThem;
+      });
+      if (!room) {
+        room={id:Utils.uid(),type:'dm',members:[me?.id,uid],memberUsernames:[me?.username,uname],createdAt:new Date().toISOString(),lastMessage:'',lastMessageAt:''};
+        await DB.saveChatRoom(room).catch(()=>{}); _rooms.unshift(room);
+      } else if (!room.memberUsernames) {
+        // Backfill memberUsernames on existing rooms
+        room.memberUsernames=[me?.username,uname];
+        DB.saveChatRoom(room).catch(()=>{});
+      }
+      Modal.close(mid); openRoom(room.id);
+    } finally { _dmLock = false; }
   }
 
   async function _grp(mid) {
