@@ -527,36 +527,54 @@ const MenuModule = (() => {
     return settings.geminiApiKey || '';
   }
 
+  const _GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+
   async function _callGemini(prompt) {
     const apiKey = await _getApiKey();
     if (!apiKey) { Notify.error('API Key Gemini belum diisi. Buka Settings \u2192 Pengaturan Umum.'); return null; }
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-      });
-      if (res.status === 429) {
-        Notify.warning('AI rate limit — tunggu 1 menit lalu coba lagi');
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const model = _GEMINI_MODELS[Math.min(attempt, _GEMINI_MODELS.length - 1)];
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        });
+        if (res.status === 429) {
+          Notify.warning('AI rate limit — tunggu 1 menit lalu coba lagi');
+          return null;
+        }
+        if (res.status === 403 || res.status === 401) {
+          Notify.error('API key Gemini tidak valid. Cek di Settings.');
+          return null;
+        }
+        if (res.status === 503 || res.status === 500) {
+          console.warn(`[AI] ${model} unavailable (${res.status}), retry ${attempt+1}/${MAX_RETRIES}...`);
+          if (attempt < MAX_RETRIES - 1) {
+            Notify.info(`AI sibuk, mencoba model lain...`);
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
+          }
+          Notify.error('AI sedang sibuk — coba lagi nanti');
+          return null;
+        }
+        if (!res.ok) {
+          const err = await res.text();
+          console.error('[AI]', err);
+          Notify.error('AI error: ' + res.status);
+          return null;
+        }
+        const data = await res.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+      } catch(e) {
+        if (attempt < MAX_RETRIES - 1) { await new Promise(r => setTimeout(r, 1000)); continue; }
+        Notify.error('Gagal menghubungi AI: ' + e.message);
         return null;
       }
-      if (res.status === 403 || res.status === 401) {
-        Notify.error('API key Gemini tidak valid. Cek di Settings.');
-        return null;
-      }
-      if (!res.ok) {
-        const err = await res.text();
-        console.error('[AI]', err);
-        Notify.error('AI error: ' + res.status);
-        return null;
-      }
-      const data = await res.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-    } catch(e) {
-      Notify.error('Gagal menghubungi AI: ' + e.message);
-      return null;
     }
+    return null;
   }
 
   async function _aiGenerateMenu(custId) {
