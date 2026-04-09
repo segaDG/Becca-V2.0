@@ -527,7 +527,8 @@ const MenuModule = (() => {
     return settings.geminiApiKey || '';
   }
 
-  const _GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
+  // Retry same model first (503 is often temporary), then fallback
+  const _GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-lite'];
 
   async function _callGemini(prompt) {
     const apiKey = await _getApiKey();
