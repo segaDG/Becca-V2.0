@@ -3,7 +3,7 @@
    Realtime messaging, photo/video, task sharing
    Privacy: rooms only visible to participants
 ============================================ */
-console.log('[BECCA] ChatModule v20260409a loaded');
+console.log('[BECCA] ChatModule v20260409b loaded');
 
 const ChatModule = (() => {
   'use strict';
@@ -18,6 +18,8 @@ const ChatModule = (() => {
   function _hm(ts) { if(!ts) return ''; return new Date(ts).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
   const CL = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#ef4444'];
   function _uc(n) { let h=0; for(const c of(n||'?')) h=h*31+c.charCodeAt(0); return CL[Math.abs(h)%CL.length]; }
+
+  function _mob() { return window.innerWidth <= 768; }
 
   function _isMember(room) {
     const me = _me(); if (!me) return false;
@@ -79,20 +81,25 @@ const ChatModule = (() => {
         .msg-b{max-width:70%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.5;animation:mi .15s ease}
         .msg-m{background:var(--primary);color:white;border-bottom-right-radius:4px;margin-left:auto}
         .msg-o{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px}
-        .task-card-chat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-width:200px;max-width:280px;cursor:pointer}
+        .task-card-chat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-width:180px;max-width:280px;cursor:pointer}
         .task-card-chat:hover{border-color:var(--primary)}
         @keyframes mi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-        @media(max-width:768px){.cht-lay{grid-template-columns:1fr}.cht-side{display:${_activeRoom?'none':'flex'}}.cht-main{display:${_activeRoom?'flex':'none'}}}
+        @media(max-width:768px){
+          .cht-lay{grid-template-columns:1fr;height:calc(100vh - 60px);height:calc(100dvh - 60px);border:none;border-radius:0;box-shadow:none}
+          .cht-side.cht-hide{display:none}.cht-main.cht-hide{display:none}
+          .msg-b{max-width:85%}
+          .task-card-chat{min-width:160px;max-width:240px}
+        }
       </style>
       <div class="cht-lay">
-        <div class="cht-side">
+        <div class="cht-side ${_mob()&&_activeRoom?'cht-hide':''}">
           <div style="padding:var(--s3);border-bottom:1px solid var(--border);display:flex;gap:var(--s2)">
             <input type="text" class="form-control" placeholder="Cari..." style="flex:1;min-height:32px;font-size:12px" oninput="ChatModule._search(this.value)">
             <button class="btn btn-primary btn-sm" onclick="ChatModule.newChat()">+</button>
           </div>
           <div id="cht-rooms" style="flex:1;overflow-y:auto"></div>
         </div>
-        <div class="cht-main" id="cht-area">
+        <div class="cht-main ${_mob()&&!_activeRoom?'cht-hide':''}" id="cht-area">
           <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-3);text-align:center;padding:var(--s6)">
             <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40" style="opacity:.3;margin-bottom:var(--s2)"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             <div style="font-size:13px;font-weight:600">Pilih percakapan</div></div>
@@ -136,6 +143,13 @@ const ChatModule = (() => {
   /* ═══ OPEN ROOM ═══ */
   async function openRoom(roomId) {
     _activeRoom = _rooms.find(r=>r.id===roomId); if (!_activeRoom) return;
+    // Mobile: switch panels
+    if (_mob()) {
+      const side = document.querySelector('.cht-side');
+      const main = document.querySelector('.cht-main');
+      if (side) side.classList.add('cht-hide');
+      if (main) main.classList.remove('cht-hide');
+    }
     _renderRoomList();
     _messages = await DB.getChatMessagesByRoom(roomId, 50).catch(()=>[]);
     _messages.forEach(m=>_msgIds.add(m.id));
@@ -152,7 +166,7 @@ const ChatModule = (() => {
     const nm = isG ? r.name : (other?.nama||r.lastSender||'Chat');
     el.innerHTML = `
       <div style="padding:10px var(--s4);border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:var(--s3);flex-shrink:0">
-        <button class="btn-icon" style="display:none" id="cht-back" onclick="ChatModule._back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+        <button class="btn-icon" style="display:${_mob()?'flex':'none'}" id="cht-back" onclick="ChatModule._back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
         <div style="width:34px;height:34px;border-radius:50%;background:${_uc(nm)};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${isG?(r.name?.charAt(0)||'G'):_initials(nm)}</div>
         <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--heading)">${_esc(nm)}</div></div>
         <button onclick="ChatModule._shareTask()" title="Kirim Task" style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(99,102,241,.3);background:rgba(99,102,241,.07);cursor:pointer;color:var(--primary);display:flex;align-items:center;justify-content:center">
@@ -176,7 +190,6 @@ const ChatModule = (() => {
     const cont = document.getElementById('cht-msgs');
     if (cont) { let lastD=''; _messages.forEach(m=>{ _appendMsg(m,cont,lastD); lastD=(m.createdAt||'').slice(0,10); }); }
     _scrollEnd();
-    if (window.innerWidth<=768) { const b=document.getElementById('cht-back'); if(b)b.style.display='flex'; }
   }
 
   /* ═══ APPEND single message ═══ */
@@ -222,7 +235,18 @@ const ChatModule = (() => {
   }
 
   function _scrollEnd() { setTimeout(()=>{ const el=document.getElementById('cht-msgs'); if(el) el.scrollTop=el.scrollHeight; },30); }
-  function _back() { _activeRoom=null; _render(); }
+  function _back() {
+    _activeRoom=null;
+    if (_mob()) {
+      const side = document.querySelector('.cht-side');
+      const main = document.querySelector('.cht-main');
+      if (side) side.classList.remove('cht-hide');
+      if (main) main.classList.add('cht-hide');
+      _renderRoomList();
+    } else {
+      _render();
+    }
+  }
 
   /* ═══ SEND TEXT ═══ */
   async function send() {
