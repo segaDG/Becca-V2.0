@@ -527,7 +527,7 @@ const MenuModule = (() => {
     return settings.geminiApiKey || '';
   }
 
-  const _GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const _GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
 
   async function _callGemini(prompt) {
     const apiKey = await _getApiKey();
@@ -546,11 +546,11 @@ const MenuModule = (() => {
           Notify.error('API key Gemini tidak valid. Cek di Settings.');
           return null;
         }
-        if (res.status === 429 || res.status === 503 || res.status === 500) {
+        if (res.status === 429 || res.status === 503 || res.status === 500 || res.status === 404) {
           console.warn(`[AI] ${model} error (${res.status}), retry ${attempt+1}/${MAX_RETRIES}...`);
           if (attempt < MAX_RETRIES - 1) {
             Notify.info(`AI sibuk, mencoba model lain...`);
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 3000));
             continue;
           }
           Notify.error('AI sedang sibuk — coba lagi nanti');
