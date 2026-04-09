@@ -542,19 +542,15 @@ const MenuModule = (() => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
         });
-        if (res.status === 429) {
-          Notify.warning('AI rate limit — tunggu 1 menit lalu coba lagi');
-          return null;
-        }
         if (res.status === 403 || res.status === 401) {
           Notify.error('API key Gemini tidak valid. Cek di Settings.');
           return null;
         }
-        if (res.status === 503 || res.status === 500) {
-          console.warn(`[AI] ${model} unavailable (${res.status}), retry ${attempt+1}/${MAX_RETRIES}...`);
+        if (res.status === 429 || res.status === 503 || res.status === 500) {
+          console.warn(`[AI] ${model} error (${res.status}), retry ${attempt+1}/${MAX_RETRIES}...`);
           if (attempt < MAX_RETRIES - 1) {
             Notify.info(`AI sibuk, mencoba model lain...`);
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 2000));
             continue;
           }
           Notify.error('AI sedang sibuk — coba lagi nanti');
