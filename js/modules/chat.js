@@ -1,17 +1,15 @@
 /* ============================================
-   BECCA V2.0 — Chat Module (Performance-optimized)
-   Realtime messaging, photo/video via compressed URL
+   BECCA V2.0 — Chat Module
+   Realtime messaging, photo/video, task sharing
    Privacy: rooms only visible to participants
-   Edit: messages editable within 1 min if unread
-   Task: share existing tasks in chat
 ============================================ */
-console.log('[BECCA] ChatModule v20260408d loaded');
+console.log('[BECCA] ChatModule v20260409a loaded');
 
 const ChatModule = (() => {
   'use strict';
   let _rooms = [], _messages = [], _users = [], _activeRoom = null, _rtSetup = false;
-  let _dmLock = false; // prevent double-click room creation
-  const _msgIds = new Set(); // dedup
+  let _dmLock = false;
+  const _msgIds = new Set();
 
   function _esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function _me() { return Auth.currentUser(); }
@@ -21,29 +19,12 @@ const ChatModule = (() => {
   const CL = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#ef4444'];
   function _uc(n) { let h=0; for(const c of(n||'?')) h=h*31+c.charCodeAt(0); return CL[Math.abs(h)%CL.length]; }
 
-  /** Check if current user is a member of a room */
   function _isMember(room) {
     const me = _me(); if (!me) return false;
-    // Ensure arrays (guard against stringified JSON)
     const m = Array.isArray(room.members) ? room.members : [];
     const mu = Array.isArray(room.memberUsernames) ? room.memberUsernames : [];
-    // If room has no members data at all, hide it (legacy room — needs backfill)
     if (!m.length && !mu.length) return false;
     return m.includes(me.id) || mu.includes(me.username);
-  }
-
-  /** Check if message can be edited: sender is me, within 1 min, not yet read by others */
-  function _canEdit(msg) {
-    const me = _me(); if (!me) return false;
-    if (msg.senderId !== me.id && msg.senderUsername !== me.username) return false;
-    if (msg.type !== 'text') return false;
-    const age = (Date.now() - new Date(msg.createdAt)) / 1000;
-    if (age > 60) return false;
-    if (msg.readBy && msg.readBy.length > 0) {
-      const othersRead = msg.readBy.filter(uid => uid !== me.id && uid !== me.username);
-      if (othersRead.length > 0) return false;
-    }
-    return true;
   }
 
   /* ═══ INIT ═══ */
@@ -52,7 +33,6 @@ const ChatModule = (() => {
     if (!page) return;
     page.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:40vh;color:var(--text-3)">Memuat chat...</div>';
     const [rooms, users] = await Promise.all([DB.getChatRooms().catch(()=>[]), DB.getUsers().catch(()=>[])]);
-    // Filter rooms: only show rooms where current user is a member
     const allRooms = rooms.sort((a,b)=>(b.lastMessageAt||b.createdAt||'').localeCompare(a.lastMessageAt||a.createdAt||''));
     _rooms = allRooms.filter(r => _isMember(r));
     _users = [...users]; Auth._defaultUsers.forEach(u=>{ if(!_users.find(x=>x.username===u.username)) _users.push(u); });
@@ -64,34 +44,21 @@ const ChatModule = (() => {
   function _setupRT() {
     if (_rtSetup) return; _rtSetup = true;
     DB.onRealtimeChange('chat_messages', (pl) => {
-      if (pl.eventType === 'UPDATE') {
-        // Handle edited messages — only re-render if text actually changed
-        const raw = pl.new; if (!raw) return;
-        const msg = raw.data ? (typeof raw.data==='string'?JSON.parse(raw.data):raw.data) : raw;
-        if (!msg) return;
-        const idx = _messages.findIndex(m=>m.id===msg.id);
-        if (idx>=0) {
-          const old = _messages[idx];
-          const textChanged = old.text !== msg.text || old.editedAt !== msg.editedAt;
-          _messages[idx] = msg;
-          if (textChanged) _rerenderMsg(msg); // skip re-render for readBy-only updates
-        }
-        return;
-      }
+      // Only handle INSERT — ignore UPDATE/DELETE to prevent DOM corruption
       if (pl.eventType !== 'INSERT') return;
       const raw = pl.new; if (!raw) return;
       const msg = raw.data ? (typeof raw.data==='string'?JSON.parse(raw.data):raw.data) : raw;
-      if (!msg || _msgIds.has(msg.id)) return; // dedup
+      if (!msg || _msgIds.has(msg.id)) return;
       _msgIds.add(msg.id);
-      // Update room
+      // Update room sidebar
       const room = _rooms.find(r=>r.id===msg.roomId);
       if (room) { room.lastMessage=msg.text||'[Media]'; room.lastMessageAt=msg.createdAt; room.lastSender=msg.senderName; _renderRoomList(); }
       // Append to active room
       if (_activeRoom && msg.roomId === _activeRoom.id) {
         _messages.push(msg);
-        _appendMsg(msg); // incremental append, not full re-render
+        _appendMsg(msg);
       }
-      // Notify if not current room
+      // Toast if not current room
       const me = _me();
       if (me && msg.senderId!==me.id && (!_activeRoom||msg.roomId!==_activeRoom.id)) {
         Notify.info((msg.senderName||'')+ ': '+(msg.text||'[Media]').slice(0,50));
@@ -112,10 +79,6 @@ const ChatModule = (() => {
         .msg-b{max-width:70%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.5;animation:mi .15s ease}
         .msg-m{background:var(--primary);color:white;border-bottom-right-radius:4px;margin-left:auto}
         .msg-o{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px}
-        .msg-wrap{display:flex;flex-direction:column;position:relative}
-        .msg-edit-btn{display:none;position:absolute;top:2px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:10px;color:var(--text-2);z-index:1}
-        .msg-wrap:hover .msg-edit-btn{display:block}
-        .msg-edited{font-size:9px;font-style:italic;opacity:.6;margin-top:1px}
         .task-card-chat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-width:200px;max-width:280px;cursor:pointer}
         .task-card-chat:hover{border-color:var(--primary)}
         @keyframes mi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
@@ -141,15 +104,12 @@ const ChatModule = (() => {
 
   function _findOther(r, me) {
     if (r.type==='group') return null;
-    // Try by id first
     const otherId = (r.members||[]).find(m=>m!==me?.id);
     let other = _users.find(u=>u.id===otherId);
-    // Fallback: try memberUsernames
     if (!other && r.memberUsernames) {
       const otherUn = r.memberUsernames.find(u=>u!==me?.username);
       if (otherUn) other = _users.find(u=>u.username===otherUn);
     }
-    // Fallback: try lastSender
     if (!other && r.lastSender) other = _users.find(u=>u.nama===r.lastSender);
     return other;
   }
@@ -173,30 +133,15 @@ const ChatModule = (() => {
     }).join('') || '<div style="text-align:center;padding:var(--s6);color:var(--text-3);font-size:12px">Belum ada chat</div>';
   }
 
-  /* ═══ OPEN ROOM — fetch per-room, paginated ═══ */
+  /* ═══ OPEN ROOM ═══ */
   async function openRoom(roomId) {
     _activeRoom = _rooms.find(r=>r.id===roomId); if (!_activeRoom) return;
     _renderRoomList();
     _messages = await DB.getChatMessagesByRoom(roomId, 50).catch(()=>[]);
     _messages.forEach(m=>_msgIds.add(m.id));
     _renderChat();
-    // Mark as read
     try { const lr=JSON.parse(localStorage.getItem('becca_chat_lastread')||'{}'); lr[roomId]=new Date().toISOString(); localStorage.setItem('becca_chat_lastread',JSON.stringify(lr)); } catch{}
     if (typeof App!=='undefined'&&App._checkChatUnread) App._checkChatUnread();
-    // Mark messages as read by me
-    _markRead();
-  }
-
-  /** Mark all messages in active room as read by current user (fire-and-forget, no UI impact) */
-  function _markRead() {
-    if (!_activeRoom) return;
-    const me = _me(); if (!me) return;
-    const unread = _messages.filter(m => m.senderId !== me.id && m.senderUsername !== me.username && !(m.readBy||[]).includes(me.id));
-    // Update in-memory only, then save in background with delay to avoid cache thrashing
-    unread.forEach(m => { if (!m.readBy) m.readBy = []; m.readBy.push(me.id); });
-    if (unread.length) {
-      setTimeout(() => { unread.forEach(m => DB.saveChatMessage(m).catch(()=>{})); }, 2000);
-    }
   }
 
   function _renderChat() {
@@ -228,21 +173,18 @@ const ChatModule = (() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
       </div>`;
-    // Render existing messages
     const cont = document.getElementById('cht-msgs');
     if (cont) { let lastD=''; _messages.forEach(m=>{ _appendMsg(m,cont,lastD); lastD=(m.createdAt||'').slice(0,10); }); }
     _scrollEnd();
-    // Mobile: show back button
     if (window.innerWidth<=768) { const b=document.getElementById('cht-back'); if(b)b.style.display='flex'; }
   }
 
-  /* ═══ APPEND single message (incremental, no full re-render) ═══ */
+  /* ═══ APPEND single message ═══ */
   function _appendMsg(m, cont, prevDate) {
     if (!cont) cont = document.getElementById('cht-msgs');
     if (!cont) return;
     const me = _me(), isMine = m.senderId===me?.id||m.senderUsername===me?.username;
     const d = (m.createdAt||'').slice(0,10);
-    // Date separator
     if (d !== prevDate && d) {
       const today = new Date().toISOString().slice(0,10);
       const label = d===today?'Hari Ini':new Date(d+'T12:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'long'});
@@ -250,7 +192,6 @@ const ChatModule = (() => {
     }
     let content = '';
     if (m.type==='task') {
-      // Task card in chat
       const t = m.taskData || {};
       const prioCol = t.priority==='high'?'var(--danger)':t.priority==='medium'?'var(--warning)':'var(--text-3)';
       content = `<div class="task-card-chat" onclick="if(window.TaskModule){App.navigate('task');setTimeout(()=>TaskModule.openModal&&TaskModule.openModal('${t.id}'),300)}">
@@ -273,97 +214,31 @@ const ChatModule = (() => {
       content = `<div style="white-space:pre-wrap">${_esc(m.text)}</div>`;
     }
     const dl = (m.type==='image'||m.type==='video')?`<a href="${m.mediaUrl}" download style="font-size:10px;color:var(--primary-h);margin-top:1px;display:block">\u2b07 Download</a>`:'';
-    const editBtn = (isMine && m.type==='text' && _canEdit(m)) ? `<button class="msg-edit-btn" style="${isMine?'right:-4px':'left:-4px'}" onclick="ChatModule._editMsg('${m.id}')">Edit</button>` : '';
-    const editedTag = m.editedAt ? `<div class="msg-edited">diedit</div>` : '';
-    cont.insertAdjacentHTML('beforeend',`<div class="msg-wrap" id="msg-${m.id}" style="${isMine?'align-items:flex-end':'align-items:flex-start'}">
-      ${editBtn}
+    cont.insertAdjacentHTML('beforeend',`<div style="display:flex;flex-direction:column;${isMine?'align-items:flex-end':'align-items:flex-start'}">
       ${!isMine&&_activeRoom?.type==='group'?`<span style="font-size:9px;font-weight:600;color:${_uc(m.senderName)};padding-left:4px">${_esc(m.senderName||'')}</span>`:''}
-      <div class="msg-b ${isMine?'msg-m':'msg-o'}">${content}${editedTag}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.5)':'color:var(--text-3)'};text-align:right;margin-top:1px">${_hm(m.createdAt)}</div></div>${dl}
+      <div class="msg-b ${isMine?'msg-m':'msg-o'}">${content}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.5)':'color:var(--text-3)'};text-align:right;margin-top:1px">${_hm(m.createdAt)}</div></div>${dl}
     </div>`);
     _scrollEnd();
-  }
-
-  /** Re-render a single message in place (after edit) */
-  function _rerenderMsg(msg) {
-    const el = document.getElementById('msg-'+msg.id);
-    if (!el) return;
-    const cont = el.parentElement;
-    if (!cont) return;
-    // Build new element via temp container
-    const tmp = document.createElement('div');
-    tmp.style.display = 'contents';
-    cont.insertBefore(tmp, el);
-    // Remove old
-    el.remove();
-    // Use _appendMsg to build new content, it appends to cont
-    // We need to capture what was appended and move it to tmp's position
-    const beforeCount = cont.children.length;
-    _appendMsg(msg, cont);
-    const newEl = cont.lastElementChild;
-    if (newEl && tmp.parentElement) {
-      cont.insertBefore(newEl, tmp);
-    }
-    tmp.remove();
   }
 
   function _scrollEnd() { setTimeout(()=>{ const el=document.getElementById('cht-msgs'); if(el) el.scrollTop=el.scrollHeight; },30); }
   function _back() { _activeRoom=null; _render(); }
 
-  /* ═══ EDIT MESSAGE ═══ */
-  function _editMsg(msgId) {
-    const msg = _messages.find(m=>m.id===msgId);
-    if (!msg || !_canEdit(msg)) { Notify.warning('Pesan tidak bisa diedit'); return; }
-    const mid = 'edit-msg-'+Date.now();
-    Modal.open({id:mid, title:'Edit Pesan', size:'modal-md',
-      body:`<div class="form-group">
-        <textarea id="edit-msg-text" class="form-control" rows="3" style="font-size:13px">${_esc(msg.text)}</textarea>
-      </div>`,
-      footer:`<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-              <button class="btn btn-primary" onclick="ChatModule._submitEdit('${mid}','${msgId}')">Simpan</button>`,
-    });
-    setTimeout(()=>{const t=document.getElementById('edit-msg-text');if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length);}},100);
-  }
-
-  async function _submitEdit(mid, msgId) {
-    const msg = _messages.find(m=>m.id===msgId);
-    if (!msg) return;
-    const text = (document.getElementById('edit-msg-text')?.value||'').trim();
-    if (!text) { Notify.warning('Pesan tidak boleh kosong'); return; }
-    msg.text = text;
-    msg.editedAt = new Date().toISOString();
-    await DB.saveChatMessage(msg).catch(()=>{});
-    _rerenderMsg(msg);
-    Modal.close(mid);
-    Notify.success('Pesan diedit');
-  }
-
-  /* ═══ PUSH NOTIFICATION to room members ═══ */
-  async function _notifyMembers(room, senderName, preview) {
-    if (!window.PushModule || !room) return;
-    const me = _me(); if (!me) return;
-    const memberUnames = (room.memberUsernames || []).filter(u => u && u !== me.username);
-    if (!memberUnames.length) return;
-    const isGroup = room.type === 'group';
-    const title = isGroup ? `${senderName} di ${room.name||'Grup'}` : senderName;
-    const body = preview.slice(0, 100);
-    // Send push to each member (fire-and-forget)
-    memberUnames.forEach(uname => {
-      PushModule.sendToUser(uname, { title, body, data: { type: 'chat', roomId: room.id } }).catch(()=>{});
-    });
-  }
-
   /* ═══ SEND TEXT ═══ */
   async function send() {
     const inp=document.getElementById('cht-inp'); const text=(inp?.value||'').trim();
     if (!text||!_activeRoom) return; inp.value='';
-    const me=_me(), msg = { id:Utils.uid(), roomId:_activeRoom.id, senderId:me?.id, senderUsername:me?.username, senderName:me?.nama||'', type:'text', text, readBy:[], createdAt:new Date().toISOString() };
+    const me=_me(), msg = { id:Utils.uid(), roomId:_activeRoom.id, senderId:me?.id, senderUsername:me?.username, senderName:me?.nama||'', type:'text', text, createdAt:new Date().toISOString() };
     _msgIds.add(msg.id); _messages.push(msg); _appendMsg(msg);
     _activeRoom.lastMessage=text.slice(0,80); _activeRoom.lastMessageAt=msg.createdAt; _activeRoom.lastSender=msg.senderName;
-    await Promise.all([DB.saveChatMessage(msg).catch(()=>{}), DB.saveChatRoom(_activeRoom).catch(()=>{})]);
+    _renderRoomList();
+    // Save in background — don't block UI
+    DB.saveChatMessage(msg).catch(e => console.warn('[Chat] save msg:', e));
+    DB.saveChatRoom(_activeRoom).catch(e => console.warn('[Chat] save room:', e));
     _notifyMembers(_activeRoom, me?.nama||'', text);
   }
 
-  /* ═══ SEND MEDIA — compress + store as data URL (small images only) ═══ */
+  /* ═══ SEND MEDIA ═══ */
   async function _media(file) {
     if (!file||!_activeRoom) return;
     const isImg=file.type.startsWith('image/'), isVid=file.type.startsWith('video/');
@@ -384,16 +259,30 @@ const ChatModule = (() => {
         });
         if (!url) { Notify.error('Gagal memproses foto'); return; }
       } else {
-        // Video: compress via lower quality if possible, else raw
         url = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); });
       }
-      const me=_me(), msg = { id:Utils.uid(), roomId:_activeRoom.id, senderId:me?.id, senderUsername:me?.username, senderName:me?.nama||'', type:isImg?'image':'video', mediaUrl:url, text:'', readBy:[], createdAt:new Date().toISOString() };
+      const me=_me(), msg = { id:Utils.uid(), roomId:_activeRoom.id, senderId:me?.id, senderUsername:me?.username, senderName:me?.nama||'', type:isImg?'image':'video', mediaUrl:url, text:'', createdAt:new Date().toISOString() };
       _msgIds.add(msg.id); _messages.push(msg); _appendMsg(msg);
       _activeRoom.lastMessage=isImg?'[Foto]':'[Video]'; _activeRoom.lastMessageAt=msg.createdAt; _activeRoom.lastSender=msg.senderName;
-      await Promise.all([DB.saveChatMessage(msg).catch(()=>{}), DB.saveChatRoom(_activeRoom).catch(()=>{})]);
+      _renderRoomList();
+      DB.saveChatMessage(msg).catch(e => console.warn('[Chat] save msg:', e));
+      DB.saveChatRoom(_activeRoom).catch(e => console.warn('[Chat] save room:', e));
       _notifyMembers(_activeRoom, me?.nama||'', isImg?'Mengirim foto':'Mengirim video');
       Notify.success('Terkirim');
     } catch(e) { Notify.error('Gagal: '+e.message); }
+  }
+
+  /* ═══ PUSH NOTIFICATION ═══ */
+  async function _notifyMembers(room, senderName, preview) {
+    if (!window.PushModule || !room) return;
+    const me = _me(); if (!me) return;
+    const memberUnames = (room.memberUsernames || []).filter(u => u && u !== me.username);
+    if (!memberUnames.length) return;
+    const isGroup = room.type === 'group';
+    const title = isGroup ? `${senderName} di ${room.name||'Grup'}` : senderName;
+    memberUnames.forEach(uname => {
+      PushModule.sendToUser(uname, { title, body: preview.slice(0,100), data: { type: 'chat', roomId: room.id } }).catch(()=>{});
+    });
   }
 
   /* ═══ SHARE TASK ═══ */
@@ -438,12 +327,13 @@ const ChatModule = (() => {
       id: Utils.uid(), roomId: _activeRoom.id, senderId: me?.id, senderUsername: me?.username, senderName: me?.nama||'',
       type: 'task', text: '[Task] '+(task.title||task.judul||''),
       taskData: { id:task.id, title:task.title||task.judul, status:task.status, priority:task.priority, assignee:task.assignee||task.assignedTo },
-      readBy: [], createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString()
     };
     _msgIds.add(msg.id); _messages.push(msg); _appendMsg(msg);
     _activeRoom.lastMessage='[Task] '+(task.title||task.judul||'').slice(0,60); _activeRoom.lastMessageAt=msg.createdAt; _activeRoom.lastSender=msg.senderName;
-    await Promise.all([DB.saveChatMessage(msg).catch(()=>{}), DB.saveChatRoom(_activeRoom).catch(()=>{})]);
-    const me = _me();
+    _renderRoomList();
+    DB.saveChatMessage(msg).catch(e => console.warn('[Chat] save msg:', e));
+    DB.saveChatRoom(_activeRoom).catch(e => console.warn('[Chat] save room:', e));
     _notifyMembers(_activeRoom, me?.nama||'', '[Task] '+(task.title||task.judul||''));
     Notify.success('Task dikirim');
   }
@@ -470,7 +360,7 @@ const ChatModule = (() => {
         <div class="form-group"><label class="form-label">Nama Grup</label><input id="nc-gn" class="form-control" placeholder="Nama grup..."></div>
         <div class="form-group"><label class="form-label">Anggota</label>
           <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-sm);padding:var(--s2)">
-            ${others.map(u=>`<label class="form-check" style="padding:3px 0"><input type="checkbox" value="${u.id}"><span class="form-check-label">${_esc(u.nama)}</span></label>`).join('')}
+            ${others.map(u=>`<label class="form-check" style="padding:3px 0"><input type="checkbox" value="${u.id}" data-uname="${u.username||''}"><span class="form-check-label">${_esc(u.nama)}</span></label>`).join('')}
           </div>
         </div>
         <button class="btn btn-primary" onclick="ChatModule._grp('${mid}')">Buat Grup</button>
@@ -485,19 +375,15 @@ const ChatModule = (() => {
     if (_dmLock) return; _dmLock = true;
     try {
       const me=_me();
-      // Find existing room by both id AND username to prevent duplicates
       let room=_rooms.find(r=>{
         if(r.type!=='dm') return false;
         const m=r.members||[]; const mu=r.memberUsernames||[];
-        const hasMe = m.includes(me?.id) || mu.includes(me?.username);
-        const hasThem = m.includes(uid) || mu.includes(uname);
-        return hasMe && hasThem;
+        return (m.includes(me?.id) || mu.includes(me?.username)) && (m.includes(uid) || mu.includes(uname));
       });
       if (!room) {
         room={id:Utils.uid(),type:'dm',members:[me?.id,uid],memberUsernames:[me?.username,uname],createdAt:new Date().toISOString(),lastMessage:'',lastMessageAt:''};
         await DB.saveChatRoom(room).catch(()=>{}); _rooms.unshift(room);
       } else if (!room.memberUsernames) {
-        // Backfill memberUsernames on existing rooms
         room.memberUsernames=[me?.username,uname];
         DB.saveChatRoom(room).catch(()=>{});
       }
@@ -508,14 +394,10 @@ const ChatModule = (() => {
   async function _grp(mid) {
     const me=_me(), name=(document.getElementById('nc-gn')?.value||'').trim();
     if (!name) { Notify.warning('Nama grup wajib'); return; }
-    const checks=[...document.querySelectorAll('#nc-grp input:checked')].map(c=>c.value);
+    const checks=[...document.querySelectorAll('#nc-grp input:checked')];
     if (!checks.length) { Notify.warning('Pilih anggota'); return; }
-    const members=[me?.id,...checks];
-    // Also store usernames for privacy filter
-    const memberUsernames = [me?.username, ...checks.map(id => {
-      const u = _users.find(x=>x.id===id);
-      return u?.username || '';
-    }).filter(Boolean)];
+    const members=[me?.id,...checks.map(c=>c.value)];
+    const memberUsernames = [me?.username, ...checks.map(c=>c.dataset.uname).filter(Boolean)];
     const room={id:Utils.uid(),type:'group',name,members,memberUsernames,createdAt:new Date().toISOString(),lastMessage:'',lastMessageAt:''};
     await DB.saveChatRoom(room).catch(()=>{}); _rooms.unshift(room);
     Modal.close(mid); openRoom(room.id); Notify.success('Grup dibuat');
@@ -535,18 +417,16 @@ const ChatModule = (() => {
       danger: true, confirmText: 'Hapus Chat',
     });
     if (!ok) return;
-    // Delete messages then room
     try {
       await DB.deleteChatMessagesByRoom(roomId);
       await DB.deleteChatRoom(roomId);
     } catch(e) { console.warn('deleteRoom:', e); }
     _rooms = _rooms.filter(x=>x.id!==roomId);
     _activeRoom = null; _messages = []; _msgIds.clear();
-    const page = document.getElementById('page-chat');
-    _render(page);
+    _render();
     Notify.success('Chat dihapus');
   }
 
-  return { init, openRoom, send, _media, newChat, _filt, _dm, _grp, _search, _back, deleteRoom, _editMsg, _submitEdit, _shareTask, _filtTask, _sendTask, _markRead };
+  return { init, openRoom, send, _media, newChat, _filt, _dm, _grp, _search, _back, deleteRoom, _shareTask, _filtTask, _sendTask };
 })();
 window.ChatModule = ChatModule;
