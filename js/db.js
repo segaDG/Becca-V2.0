@@ -667,15 +667,24 @@ const DB = (() => {
   // Fetch messages for a specific room only (server-side filter)
   const getChatMessagesByRoom = async (roomId, limit=50) => {
     const sb = await _initClient();
-    if (!sb) {
-      // Fallback: filter from localStorage
-      try { const all = JSON.parse(localStorage.getItem('becca_chat_messages')||'[]'); return all.filter(m=>m.roomId===roomId).slice(-limit); } catch { return []; }
-    }
+    // Always check localStorage for messages that failed to save to Supabase
+    let lsMsgs = [];
+    try { const all = JSON.parse(localStorage.getItem('becca_chat_messages')||'[]'); lsMsgs = all.filter(m=>m.roomId===roomId); } catch {}
+    if (!sb) return lsMsgs.slice(-limit);
     const { data, error } = await sb.from('chat_messages').select('*')
       .filter('data->>roomId','eq',roomId)
       .order('created_at',{ascending:false}).limit(limit);
-    if (error) { console.warn('[DB] getChatMessagesByRoom:', error.message); return []; }
-    return _fromRows(data||[]).reverse();
+    if (error) { console.warn('[DB] getChatMessagesByRoom:', error.message); return lsMsgs.slice(-limit); }
+    const supaMsgs = _fromRows(data||[]).reverse();
+    // Merge: add localStorage messages not in Supabase (failed saves)
+    const supaIds = new Set(supaMsgs.map(m=>m.id));
+    const pending = lsMsgs.filter(m => !supaIds.has(m.id));
+    if (pending.length) {
+      // Re-save pending messages to Supabase in background
+      pending.forEach(m => _save('chat_messages', m).catch(()=>{}));
+    }
+    const merged = [...supaMsgs, ...pending].sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||''));
+    return merged.slice(-limit);
   };
   const saveChatMessage = (data) => { if (!data.id) data.id = Utils.uid(); return _save('chat_messages', data); };
   const deleteChatRoom  = (id) => _delete('chat_rooms', id);
