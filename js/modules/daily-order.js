@@ -1372,36 +1372,31 @@ const DailyOrderModule = (() => {
     form.updatedAt = new Date().toISOString();
 
     _saving = true;
-    try {
-      // Save form, then merge DB result back WITHOUT overwriting items
-      const savedForm = await DB.saveDailyOrderForm(form);
+    // Optimistic render: update UI immediately, save to DB in background
+    _calcAllSumber();
+    _editingItemId = wasNew ? 'new' : null;
+    _renderContent();
+    if (!wasNew) {
+      Notify.success('Bahan diperbarui');
+      if (jumpToField && editingId) {
+        const _ni = form.items.findIndex(i => i.id === editingId);
+        const _nxt = form.items[_ni + 1];
+        if (_nxt) setTimeout(() => startEditItem(_nxt.id, jumpToField), 60);
+      }
+    }
+    if (wasNew) setTimeout(() => { _initItemCombo(); document.getElementById('di-item')?.focus(); }, 60);
+    // Background save — no await, UI already updated
+    DB.saveDailyOrderForm(form).then(savedForm => {
       if (savedForm && typeof savedForm === 'object') {
-        // Merge DB metadata (updatedAt etc) into existing form, preserve items
         const preserveKeys = new Set(['items']);
         Object.keys(savedForm).forEach(k => { if (!preserveKeys.has(k)) form[k] = savedForm[k]; });
       }
-      // Recalculate sumber for ALL forms (stock depleted by this save)
-      _calcAllSumber();
-      // After saving existing item → return to view; after adding new → stay in 'new' mode
-      _editingItemId = wasNew ? 'new' : null;
-      _renderContent();
-      if (!wasNew) {
-        Notify.success('Bahan diperbarui');
-        if (jumpToField && editingId) {
-          const _ni = form.items.findIndex(i => i.id === editingId);
-          const _nxt = form.items[_ni + 1];
-          if (_nxt) setTimeout(() => startEditItem(_nxt.id, jumpToField), 60);
-        }
-      }
-      if (wasNew) setTimeout(() => { _initItemCombo(); document.getElementById('di-item')?.focus(); }, 60);
-    } catch(e) {
+    }).catch(e => {
       console.error('[DO] saveRow:', e);
-      Notify.error('Gagal menyimpan bahan, coba lagi');
-      // Rollback local change
-      if (wasNew) form.items.pop();
-    } finally {
-      _saving = false;
-    }
+      Notify.error('Gagal menyimpan ke server — coba refresh');
+      // Rollback local change if new item
+      if (wasNew) { form.items.pop(); _renderContent(); }
+    }).finally(() => { _saving = false; });
   }
 
   function _cancelEdit() {
