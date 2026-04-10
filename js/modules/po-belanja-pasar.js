@@ -307,8 +307,10 @@ window.POBelanjaPasarModule = (() => {
               <td style="padding:8px 4px;text-align:right;background:rgba(5,150,105,.04)">
                 ${locked
                   ? `<span style="font-family:var(--font-mono);font-weight:600">${_n2(it.qtyCikopo)}</span>`
-                  : `<input type="number" min="0" step="0.5" value="${it.qtyCikopo||0}" data-idx="${i}"
+                  : `<input type="number" min="0" step="0.5" value="${it.qtyCikopo||''}" data-idx="${i}" placeholder="0"
+                      class="bp-cikopo-input"
                       onchange="POBelanjaPasarModule._onCikopoChange(${i},+this.value)"
+                      onkeydown="POBelanjaPasarModule._onCikopoKey(event,${i})"
                       style="width:80px;border:1px solid var(--border);border-radius:4px;padding:6px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)"
                       onfocus="this.select()">`}
               </td>
@@ -329,6 +331,19 @@ window.POBelanjaPasarModule = (() => {
         </table>
       </div>
       ${!locked ? `<div style="margin-top:8px;font-size:11px;color:var(--text-3);font-style:italic">Isi jumlah Cikopo, sisanya otomatis ke PS. Karawang. Hanya item sumber PASAR & PARTIAL yang masuk.</div>` : ''}`;
+  }
+
+  function _onCikopoKey(e, idx) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Trigger save first
+      _onCikopoChange(idx, +e.target.value);
+      // Move to next input
+      const inputs = document.querySelectorAll('.bp-cikopo-input');
+      const nextIdx = idx + 1;
+      const next = [...inputs].find(el => +el.dataset.idx === nextIdx);
+      if (next) { next.focus(); next.select(); }
+    }
   }
 
   function _onCikopoChange(idx, val) {
@@ -610,6 +625,6 @@ window.POBelanjaPasarModule = (() => {
   function _n2(n) { const v = Number(n)||0; return v === Math.floor(v) ? String(v) : v.toFixed(1); }
 
   return { init, newDoc, openDoc, backToList, autoSave,
-    _onDateToggle, _toggleAll, _updateCount, _onPickDone, _onCikopoChange,
+    _onDateToggle, _toggleAll, _updateCount, _onPickDone, _onCikopoChange, _onCikopoKey,
     _goStep, _printCikopo, _printKarawang, _saveDoc, _deleteDoc, _selesaikan, _reopen };
 })();
