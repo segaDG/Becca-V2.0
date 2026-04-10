@@ -314,7 +314,17 @@ else { window.SettingsModule = (() => {
       if (!merged.find(u=>u.id===du.id||u.username===du.username))
         merged.push({...du,_isDefault:true});
     });
-    _usersCache = merged; // Cache for openUserModal lookup
+    _usersCache = merged;
+    // Auto-link users to employees by name match
+    if (!_empListCache.length) _empListCache = await DB.getEmployees().catch(()=>[]);
+    const empMap = new Map(_empListCache.map(e=>[e.nama?.toLowerCase(),e]));
+    let autoLinked = 0;
+    for (const u of merged) {
+      if (u.empId) continue; // already linked
+      const emp = empMap.get((u.nama||'').toLowerCase());
+      if (emp) { u.empId = emp.id; autoLinked++; DB.saveUser(u).catch(()=>{}); }
+    }
+    if (autoLinked) console.log(`[Settings] Auto-linked ${autoLinked} users to employees`);
     // For superadmin: load passwords from DB for display
     if (Auth.isSuperAdmin()) {
       const allWithPwd = await DB.getUsers().catch(()=>[]);
@@ -344,7 +354,10 @@ else { window.SettingsModule = (() => {
               <tr>
                 <td class="text-muted">${i+1}</td>
                 <td>
-                  <div style="font-weight:600">${u.nama}</div>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span style="font-weight:600">${u.nama}</span>
+                    ${u.empId?'<span title="Terhubung dengan data karyawan" style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(34,197,94,.12);color:#16a34a;border:1px solid rgba(34,197,94,.25)">Karyawan</span>':''}
+                  </div>
                   ${u.mustChangePassword?'<div style="font-size:10px;color:var(--warning)">⚠️ Harus ganti password</div>':''}
                 </td>
                 <td style="font-family:var(--font-mono);font-size:12px">${u.username}</td>
@@ -453,7 +466,10 @@ else { window.SettingsModule = (() => {
               <label class="form-label">Link Karyawan</label>
               <select name="empId" class="form-control">
                 <option value="">— Tidak terhubung —</option>
-                ${(_empListCache||[]).map(e=>`<option value="${e.id}" ${d.empId===e.id?'selected':''}>${e.nama}${e.jabatan?' \u00b7 '+e.jabatan:''}</option>`).join('')}
+                ${(_empListCache||[]).map(e=>{
+                  const linked = d.empId===e.id || (!d.empId && isEdit && (d.nama||'').toLowerCase()===(e.nama||'').toLowerCase());
+                  return `<option value="${e.id}" ${linked?'selected':''}>${e.nama}${e.jabatan?' \u00b7 '+e.jabatan:''}</option>`;
+                }).join('')}
               </select>
               <div style="font-size:10px;color:var(--text-3);margin-top:3px">Hubungkan dengan data karyawan untuk halaman Personal</div>
             </div>
