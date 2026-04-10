@@ -415,7 +415,7 @@ else { window.SettingsModule = (() => {
             </div>
             <div class="form-group">
               <label class="form-label">Username <span class="req">*</span></label>
-              <input name="username" class="form-control" value="${d.username||''}" required ${isEdit?'readonly style="opacity:.7"':''}>
+              <input name="username" class="form-control" value="${d.username||''}" required>
             </div>
           </div>
           <div class="form-row">
