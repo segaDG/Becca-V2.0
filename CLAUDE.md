@@ -7,8 +7,8 @@
 | Layer | Teknologi |
 |-------|-----------|
 | Frontend | Vanilla HTML/CSS/JS (no framework, no build step) |
-| Database | **Supabase** (PostgreSQL + RLS) dengan localStorage fallback |
-| Auth | Custom session (localStorage/sessionStorage) |
+| Database | **Supabase** (PostgreSQL + RLS enabled) dengan localStorage fallback |
+| Auth | Custom session (localStorage/sessionStorage) + 30 min idle timeout |
 | Deploy | GitHub Pages — `https://segaDG.github.io/Becca-V2.0/` |
 | Repo | https://github.com/segaDG/Becca-V2.0 |
 
@@ -44,15 +44,13 @@ workflows/         # Markdown SOPs
 credentials.json   # Google OAuth (gitignored)
 ```
 
-**Core principle:** Local files are for processing. Deliverables go to cloud services (Google Sheets, Slides, etc.). Everything in `.tmp/` is disposable.
-
 ---
 
 ## Aturan Wajib
 
 ### 1. Backend = Supabase, BUKAN Firebase
 
-Jangan gunakan Firebase API. Semua data via Supabase.
+Jangan gunakan Firebase API. Semua data via Supabase. Firebase hanya untuk push notification (FCM).
 
 ### 2. Data HARUS Masuk DB
 
@@ -61,7 +59,21 @@ Jangan gunakan Firebase API. Semua data via Supabase.
 - **Delete** → `await DB.deleteXxx(id)`. Jangan hanya hapus dari array in-memory.
 - **localStorage boleh** untuk UI state saja: pagination size, widget config, filter preference.
 
-### 3. Module Pattern (WAJIB)
+### 3. WAJIB: Merge Existing Data Sebelum Save (CRITICAL)
+
+Saat edit record via form, `Object.fromEntries(FormData)` hanya menghasilkan field yang ada di form. Field lain (foto, metadata, timestamps) akan HILANG jika tidak di-merge. **Pattern wajib:**
+
+```js
+if (editId) {
+  const existing = _dataArray.find(e => e.id === editId);
+  if (existing) Object.keys(existing).forEach(k => { if (!(k in data)) data[k] = existing[k]; });
+}
+await DB.saveXxx(data);
+```
+
+Modul yang sudah di-fix: employee, customer, settings (user & general), ap, inventory.
+
+### 4. Module Pattern (WAJIB)
 
 ```js
 const XModule = (() => {
@@ -74,40 +86,73 @@ const XModule = (() => {
 window.XModule = XModule;
 ```
 
-### 4. Tambah Modul Baru
+### 5. Tambah Modul Baru
 
 1. Buat `js/modules/namaModul.js` — ikuti Module Pattern
-2. Tambah `<script src="js/modules/namaModul.js?v=..." defer>` di `index.html` (sebelum `app.js`)
-3. Daftarkan di `App._modules` dalam `app.js`
-4. Tambah `<section id="page-namaModul" class="page">` di `index.html`
+2. Tambah entry di `App._MODULE_MAP` dalam `app.js` (lazy loading)
+3. Tambah `<section id="page-namaModul" class="page">` di `index.html`
 
-### 5. Page Visibility
+### 6. Page Visibility
 
-Gunakan `class="page"` + `.active` class. **BUKAN** `hidden` class. Jangan tambah `hidden` ke page sections.
+Gunakan `class="page"` + `.active` class. **BUKAN** `hidden` class.
 
-### 6. Script Loading Order
+### 7. Cache Busting & Service Worker
 
-`utils.js → utils-extensions.js → db.js → db-extensions.js → db-patch.js → auth.js` (sync) → UI components (defer) → modules (defer) → `app.js` (defer, terakhir). Cache bust: `?v=YYYYMMDD`.
+- Modules dimuat lazily via `App._MODULE_MAP` dengan `?v=YYYYMMDD`
+- **Selalu update versi** di `App._MODULE_MAP` (app.js) saat mengubah module
+- **Selalu update** `app.js?v=` di `index.html` saat mengubah app.js
+- SW strategy: **network-first** untuk JS/CSS — deploy langsung efektif
+- **JANGAN** pakai cache-first untuk JS — sudah pernah menyebabkan fix tidak ter-deploy
+
+### 8. Realtime Handler — JANGAN Re-init Saat User di Halaman
+
+Untuk modul dengan inline editing (kas, inventory, ap, daily-order, po), realtime handler di `db-extensions.js` HARUS **skip re-init** saat user sedang di halaman tersebut:
+
+```js
+// BENAR: skip jika user sedang di halaman
+if (window.App?._currentPage === 'inventory') return;
+
+// SALAH: re-init saat user di halaman (hancurkan edit state)
+if (window.App?._currentPage !== 'inventory') return;
+InventoryModule?.init?.();
+```
+
+---
+
+## Security Rules
+
+### Auth
+- **Tidak ada hardcoded password** — default users di `auth.js` hanya punya structure (id, role), TANPA password
+- Login **wajib via Supabase** — jika Supabase offline, login ditolak (bukan fallback ke default)
+- **Session timeout 30 menit** idle — auto-logout pada next page load
+- **Password plaintext** di Supabase (known limitation) — future: migrate ke hashed
+
+### Financial Audit Trail
+- Tabel `kas`, `kas_masuk`, `invoices`, `ap`, `emp_payroll`, `employees` otomatis di-log ke `activity_logs` setiap save/delete
+- `activity_logs` **tidak bisa dihapus** via anon key (RLS policy: DELETE = false)
+
+### Supabase RLS
+- RLS enabled di semua 29 tabel (via `supabase_rls_setup.sql`)
+- Anon key punya full CRUD access (auth di application layer)
+- `activity_logs` INSERT-only (audit trail protection)
 
 ---
 
 ## Gotchas (Tidak Obvious dari Kode)
 
-- **`Utils.ls` auto-prefix `becca_`** — tulis `Utils.ls.set('foo', val)`, JANGAN `Utils.ls.set('becca_foo', val)` (double prefix)
+- **`Utils.ls` auto-prefix `becca_`** — tulis `Utils.ls.set('foo', val)`, JANGAN `Utils.ls.set('becca_foo', val)`
 - **Supplier noRek** — render fallback: `s.data?.no_rekening || s.noRekening || s.noRek`
-- **Combobox (`Utils.initCombo`)** — floating dropdown di `document.body`, HARUS cleanup. Cek `inputEl._comboHandle` → `.destroy()`
+- **Combobox (`Utils.initCombo`)** — floating dropdown di `document.body`, HARUS cleanup via `inputEl._comboHandle?.destroy()`
 - **Modal closable** — gunakan `closable: false` untuk modal wajib. `hideClose: true` TIDAK dikenali
 - **Double-click edit** — `<td>` perlu `data-field="id-input"`, handler via `event.target.closest('td')?.dataset?.field`
 - **Daily Order Enter** — Enter di AKT QTY → save + auto-edit baris berikutnya
-- **Realtime** — `DB.subscribe()` dedup via `_realtimeChannels Set`. `DBExtensions.init()` punya `_initialized` guard
+- **Daily Order Sync** — matching nama item ke inventory pakai exact match lalu partial match (contains)
 - **Deep link** — `?task=ID` → `sessionStorage('becca_deep_task')` → auto-open task modal setelah login
-- **`search-fix.js`** — patch `setSearch()` ke modul yang support. Guard `__searchPatched` mencegah double-patch
+- **Employee gaji** — field `gajiPokok` + `tunjangan` = `gaji` (total). Display harus fallback: `emp.gajiPokok || emp.gaji` untuk data lama
+- **Chat privacy** — rooms hanya visible ke members. `_isMember()` cek `Array.isArray(members)` — guard against string
+- **Auto-backup** — superadmin only, daily, strip foto/heavy fields, simpan di `becca_backup_latest`
+- **Gemini AI** — retry chain: `gemini-2.5-flash` → `gemini-2.5-flash` → `gemini-2.0-flash-lite` (429/503/404 trigger next)
 
-## Demo Credentials
+## Credentials
 
-| Role | Username | Password |
-|------|----------|----------|
-| superadmin | superadmin | admin123 |
-| admin | admin | admin123 |
-| operator | operator | op123 |
-| viewer | viewer | view123 |
+Default users **tidak memiliki password** di source code. Password disimpan di Supabase. Jika perlu reset, edit langsung di Supabase Dashboard atau via Settings → Users.
