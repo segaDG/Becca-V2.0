@@ -1280,21 +1280,19 @@ const DailyOrderModule = (() => {
   }
 
   /** Mobile: EST QTY blur → save row + open new row (same as Enter on desktop) */
+  let _estBlurTimer = null;
   function _estQtyBlur() {
     if (_saving) return;
     const item = document.getElementById('di-item')?.value.trim();
     const qty = parseFloat(document.getElementById('di-estqty')?.value);
     console.log('[DO] estQtyBlur:', { item, qty, editingId: _editingItemId });
     if (!item || !qty || qty <= 0) return;
-    // Delay to let tap-on-other-field register first
     _estBlurTimer = setTimeout(() => {
       if (_saving) return;
       console.log('[DO] estQtyBlur → saving');
       _saveEditRow();
     }, 400);
   }
-  let _estBlurTimer = null;
-  // Cancel blur-save if user taps another field in same row
   function _cancelEstBlur() { clearTimeout(_estBlurTimer); }
 
   /* Enter on AKT QTY: save + jump to next row's aktqty */
