@@ -379,9 +379,25 @@ const DB = (() => {
     return { data: _fromRows(data || []), total: count || 0, page, perPage };
   }
 
+  // Tables that require financial audit trail
+  const _AUDIT_TABLES = ['kas','kas_masuk','invoices','ap','emp_payroll','employees'];
+
   async function _save(table, obj) {
     const sb = await _initClient();
     if (!sb) return _lsSave(table, obj);
+
+    // Financial audit: log before overwrite
+    if (_AUDIT_TABLES.includes(table) && obj.id) {
+      try {
+        const user = (typeof Auth !== 'undefined' && Auth.currentUser()) || {};
+        _save('activity_logs', {
+          id: Utils.uid(),
+          type: 'audit_' + table,
+          detail: JSON.stringify({ action:'save', id:obj.id, user:user.username||'system', nama:obj.nama||obj.supplier||obj.item||'', ts:new Date().toISOString() }),
+        }).catch(()=>{});
+      } catch {}
+    }
+
     // Invalidate caches so next _get() fetches fresh
     delete _memCache[table];
     try { localStorage.removeItem('becca_' + table + '_ts'); } catch {}
@@ -472,6 +488,19 @@ const DB = (() => {
   async function _delete(table, id) {
     const sb = await _initClient();
     if (!sb) return _lsDelete(table, id);
+
+    // Financial audit: log delete
+    if (_AUDIT_TABLES.includes(table)) {
+      try {
+        const user = (typeof Auth !== 'undefined' && Auth.currentUser()) || {};
+        _save('activity_logs', {
+          id: Utils.uid(),
+          type: 'audit_delete_' + table,
+          detail: JSON.stringify({ action:'delete', id, user:user.username||'system', ts:new Date().toISOString() }),
+        }).catch(()=>{});
+      } catch {}
+    }
+
     delete _memCache[table];
     try { localStorage.removeItem('becca_' + table + '_ts'); } catch {}
 

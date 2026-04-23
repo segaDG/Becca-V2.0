@@ -7,11 +7,12 @@ const Auth = {
   _user: null,
   _SESSION_KEY: 'session',
 
+  // Default users — NO passwords (login only works via Supabase-stored users)
   _defaultUsers: [
-    { id: 'u1', username: 'superadmin', password: 'admin123', nama: 'Super Admin',   role: 'superadmin', email: '', aktif: true },
-    { id: 'u2', username: 'admin',      password: 'admin123', nama: 'Administrator', role: 'admin',      email: '', aktif: true },
-    { id: 'u3', username: 'operator',   password: 'op123',    nama: 'Operator',      role: 'operator',   email: '', aktif: true },
-    { id: 'u4', username: 'viewer',     password: 'view123',  nama: 'Viewer',        role: 'viewer',     email: '', aktif: true },
+    { id: 'u1', username: 'superadmin', nama: 'Super Admin',   role: 'superadmin', email: '', aktif: true },
+    { id: 'u2', username: 'admin',      nama: 'Administrator', role: 'admin',      email: '', aktif: true },
+    { id: 'u3', username: 'operator',   nama: 'Operator',      role: 'operator',   email: '', aktif: true },
+    { id: 'u4', username: 'viewer',     nama: 'Viewer',        role: 'viewer',     email: '', aktif: true },
   ],
 
   _defaultPrivileges: {
@@ -22,13 +23,36 @@ const Auth = {
     viewer:   { dashboard:'view', order:'view', invoice:'view', customer:'view', chat:'all', personal:'all', report:'view', news:'view' },
   },
 
+  _SESSION_TIMEOUT: 30 * 60 * 1000, // 30 minutes
+
   /* ===================== INIT ===================== */
   init() {
     const saved = Utils.ls.get(this._SESSION_KEY);
-    if (saved) { this._user = saved; return true; }
-    const sess = sessionStorage.getItem(this._SESSION_KEY);
-    if (sess) { try { this._user = JSON.parse(sess); return true; } catch {} }
-    return false;
+    if (saved) { this._user = saved; }
+    if (!this._user) {
+      const sess = sessionStorage.getItem(this._SESSION_KEY);
+      if (sess) { try { this._user = JSON.parse(sess); } catch {} }
+    }
+    if (!this._user) return false;
+    // Check session timeout
+    const lastActive = parseInt(localStorage.getItem('becca_last_active') || '0');
+    if (lastActive && (Date.now() - lastActive) > this._SESSION_TIMEOUT) {
+      console.log('[Auth] Session expired (idle > 30 min)');
+      this._user = null;
+      Utils.ls.del(this._SESSION_KEY);
+      sessionStorage.removeItem(this._SESSION_KEY);
+      localStorage.removeItem('becca_last_active');
+      return false;
+    }
+    this._trackActivity();
+    return true;
+  },
+
+  _trackActivity() {
+    // Update last active on user interaction
+    const update = () => { localStorage.setItem('becca_last_active', String(Date.now())); };
+    update();
+    ['click','keydown','touchstart'].forEach(e => document.addEventListener(e, update, { passive:true, once:false }));
   },
 
   /* ===================== LOGIN ===================== */
@@ -53,7 +77,7 @@ const Auth = {
         if (Array.isArray(cfg._users) && cfg._users.length) users = cfg._users;
       } catch(e3) {}
     }
-    if (!users.length) users = this._defaultUsers;
+    if (!users.length) throw new Error('Tidak dapat terhubung ke server. Pastikan koneksi internet aktif.');
 
     const user = users.find(u =>
       u.username.toLowerCase() === username.toLowerCase() &&
@@ -71,6 +95,8 @@ const Auth = {
     } else {
       sessionStorage.setItem(this._SESSION_KEY, JSON.stringify(this._user));
     }
+    localStorage.setItem('becca_last_active', String(Date.now()));
+    this._trackActivity();
 
     if (mustChange) {
       sessionStorage.setItem('becca_must_change_pwd', '1');
