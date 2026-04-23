@@ -228,7 +228,7 @@ const EmployeeModule = (() => {
         <div>
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Total Gaji Keseluruhan</div>
           <div style="font-size:18px;font-weight:800;color:var(--primary-h);font-family:var(--font-mono);margin-top:2px">
-            ${Utils.formatRupiah(active.reduce((s,e)=>s+((e.gajiPokok||0)+(e.tunjangan||0)),0),false)}
+            ${Utils.formatRupiah(active.reduce((s,e)=>s+(e.gaji||(e.gajiPokok||0)+(e.tunjangan||0)),0),false)}
           </div>
           <div style="font-size:10px;color:var(--text-3);margin-top:2px">${active.length} karyawan aktif</div>
         </div>
@@ -317,7 +317,7 @@ const EmployeeModule = (() => {
                     : `<button class="btn btn-ghost btn-sm" style="color:#c2410c;border-color:rgba(249,115,22,.4);font-size:11px;padding:2px 8px" onclick="EmployeeModule.openEmpModal('${emp.id}')">⚠ Isi</button>`}
                   </td>
                   <td class="text-small text-muted">${_fmtTgl(emp.tglJoin||emp.tgl_join||emp.tglMasuk)}</td>
-                  ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono)">${emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok,false):'-'}</td>` : ''}
+                  ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono)">${(emp.gajiPokok||emp.gaji)?Utils.formatRupiah(emp.gajiPokok||emp.gaji,false):'-'}</td>` : ''}
                   ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono)">${emp.tunjangan?Utils.formatRupiah(emp.tunjangan,false):'-'}</td>` : ''}
                   ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono);font-weight:600">${emp.gaji?Utils.formatRupiah(emp.gaji,false):'-'}</td>` : ''}
                   ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,false):'-'}</td>` : ''}
@@ -452,7 +452,7 @@ const EmployeeModule = (() => {
             {l:'No. HP',     v:emp.noHp||'-'},
             {l:'Tgl Join',   v:_fmtTgl(emp.tglJoin||emp.tgl_join||emp.tglMasuk)},
             ...(canFinance ? [
-              {l:'Gaji Pokok',  v:emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-'},
+              {l:'Gaji Pokok',  v:(emp.gajiPokok||emp.gaji)?Utils.formatRupiah(emp.gajiPokok||emp.gaji):'-'},
               {l:'Tunjangan',   v:emp.tunjangan?Utils.formatRupiah(emp.tunjangan):'-'},
               {l:'Total Gaji',  v:emp.gaji?Utils.formatRupiah(emp.gaji):'-'},
               {l:'Sisa Hutang', v:emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang):'-'},
@@ -530,7 +530,7 @@ const EmployeeModule = (() => {
               {l:'Pendidikan',  v:emp.pendidikan||'-'},
               {l:'Tgl Join',    v:emp.tglJoin||emp.tglMasuk||'-'},
               ...(canFinance ? [
-                {l:'Gaji Pokok',  v:emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok):'-'},
+                {l:'Gaji Pokok',  v:(emp.gajiPokok||emp.gaji)?Utils.formatRupiah(emp.gajiPokok||emp.gaji):'-'},
                 {l:'Tunjangan',   v:emp.tunjangan?Utils.formatRupiah(emp.tunjangan):'-'},
                 {l:'Total Gaji',  v:emp.gaji?Utils.formatRupiah(emp.gaji):'-'},
                 {l:'Sisa Hutang', v:emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang):'-'},
@@ -925,14 +925,14 @@ const EmployeeModule = (() => {
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Gaji Pokok</label>
-            <input type="number" name="gajiPokok" class="form-control" value="${d.gajiPokok||0}" oninput="(function(el){const f=el.closest('form');if(!f)return;const p=parseInt(f.gajiPokok.value)||0,t=parseInt(f.tunjangan.value)||0;const lbl=f.querySelector('.gaji-total-lbl');if(lbl)lbl.textContent='Total Gaji: '+Utils.formatRupiah(p+t,false)})(this)">
+            <input type="number" name="gajiPokok" class="form-control" value="${d.gajiPokok||d.gaji||0}" oninput="(function(el){const f=el.closest('form');if(!f)return;const p=parseInt(f.gajiPokok.value)||0,t=parseInt(f.tunjangan.value)||0;const lbl=f.querySelector('.gaji-total-lbl');if(lbl)lbl.textContent='Total Gaji: '+Utils.formatRupiah(p+t,false)})(this)">
           </div>
           <div class="form-group">
             <label class="form-label">Tunjangan</label>
             <input type="number" name="tunjangan" class="form-control" value="${d.tunjangan||0}" oninput="(function(el){const f=el.closest('form');if(!f)return;const p=parseInt(f.gajiPokok.value)||0,t=parseInt(f.tunjangan.value)||0;const lbl=f.querySelector('.gaji-total-lbl');if(lbl)lbl.textContent='Total Gaji: '+Utils.formatRupiah(p+t,false)})(this)">
           </div>
         </div>
-        <div style="margin:-8px 0 8px;font-size:12px;font-weight:600;color:var(--primary-h)" class="gaji-total-lbl">Total Gaji: ${Utils.formatRupiah((d.gajiPokok||0)+(d.tunjangan||0),false)}</div>
+        <div style="margin:-8px 0 8px;font-size:12px;font-weight:600;color:var(--primary-h)" class="gaji-total-lbl">Total Gaji: ${Utils.formatRupiah((d.gajiPokok||d.gaji||0)+(d.tunjangan||0),false)}</div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">No. Rekening</label>
@@ -1533,7 +1533,7 @@ const EmployeeModule = (() => {
           : `<button class="btn btn-ghost btn-sm" style="color:#c2410c;border-color:rgba(249,115,22,.4);font-size:11px;padding:2px 8px" onclick="EmployeeModule.openEmpModal('${emp.id}')">⚠ Isi</button>`}
         </td>
         <td class="text-small text-muted">${_fmtTgl(emp.tglJoin||emp.tgl_join||emp.tglMasuk)}</td>
-        ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono)">${emp.gajiPokok?Utils.formatRupiah(emp.gajiPokok,false):'-'}</td>` : ''}
+        ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono)">${(emp.gajiPokok||emp.gaji)?Utils.formatRupiah(emp.gajiPokok||emp.gaji,false):'-'}</td>` : ''}
         ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono)">${emp.tunjangan?Utils.formatRupiah(emp.tunjangan,false):'-'}</td>` : ''}
         ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono);font-weight:600">${emp.gaji?Utils.formatRupiah(emp.gaji,false):'-'}</td>` : ''}
         ${canFinance ? `<td class="text-small" style="font-family:var(--font-mono);color:${(emp.sisaHutang||0)>0?'var(--warning)':'var(--text-3)'}">${emp.sisaHutang?Utils.formatRupiah(emp.sisaHutang,false):'-'}</td>` : ''}
