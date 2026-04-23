@@ -1172,7 +1172,8 @@ const DailyOrderModule = (() => {
             onchange="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
             oninput="DailyOrderModule._showItemSuggest()"
             onkeydown="DailyOrderModule._itemKeyDown(event)"
-            onfocus="DailyOrderModule._showItemSuggest()">
+            onfocus="DailyOrderModule._showItemSuggest()"
+            onblur="setTimeout(()=>DailyOrderModule._onItemBlur(),150)">
           <div id="di-item-drop" style="display:none"></div>
         </td>
         <td style="padding:4px 3px">
@@ -2036,7 +2037,8 @@ const DailyOrderModule = (() => {
       return `<div class="di-sug-item" data-i="${i}" data-v="${m.n.replace(/"/g,'&quot;')}"
         style="padding:6px 10px;cursor:pointer;font-size:11px;font-weight:500;color:var(--text);border-radius:6px;margin:2px"
         onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''"
-        onmousedown="event.preventDefault();DailyOrderModule._pickSuggest(${i})">${hl}</div>`;
+        onmousedown="event.preventDefault();DailyOrderModule._pickSuggest(${i})"
+        ontouchend="event.preventDefault();DailyOrderModule._pickSuggest(${i})">${hl}</div>`;
     }).join('');
   }
 
@@ -2049,6 +2051,26 @@ const DailyOrderModule = (() => {
     drop.style.display = 'none';
     _autoFillFromInventory(); _liveCompute();
     document.getElementById('di-estqty')?.focus();
+  }
+
+  /** Mobile: when item field loses focus (Next button), auto-pick best match */
+  function _onItemBlur() {
+    const el = document.getElementById('di-item');
+    if (!el) return;
+    const val = el.value.trim();
+    if (!val) { _hideSuggest(); return; }
+    // Check if already a valid inventory item
+    const exact = _suggestNames.find(n => n.toLowerCase() === val.toLowerCase());
+    if (exact) { el.value = exact; }
+    else {
+      // Auto-pick best partial match
+      const lv = val.toLowerCase();
+      const rank = (n) => { const ln = n.toLowerCase(); if (ln.startsWith(lv)) return 0; if (ln.includes(lv)) return 1; return -1; };
+      const best = _suggestNames.map(n => ({ n, r: rank(n) })).filter(x => x.r >= 0).sort((a,b) => a.r - b.r || a.n.length - b.n.length)[0];
+      if (best) el.value = best.n;
+    }
+    _hideSuggest();
+    _autoFillFromInventory(); _liveCompute();
   }
 
   function _hideSuggest() {
@@ -2182,7 +2204,7 @@ const DailyOrderModule = (() => {
     setFormMonth, prevFormMonth, nextFormMonth,
     createForm, addEvent, saveEventMeta, copyEstToAkt, syncToInventory, openCopyFormModal, doCopyForm, printForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, goToDate,
-    _saveEditRow, _cancelEdit, _itemKeyDown, _showItemSuggest, _pickSuggest, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
+    _saveEditRow, _cancelEdit, _itemKeyDown, _showItemSuggest, _pickSuggest, _onItemBlur, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
   };
 })();
