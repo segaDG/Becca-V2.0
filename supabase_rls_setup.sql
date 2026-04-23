@@ -33,7 +33,7 @@ ALTER TABLE IF EXISTS emp_jadwal ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS opname_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS menu_library ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS menu_plans ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS delivery ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE IF EXISTS delivery ENABLE ROW LEVEL SECURITY; -- table belum ada
 
 -- Step 2: Create policies — allow anon key full CRUD access
 -- (BECCA handles auth at application level, not Supabase level)
@@ -51,7 +51,7 @@ DECLARE
     'activity_logs','settings','chat_rooms','chat_messages',
     'daily_order_forms','news','push_tokens','presence',
     'po_anggaran','emp_jadwal','opname_logs',
-    'menu_library','menu_plans','delivery'
+    'menu_library','menu_plans'
   ];
 BEGIN
   FOREACH t IN ARRAY tables LOOP
