@@ -1179,8 +1179,10 @@ const DailyOrderModule = (() => {
         <td style="padding:4px 3px">
           <input id="di-estqty" class="form-control" style="${inp('text-align:right;width:60px')}"
             type="number" step="1" min="0" placeholder="0" value="${estQ0||''}"
+            inputmode="numeric"
             oninput="DailyOrderModule._liveCompute()"
-            onkeydown="DailyOrderModule._estQtyKeyDown(event)">
+            onkeydown="DailyOrderModule._estQtyKeyDown(event)"
+            onblur="DailyOrderModule._estQtyBlur()">
         </td>
         <td style="padding:4px 6px;text-align:center">
           <input type="hidden" id="di-sat" value="${it?.satuan||''}">
@@ -1273,6 +1275,18 @@ const DailyOrderModule = (() => {
       if (item) _saveEditRow();
       else      document.getElementById('di-item')?.focus();
     }
+  }
+
+  /** Mobile: EST QTY blur → save row + open new row (same as Enter on desktop) */
+  function _estQtyBlur() {
+    // Skip if user is clicking another field in the same row (e.g. harga, aktqty)
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (active && active.closest && active.closest('tr')?.querySelector('#di-item')) return; // still in same edit row
+      const item = document.getElementById('di-item')?.value.trim();
+      const qty = document.getElementById('di-estqty')?.value;
+      if (item && qty) _saveEditRow();
+    }, 200);
   }
 
   /* Enter on AKT QTY: save + jump to next row's aktqty */
@@ -2204,7 +2218,7 @@ const DailyOrderModule = (() => {
     setFormMonth, prevFormMonth, nextFormMonth,
     createForm, addEvent, saveEventMeta, copyEstToAkt, syncToInventory, openCopyFormModal, doCopyForm, printForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, goToDate,
-    _saveEditRow, _cancelEdit, _itemKeyDown, _showItemSuggest, _pickSuggest, _onItemBlur, _editKeyDown, _estQtyKeyDown, _aktQtyKeyDown,
+    _saveEditRow, _cancelEdit, _itemKeyDown, _showItemSuggest, _pickSuggest, _onItemBlur, _editKeyDown, _estQtyKeyDown, _estQtyBlur, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
   };
 })();
