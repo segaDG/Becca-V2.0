@@ -1179,7 +1179,7 @@ const DailyOrderModule = (() => {
         <td style="padding:4px 3px">
           <input id="di-estqty" class="form-control" style="${inp('text-align:right;width:60px')}"
             type="number" step="1" min="0" placeholder="0" value="${estQ0||''}"
-            inputmode="numeric"
+            inputmode="numeric" enterkeyhint="done"
             oninput="DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._estQtyKeyDown(event)"
             onblur="DailyOrderModule._estQtyBlur()">
@@ -1279,14 +1279,15 @@ const DailyOrderModule = (() => {
 
   /** Mobile: EST QTY blur → save row + open new row (same as Enter on desktop) */
   function _estQtyBlur() {
-    // Skip if user is clicking another field in the same row (e.g. harga, aktqty)
     setTimeout(() => {
+      // Skip if focus moved to another field in the edit row (user tapped harga/aktqty manually)
       const active = document.activeElement;
-      if (active && active.closest && active.closest('tr')?.querySelector('#di-item')) return; // still in same edit row
+      const editRow = document.getElementById('di-item')?.closest('tr');
+      if (active && editRow && editRow.contains(active) && active.id !== 'di-estqty') return;
       const item = document.getElementById('di-item')?.value.trim();
-      const qty = document.getElementById('di-estqty')?.value;
-      if (item && qty) _saveEditRow();
-    }, 200);
+      const qty = parseFloat(document.getElementById('di-estqty')?.value);
+      if (item && qty > 0) _saveEditRow();
+    }, 300);
   }
 
   /* Enter on AKT QTY: save + jump to next row's aktqty */
