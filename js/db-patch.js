@@ -20,11 +20,20 @@
   var BIG_CACHE_KEYS = [
     'becca_emp_logs',        // selalu flush — bisa 170KB+
   ];
-  // Keys yang di-flush hanya jika melebihi threshold
+  // Keys yang di-flush hanya jika melebihi threshold (bytes)
+  // Max total localStorage = 5MB, so keep each key under 200KB
   var BIG_CACHE_THRESHOLD = [
-    { key: 'becca_inv_activities', limit: 50000 },  // inventory logs — flush jika >50KB
-    { key: 'becca_kas',            limit: 50000 },  // kas kecil — flush jika >50KB
-    { key: 'becca_ap',             limit: 50000 },  // account payable — flush jika >50KB
+    { key: 'becca_inv_activities',    limit: 200000 },
+    { key: 'becca_daily_order_forms', limit: 200000 },
+    { key: 'becca_employees',         limit: 200000 },
+    { key: 'becca_kas',               limit: 200000 },
+    { key: 'becca_ap',                limit: 200000 },
+    { key: 'becca_orders',            limit: 200000 },
+    { key: 'becca_invoices',          limit: 200000 },
+    { key: 'becca_chat_messages',     limit: 100000 },
+    { key: 'becca_inv_products',      limit: 200000 },
+    { key: 'becca_backups',           limit: 10 },      // old oversized backup — always remove
+    { key: 'becca_backup_latest',     limit: 500000 },
   ];
 
   function cleanupLocalStorage() {
@@ -54,7 +63,11 @@
       }
     });
 
-    // 4. Bersihkan settings dari corrupt nested/base64 data
+    // 4. Strip base64 photos from employee cache (huge — photos are in Supabase)
+    _stripPhotosFromCache('becca_employees', ['fotoUrl','ktpUrl','faceDescriptors']);
+    _stripPhotosFromCache('becca_chat_messages', ['mediaUrl']);
+
+    // 5. Bersihkan settings dari corrupt nested/base64 data
     _cleanSettings();
     _stripLogo();
 
@@ -64,6 +77,24 @@
       console.log('[DB-Patch] Freed ' + freed + 'KB from localStorage (' + after + ' bytes remaining)');
     }
     return { freed_kb: freed, before: before, after: after };
+  }
+
+  function _stripPhotosFromCache(key, fields) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw || raw.length < 100000) return; // only strip if > 100KB
+      var arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return;
+      var changed = false;
+      arr.forEach(function(item) {
+        fields.forEach(function(f) {
+          if (item[f] && typeof item[f] === 'string' && item[f].length > 1000) {
+            delete item[f]; changed = true;
+          }
+        });
+      });
+      if (changed) localStorage.setItem(key, JSON.stringify(arr));
+    } catch(e) {}
   }
 
   function _cleanSettings() {
