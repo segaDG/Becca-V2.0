@@ -157,12 +157,12 @@ const DBExtensions = (() => {
       // If user IS on the page, their local state is already up-to-date from their own save.
       // This prevents realtime from destroying edit state / causing full page refresh.
       inv_activities: () => {
-        if (window.App?._currentPage !== 'inventory') return;
-        _rtDebounce('inv', () => { if (!window.InventoryModule?._invEditId) InventoryModule?.init?.(); }, 2000);
+        // Skip re-init when user is on inventory page — their local state is fresh
+        if (window.App?._currentPage === 'inventory') return;
       },
       ap: () => {
-        if (window.App?._currentPage !== 'ap') return;
-        _rtDebounce('ap', () => { if (!window.APModule?._apEditId) APModule?.init?.(); }, 2000);
+        // Skip re-init when user is on AP page — their local state is fresh
+        if (window.App?._currentPage === 'ap') return;
       },
       kas: () => {
         // Skip re-init when user is on kas page — their local state is fresh
