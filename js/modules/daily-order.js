@@ -1192,7 +1192,8 @@ const DailyOrderModule = (() => {
           <input id="di-harga" class="form-control" style="${inp('text-align:right;width:80px')}"
             type="number" step="100" min="0" placeholder="0" value="${harga0||''}"
             oninput="DailyOrderModule._liveCompute()"
-            onkeydown="DailyOrderModule._editKeyDown(event,'di-aktqty')">
+            onkeydown="DailyOrderModule._editKeyDown(event,'di-aktqty')"
+            onfocus="DailyOrderModule._cancelEstBlur()">
         </td>
         <td id="di-esttot-d" style="padding:4px 6px;text-align:right;color:#6366f1;font-size:11px;white-space:nowrap">
           ${estQ0&&harga0?(estQ0*harga0).toLocaleString('id-ID'):'-'}
@@ -1201,7 +1202,8 @@ const DailyOrderModule = (() => {
           <input id="di-aktqty" class="form-control" style="${inp('text-align:right;width:60px')}"
             type="number" step="1" min="0" placeholder="0" value="${aktQ0||''}"
             oninput="DailyOrderModule._liveCompute()"
-            onkeydown="DailyOrderModule._aktQtyKeyDown(event)">
+            onkeydown="DailyOrderModule._aktQtyKeyDown(event)"
+            onfocus="DailyOrderModule._cancelEstBlur()">
         </td>
         <td id="di-akttot-d" style="padding:4px 6px;text-align:right;color:#10b981;font-size:11px;white-space:nowrap">
           ${aktQ0&&harga0?(aktQ0*harga0).toLocaleString('id-ID'):'-'}
@@ -1279,16 +1281,21 @@ const DailyOrderModule = (() => {
 
   /** Mobile: EST QTY blur → save row + open new row (same as Enter on desktop) */
   function _estQtyBlur() {
-    setTimeout(() => {
-      // Skip if focus moved to another field in the edit row (user tapped harga/aktqty manually)
-      const active = document.activeElement;
-      const editRow = document.getElementById('di-item')?.closest('tr');
-      if (active && editRow && editRow.contains(active) && active.id !== 'di-estqty') return;
-      const item = document.getElementById('di-item')?.value.trim();
-      const qty = parseFloat(document.getElementById('di-estqty')?.value);
-      if (item && qty > 0) _saveEditRow();
-    }, 300);
+    if (_saving) return;
+    const item = document.getElementById('di-item')?.value.trim();
+    const qty = parseFloat(document.getElementById('di-estqty')?.value);
+    console.log('[DO] estQtyBlur:', { item, qty, editingId: _editingItemId });
+    if (!item || !qty || qty <= 0) return;
+    // Delay to let tap-on-other-field register first
+    _estBlurTimer = setTimeout(() => {
+      if (_saving) return;
+      console.log('[DO] estQtyBlur → saving');
+      _saveEditRow();
+    }, 400);
   }
+  let _estBlurTimer = null;
+  // Cancel blur-save if user taps another field in same row
+  function _cancelEstBlur() { clearTimeout(_estBlurTimer); }
 
   /* Enter on AKT QTY: save + jump to next row's aktqty */
   function _aktQtyKeyDown(e) {
@@ -2219,7 +2226,7 @@ const DailyOrderModule = (() => {
     setFormMonth, prevFormMonth, nextFormMonth,
     createForm, addEvent, saveEventMeta, copyEstToAkt, syncToInventory, openCopyFormModal, doCopyForm, printForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, goToDate,
-    _saveEditRow, _cancelEdit, _itemKeyDown, _showItemSuggest, _pickSuggest, _onItemBlur, _editKeyDown, _estQtyKeyDown, _estQtyBlur, _aktQtyKeyDown,
+    _saveEditRow, _cancelEdit, _itemKeyDown, _showItemSuggest, _pickSuggest, _onItemBlur, _editKeyDown, _estQtyKeyDown, _estQtyBlur, _cancelEstBlur, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
   };
 })();
