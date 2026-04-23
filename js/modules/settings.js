@@ -1153,6 +1153,12 @@ else { window.SettingsModule = (() => {
               <div style="border-top:1px solid var(--border);padding-top:var(--s3)">
                 <button class="btn btn-ghost w-full" style="color:var(--danger);border-color:rgba(239,68,68,.2)" onclick="SettingsModule.clearData()">🗑️ Reset Semua Data</button>
               </div>
+              <div style="border-top:1px solid var(--border);padding-top:var(--s3);margin-top:var(--s2)">
+                <button class="btn btn-ghost w-full" style="color:var(--primary);border-color:rgba(99,102,241,.3)" onclick="SettingsModule.runTests()" id="btn-tests">
+                  🧪 Run Tests
+                </button>
+                <div id="test-results" style="margin-top:8px"></div>
+              </div>
             `:''}
           </div>
         </div>
@@ -1242,6 +1248,24 @@ else { window.SettingsModule = (() => {
       </div>
       ` : ''}
     `;
+  }
+
+  async function runTests() {
+    const btn = document.getElementById('btn-tests');
+    const el = document.getElementById('test-results');
+    if (btn) { btn.disabled = true; btn.textContent = '🧪 Running...'; }
+    if (el) el.innerHTML = '<div style="color:var(--text-3);font-size:12px">Running tests...</div>';
+    try {
+      const result = await BeccaTests.runAll();
+      if (el) el.innerHTML = BeccaTests.getHtmlReport();
+      if (result.failed === 0) Notify.success(`Tests: ${result.passed} passed, 0 failed`);
+      else Notify.warning(`Tests: ${result.passed} passed, ${result.failed} failed`);
+    } catch(e) {
+      if (el) el.innerHTML = `<div style="color:var(--danger)">${e.message}</div>`;
+      Notify.error('Test error: ' + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🧪 Run Tests'; }
+    }
   }
 
   async function recoverData() {
@@ -2502,7 +2526,7 @@ else { window.SettingsModule = (() => {
     renderUsers, openUserModal, _submitUser, toggleUser, deleteUser, bulkCreateFromEmployees, _doBulkCreate,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
-    renderData, exportData, _doImport, clearData, recoverData,
+    renderData, exportData, _doImport, clearData, recoverData, runTests,
     clearInventoryData, clearOpnameData, clearOrdersData, clearInvoicesData,
     importOrdersExcel, _doImportOrdersExcel, importInvoicesExcel, _doImportInvoicesExcel,
     importInventoryExcel, _doImportInventoryExcel,

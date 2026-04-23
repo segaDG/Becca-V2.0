@@ -153,6 +153,40 @@ InventoryModule?.init?.();
 - **Auto-backup** — superadmin only, daily, strip foto/heavy fields, simpan di `becca_backup_latest`
 - **Gemini AI** — retry chain: `gemini-2.5-flash` → `gemini-2.5-flash` → `gemini-2.0-flash-lite` (429/503/404 trigger next)
 
+---
+
+## Testing
+
+### Test Suite (`js/tests.js`)
+
+5 test suites, dijalankan di browser:
+1. **Regression** — globals, DB methods, module map, no hardcoded passwords
+2. **Data Integrity** — save/load/merge preserves all fields
+3. **Permission** — role-based access (superadmin/viewer/operator)
+4. **Financial Accuracy** — formatRupiah, gaji calculation, kas saldo
+5. **Critical Path** — DB connection, load all tables, CRUD cycle
+
+### Cara Run
+- **Browser:** Settings → Data → Run Tests (superadmin only)
+- **Console:** `await BeccaTests.runAll()`
+
+### WAJIB: Run Tests Sebelum Push
+
+**Setiap kali mengubah kode, jalankan test sebelum push.** Jika ada test FAIL, investigasi dan fix sebelum push. Jangan push kode yang gagal test.
+
+Checklist sebelum push:
+1. Buka BECCA di browser, login sebagai superadmin
+2. Buka Console → `await BeccaTests.runAll()`
+3. Pastikan **0 failed**
+4. Baru `git push`
+
+### Test Data Convention
+- Test records pakai ID prefix `__test_`
+- Semua test records di-cleanup otomatis setelah test
+- Tests TIDAK mengubah production data
+
+Lihat `test_plan.md` untuk detail lengkap setiap test case.
+
 ## Credentials
 
 Default users **tidak memiliki password** di source code. Password disimpan di Supabase. Jika perlu reset, edit langsung di Supabase Dashboard atau via Settings → Users.
