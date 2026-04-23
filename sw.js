@@ -73,7 +73,10 @@ self.addEventListener('fetch', e => {
     e.respondWith(
       fetch(e.request)
         .then(res => {
-          caches.open(CACHE_NAME).then(c => c.put(e.request, res.clone()));
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          }
           return res;
         })
         .catch(() => caches.match('/'))
@@ -82,12 +85,13 @@ self.addEventListener('fetch', e => {
   }
 
   // JS & CSS — NETWORK FIRST, cache as fallback for offline
-  if (url.pathname.match(/\.(js|css)$/)) {
+  if (url.pathname.match(/\.(js|css)$/) || url.search.includes('v=')) {
     e.respondWith(
       fetch(e.request)
         .then(res => {
           if (res.ok) {
-            caches.open(CACHE_NAME).then(c => c.put(e.request, res.clone()));
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
           }
           return res;
         })
@@ -101,7 +105,7 @@ self.addEventListener('fetch', e => {
     e.respondWith(
       caches.match(e.request).then(cached => {
         const networkFetch = fetch(e.request).then(res => {
-          if (res.ok) caches.open(CACHE_NAME).then(c => c.put(e.request, res.clone()));
+          if (res.ok) { const clone = res.clone(); caches.open(CACHE_NAME).then(c => c.put(e.request, clone)); }
           return res;
         }).catch(() => cached);
         return cached || networkFetch;
