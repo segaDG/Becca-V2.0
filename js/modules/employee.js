@@ -967,8 +967,12 @@ const EmployeeModule = (() => {
     data.gaji = data.gajiPokok + data.tunjangan;
     if (editId) data.id = editId;
 
-    // Satu lookup untuk foto + KTP (bukan dua kali)
+    // Merge ALL existing fields to prevent data loss on edit
     const existing = editId ? _employees.find(e => e.id === editId) : null;
+    if (existing) {
+      // Preserve all fields not in the form
+      Object.keys(existing).forEach(k => { if (!(k in data)) data[k] = existing[k]; });
+    }
 
     if (_tempFotoUrl && _tempFotoUrl !== '__remove__')      data.fotoUrl = _tempFotoUrl;
     else if (_tempFotoUrl === '__remove__')                 data.fotoUrl = '';
