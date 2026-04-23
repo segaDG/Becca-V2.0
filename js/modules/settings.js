@@ -1136,7 +1136,13 @@ else { window.SettingsModule = (() => {
             <button class="btn btn-ghost w-full" onclick="SettingsModule.exportData()">📥 Export Semua Data (JSON)</button>
             <button class="btn btn-ghost w-full" onclick="document.getElementById('import-file').click()">📤 Import Data (JSON)</button>
             <input type="file" id="import-file" accept=".json" style="display:none" onchange="SettingsModule._doImport(this)">
-            <div style="font-size:12px;color:var(--text-3)">Export sebagai backup. Data tersimpan di localStorage browser ini.</div>
+            <div style="border-top:1px solid var(--border);padding-top:var(--s3);margin-top:var(--s2)">
+              <button class="btn btn-primary w-full" onclick="SettingsModule.recoverData()" id="btn-recover">
+                🔄 Recovery Data dari Device Ini
+              </button>
+              <div style="font-size:11px;color:var(--text-3);margin-top:6px">Pulihkan data yang hilang di server dari localStorage device ini. Aman dijalankan berkali-kali — hanya mengisi data yang kosong di server.</div>
+            </div>
+            <div style="font-size:12px;color:var(--text-3);margin-top:var(--s2)">Export sebagai backup. Data tersimpan di localStorage browser ini.</div>
             ${Auth.isSuperAdmin()?`
               <div style="border-top:1px solid var(--border);padding-top:var(--s3)">
                 <button class="btn btn-ghost w-full" style="color:var(--danger);border-color:rgba(239,68,68,.2)" onclick="SettingsModule.clearData()">🗑️ Reset Semua Data</button>
@@ -1230,6 +1236,26 @@ else { window.SettingsModule = (() => {
       </div>
       ` : ''}
     `;
+  }
+
+  async function recoverData() {
+    const btn = document.getElementById('btn-recover');
+    if (btn) { btn.disabled = true; btn.textContent = '🔄 Memulihkan data...'; }
+    try {
+      const result = await DB.recoverFromLocalStorage();
+      if (result.fixed > 0) {
+        const detail = Object.entries(result.report || {}).map(([t,n]) => `${t}: ${n}`).join(', ');
+        Notify.success(`${result.fixed} data berhasil dipulihkan`, detail);
+        // Refresh current tab
+        switchTab('data');
+      } else {
+        Notify.info('Tidak ada data baru untuk dipulihkan dari device ini');
+      }
+    } catch(e) {
+      Notify.error('Recovery gagal', e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 Recovery Data dari Device Ini'; }
+    }
   }
 
   function exportData() {
@@ -2470,7 +2496,7 @@ else { window.SettingsModule = (() => {
     renderUsers, openUserModal, _submitUser, toggleUser, deleteUser, bulkCreateFromEmployees, _doBulkCreate,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
-    renderData, exportData, _doImport, clearData,
+    renderData, exportData, _doImport, clearData, recoverData,
     clearInventoryData, clearOpnameData, clearOrdersData, clearInvoicesData,
     importOrdersExcel, _doImportOrdersExcel, importInvoicesExcel, _doImportInvoicesExcel,
     importInventoryExcel, _doImportInventoryExcel,
