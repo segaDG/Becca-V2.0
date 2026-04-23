@@ -126,7 +126,7 @@ const App = {
     document.body.appendChild(div);
     // Start checking unread messages
     this._checkChatUnread();
-    setInterval(() => this._checkChatUnread(), 30000); // check every 30s
+    this._chatUnreadInterval = setInterval(() => this._checkChatUnread(), 30000);
   },
 
   async _checkChatUnread() {
@@ -217,6 +217,8 @@ const App = {
       localStorage.setItem('becca_migrated_v6','1');
       DB.migrateFromLocalStorage().then(n=>{if(n>0)Notify.success(n+' item tersync');}).catch(()=>{});
     }
+    // Auto-backup: daily, superadmin only, runs in background
+    if (Auth.isSuperAdmin()) this._autoBackup();
     // Badges — use whatever is cached, don't force new fetches
     setTimeout(() => this._updateAllBadges(), 2000);
     // Auth sync — defer even further (not critical)
@@ -575,6 +577,42 @@ const App = {
   _presenceInterval: null,
   _presenceSessionId: null,
 
+  async _autoBackup() {
+    const today = new Date().toISOString().split('T')[0];
+    const lastBackup = localStorage.getItem('becca_last_backup_date');
+    if (lastBackup === today) return; // already backed up today
+    try {
+      const tables = ['employees','emp_logs','orders','invoices','customers','kas','inv_products','inv_activities','ap','suppliers','tasks','users','settings'];
+      const backup = { _backupDate: today, _version: '2.0' };
+      for (const t of tables) {
+        try { backup[t] = await DB._get ? await DB.getCached(t) || [] : []; } catch {}
+      }
+      // Fetch fresh from Supabase for critical tables
+      const [employees, logs, customers, orders] = await Promise.all([
+        DB.getEmployees().catch(()=>[]),
+        DB.getEmployeeLogs().catch(()=>[]),
+        DB.getCustomers().catch(()=>[]),
+        DB.getOrders().catch(()=>[]),
+      ]);
+      backup.employees = employees;
+      backup.emp_logs = logs;
+      backup.customers = customers;
+      backup.orders = orders;
+      // Save backup to localStorage (keep last 3 days)
+      const backups = JSON.parse(localStorage.getItem('becca_backups') || '{}');
+      backups[today] = backup;
+      // Remove backups older than 3 days
+      const dates = Object.keys(backups).sort();
+      while (dates.length > 3) { delete backups[dates.shift()]; }
+      try { localStorage.setItem('becca_backups', JSON.stringify(backups)); } catch(e) {
+        // If too large, keep only today
+        localStorage.setItem('becca_backups', JSON.stringify({ [today]: backup }));
+      }
+      localStorage.setItem('becca_last_backup_date', today);
+      console.log(`[Backup] Auto-backup completed: ${today} (${tables.length} tables)`);
+    } catch(e) { console.warn('[Backup] Auto-backup failed:', e.message); }
+  },
+
   _startPresence() {
     const user = Auth.currentUser();
     if (!user) return;
@@ -619,7 +657,7 @@ const App = {
       const color    = getColor(u.nama);
       const isMe     = u.username === currentUser?.username;
       const page     = u.page ? ' · /'+u.page : '';
-      return `<div title="${u.nama}${page}${isMe?' (Anda)':''}"
+      return `<div title="${Utils.esc(u.nama)}${Utils.esc(page)}${isMe?' (Anda)':''}"
         style="width:28px;height:28px;border-radius:50%;
                background:${color};color:white;
                display:flex;align-items:center;justify-content:center;
@@ -1016,6 +1054,7 @@ const App = {
     if (!ok) return;
     clearInterval(this._presenceInterval);
     clearInterval(this._onlineUsersInterval);
+    clearInterval(this._chatUnreadInterval);
     if (typeof DBExtensions !== 'undefined') DBExtensions.stop();
     await Auth.logout();
     location.reload();
