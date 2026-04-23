@@ -384,6 +384,71 @@ const BeccaTests = (() => {
   }
 
   // ═══════════════════════════════════════════
+  // 6. PERFORMANCE & HEALTH TESTS
+  // ═══════════════════════════════════════════
+  async function testPerformance() {
+    const S = 'Performance';
+
+    // ── localStorage usage ──
+    let totalLS = 0, bigKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      const size = (localStorage.getItem(k) || '').length * 2; // UTF-16 bytes
+      totalLS += size;
+      if (size > 500 * 1024) bigKeys.push({ k, size: Math.round(size/1024) + 'KB' });
+    }
+    const totalMB = (totalLS / 1024 / 1024).toFixed(2);
+    const quotaMB = 5; // localStorage typically 5MB
+    assert(S, `localStorage usage: ${totalMB}MB / ${quotaMB}MB`, totalLS < quotaMB * 1024 * 1024, `${totalMB}MB used`);
+    assert(S, 'No single key > 500KB', bigKeys.length === 0, bigKeys.length ? bigKeys.map(b => `${b.k}: ${b.size}`).join(', ') : 'all OK');
+
+    // ── Module load time ──
+    const modules = ['employees', 'customers', 'orders', 'kas', 'inv_products', 'inv_activities', 'invoices', 'ap', 'suppliers', 'tasks'];
+    for (const table of modules) {
+      const fn = {
+        employees: 'getEmployees', customers: 'getCustomers', orders: 'getOrders',
+        kas: 'getKas', inv_products: 'getInventoryItems', inv_activities: 'getInventory',
+        invoices: 'getInvoices', ap: 'getAP', suppliers: 'getSuppliers', tasks: 'getTasks',
+      }[table];
+      if (!DB[fn]) { skip(S, `Load ${table}`, `DB.${fn} not found`); continue; }
+      const t0 = performance.now();
+      try {
+        await DB[fn]();
+        const ms = Math.round(performance.now() - t0);
+        assert(S, `Load ${table}: ${ms}ms`, ms < 5000, ms < 1000 ? 'fast' : ms < 3000 ? 'acceptable' : `SLOW (${ms}ms)`);
+      } catch(e) { _log(S, `Load ${table}`, false, e.message); }
+    }
+
+    // ── Supabase response time ──
+    try {
+      const t0 = performance.now();
+      await DB.getSettings();
+      const ms = Math.round(performance.now() - t0);
+      assert(S, `Supabase ping: ${ms}ms`, ms < 3000, ms < 500 ? 'excellent' : ms < 1500 ? 'good' : `slow (${ms}ms)`);
+    } catch(e) { _log(S, 'Supabase ping', false, e.message); }
+
+    // ── Memory: count DOM nodes ──
+    const domNodes = document.querySelectorAll('*').length;
+    assert(S, `DOM nodes: ${domNodes}`, domNodes < 10000, domNodes < 3000 ? 'lean' : domNodes < 6000 ? 'OK' : `heavy (${domNodes})`);
+
+    // ── Check for leaked intervals ──
+    // We can't directly count intervals, but check known ones
+    assert(S, 'Presence interval set', !!App._presenceInterval);
+    assert(S, 'Chat unread interval set', !!App._chatUnreadInterval);
+
+    // ── Cache health: check if memCache is working ──
+    try {
+      const t1 = performance.now();
+      await DB.getEmployees(); // first call — may hit network
+      const ms1 = Math.round(performance.now() - t1);
+      const t2 = performance.now();
+      await DB.getEmployees(); // second call — should hit cache
+      const ms2 = Math.round(performance.now() - t2);
+      assert(S, `Cache effective: ${ms1}ms → ${ms2}ms`, ms2 <= ms1, ms2 < 10 ? 'cached' : `${ms2}ms`);
+    } catch(e) { _log(S, 'Cache check', false, e.message); }
+  }
+
+  // ═══════════════════════════════════════════
   // RUN ALL
   // ═══════════════════════════════════════════
   async function runAll() {
@@ -407,6 +472,9 @@ const BeccaTests = (() => {
 
     console.log('\n── 5. Critical Path Tests ──');
     await testCriticalPath();
+
+    console.log('\n── 6. Performance & Health Tests ──');
+    await testPerformance();
 
     console.log('\n═══════════════════════════════════════');
     console.log(`  RESULTS: ${_passed} passed, ${_failed} failed, ${_skipped} skipped`);
@@ -439,6 +507,6 @@ const BeccaTests = (() => {
       <tbody>${rows}</tbody></table></div>`;
   }
 
-  return { runAll, testRegression, testDataIntegrity, testPermissions, testFinancialAccuracy, testCriticalPath, getHtmlReport };
+  return { runAll, testRegression, testDataIntegrity, testPermissions, testFinancialAccuracy, testCriticalPath, testPerformance, getHtmlReport };
 })();
 window.BeccaTests = BeccaTests;
