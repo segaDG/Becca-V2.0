@@ -825,7 +825,12 @@ const CustomerModule = (() => {
 
     if (id) {
       const i = _data.findIndex(c=>c.id===id || String(c.id)===String(id));
-      if (i>=0) { obj.customerId = _data[i].customerId || ''; _data[i]=obj; }
+      if (i>=0) {
+        // Merge existing fields to prevent data loss
+        const existing = _data[i];
+        Object.keys(existing).forEach(k => { if (!(k in obj)) obj[k] = existing[k]; });
+        _data[i]=obj;
+      }
       else _data.push(obj);
     } else {
       _data.push(obj);

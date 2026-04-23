@@ -2000,7 +2000,11 @@ const InventoryModule = (() => {
     if (!data.nama || !data.satuan) { Notify.warning('Nama dan Satuan wajib diisi'); return; }
     data.stokMin      = parseInt(data.stokMin)     || 0;
     data.hargaSatuan  = Utils.parseNum(data.hargaSatuan);
-    if (editId) data.id = editId;
+    if (editId) {
+      data.id = editId;
+      const existing = _items.find(i => String(i.id) === String(editId));
+      if (existing) Object.keys(existing).forEach(k => { if (!(k in data)) data[k] = existing[k]; });
+    }
     try {
       const saved = await DB.saveInventoryItem(data);
       const idx   = _items.findIndex(i => String(i.id) === String(saved.id));

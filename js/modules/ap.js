@@ -642,7 +642,11 @@ const APModule = (() => {
     data.hargaSatuan = Utils.parseNum(data.hargaSatuan);
     // Normalize keterangan field
     if (!data.keterangan) data.keterangan = data.ket || '';
-    if (editId) data.id = editId;
+    if (editId) {
+      data.id = editId;
+      const existing = _ap.find(r => r.id === editId);
+      if (existing) Object.keys(existing).forEach(k => { if (!(k in data)) data[k] = existing[k]; });
+    }
     try {
       const saved = await DB.saveAP(data);
       const idx   = _ap.findIndex(r => r.id === saved.id);

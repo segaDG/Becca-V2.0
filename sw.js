@@ -15,15 +15,14 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage(payload => {
   const { title, body } = payload.notification || {};
   if (!title) return;
-  const options = {
+  return self.registration.showNotification(title, {
     body: body || '',
     icon: '/img/logo-bps.png',
     badge: '/img/logo-bps.png',
     vibrate: [200, 100, 200],
     data: payload.data || {},
     actions: [{ action: 'open', title: 'Buka' }],
-  };
-  return self.registration.showNotification(title, options);
+  });
 });
 
 self.addEventListener('notificationclick', e => {
@@ -35,25 +34,15 @@ self.addEventListener('notificationclick', e => {
   }));
 });
 
-// ── Static Cache — v5 (improved precache + strategy) ─────
-const CACHE_NAME = 'becca-static-v119';
+// ── Cache Strategy ─────────────────────────────────────────
+// NETWORK-FIRST for all JS/CSS — always get latest, fallback to cache offline.
+// Only cache static assets (images, fonts) with stale-while-revalidate.
+// This prevents stale code from being served after deploys.
+const CACHE_NAME = 'becca-v120';
 
+// Only precache truly static assets (images, fonts) — NOT JS/CSS
 const PRECACHE = [
-  '/',
-  '/css/base.css',
-  '/css/layout.css',
-  '/css/components.css',
-  '/css/tables.css',
   '/img/logo-bps.png',
-  // Core JS only — minimal for first paint
-  '/js/utils.js',
-  '/js/db.js',
-  '/js/auth.js',
-  '/js/ui/notify.js',
-  '/js/ui/modal.js',
-  '/js/ui/sidebar.js',
-  '/js/app.js',
-  // Non-critical: loaded via stale-while-revalidate, not precache
 ];
 
 self.addEventListener('install', e => {
@@ -79,13 +68,12 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;
 
-  // HTML navigation — network first, fallback to cached index
+  // HTML navigation — network first, fallback to cache
   if (e.request.mode === 'navigate') {
     e.respondWith(
       fetch(e.request)
         .then(res => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          caches.open(CACHE_NAME).then(c => c.put(e.request, res.clone()));
           return res;
         })
         .catch(() => caches.match('/'))
@@ -93,32 +81,27 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // JS/CSS with version param — cache first (versioned = immutable)
-  if (url.search.includes('v=')) {
+  // JS & CSS — NETWORK FIRST, cache as fallback for offline
+  if (url.pathname.match(/\.(js|css)$/)) {
     e.respondWith(
-      caches.match(e.request).then(cached => {
-        if (cached) return cached;
-        return fetch(e.request).then(res => {
+      fetch(e.request)
+        .then(res => {
           if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+            caches.open(CACHE_NAME).then(c => c.put(e.request, res.clone()));
           }
           return res;
-        });
-      })
+        })
+        .catch(() => caches.match(e.request))
     );
     return;
   }
 
-  // Other static assets — stale-while-revalidate
-  if (url.pathname.match(/\.(css|js|svg|png|jpg|jpeg|ico|woff2?)$/)) {
+  // Images, fonts — stale-while-revalidate (fast load, update in background)
+  if (url.pathname.match(/\.(svg|png|jpg|jpeg|ico|woff2?)$/)) {
     e.respondWith(
       caches.match(e.request).then(cached => {
         const networkFetch = fetch(e.request).then(res => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
-          }
+          if (res.ok) caches.open(CACHE_NAME).then(c => c.put(e.request, res.clone()));
           return res;
         }).catch(() => cached);
         return cached || networkFetch;
@@ -127,5 +110,5 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Supabase API — network only (no cache for data)
+  // Supabase API & everything else — network only
 });

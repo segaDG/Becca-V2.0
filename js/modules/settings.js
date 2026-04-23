@@ -242,9 +242,11 @@ else { window.SettingsModule = (() => {
   async function saveGeneralSettings() {
     const fd = new FormData(document.getElementById('settings-form'));
     const data = Object.fromEntries(fd.entries());
-    // Preserve logoUrl dari DB (disimpan terpisah oleh _handleLogoUpload)
+    // Merge ALL existing settings to prevent data loss (geminiApiKey, logoUrl, etc.)
     const existing = await DB.getSettings().catch(()=>({}));
-    if (existing.logoUrl) data.logoUrl = existing.logoUrl;
+    if (existing && typeof existing === 'object') {
+      Object.keys(existing).forEach(k => { if (!(k in data)) data[k] = existing[k]; });
+    }
     try {
       await DB.saveSettings(data);
       Sidebar.render();
@@ -495,13 +497,17 @@ else { window.SettingsModule = (() => {
     if (!isEdit && !data.password)  { Notify.warning('Password wajib diisi'); return; }
     if (data.password && data.password.length<6) { Notify.warning('Password min. 6 karakter'); return; }
 
-    if (isEdit && !data.password) {
+    if (isEdit) {
       const users = await DB.getUsers().catch(()=>[]);
       const old   = users.find(u=>u.id===existingId||u.username===existingId) ||
                     Auth._defaultUsers.find(u=>u.id===existingId||u.username===existingId);
-      if (old) data.password = old.password;
+      if (old) {
+        // Merge existing fields to prevent data loss (empId, lastLogin, createdAt, etc.)
+        Object.keys(old).forEach(k => { if (!(k in data)) data[k] = old[k]; });
+        if (!data.password) data.password = old.password;
+      }
+      data.id = existingId||data.username;
     }
-    if (isEdit) data.id = existingId||data.username;
     else if (!data.id) data.id = Utils.uid();
 
     try {
