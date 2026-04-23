@@ -1520,9 +1520,11 @@ const DailyOrderModule = (() => {
     let synced = 0, created = 0, updated = 0, skipped = 0;
 
     for (const it of toSync) {
-      // Match item by name (case-insensitive)
-      const invItem = invItems.find(i => (i.nama||'').toLowerCase() === (it.item||'').toLowerCase());
-      if (!invItem) { skipped++; continue; }
+      // Match item by name: exact first, then partial (contains)
+      const itemLower = (it.item||'').toLowerCase();
+      let invItem = invItems.find(i => (i.nama||'').toLowerCase() === itemLower);
+      if (!invItem) invItem = invItems.find(i => (i.nama||'').toLowerCase().includes(itemLower) || itemLower.includes((i.nama||'').toLowerCase()));
+      if (!invItem) { skipped++; console.warn('[Sync] Item tidak ditemukan di inventory:', it.item); continue; }
 
       // Check if already synced (same syncTag + itemId)
       const existing = existingLogs.find(l =>

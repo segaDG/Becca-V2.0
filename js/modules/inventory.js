@@ -1844,6 +1844,12 @@ const InventoryModule = (() => {
       const ok = _invCommit(prevId);
       if (!ok) return; // validation failed, block adding new row
     }
+    // Clear active filters so new empty row is visible
+    if (_logFilterNama || _logFilterTgl) {
+      _logFilterNama = ''; _logFilterTgl = '';
+      const s = document.getElementById('inv-log-search'); if (s) s.value = '';
+      const d = document.getElementById('inv-log-date'); if (d) d.value = '';
+    }
     const today = new Date().toISOString().split('T')[0];
     const _user = (typeof Auth!=='undefined'&&Auth.currentUser()) ? (Auth.currentUser().nama||Auth.currentUser().username||'') : '';
     const newRow = {tgl:today,itemId:'',itemNama:'',jenis:'MASUK',jumlah:0,stokAkhir:0,harga:0,kodeAktivitas:'',hpp:0,pengambil:'',penanggungJawab:_user,catatan:''};
