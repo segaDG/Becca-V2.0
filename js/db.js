@@ -1030,6 +1030,78 @@ const DB = (() => {
     return total;
   }
 
+  // ── RECOVERY: fix empty Supabase entries from localStorage ──
+  // Fills Supabase rows where data='{}' with real data from this device's localStorage.
+  // Safe to run multiple times from different devices — only updates empty rows.
+  async function recoverFromLocalStorage() {
+    const sb = await _initClient();
+    if (!sb) { console.warn('[Recovery] Supabase not available'); return { error: 'offline' }; }
+
+    const tables = {
+      employees:      'becca_employees',
+      emp_logs:       'becca_emp_logs',
+      orders:         'becca_orders',
+      invoices:       'becca_invoices',
+      customers:      'becca_customers',
+      kas:            'becca_kas',
+      inv_products:   'becca_inv_products',
+      inv_activities: 'becca_inv_activities',
+      ap:             'becca_ap',
+      suppliers:      'becca_suppliers',
+      tasks:          'becca_tasks',
+    };
+
+    let totalFixed = 0, totalSkipped = 0;
+    const report = {};
+
+    for (const [table, lsKey] of Object.entries(tables)) {
+      // Get localStorage data for this table
+      let lsRows;
+      try { lsRows = JSON.parse(localStorage.getItem(lsKey) || '[]'); } catch { continue; }
+      const lsMap = new Map();
+      lsRows.forEach(r => { if (r.id && Object.keys(r).length > 2) lsMap.set(r.id, r); });
+      if (!lsMap.size) continue;
+
+      // Find empty rows in Supabase (data='{}' or data is null/empty)
+      try {
+        const allRows = await _fetchAll(sb, table);
+        let fixed = 0;
+        for (const row of allRows) {
+          const parsed = typeof row.data === 'string' ? row.data.trim() : '';
+          const isEmpty = !parsed || parsed === '{}' || parsed === 'null';
+          if (!isEmpty) continue; // already has data, skip
+
+          const lsData = lsMap.get(row.id);
+          if (!lsData) continue; // no localStorage match
+
+          // Found: empty in Supabase, has data in localStorage — recover
+          const minimal = {
+            id: row.id,
+            data: JSON.stringify(lsData),
+          };
+          if (!NO_CREATED_AT.includes(table)) {
+            minimal.created_at = lsData.createdAt || lsData.created_at || row.created_at || new Date().toISOString();
+          }
+          const { error } = await sb.from(table).upsert(minimal, { onConflict: 'id' });
+          if (!error) { fixed++; totalFixed++; }
+          else { console.warn(`[Recovery] ${table}/${row.id}:`, error.message); }
+        }
+        if (fixed) {
+          console.log(`[Recovery] ${table}: ${fixed} entries recovered`);
+          report[table] = fixed;
+          // Invalidate cache so fresh data loads
+          delete _memCache[table];
+        }
+      } catch(e) { console.warn(`[Recovery] ${table} error:`, e.message); }
+    }
+
+    console.log(`[Recovery] Done: ${totalFixed} total entries recovered`);
+    if (typeof Notify !== 'undefined') {
+      Notify.success(`Recovery: ${totalFixed} data dipulihkan dari device ini`);
+    }
+    return { fixed: totalFixed, report };
+  }
+
   // ── AGGREGATION RPC (Level 3 — server-side summary) ───────
   // Setiap fungsi mencoba RPC dulu (1KB transfer vs ribuan baris).
   // Jika SQL belum di-deploy, otomatis fallback ke full-fetch.
@@ -1187,7 +1259,7 @@ const DB = (() => {
   return {
     init,
     subscribe, unsubscribeAll, setupRealtime, onRealtimeChange,
-    migrateFromLocalStorage,
+    migrateFromLocalStorage, recoverFromLocalStorage,
     isReady: () => _ready,
     getCached, getPage,
 
