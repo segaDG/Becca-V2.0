@@ -217,6 +217,8 @@ const App = {
       localStorage.setItem('becca_migrated_v6','1');
       DB.migrateFromLocalStorage().then(n=>{if(n>0)Notify.success(n+' item tersync');}).catch(()=>{});
     }
+    // Cleanup old oversized backup key
+    try { localStorage.removeItem('becca_backups'); } catch {}
     // Auto-backup: daily, superadmin only, runs in background
     if (Auth.isSuperAdmin()) this._autoBackup();
     // Badges — use whatever is cached, don't force new fetches
@@ -580,36 +582,41 @@ const App = {
   async _autoBackup() {
     const today = new Date().toISOString().split('T')[0];
     const lastBackup = localStorage.getItem('becca_last_backup_date');
-    if (lastBackup === today) return; // already backed up today
+    if (lastBackup === today) return;
     try {
-      const tables = ['employees','emp_logs','orders','invoices','customers','kas','inv_products','inv_activities','ap','suppliers','tasks','users','settings'];
-      const backup = { _backupDate: today, _version: '2.0' };
-      for (const t of tables) {
-        try { backup[t] = await DB._get ? await DB.getCached(t) || [] : []; } catch {}
-      }
-      // Fetch fresh from Supabase for critical tables
+      // Strip heavy fields (photos, data URLs) to keep backup small
+      const strip = (arr) => arr.map(r => {
+        const clean = {...r};
+        delete clean.fotoUrl; delete clean.ktpUrl; delete clean.mediaUrl;
+        delete clean.faceDescriptors; delete clean.logoUrl;
+        return clean;
+      });
       const [employees, logs, customers, orders] = await Promise.all([
         DB.getEmployees().catch(()=>[]),
         DB.getEmployeeLogs().catch(()=>[]),
         DB.getCustomers().catch(()=>[]),
         DB.getOrders().catch(()=>[]),
       ]);
-      backup.employees = employees;
-      backup.emp_logs = logs;
-      backup.customers = customers;
-      backup.orders = orders;
-      // Save backup to localStorage (keep last 3 days)
-      const backups = JSON.parse(localStorage.getItem('becca_backups') || '{}');
-      backups[today] = backup;
-      // Remove backups older than 3 days
-      const dates = Object.keys(backups).sort();
-      while (dates.length > 3) { delete backups[dates.shift()]; }
-      try { localStorage.setItem('becca_backups', JSON.stringify(backups)); } catch(e) {
-        // If too large, keep only today
-        localStorage.setItem('becca_backups', JSON.stringify({ [today]: backup }));
-      }
+      const backup = {
+        _backupDate: today, _version: '2.0',
+        employees: strip(employees),
+        emp_logs: logs,
+        customers: strip(customers),
+        orders: orders,
+      };
+      // Save only today (no multi-day — saves space)
+      localStorage.setItem('becca_backup_latest', JSON.stringify(backup));
       localStorage.setItem('becca_last_backup_date', today);
-      console.log(`[Backup] Auto-backup completed: ${today} (${tables.length} tables)`);
+      // Also download as file once per week
+      const lastFile = localStorage.getItem('becca_last_file_backup') || '';
+      const daysSince = lastFile ? Math.floor((Date.now() - new Date(lastFile)) / 86400000) : 999;
+      if (daysSince >= 7) {
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `becca-backup-${today}.json` });
+        a.click(); URL.revokeObjectURL(a.href);
+        localStorage.setItem('becca_last_file_backup', today);
+      }
+      console.log(`[Backup] Auto-backup completed: ${today}`);
     } catch(e) { console.warn('[Backup] Auto-backup failed:', e.message); }
   },
 
