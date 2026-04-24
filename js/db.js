@@ -175,7 +175,7 @@ const DB = (() => {
   // Table yang TIDAK dicache di localStorage (selalu fetch fresh dari Supabase)
   // invoices masuk NO_CACHE agar skeleton rows dari Supabase tidak overwrite
   // seed data yang valid di localStorage
-  const NO_CACHE = ['customers','users','tasks','suppliers','ap','invoices'];
+  const NO_CACHE = ['customers','users','tasks','suppliers','ap','invoices','inv_activities','kas','daily_order_forms','employees','orders'];
 
   // Kolom NOT NULL di Supabase yang wajib disertakan dalam minimal upsert
   // Key = nama kolom Supabase, value = fungsi yang mengambil nilai dari obj BECCA
