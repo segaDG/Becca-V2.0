@@ -291,6 +291,12 @@ const DailyOrderModule = (() => {
       document.querySelectorAll('#do-content .form-control').forEach(el => {
         el.addEventListener('focus', () => { if (el.select) el.select(); }, {once:false});
       });
+      // Auto-scroll date strip to selected date
+      requestAnimationFrame(() => {
+        const strip = document.getElementById('do-date-scroll');
+        const sel = strip?.querySelector('button[style*="border:2px solid #374151"]');
+        if (sel && strip) sel.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+      });
     }
   }
 
@@ -409,7 +415,7 @@ const DailyOrderModule = (() => {
     return `
       <!-- Month nav + mini date cards -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:var(--s4)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch">
           <button onclick="DailyOrderModule.prevFormMonth()"
             style="width:28px;height:28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center">‹</button>
           <input type="month" value="${_formMonth}" onchange="DailyOrderModule.setFormMonth(this.value)"
@@ -430,17 +436,18 @@ const DailyOrderModule = (() => {
             onmouseover="this.style.background='#ea580c';this.style.color='#fff'"
             onmouseout="this.style.background='rgba(234,88,12,.08)';this.style.color='#ea580c'">+ Event</button>
         </div>
-        <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:flex-end">
+        <div id="do-date-scroll" style="display:flex;gap:3px;align-items:flex-end;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px">
           ${cards}
           ${_getEventCards()}
         </div>
+        <style>#do-date-scroll::-webkit-scrollbar{display:none}</style>
       </div>
 
       <!-- Shift + meta -->
       <div style="display:flex;gap:var(--s3);align-items:flex-end;flex-wrap:wrap;margin-bottom:var(--s4)">
         <div>
           <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">SHIFT</label>
-          <div style="display:flex;gap:3px;flex-wrap:wrap">
+          <div style="display:flex;gap:3px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none">
             ${(() => {
               // If no snack orders exist for today, show all snack tabs (fresh day)
               const hasAnySnackOrder = _orders.some(o => o.tglOrder === _date &&
