@@ -36,14 +36,17 @@ const GridSelect = (() => {
       /* Filter reset button — icon rotates when filter active */
       .filter-reset-btn{width:30px;height:30px;min-width:30px;border-radius:6px;border:1px solid var(--border2,#ddd);
         background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
-        color:var(--text-3,#aaa);font-size:14px;transition:transform 1.2s cubic-bezier(.4,0,.2,1),background .6s,color .6s,border-color .6s,box-shadow .6s;
+        color:var(--text-3,#aaa);font-size:16px;font-weight:700;
+        transition:background .3s,color .3s,border-color .3s,box-shadow .3s;
         padding:0;line-height:1}
       .filter-reset-btn:hover{background:var(--surface2,#f5f5f5);color:var(--text,#333)}
       .filter-reset-btn.active{background:#ef4444;color:#fff;border-color:#ef4444;
-        transform:rotate(-180deg);box-shadow:0 2px 10px rgba(239,68,68,.35);
-        animation:filterGlow 2s ease infinite}
-      .filter-reset-btn.active:hover{background:#dc2626;box-shadow:0 2px 14px rgba(239,68,68,.5)}
-      @keyframes filterGlow{0%,100%{box-shadow:0 2px 10px rgba(239,68,68,.35)}50%{box-shadow:0 3px 16px rgba(239,68,68,.55)}}
+        box-shadow:0 2px 10px rgba(239,68,68,.35);
+        animation:filterPulse 1.5s ease infinite}
+      .filter-reset-btn.active:hover{background:#dc2626;box-shadow:0 2px 14px rgba(239,68,68,.5);animation:none}
+      .filter-reset-btn.spinning{animation:filterSpin .6s ease}
+      @keyframes filterPulse{0%,100%{box-shadow:0 2px 10px rgba(239,68,68,.35);transform:scale(1)}50%{box-shadow:0 3px 16px rgba(239,68,68,.55);transform:scale(1.08)}}
+      @keyframes filterSpin{0%{transform:rotate(0deg)}100%{transform:rotate(-360deg)}}
     `;
     document.head.appendChild(s);
   }

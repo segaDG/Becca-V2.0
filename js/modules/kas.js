@@ -843,7 +843,11 @@ const KasModule = (() => {
     });
   }
   function setFilter(k,v){ if(_editingId)commitEdit(_editingId); _filter[k]=v; _page=1; renderTransaksi(); }
-  function resetFilter()  { if(_editingId)commitEdit(_editingId); _filter={}; _page=1; renderTransaksi(); }
+  function resetFilter() {
+    const btn = document.getElementById('kas-reset-btn');
+    if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
+    if(_editingId)commitEdit(_editingId); _filter={}; _page=1; renderTransaksi();
+  }
   function goPage(p)      { if(_editingId)commitEdit(_editingId); _page=p; renderTransaksi(); }
   function setPerPage(n)  { _perPage=n; localStorage.setItem('becca_kas_perPage',n); _page=1; renderTransaksi(); }
 

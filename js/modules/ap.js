@@ -339,6 +339,8 @@ const APModule = (() => {
   }
 
   function resetFilter() {
+    const btn = document.getElementById('ap-reset-btn');
+    if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
     ['ap-fil-from','ap-fil-to','ap-fil-bulan','ap-fil-sup','ap-fil-status'].forEach(id=>{
       const el = document.getElementById(id); if(el) el.value='';
     });

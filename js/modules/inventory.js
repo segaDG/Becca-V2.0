@@ -506,7 +506,11 @@ const InventoryModule = (() => {
 
   function setLogFilterNama(v) { _logFilterNama = v.trim().toLowerCase(); _invLogPage = 1; renderTransaksi(); }
   function setLogFilterTgl(v)  { _logFilterTgl  = v; _invLogPage = 1; renderTransaksi(); }
-  function clearLogFilter()    { _logFilterNama = ''; _logFilterTgl = ''; _invLogPage = 1; renderTransaksi(); }
+  function clearLogFilter() {
+    const btn = document.getElementById('inv-log-reset');
+    if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
+    _logFilterNama = ''; _logFilterTgl = ''; _invLogPage = 1; renderTransaksi();
+  }
 
   /* ═══ SYNC FORM PRODUKSI → ACTIVITY LINE ═══ */
   let _syncChecked = {}; // formId → Set of checked item indices
