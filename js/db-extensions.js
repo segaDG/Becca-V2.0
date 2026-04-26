@@ -181,8 +181,8 @@ const DBExtensions = (() => {
         if (window.App?._currentPage === 'po') return; // PO has inline edit
       },
       employees: () => {
-        if (window.App?._currentPage !== 'employee') return;
-        _rtDebounce('employee', () => EmployeeModule?.init?.(), 2000);
+        // Skip re-init when user is on employee page — their local state is fresh
+        if (window.App?._currentPage === 'employee') return;
       },
     });
   }
