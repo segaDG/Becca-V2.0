@@ -151,14 +151,22 @@ const Auth = {
   _privCache: null,
   _privCacheTs: 0,
 
+  // Map custom role names to their base role for default privileges
+  _roleBase: {
+    'admin_1':'admin', 'admin_2':'admin',
+    'kepala_dapur':'operator', 'service_captain':'operator', 'service_leader':'operator',
+    'gudang':'operator', 'finance':'finance',
+  },
+
   _getPrivileges(role) {
     const now = Date.now();
-    // Cache privileges for 30s — avoid parsing localStorage on every .can() call
     if (!this._privCache || now - this._privCacheTs > 30000) {
       try { this._privCache = JSON.parse(localStorage.getItem('becca_privileges') || 'null'); } catch {}
       this._privCacheTs = now;
     }
-    const defaults = this._defaultPrivileges[role] || this._defaultPrivileges['operator'];
+    // Resolve custom role to base role for defaults
+    const baseRole = this._defaultPrivileges[role] ? role : (this._roleBase[role] || 'operator');
+    const defaults = this._defaultPrivileges[baseRole];
     const custom = this._privCache;
     if (custom && custom[role] && Object.keys(custom[role]).length > 0) {
       return { ...defaults, ...custom[role] };
