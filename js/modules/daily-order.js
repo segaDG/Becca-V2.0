@@ -372,7 +372,7 @@ const DailyOrderModule = (() => {
     const totPct     = totBudget > 0 ? totAktOnly / totBudget * 100 : 0;
     // Sisa AKT per shift = budget shift - aktTotal shift
     const shiftSisaAkt = budgetVal - totalAkt;
-    const hasDayData = (formS1 || formS2 || formSNK1 || formSNK2 || formSNK3 || formSNK4) && totBudget > 0;
+    const hasDayData = !!(formS1 || formS2 || formSNK1 || formSNK2 || formSNK3 || formSNK4);
 
     // ── Mini date cards ──
     const days     = _daysInMonth(_formMonth);
@@ -519,7 +519,7 @@ const DailyOrderModule = (() => {
         </div>`;
         })() : ''}
 
-        ${budgetVal > 0 ? (() => {
+        ${form ? (() => {
           const _sbc = shiftSisaAkt>=0 ? '#10b981' : '#ef4444';
           const _sbl = shiftSisaAkt>=0 ? '▲ Surplus' : '▼ Defisit';
           const _spct = budgetVal > 0 ? totalAkt / budgetVal * 100 : 0;
