@@ -654,7 +654,8 @@ else { window.SettingsModule = (() => {
         const fullEl = document.getElementById('priv_'+role+'_'+feat+'_full');
         if (fullEl?.checked)      custom[role][feat] = 'all';
         else if (viewEl?.checked) custom[role][feat] = 'view';
-        else                      custom[role][feat] = '';
+        // Unchecked: explicitly deny (override default)
+        else                      custom[role][feat] = 'none';
       });
     });
     // Tambah timestamp agar bisa deteksi versi terbaru

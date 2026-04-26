@@ -142,7 +142,7 @@ const Auth = {
     const priv = this._getPrivileges(user.role);
     if (priv.all) return true;
     const p = priv[feature];
-    if (!p) return false;
+    if (!p || p === 'none' || p === '') return false;
     if (p === 'all') return true;
     if (p === 'view' && action === 'view') return true;
     return false;
@@ -169,7 +169,14 @@ const Auth = {
     const defaults = this._defaultPrivileges[baseRole];
     const custom = this._privCache;
     if (custom && custom[role] && Object.keys(custom[role]).length > 0) {
-      return { ...defaults, ...custom[role] };
+      // Merge: custom overrides defaults, but empty string '' does NOT override
+      // (empty = "not set in UI" → fall through to default)
+      const merged = { ...defaults };
+      Object.entries(custom[role]).forEach(([k, v]) => {
+        if (v === 'all' || v === 'view' || v === 'none') merged[k] = v;
+        // '' (empty) = skip, keep default
+      });
+      return merged;
     }
     return defaults;
   },
