@@ -559,32 +559,34 @@ const App = {
 
   _mobileFilterCollapse() {
     document.querySelectorAll('.filter-bar').forEach(bar => {
-      if (bar.classList.contains('mobile-collapse')) return; // already processed
-      bar.classList.add('mobile-collapse');
+      if (bar.querySelector('.mob-filter-toggle')) return; // already processed
+      // Move all children into a wrapper div
+      const wrap = document.createElement('div');
+      wrap.className = 'mob-filter-wrap';
+      while (bar.firstChild) wrap.appendChild(bar.firstChild);
       // Count active filters
       const countActive = () => {
         let n = 0;
-        bar.querySelectorAll('select,input[type=date]').forEach(el => { if (el.value) n++; });
-        bar.querySelectorAll('input[type=text]').forEach(el => { if (el.value.trim()) n++; });
+        wrap.querySelectorAll('select,input[type=date]').forEach(el => { if (el.value) n++; });
+        wrap.querySelectorAll('input[type=text]').forEach(el => { if (el.value.trim()) n++; });
         return n;
       };
-      // Insert toggle button at start
+      // Toggle button
       const toggle = document.createElement('button');
-      toggle.className = 'mobile-filter-toggle';
-      toggle.style.cssText = 'padding:6px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap';
+      toggle.className = 'mob-filter-toggle';
+      toggle.style.cssText = 'padding:7px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;width:100%';
       const updateLabel = () => {
         const n = countActive();
-        toggle.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg> Filter${n?' <span style="background:var(--primary);color:#fff;border-radius:99px;font-size:10px;min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px">'+n+'</span>':''}`;
+        const isOpen = wrap.classList.contains('open');
+        toggle.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg> Filter${n?' <span style="background:var(--primary);color:#fff;border-radius:99px;font-size:10px;min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px">'+n+'</span>':''}<span style="margin-left:auto;font-size:10px;color:var(--text-3)">${isOpen?'▲':'▼'}</span>`;
       };
       updateLabel();
-      toggle.onclick = () => {
-        bar.classList.toggle('open');
-        updateLabel();
-      };
-      bar.insertBefore(toggle, bar.firstChild);
+      toggle.onclick = () => { wrap.classList.toggle('open'); updateLabel(); };
+      bar.appendChild(toggle);
+      bar.appendChild(wrap);
       // Update badge on filter change
-      bar.addEventListener('change', () => setTimeout(updateLabel, 50));
-      bar.addEventListener('input', () => setTimeout(updateLabel, 200));
+      wrap.addEventListener('change', () => setTimeout(updateLabel, 50));
+      wrap.addEventListener('input', () => setTimeout(updateLabel, 200));
     });
   },
 

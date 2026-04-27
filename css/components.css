@@ -613,16 +613,8 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   }
 
   /* Mobile filter bar → collapsible */
-  .filter-bar {
-    flex-wrap: wrap !important;
-  }
-  .filter-bar.mobile-collapse > *:not(.mobile-filter-toggle):not(.filter-reset-btn) {
-    display: none !important;
-  }
-  .filter-bar.mobile-collapse.open > * {
-    display: flex !important;
-  }
-  .filter-bar.mobile-collapse .mobile-filter-toggle {
-    display: flex !important;
-  }
+  .filter-bar { flex-wrap: wrap !important; }
+  .mob-filter-wrap { display: none; flex-direction: column; gap: 8px; width: 100%; padding-top: 8px; }
+  .mob-filter-wrap.open { display: flex; }
+  .mob-filter-toggle { display: flex !important; }
 }
