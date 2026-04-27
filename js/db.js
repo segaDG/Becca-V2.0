@@ -398,9 +398,7 @@ const DB = (() => {
       } catch {}
     }
 
-    // Invalidate caches so next _get() fetches fresh
-    delete _memCache[table];
-    try { localStorage.removeItem('becca_' + table + '_ts'); } catch {}
+    _invalidateCache(table);
 
     if (!obj.id) obj.id = Utils.uid();
     obj.updated_at = new Date().toISOString();

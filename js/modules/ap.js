@@ -647,7 +647,7 @@ const APModule = (() => {
     if (editId) {
       data.id = editId;
       const existing = _ap.find(r => r.id === editId);
-      if (existing) Object.keys(existing).forEach(k => { if (!(k in data)) data[k] = existing[k]; });
+      if (existing) Utils.mergePreserve(data, existing);
     }
     try {
       const saved = await DB.saveAP(data);

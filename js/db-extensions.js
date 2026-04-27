@@ -181,8 +181,10 @@ const DBExtensions = (() => {
         if (window.App?._currentPage === 'po') return; // PO has inline edit
       },
       employees: () => {
-        // Skip re-init when user is on employee page — their local state is fresh
         if (window.App?._currentPage === 'employee') return;
+      },
+      delivery_schedules: () => {
+        if (window.App?._currentPage === 'delivery') return;
       },
     });
   }

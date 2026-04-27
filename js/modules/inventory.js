@@ -2013,7 +2013,7 @@ const InventoryModule = (() => {
     if (editId) {
       data.id = editId;
       const existing = _items.find(i => String(i.id) === String(editId));
-      if (existing) Object.keys(existing).forEach(k => { if (!(k in data)) data[k] = existing[k]; });
+      if (existing) Utils.mergePreserve(data, existing);
     }
     try {
       const saved = await DB.saveInventoryItem(data);

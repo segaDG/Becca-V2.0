@@ -112,6 +112,14 @@ const Utils = {
   esc(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   },
+
+  /** Merge existing record fields into data — prevents data loss on form edit.
+   *  Only copies keys from `existing` that are NOT already in `data`. */
+  mergePreserve(data, existing) {
+    if (!existing || typeof existing !== 'object') return data;
+    Object.keys(existing).forEach(k => { if (!(k in data)) data[k] = existing[k]; });
+    return data;
+  },
 };
 
 window.Utils = Utils;

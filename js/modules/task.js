@@ -109,6 +109,8 @@ const TaskModule = (() => {
   async function init() {
     const page = document.getElementById('page-task');
     if (!page) return;
+    // Cleanup stale drag listeners from previous session
+    document.removeEventListener('dragover', _trackGhost);
     _tasks = await DB.getTasks().catch(() => []);
     page.innerHTML = `
       <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4)">

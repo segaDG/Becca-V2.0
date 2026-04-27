@@ -244,9 +244,7 @@ else { window.SettingsModule = (() => {
     const data = Object.fromEntries(fd.entries());
     // Merge ALL existing settings to prevent data loss (geminiApiKey, logoUrl, etc.)
     const existing = await DB.getSettings().catch(()=>({}));
-    if (existing && typeof existing === 'object') {
-      Object.keys(existing).forEach(k => { if (!(k in data)) data[k] = existing[k]; });
-    }
+    Utils.mergePreserve(data, existing);
     try {
       await DB.saveSettings(data);
       Sidebar.render();
@@ -502,8 +500,7 @@ else { window.SettingsModule = (() => {
       const old   = users.find(u=>u.id===existingId||u.username===existingId) ||
                     Auth._defaultUsers.find(u=>u.id===existingId||u.username===existingId);
       if (old) {
-        // Merge existing fields to prevent data loss (empId, lastLogin, createdAt, etc.)
-        Object.keys(old).forEach(k => { if (!(k in data)) data[k] = old[k]; });
+        Utils.mergePreserve(data, old);
         if (!data.password) data.password = old.password;
       }
       data.id = existingId||data.username;

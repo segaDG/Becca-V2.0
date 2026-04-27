@@ -969,10 +969,7 @@ const EmployeeModule = (() => {
 
     // Merge ALL existing fields to prevent data loss on edit
     const existing = editId ? _employees.find(e => e.id === editId) : null;
-    if (existing) {
-      // Preserve all fields not in the form
-      Object.keys(existing).forEach(k => { if (!(k in data)) data[k] = existing[k]; });
-    }
+    if (existing) Utils.mergePreserve(data, existing);
 
     if (_tempFotoUrl && _tempFotoUrl !== '__remove__')      data.fotoUrl = _tempFotoUrl;
     else if (_tempFotoUrl === '__remove__')                 data.fotoUrl = '';
