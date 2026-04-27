@@ -324,6 +324,11 @@ else { window.POModule = (() => {
       <td style="padding:12px 8px;font-size:12px;text-align:right;font-family:var(--font-mono)">${h ? rp(h) : ''}</td>
       <td style="padding:12px 8px;text-align:right;font-family:var(--font-mono);font-weight:600;font-size:11px;background:rgba(71,85,105,.07);color:${t?'var(--text)':'var(--text-3)'}">${t ? rp(t) : ''}</td>
       <td style="padding:12px 8px;font-size:12px;text-align:right;font-family:var(--font-mono);background:rgba(244,63,94,.05)">${a ? rp(a) : ''}</td>
+      ${locked ? '' : `<td style="padding:4px;text-align:center;white-space:nowrap">
+        <button onclick="event.stopPropagation();POModule._copyRow('${docId}',${i})" title="Copy" style="border:none;background:none;cursor:pointer;color:var(--text-3);font-size:11px;padding:2px 4px" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-3)'">📋</button>
+        <button onclick="event.stopPropagation();POModule._pasteRow('${docId}',${i})" title="Paste di bawah" style="border:none;background:none;cursor:pointer;color:var(--text-3);font-size:11px;padding:2px 4px" onmouseover="this.style.color='var(--success)'" onmouseout="this.style.color='var(--text-3)'">📥</button>
+        <button onclick="event.stopPropagation();POModule._deleteRow('${docId}',${i})" title="Hapus baris" style="border:none;background:none;cursor:pointer;color:var(--text-3);font-size:11px;padding:2px 4px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-3)'">🗑</button>
+      </td>`}
     </tr>`;
   }
 
@@ -550,6 +555,34 @@ else { window.POModule = (() => {
     const doc = _data.find(d => d.id === docId);
     if (!doc) return;
     for (let i = 0; i < 10; i++) doc.items.push({namaBarang:'',qty:'',satuan:'',keterangan:'',harga:'',totalHarga:0,alokasiDanaReal:''});
+    DB.savePO(doc).catch(() => {});
+    openAnggaran(docId);
+  }
+
+  let _copiedRow = null;
+  function _copyRow(docId, idx) {
+    const doc = _data.find(d => d.id === docId);
+    if (!doc || !doc.items[idx]) return;
+    _copiedRow = { ...doc.items[idx] };
+    Notify.success('Baris di-copy');
+  }
+  function _pasteRow(docId, idx) {
+    if (!_copiedRow) { Notify.warning('Belum ada baris yang di-copy'); return; }
+    if (_editState) _commitEdit();
+    const doc = _data.find(d => d.id === docId);
+    if (!doc) return;
+    const newItem = { ...(_copiedRow) };
+    newItem.totalHarga = (Number(newItem.qty)||0) * (Number(newItem.harga)||0);
+    doc.items.splice(idx + 1, 0, newItem);
+    DB.savePO(doc).catch(() => {});
+    openAnggaran(docId);
+    Notify.success('Baris di-paste');
+  }
+  function _deleteRow(docId, idx) {
+    if (_editState) _commitEdit();
+    const doc = _data.find(d => d.id === docId);
+    if (!doc || !doc.items[idx]) return;
+    doc.items.splice(idx, 1);
     DB.savePO(doc).catch(() => {});
     openAnggaran(docId);
   }
@@ -837,7 +870,7 @@ else { window.POModule = (() => {
         <th style="padding:6px;font-size:9px;text-align:left">Nama barang</th><th style="padding:6px;font-size:9px;width:40px">QTY</th><th style="padding:6px;font-size:9px;width:50px">Satuan</th>
         <th style="padding:6px;font-size:9px;text-align:left">Keterangan</th><th style="padding:6px;font-size:9px;text-align:right;width:90px">Harga (IDR)</th>
         <th style="padding:6px;font-size:9px;text-align:right;width:100px;background:rgba(0,0,0,.1)">Total Harga</th>
-        <th style="padding:6px;font-size:9px;text-align:right;width:100px;background:rgba(255,255,255,.1)">Alokasi Dana Real</th></tr></thead>
+        <th style="padding:6px;font-size:9px;text-align:right;width:100px;background:rgba(255,255,255,.1)">Alokasi Dana Real</th>${locked?'':'<th style="padding:6px;font-size:9px;width:60px">Aksi</th>'}</tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
         <tr style="background:#fef2f2;font-weight:700"><td colspan="4"></td><td style="padding:6px;text-align:right;color:#dc2626">Total Kebutuhan</td><td style="padding:6px;text-align:right;font-size:12px;color:#dc2626">${rpP(itemsTotal)}</td><td></td></tr>
@@ -902,6 +935,6 @@ else { window.POModule = (() => {
   return { init, switchTab, addAnggaran, openAnggaran, backToList, arsipkan, unarsip,
     selesaikan, reopenAnggaran, confirmAnggaran, ajukanFinance, importBelanjaPasar, _doImportBP,
     duplikatAnggaran, deleteAnggaran,
-    printAnggaran, kirimWA, _startEdit, _onEditKey, _liveCalc, _saveMeta, _addRows, _updateFooter,
+    printAnggaran, kirimWA, _startEdit, _onEditKey, _liveCalc, _saveMeta, _addRows, _copyRow, _pasteRow, _deleteRow, _updateFooter,
     flushPendingEdit };
 })(); }

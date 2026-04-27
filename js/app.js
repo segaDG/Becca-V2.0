@@ -17,7 +17,7 @@ const App = {
     inventory : 'js/modules/inventory.js?v=20260425a',
     employee  : 'js/modules/employee.js?v=20260410b',
     ap        : 'js/modules/ap.js?v=20260425a',
-    po        : 'js/modules/po.js?v=20260410b',
+    po        : 'js/modules/po.js?v=20260427a',
     task      : 'js/modules/task.js?v=20260330i',
     delivery  : 'js/modules/delivery.js?v=20260407a',
     menu      : 'js/modules/menu.js?v=20260409d',
@@ -551,6 +551,41 @@ const App = {
         Notify.error('Error memuat ' + pageId, err.message);
       }
     }
+    // Mobile: auto-collapse filter bars
+    if (window.innerWidth <= 768) {
+      setTimeout(() => this._mobileFilterCollapse(), 200);
+    }
+  },
+
+  _mobileFilterCollapse() {
+    document.querySelectorAll('.filter-bar').forEach(bar => {
+      if (bar.classList.contains('mobile-collapse')) return; // already processed
+      bar.classList.add('mobile-collapse');
+      // Count active filters
+      const countActive = () => {
+        let n = 0;
+        bar.querySelectorAll('select,input[type=date]').forEach(el => { if (el.value) n++; });
+        bar.querySelectorAll('input[type=text]').forEach(el => { if (el.value.trim()) n++; });
+        return n;
+      };
+      // Insert toggle button at start
+      const toggle = document.createElement('button');
+      toggle.className = 'mobile-filter-toggle';
+      toggle.style.cssText = 'padding:6px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap';
+      const updateLabel = () => {
+        const n = countActive();
+        toggle.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg> Filter${n?' <span style="background:var(--primary);color:#fff;border-radius:99px;font-size:10px;min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px">'+n+'</span>':''}`;
+      };
+      updateLabel();
+      toggle.onclick = () => {
+        bar.classList.toggle('open');
+        updateLabel();
+      };
+      bar.insertBefore(toggle, bar.firstChild);
+      // Update badge on filter change
+      bar.addEventListener('change', () => setTimeout(updateLabel, 50));
+      bar.addEventListener('input', () => setTimeout(updateLabel, 200));
+    });
   },
 
   _renderComingSoon(pageId) {

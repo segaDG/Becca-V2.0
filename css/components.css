@@ -611,4 +611,18 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     min-width: 0;
     max-width: calc(100vw - var(--s6) * 2);
   }
+
+  /* Mobile filter bar → collapsible */
+  .filter-bar {
+    flex-wrap: wrap !important;
+  }
+  .filter-bar.mobile-collapse > *:not(.mobile-filter-toggle):not(.filter-reset-btn) {
+    display: none !important;
+  }
+  .filter-bar.mobile-collapse.open > * {
+    display: flex !important;
+  }
+  .filter-bar.mobile-collapse .mobile-filter-toggle {
+    display: flex !important;
+  }
 }
