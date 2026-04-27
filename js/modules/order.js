@@ -455,7 +455,7 @@ const OrderModule = (() => {
 
   function _removeCol(i) {
     if(!confirm(`Hapus kolom "${_cols[i].label}"?`)) return;
-    _cols.splice(i,1);
+    _cols = _cols.filter((c, idx) => idx !== i);
     _saveCols();
     Modal.close();
     _renderFull();

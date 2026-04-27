@@ -3,7 +3,7 @@
    Spreadsheet: click row to edit inline
    AI type suggestion from nama field
 ============================================ */
-console.log('[BECCA] KasModule v20260327d loaded ✓');
+if(window.BECCA_DEBUG) console.log('[BECCA] KasModule v20260327d loaded');
 const KasModule = (() => {
   let _kas        = [];
   let _masuk      = [];
@@ -1040,7 +1040,7 @@ const KasModule = (() => {
           if (parsedTgl) _lastTgl = parsedTgl;
           const tgl = parsedTgl || _lastTgl;
           // Debug: log 3 baris pertama per sheet agar bisa diagnosa date parsing
-          if (ri < dataStart+3) console.log('[KasImport] row', ri, 'rawTgl=', rawTgl, 'typeof=', typeof rawTgl, 'parsedTgl=', parsedTgl, 'tgl=', tgl);
+          if (ri < dataStart+3 && window.BECCA_DEBUG) console.log('[KasImport] row', ri, 'rawTgl=', rawTgl, 'typeof=', typeof rawTgl, 'parsedTgl=', parsedTgl, 'tgl=', tgl);
           if (!tgl) continue;
           const nama = String(row[colIdx.nama]??'').trim();
           if (!nama || nama.toUpperCase()==='ADMINISTRATOR' || nama.toUpperCase().startsWith('TOTAL')) continue;
@@ -1112,7 +1112,7 @@ const KasModule = (() => {
         await Promise.allSettled(batch.map(r => DB.saveKas(r).then(()=>saved++)));
       }
       DB.logActivity({ type:'import_kas', detail:`Import Excel: ${dedupedRows.length} baris (${skippedCount} duplikat dilewati)` });
-      console.log('[KasImport] Sync Supabase selesai:', saved, '/', dedupedRows.length);
+      if(window.BECCA_DEBUG) console.log('[KasImport] Sync Supabase selesai:', saved, '/', dedupedRows.length);
     };
     inp.click();
   }

@@ -3,7 +3,7 @@
    Weekly delivery calendar with driver + PIC assignment
    Depends: db.js, utils.js, modal.js, notify.js, auth.js
 ============================================ */
-console.log('[BECCA] DeliveryModule v20260405a loaded');
+if(window.BECCA_DEBUG) console.log('[BECCA] DeliveryModule v20260405a loaded');
 
 const DeliveryModule = (() => {
   'use strict';

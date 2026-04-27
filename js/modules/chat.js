@@ -3,7 +3,7 @@
    Realtime messaging, photo/video, task sharing
    Privacy: rooms only visible to participants
 ============================================ */
-console.log('[BECCA] ChatModule v20260409b loaded');
+if(window.BECCA_DEBUG) console.log('[BECCA] ChatModule v20260409b loaded');
 
 const ChatModule = (() => {
   'use strict';

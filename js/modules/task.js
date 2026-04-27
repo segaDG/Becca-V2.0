@@ -400,15 +400,22 @@ const TaskModule = (() => {
     document.addEventListener('dragover', _trackGhost);
   }
 
+  let _trackGhostRAF = 0;
   function _trackGhost(e) {
     if (!_ghostEl) return;
-    _ghostEl.style.left = (e.clientX - 20) + 'px';
-    _ghostEl.style.top  = (e.clientY - 30) + 'px';
+    if (_trackGhostRAF) return;
+    _trackGhostRAF = requestAnimationFrame(() => {
+      _trackGhostRAF = 0;
+      if (!_ghostEl) return;
+      _ghostEl.style.left = (e.clientX - 20) + 'px';
+      _ghostEl.style.top  = (e.clientY - 30) + 'px';
+    });
   }
 
   function _onDragEnd(event) {
     // Cleanup ghost
     if (_ghostEl) { _ghostEl.remove(); _ghostEl = null; }
+    if (_trackGhostRAF) { cancelAnimationFrame(_trackGhostRAF); _trackGhostRAF = 0; }
     document.removeEventListener('dragover', _trackGhost);
 
     // Restore original card
@@ -815,8 +822,6 @@ const TaskModule = (() => {
     Notify.success('Task ditandai reviewed — assignee sekarang bisa pindah ke Done!');
   }
 
-  async function markDone(id)  { await moveNext(id); }
-
   async function markArsip(id) {
     const t = _tasks.find(x=>x.id===id);
     if (!t||!_canEdit(t)) { Notify.warning('Hanya pembuat task yang bisa mengarsipkan'); return; }
@@ -1157,7 +1162,7 @@ const TaskModule = (() => {
 
   return {
     init, setFilter, render, openModal, _submit, shareWA,
-    moveNext, movePrev, markReviewed, markDone, markArsip, markTodo, deleteTask, toggleUrgent,
+    moveNext, movePrev, markReviewed, markArsip, markTodo, deleteTask, toggleUrgent,
     _onDragStart, _onDragEnd, _onColDragOver, _onColDragLeave, _onDrop,
     _tAddImages, _tRemoveImg, _openTaskImg,
   };

@@ -3,7 +3,7 @@
    Tab 1: Menu Generator (weekly planner per customer)
    Tab 2: Menu Library (1500+ menu items)
 ============================================ */
-console.log('[BECCA] MenuModule v20260404a loaded');
+if(window.BECCA_DEBUG) console.log('[BECCA] MenuModule v20260404a loaded');
 
 const MenuModule = (() => {
   'use strict';
@@ -609,7 +609,7 @@ Key hari: 0=Senin, 1=Selasa, ..., 6=Minggu.`;
       _pendingPlan.customers = _genCustomers;
       _renderGenerator();
       Notify.success('\u2713 Menu AI diterapkan! Klik Simpan untuk menyimpan.');
-    } catch(e) { Notify.error('AI response bukan JSON valid: '+e.message); console.log('Raw AI:', result); }
+    } catch(e) { Notify.error('AI response bukan JSON valid: '+e.message); if(window.BECCA_DEBUG) console.log('Raw AI:', result); }
   }
 
   async function _aiResep(menuId) {

@@ -18,6 +18,11 @@ const EmployeeModule = (() => {
   let _filterStatus = '';
   let _filterDept   = '';
   let _filterGrup   = '';   // '' | '5' | '12' | '19' | '26' | '__none__'
+  let _lbFilterNama  = '';
+  let _lbFilterBulan = '';
+  let _lbFilterKonf  = '_all_';
+  let _lbFilterFrom  = '';
+  let _lbFilterTo    = '';
   let _selectedEmpId = null;  // for card view
 
   // Absensi state
@@ -373,6 +378,9 @@ const EmployeeModule = (() => {
   }
 
   /* ===================== RENDER CARD ===================== */
+  const _CARD_PAGE_SIZE = 30;
+  let _cardShowCount = _CARD_PAGE_SIZE;
+
   function renderCard(empId) {
     const el = document.getElementById('emp-tab-card');
     const CARD_ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian','aktif'];
@@ -391,7 +399,10 @@ const EmployeeModule = (() => {
       return;
     }
 
-    // Show all cards grid
+    _cardShowCount = _CARD_PAGE_SIZE;
+
+    // Show cards grid with pagination
+    const shown = active.slice(0, _cardShowCount);
     el.innerHTML = `
       <div style="margin-bottom:var(--s3)">
         <input type="text" class="form-control" style="max-width:300px" placeholder="Cari karyawan..."
@@ -402,9 +413,32 @@ const EmployeeModule = (() => {
         .emp-card-anim{animation:empCardIn .3s ease both}
       </style>
       <div id="cards-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s4)">
-        ${active.map((emp,i) => _cardHTML(emp,i)).join('')}
+        ${shown.map((emp,i) => _cardHTML(emp,i)).join('')}
       </div>
+      ${active.length > _cardShowCount ? `<div id="cards-load-more" style="text-align:center;padding:16px 0">
+        <button class="btn btn-ghost" onclick="EmployeeModule._loadMoreCards()" style="font-size:13px">
+          Tampilkan lebih banyak (${active.length - _cardShowCount} tersisa)
+        </button>
+      </div>` : ''}
     `;
+  }
+
+  function _loadMoreCards() {
+    const CARD_ACTIVE = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian','aktif'];
+    const searchVal = document.getElementById('card-search')?.value || '';
+    if (searchVal) return; // if searching, filterCards handles it
+    const active = _employees.filter(e=>CARD_ACTIVE.includes(e.status));
+    _cardShowCount += _CARD_PAGE_SIZE;
+    const shown = active.slice(0, _cardShowCount);
+    const grid = document.getElementById('cards-grid');
+    if (grid) grid.innerHTML = shown.map((emp,i)=>_cardHTML(emp,i)).join('');
+    const btn = document.getElementById('cards-load-more');
+    if (btn) {
+      if (_cardShowCount >= active.length) btn.remove();
+      else btn.innerHTML = `<button class="btn btn-ghost" onclick="EmployeeModule._loadMoreCards()" style="font-size:13px">
+        Tampilkan lebih banyak (${active.length - _cardShowCount} tersisa)
+      </button>`;
+    }
   }
 
   function filterCards(q) {
@@ -413,6 +447,9 @@ const EmployeeModule = (() => {
     const filtered = lower ? active.filter(e=>(e.nama||'').toLowerCase().includes(lower)||(e.jabatan||'').toLowerCase().includes(lower)) : active;
     const grid = document.getElementById('cards-grid');
     if (grid) grid.innerHTML = filtered.map((emp,i)=>_cardHTML(emp,i)).join('');
+    // Hide load-more when searching
+    const btn = document.getElementById('cards-load-more');
+    if (btn) btn.style.display = lower ? 'none' : '';
   }
 
   function _cardHTML(emp, idx=0) {
@@ -647,25 +684,25 @@ const EmployeeModule = (() => {
       <!-- Filter bar -->
       <div class="filter-bar" style="margin-bottom:var(--s3)">
         <select class="form-control" style="width:180px" id="lb-filter-nama"
-          onchange="EmployeeModule.renderLogbook()">
+          onchange="EmployeeModule._setLbFilter('nama',this.value)">
           <option value="">Semua Karyawan</option>
-          ${allNamas.map(n=>`<option value="${n}">${n}</option>`).join('')}
+          ${allNamas.map(n=>`<option value="${n}" ${_lbFilterNama===n?'selected':''}>${n}</option>`).join('')}
         </select>
         <select class="form-control" style="width:110px" id="lb-filter-bulan"
-          onchange="EmployeeModule.renderLogbook()">
+          onchange="EmployeeModule._setLbFilter('bulan',this.value)">
           <option value="">Semua Bulan</option>
-          ${allBulans.map(b=>`<option value="${b}">${BULAN_LABEL[b]||b}</option>`).join('')}
+          ${allBulans.map(b=>`<option value="${b}" ${_lbFilterBulan===String(b)?'selected':''}>${BULAN_LABEL[b]||b}</option>`).join('')}
         </select>
         <select class="form-control" style="width:130px" id="lb-filter-konf"
-          onchange="EmployeeModule.renderLogbook()">
-          <option value="">Semua Status</option>
-          <option value="CONFIRMED">CONFIRMED</option>
-          <option value="">Belum Konfirmasi</option>
+          onchange="EmployeeModule._setLbFilter('konf',this.value)">
+          <option value="_all_" ${_lbFilterKonf==='_all_'?'selected':''}>Semua Status</option>
+          <option value="CONFIRMED" ${_lbFilterKonf==='CONFIRMED'?'selected':''}>CONFIRMED</option>
+          <option value="" ${_lbFilterKonf===''?'selected':''}>Belum Konfirmasi</option>
         </select>
-        <input type="date" class="form-control" style="width:140px" id="lb-filter-from"
-          onchange="EmployeeModule.renderLogbook()">
-        <input type="date" class="form-control" style="width:140px" id="lb-filter-to"
-          onchange="EmployeeModule.renderLogbook()">
+        <input type="date" class="form-control" style="width:140px" id="lb-filter-from" value="${_lbFilterFrom}"
+          onchange="EmployeeModule._setLbFilter('from',this.value)">
+        <input type="date" class="form-control" style="width:140px" id="lb-filter-to" value="${_lbFilterTo}"
+          onchange="EmployeeModule._setLbFilter('to',this.value)">
         <button class="btn btn-ghost btn-sm" onclick="EmployeeModule._resetLbFilter()" title="Reset">↺</button>
         <button onclick="EmployeeModule.reArrangeLb()" title="Urutkan" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 6h18M3 12h12M3 18h6"/></svg>Re-arrange</button>
         <span style="margin-left:auto;font-size:12px;color:var(--text-3)" id="lb-count-label"></span>
@@ -703,7 +740,18 @@ const EmployeeModule = (() => {
     }, 50);
   }
 
+  function _setLbFilter(key, val) {
+    if (key === 'nama')  _lbFilterNama  = val;
+    if (key === 'bulan') _lbFilterBulan = val;
+    if (key === 'konf')  _lbFilterKonf  = val;
+    if (key === 'from')  _lbFilterFrom  = val;
+    if (key === 'to')    _lbFilterTo    = val;
+    _lbPage = 1;
+    renderLogbook();
+  }
+
   function _resetLbFilter() {
+    _lbFilterNama = ''; _lbFilterBulan = ''; _lbFilterKonf = '_all_'; _lbFilterFrom = ''; _lbFilterTo = '';
     ['lb-filter-nama','lb-filter-bulan','lb-filter-konf','lb-filter-from','lb-filter-to']
       .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
     _lbPage = 1;
@@ -714,11 +762,11 @@ const EmployeeModule = (() => {
 
   function _renderLogRows() {
     const BULAN_LABEL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
-    const filterNama  = document.getElementById('lb-filter-nama')?.value  || '';
-    const filterBulan = document.getElementById('lb-filter-bulan')?.value || '';
-    const filterKonf  = document.getElementById('lb-filter-konf')?.value  || '_all_';
-    const from        = document.getElementById('lb-filter-from')?.value  || '';
-    const to          = document.getElementById('lb-filter-to')?.value    || '';
+    const filterNama  = _lbFilterNama;
+    const filterBulan = _lbFilterBulan;
+    const filterKonf  = _lbFilterKonf;
+    const from        = _lbFilterFrom;
+    const to          = _lbFilterTo;
     const canEdit     = Auth.can('employee','edit');
     const cols        = canEdit ? 8 : 7;
 
@@ -2735,10 +2783,10 @@ const EmployeeModule = (() => {
 
   return {
     init, switchTab, renderData, renderCard, renderLogbook, renderArsip, _deleteEmpFromArsip, reArrangeLb,
-    _handleFotoUpload, _removeFoto, _handleKtpUpload, _removeKtp, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _resetLbFilter, migratePhotosFromLS,
+    _handleFotoUpload, _removeFoto, _handleKtpUpload, _removeKtp, _viewPhoto, _searchEmp, _renderDataTable, changeStatus, _setLbFilter, _resetLbFilter, migratePhotosFromLS,
     _pickFoto, _pickKtp,
     _lbStartEdit, _lbCommit, _lbCancelEdit, _lbUnlock, _lbLockAll, addLogRow, _recalcHutang, recalcAllHutang, _showLogDetail, goLbPage, setLbPerPage,
-    setFilter, sortBy, viewCard, filterCards,
+    setFilter, sortBy, viewCard, filterCards, _loadMoreCards,
     openEmpModal, _submitEmp, openLogModal, _submitLog, deleteLog,
     // Absensi
     renderAbsensi, _absSetMonth, _cycleAbsensi, _bulkAbsensi, openAbsensiModal, _absEmpChange, _submitAbsensi, _onFaceAbsensi,

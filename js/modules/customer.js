@@ -858,7 +858,7 @@ const CustomerModule = (() => {
     if (expired.length) {
       expired.forEach(t => DB.deleteCustomer(t.id).catch(()=>{}));
       _saveTrash(trash.filter(t => now - new Date(t.deletedAt).getTime() <= THIRTY_DAYS));
-      console.log('[Customer] Auto-purged', expired.length, 'customers from trash (>30 days)');
+      if(window.BECCA_DEBUG) console.log('[Customer] Auto-purged', expired.length, 'customers from trash (>30 days)');
     }
   }
 

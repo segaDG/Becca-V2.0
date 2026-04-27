@@ -198,7 +198,7 @@ const InvoiceModule = (() => {
         await Promise.all(_SEED_INVOICES.map(inv => DB.saveInvoice(Object.assign({}, inv))));
         const raw2 = await DB.getInvoices();
         _invoices = raw2.filter(_isValidInv);
-        console.log('[InvoiceModule] seeded', _SEED_INVOICES.length, 'invoices → valid:', _invoices.length);
+        if(window.BECCA_DEBUG) console.log('[InvoiceModule] seeded', _SEED_INVOICES.length, 'invoices → valid:', _invoices.length);
         if (!_invoices.length) _invoices = [..._SEED_INVOICES];
       } catch(e) {
         console.warn('[InvoiceModule] seed error:', e);

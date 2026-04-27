@@ -2,7 +2,7 @@
    BECCA V2.0 — Personal Module
    Profile, logbook, absensi, kasbon, notes, floating notes
 ============================================ */
-console.log('[BECCA] PersonalModule v20260405a loaded');
+if(window.BECCA_DEBUG) console.log('[BECCA] PersonalModule v20260405a loaded');
 
 const PersonalModule = (() => {
   'use strict';

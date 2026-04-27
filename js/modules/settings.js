@@ -324,7 +324,7 @@ else { window.SettingsModule = (() => {
       const emp = empMap.get((u.nama||'').toLowerCase());
       if (emp) { u.empId = emp.id; autoLinked++; DB.saveUser(u).catch(()=>{}); }
     }
-    if (autoLinked) console.log(`[Settings] Auto-linked ${autoLinked} users to employees`);
+    if (autoLinked && window.BECCA_DEBUG) console.log(`[Settings] Auto-linked ${autoLinked} users to employees`);
     // For superadmin: load passwords from DB for display
     if (Auth.isSuperAdmin()) {
       const allWithPwd = await DB.getUsers().catch(()=>[]);
@@ -2433,7 +2433,7 @@ else { window.SettingsModule = (() => {
         })
       });
 
-      console.log('[BECCA] auth.js synced to GitHub (' + users.length + ' users)');
+      if(window.BECCA_DEBUG) console.log('[BECCA] auth.js synced to GitHub (' + users.length + ' users)');
     } catch(e) {
       console.warn('[BECCA] auth.js sync failed:', e.message);
     }

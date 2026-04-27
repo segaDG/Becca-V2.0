@@ -10,7 +10,7 @@
        jumlah, stokAkhir, harga, supplier, catatan, createdBy }
 ============================================ */
 
-console.log('[BECCA] InventoryModule v20260327k loaded ✓');
+if(window.BECCA_DEBUG) console.log('[BECCA] InventoryModule v20260327k loaded');
 const InventoryModule = (() => {
 
   let _items      = [];   // master barang
@@ -112,7 +112,7 @@ const InventoryModule = (() => {
       if (!localStorage.getItem('becca_hpp_masuk_fix')) {
         const toFix = _logs.filter(l => l.jenis === 'MASUK' && (l.hpp === true || l.hpp === 'ya'));
         if (toFix.length) {
-          console.log('[Inventory] Fixing HPP on ' + toFix.length + ' MASUK rows');
+          if(window.BECCA_DEBUG) console.log('[Inventory] Fixing HPP on ' + toFix.length + ' MASUK rows');
           for (const l of toFix) { l.hpp = null; DB.saveInventoryLog({...l}).catch(()=>{}); }
         }
         localStorage.setItem('becca_hpp_masuk_fix', '1');

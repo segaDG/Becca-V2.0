@@ -1303,11 +1303,11 @@ const DailyOrderModule = (() => {
     if (_saving) return;
     const item = document.getElementById('di-item')?.value.trim();
     const qty = parseFloat(document.getElementById('di-estqty')?.value);
-    console.log('[DO] estQtyBlur:', { item, qty, editingId: _editingItemId });
+    if(window.BECCA_DEBUG) console.log('[DO] estQtyBlur:', { item, qty, editingId: _editingItemId });
     if (!item || !qty || qty <= 0) return;
     _estBlurTimer = setTimeout(() => {
       if (_saving) return;
-      console.log('[DO] estQtyBlur → saving');
+      if(window.BECCA_DEBUG) console.log('[DO] estQtyBlur → saving');
       _saveEditRow();
     }, 400);
   }
