@@ -422,17 +422,16 @@ const DailyOrderModule = (() => {
             style="padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);font-size:13px;font-weight:700;cursor:pointer">
           <button onclick="DailyOrderModule.nextFormMonth()"
             style="width:28px;height:28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center">›</button>
-          <div style="margin-left:6px;display:flex;gap:8px;font-size:10px;color:var(--text-3);flex-wrap:wrap">
+          <div class="do-legend" style="margin-left:6px;display:flex;gap:8px;font-size:10px;color:var(--text-3);flex-wrap:wrap">
             <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#6366f1;margin-right:3px;vertical-align:middle"></span>S1+S2</span>
             <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f59e0b;margin-right:3px;vertical-align:middle"></span>S1</span>
             <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f97316;margin-right:3px;vertical-align:middle"></span>S2</span>
             <span><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:#ec4899;margin-right:3px;vertical-align:middle"></span>Snack</span>
-            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#ea580c;margin-right:3px;vertical-align:middle"></span>Event</span>
           </div>
           <button onclick="DailyOrderModule.addEvent()" title="Tambah Event Catering"
             style="margin-left:auto;padding:4px 10px;border:1px solid rgba(234,88,12,.4);border-radius:6px;
             background:rgba(234,88,12,.08);color:#ea580c;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;
-            display:flex;align-items:center;gap:4px"
+            display:flex;align-items:center;gap:4px;flex-shrink:0"
             onmouseover="this.style.background='#ea580c';this.style.color='#fff'"
             onmouseout="this.style.background='rgba(234,88,12,.08)';this.style.color='#ea580c'">+ Event</button>
         </div>
@@ -440,11 +439,21 @@ const DailyOrderModule = (() => {
           ${cards}
           ${_getEventCards()}
         </div>
-        <style>#do-date-scroll::-webkit-scrollbar{display:none}</style>
+        <style>
+          #do-date-scroll::-webkit-scrollbar{display:none}
+          @media(max-width:768px){
+            .do-legend{display:none !important}
+            .do-shift-meta{flex-direction:column;align-items:stretch !important}
+            .do-shift-meta>div{width:100%}
+            .do-budget-cards{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px}
+            .do-budget-cards::-webkit-scrollbar{display:none}
+            .do-budget-cards>div{min-width:260px;flex-shrink:0}
+          }
+        </style>
       </div>
 
       <!-- Shift + meta -->
-      <div style="display:flex;gap:var(--s3);align-items:flex-end;flex-wrap:wrap;margin-bottom:var(--s4)">
+      <div class="do-shift-meta" style="display:flex;gap:var(--s3);align-items:flex-end;flex-wrap:wrap;margin-bottom:var(--s4)">
         <div>
           <label style="font-size:11px;color:var(--text-3);font-weight:600;display:block;margin-bottom:4px">SHIFT</label>
           <div style="display:flex;gap:3px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none">
@@ -493,11 +502,12 @@ const DailyOrderModule = (() => {
           </div>
         ` : ''}
 
+        <div class="do-budget-cards">
         ${hasDayData ? (() => {
           const _bc = totSelisih>=0 ? '#10b981' : '#ef4444';
           const _bl = totSelisih>=0 ? '▲ Surplus' : '▼ Defisit';
           return `
-        <div style="margin-left:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;min-width:220px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;min-width:220px;flex:1">
           <div style="font-size:9px;font-weight:700;color:var(--text-3);letter-spacing:.05em;margin-bottom:5px">TOTAL BUDGET HARI INI</div>
           <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:5px">
             <div>
@@ -545,6 +555,7 @@ const DailyOrderModule = (() => {
           </div>
         </div>`;
         })() : ''}
+        </div>
       </div>
 
       ${_isEvent(_shift) ? _htmlEventForm() : ''}

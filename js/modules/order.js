@@ -126,6 +126,10 @@ const OrderModule = (() => {
       .hdr-wrap { display:inline-flex;align-items:center;gap:3px }
       .hdr-wrap:hover .hdr-btn { opacity:1 }
       .hdr-btn { opacity:0;font-size:9px;background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:3px;padding:1px 4px;cursor:pointer;transition:.1s }
+      @media(max-width:768px){
+        .ord-hide-mob{display:none !important}
+        #ord-table{min-width:600px}
+      }
     </style>
     <div class="page-header">
       <div class="page-header-left">
@@ -198,7 +202,8 @@ const OrderModule = (() => {
     _cols.forEach(c => { const g = c.group||'cx'; gc[g] = (gc[g]||0) + 1; });
 
     let grp = `<tr style="background:#1e1e2e">
-      <th colspan="5" class="ord-th" style="background:#1e1e2e;text-align:center;font-size:9px;color:#9ca3af;letter-spacing:.1em">INPUT & ORDER</th>`;
+      <th colspan="3" class="ord-th ord-hide-mob" style="background:#1e1e2e;text-align:center;font-size:9px;color:#9ca3af;letter-spacing:.1em">INPUT</th>
+      <th colspan="2" class="ord-th" style="background:#1e1e2e;text-align:center;font-size:9px;color:#9ca3af;letter-spacing:.1em">ORDER</th>`;
     Object.entries(gc).forEach(([g,cnt]) => {
       const m = _groupMeta[g] || _groupMeta.cx;
       grp += `<th colspan="${cnt}" class="ord-th" style="background:#1e1e2e;color:${m.color};font-size:9px;letter-spacing:.1em">${m.label}</th>`;
@@ -206,9 +211,9 @@ const OrderModule = (() => {
     grp += `<th colspan="2" class="ord-th" style="background:#1e1e2e;font-size:9px;color:#9ca3af;letter-spacing:.1em">INFO</th></tr>`;
 
     let col = `<tr style="background:var(--thead-bg)">
-      <th class="ord-th" style="width:32px">#</th>
-      <th class="ord-th" style="text-align:left;min-width:110px">Timestamp</th>
-      <th class="ord-th" style="text-align:left;min-width:110px">Pelapor</th>
+      <th class="ord-th ord-hide-mob" style="width:32px">#</th>
+      <th class="ord-th ord-hide-mob" style="text-align:left;min-width:110px">Timestamp</th>
+      <th class="ord-th ord-hide-mob" style="text-align:left;min-width:110px">Pelapor</th>
       <th class="ord-th" style="min-width:90px">Tgl Order</th>
       <th class="ord-th" style="text-align:left;min-width:140px">Customer</th>`;
     _cols.forEach((c, ci) => {
@@ -267,9 +272,9 @@ const OrderModule = (() => {
         onmouseenter="this.querySelectorAll('td').forEach(function(t){t.dataset.ori=t.style.background;t.style.background='${hov}'})"
         onmouseleave="this.querySelectorAll('td').forEach(function(t){t.style.background=t.dataset.ori})"
         style="border-bottom:1px solid var(--border)${o.invoiced?';opacity:.72':''}">
-        <td class="ord-td" style="font-size:10px;color:var(--text-3);background:${bg}">${(_page-1)*_perPage+i+1}</td>
-        <td class="ord-td" style="text-align:left;font-size:10px;font-family:var(--font-mono);color:var(--text-2);background:${bg};white-space:nowrap">${_fmtTs(o.timestamp)}</td>
-        <td class="ord-td" style="text-align:left;font-size:10px;color:var(--text-2);background:${bg};white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">${o.pelapor||'-'}</td>
+        <td class="ord-td ord-hide-mob" style="font-size:10px;color:var(--text-3);background:${bg}">${(_page-1)*_perPage+i+1}</td>
+        <td class="ord-td ord-hide-mob" style="text-align:left;font-size:10px;font-family:var(--font-mono);color:var(--text-2);background:${bg};white-space:nowrap">${_fmtTs(o.timestamp)}</td>
+        <td class="ord-td ord-hide-mob" style="text-align:left;font-size:10px;color:var(--text-2);background:${bg};white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">${o.pelapor||'-'}</td>
         <td class="ord-td" style="font-weight:600;font-size:10px;background:${bg};white-space:nowrap">${_fmtDate(o.tglOrder)}</td>
         <td class="ord-td" style="text-align:left;font-weight:600;background:${bg}">
           <div class="ord-cell" ondblclick="OrderModule.startEdit('${oid}','namaPerusahaan',this)" title="Double-klik untuk edit">${o.namaPerusahaan||'-'}</div>
