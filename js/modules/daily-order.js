@@ -14,6 +14,7 @@ const DailyOrderModule = (() => {
   let _editingItemId= null; // null | 'new' | existing item id
   let _saving       = false; // guard against double-save race condition
   let _inventory    = [];
+  let _invLogs      = []; // inventory activity logs — for sync status check
   let _customers    = [];
   let _bulkSelected = new Set();
 
@@ -227,6 +228,7 @@ const DailyOrderModule = (() => {
       const items = Array.isArray(invItems) ? invItems : [];
       const logs  = Array.isArray(invLogs)  ? invLogs  : [];
       const logsByItem = {};
+      _invLogs = logs;
       logs.forEach(l => { if (l.itemId) { (logsByItem[l.itemId] = logsByItem[l.itemId]||[]).push(l); } });
       items.forEach(it => {
         const ls = logsByItem[it.id] || [];
@@ -1141,7 +1143,14 @@ const DailyOrderModule = (() => {
   }
 
   /* ─── ROW RENDERERS ─── */
+  function _isItemSynced(itemName) {
+    const syncTag = 'do_' + _date.replace(/-/g,'') + '_' + _shift;
+    const name = (itemName||'').toLowerCase();
+    return _invLogs.some(l => l.syncTag === syncTag && (l.itemNama||'').toLowerCase() === name);
+  }
+
   function _htmlItemRow(it, i) {
+    const synced = _isItemSynced(it.item);
     const sumber = it.sumber || _calcSumber(_n(it.stokGudang), _n(it.aktQty));
     return `
       <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''};cursor:pointer" ondblclick="DailyOrderModule.startEditItem('${it.id}',event.target.closest('td')?.dataset?.field)" title="Double-klik untuk edit">
@@ -1151,7 +1160,7 @@ const DailyOrderModule = (() => {
         <td data-field="di-item" style="padding:7px 5px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
         <td data-field="di-harga" style="padding:7px 5px;text-align:right;color:var(--text-3)">${_n(it.hargaSatuan)?_fmtRp(it.hargaSatuan):'-'}</td>
         <td data-field="di-harga" style="padding:7px 5px;text-align:right;color:#6366f1">${_n(it.estTotal)?_fmtRp(it.estTotal):'-'}</td>
-        <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">${it.aktQty||'-'}${it._syncRevised?'<span style="font-size:7px;background:rgba(245,158,11,.15);color:#f59e0b;padding:0 3px;border-radius:3px;margin-left:2px;font-weight:700;vertical-align:middle">REV</span>':''}</td>
+        <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600">${it.aktQty||'-'}${synced?'<span style="font-size:7px;background:rgba(139,92,246,.15);color:#8b5cf6;padding:0 3px;border-radius:3px;margin-left:2px;font-weight:700;vertical-align:middle" title="Synced ke inventory">sync</span>':''}${it._syncRevised?'<span style="font-size:7px;background:rgba(245,158,11,.15);color:#f59e0b;padding:0 3px;border-radius:3px;margin-left:2px;font-weight:700;vertical-align:middle">REV</span>':''}</td>
         <td data-field="di-aktqty" style="padding:7px 5px;text-align:right;color:#10b981">${_n(it.aktTotal)?_fmtRp(it.aktTotal):'-'}</td>
         <td data-field="di-aktqty" style="padding:7px 5px;text-align:center">
           <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;

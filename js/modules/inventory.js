@@ -615,12 +615,13 @@ const InventoryModule = (() => {
       return `<button onclick="InventoryModule.syncFormProduksi('${f.id}')" title="${f.tanggal} ${shiftLabel}"
         style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
         border:1px solid ${isFullSync?'rgba(16,185,129,.3)':syncedCount>0?'rgba(245,158,11,.3)':'var(--border)'};
-        border-radius:8px;background:${statusBg};cursor:pointer;min-width:70px;transition:.15s"
-        onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'"
-        onmouseout="this.style.transform='';this.style.boxShadow=''">
+        border-radius:8px;background:${statusBg};cursor:pointer;min-width:70px;transition:.15s;
+        ${isFullSync?'opacity:.5;filter:grayscale(.3)':''}"
+        onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)';this.style.opacity='1';this.style.filter=''"
+        onmouseout="this.style.transform='';this.style.boxShadow='';${isFullSync?"this.style.opacity='.5';this.style.filter='grayscale(.3)'":"'}">
         <span style="font-size:9px;font-weight:700;color:var(--text-3)">${dateLabel}</span>
         <span style="font-size:11px;font-weight:700;color:var(--text)">${shiftLabel}</span>
-        <span style="font-size:9px;font-weight:700;color:${statusColor}">${statusText}</span>
+        <span style="font-size:9px;font-weight:700;color:${statusColor}">${isFullSync?'✓ Synced':statusText}</span>
         <span style="font-size:8px;color:var(--text-3)">${syncedCount}/${totalItems}</span>
       </button>`;
     }).join('');
