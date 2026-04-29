@@ -113,6 +113,23 @@ const Utils = {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   },
 
+  /** Sanitize string input — strip HTML tags, trim whitespace */
+  sanitize(s) {
+    if (typeof s !== 'string') return s;
+    return s.replace(/<[^>]*>/g, '').trim();
+  },
+
+  /** Sanitize all string fields in an object */
+  sanitizeObj(obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+    Object.keys(obj).forEach(k => {
+      if (typeof obj[k] === 'string' && k !== 'password' && k !== 'fotoUrl' && k !== 'ktpUrl' && k !== 'mediaUrl' && k !== 'logoUrl') {
+        obj[k] = Utils.sanitize(obj[k]);
+      }
+    });
+    return obj;
+  },
+
   /** Merge existing record fields into data — prevents data loss on form edit.
    *  Only copies keys from `existing` that are NOT already in `data`. */
   mergePreserve(data, existing) {

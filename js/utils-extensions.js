@@ -284,3 +284,33 @@ const UI = {
   },
 };
 window.UI = UI;
+
+/** Print report — opens browser print dialog with formatted table */
+Utils.printReport = function({ title, subtitle, headers, rows, footer, orientation }) {
+  const style = `
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Inter',sans-serif;font-size:11px;color:#1e293b;padding:20px}
+    h1{font-size:16px;font-weight:700;margin-bottom:2px}
+    .sub{font-size:11px;color:#64748b;margin-bottom:12px}
+    table{width:100%;border-collapse:collapse;margin-bottom:12px}
+    th{background:#1e293b;color:#fff;padding:6px 8px;font-size:9px;text-transform:uppercase;letter-spacing:.05em;text-align:left}
+    td{padding:5px 8px;border-bottom:1px solid #e2e8f0;font-size:10px}
+    tr:nth-child(even) td{background:#f8fafc}
+    .num{text-align:right;font-family:'JetBrains Mono',monospace}
+    .footer{margin-top:8px;font-size:10px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:8px}
+    @page{size:${orientation||'landscape'};margin:10mm}
+    @media print{body{padding:0}}
+  `;
+  const tableHtml = `<table>
+    <thead><tr>${headers.map(h => `<th${h.num?' class="num"':''}>${h.label||h}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${r.map((c,i) => `<td${headers[i]?.num?' class="num"':''}>${c}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table>`;
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>${style}</style></head><body>
+    <h1>${title}</h1><div class="sub">${subtitle||''}</div>
+    ${tableHtml}
+    ${footer?`<div class="footer">${footer}</div>`:''}
+    <script>setTimeout(()=>{window.print();window.close()},300)<\/script>
+  </body></html>`);
+  win.document.close();
+};

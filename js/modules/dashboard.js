@@ -215,6 +215,8 @@ const DashboardModule = (() => {
         }).join('')}
       </div>
 
+      ${canKas ? _renderKasChart(kas) : ''}
+
       <div class="dash-grid${[canKas,canInventory].filter(Boolean).length>1?' dash-grid-2col':''}">
         ${canKas ? _renderRecentKasTable(recentKas) : ''}
         ${canInventory ? _renderLowStockCard(lowStock) : ''}
@@ -265,6 +267,43 @@ const DashboardModule = (() => {
     Modal.close(mid);
     Notify.success('Widget direset');
     _render();
+  }
+
+  function _renderKasChart(kasData) {
+    if (!kasData || !kasData.length) return '';
+    const MONTHS = Utils.MONTHS_SHORT || ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+    const NORM = {'Jan':'Jan','Febuari':'Feb','Feb':'Feb','Mar':'Mar','Apr':'Apr','Mei':'Mei','Jun':'Jun','Jul':'Jul','Ags':'Ags','Sep':'Sep','Okt':'Okt','Nov':'Nov','Des':'Des',
+      'Januari':'Jan','Februari':'Feb','Maret':'Mar','April':'Apr','Juni':'Jun','Juli':'Jul','Agustus':'Ags','September':'Sep','Oktober':'Okt','November':'Nov','Desember':'Des'};
+    const monthly = {};
+    MONTHS.forEach(m => { monthly[m] = { keluar:0, masuk:0 }; });
+    kasData.forEach(r => {
+      const b = NORM[r.bulan||''] || '';
+      if (!b || !monthly[b]) return;
+      if (r.type === 'Kas') monthly[b].masuk += (r.jumlah||0);
+      else monthly[b].keluar += (r.jumlah||0);
+    });
+    const maxVal = Math.max(...Object.values(monthly).map(m => Math.max(m.keluar, m.masuk)), 1);
+    const bars = MONTHS.map(m => {
+      const d = monthly[m];
+      const hK = Math.round(d.keluar / maxVal * 120);
+      const hM = Math.round(d.masuk / maxVal * 120);
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:28px">
+        <div style="height:120px;display:flex;align-items:flex-end;gap:2px">
+          <div style="width:12px;height:${hK}px;background:#ef4444;border-radius:3px 3px 0 0;transition:height .3s" title="Keluar: ${Utils.formatRupiah(d.keluar)}"></div>
+          <div style="width:12px;height:${hM}px;background:#10b981;border-radius:3px 3px 0 0;transition:height .3s" title="Masuk: ${Utils.formatRupiah(d.masuk)}"></div>
+        </div>
+        <span style="font-size:9px;color:var(--text-3);font-weight:600">${m}</span>
+      </div>`;
+    }).join('');
+    return `<div class="card" style="margin-bottom:var(--s4)">
+      <div class="card-header"><div class="card-title">Kas Bulanan</div>
+        <div style="display:flex;gap:12px;font-size:10px;color:var(--text-3)">
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#ef4444;margin-right:3px"></span>Keluar</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#10b981;margin-right:3px"></span>Masuk</span>
+        </div>
+      </div>
+      <div style="padding:var(--s4);display:flex;gap:4px;align-items:flex-end;overflow-x:auto">${bars}</div>
+    </div>`;
   }
 
   function _renderRecentKasTable(rows) {

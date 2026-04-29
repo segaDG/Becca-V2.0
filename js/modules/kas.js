@@ -222,7 +222,8 @@ const KasModule = (() => {
     const hdr = document.getElementById('kas-hdr-btn');
     if (hdr) hdr.innerHTML = tab==='transaksi' && Auth.can('kas','edit')
       ? `<button class="btn btn-ghost btn-sm" onclick="KasModule.importExcel()" title="Import data dari file Excel (.xlsx)">Import Excel</button>
-         <button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>`
+         <button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>
+         <button class="btn btn-ghost btn-sm" onclick="KasModule.printPDF()">Print PDF</button>`
       : '';
     // BP dashboard visibility follows transaksi tab
     const bpEl = document.getElementById('kas-bp-dash');
@@ -1130,6 +1131,18 @@ const KasModule = (() => {
     Notify.success('CSV di-export');
   }
 
+  function printPDF() {
+    const data = _applyFilter(_kas).sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+    const total = data.reduce((s,r) => s + (r.jumlah||0), 0);
+    Utils.printReport({
+      title: 'Laporan Kas Kecil',
+      subtitle: `${data.length} transaksi · Total: ${Utils.formatRupiah(total)} · Dicetak: ${new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}`,
+      headers: [{label:'Tanggal'},{label:'Nama'},{label:'Type'},{label:'Vendor'},{label:'Qty',num:true},{label:'Satuan'},{label:'Harga',num:true},{label:'Total',num:true},{label:'Status'}],
+      rows: data.map(r => [r.tgl||'', r.nama||'', r.type||'', r.vendor||'', r.qty||'', r.satuan||'', Utils.formatRupiah(r.hargaSatuan||0), Utils.formatRupiah(r.jumlah||0), r.status||'']),
+      footer: `Total: ${Utils.formatRupiah(total)}`,
+    });
+  }
+
   /* ===================== SUMMARY TAB ===================== */
   function renderSummary() {
     const el = document.getElementById('kas-tab-summary');
@@ -1913,6 +1926,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
+  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
 })();
 window.KasModule = KasModule;

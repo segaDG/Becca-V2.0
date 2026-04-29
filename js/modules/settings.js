@@ -296,9 +296,11 @@ else { window.SettingsModule = (() => {
       dbUser = { ...(Auth._defaultUsers.find(u=>u.username===user.username)||{}) };
       if (!dbUser.username) { Notify.error('User tidak ditemukan'); return; }
     }
-    if (dbUser.password !== oldPwd) { Notify.error('Password lama salah'); return; }
+    const oldHash = await Auth._hash(oldPwd);
+    const pwMatch = Auth._isHashed(dbUser.password) ? dbUser.password === oldHash : dbUser.password === oldPwd;
+    if (!pwMatch) { Notify.error('Password lama salah'); return; }
 
-    dbUser.password = newPwd;
+    dbUser.password = await Auth._hash(newPwd);
     await DB.saveUser(dbUser);
       _syncAuthJs();
     Modal.close(modalId);
@@ -364,7 +366,7 @@ else { window.SettingsModule = (() => {
                 <td><span class="badge ${u.role==='superadmin'?'badge-danger':u.role==='admin'?'badge-warning':u.role==='operator'?'badge-info':'badge-neutral'}">${u.role}</span></td>
                 <td class="text-muted text-small">${u.email||'-'}</td>
                 ${Auth.isSuperAdmin()?`<td style="font-family:var(--font-mono);font-size:11px;color:var(--text-3)">
-                  <span style="user-select:all;cursor:pointer" title="Klik untuk copy">${u.password||u._pw||'—'}</span>
+                  <span style="color:var(--text-3);font-size:10px">${Auth._isHashed(u.password)?'🔒 Hashed':'⚠️ Plaintext'}</span>
                 </td>`:''}
                 <td><span class="badge ${u.aktif===false?'badge-danger':'badge-success'}">${u.aktif===false?'Nonaktif':'Aktif'}</span></td>
                 <td class="actions">
@@ -506,6 +508,11 @@ else { window.SettingsModule = (() => {
       data.id = existingId||data.username;
     }
     else if (!data.id) data.id = Utils.uid();
+
+    // Hash password if it's a new plaintext password (not already hashed)
+    if (data.password && !Auth._isHashed(data.password)) {
+      data.password = await Auth._hash(data.password);
+    }
 
     try {
       await DB.saveUser(data);

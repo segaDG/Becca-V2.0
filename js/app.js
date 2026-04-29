@@ -221,6 +221,10 @@ const App = {
     try { localStorage.removeItem('becca_backups'); } catch {}
     // Auto-backup: daily, superadmin only, runs in background
     if (Auth.isSuperAdmin()) this._autoBackup();
+    // Low stock push notification check (once per session)
+    if (!sessionStorage.getItem('becca_stock_checked')) {
+      setTimeout(() => this._checkLowStock(), 5000);
+    }
     // Badges — use whatever is cached, don't force new fetches
     setTimeout(() => this._updateAllBadges(), 2000);
     // Auth sync — defer even further (not critical)
@@ -615,6 +619,44 @@ const App = {
   /* === Presence / User Online === */
   _presenceInterval: null,
   _presenceSessionId: null,
+
+  async _checkLowStock() {
+    try {
+      sessionStorage.setItem('becca_stock_checked', '1');
+      const [items, logs] = await Promise.all([
+        DB.getInventoryItems().catch(()=>[]),
+        DB.getInventory().catch(()=>[]),
+      ]);
+      // Calculate current stock per item
+      const stokMap = {};
+      logs.forEach(l => {
+        if (!l.itemId) return;
+        if (!stokMap[l.itemId]) stokMap[l.itemId] = 0;
+        if (l.jenis === 'MASUK' || l.jenis === 'OPNAME') stokMap[l.itemId] += (l.jumlah||0);
+        else stokMap[l.itemId] -= (l.jumlah||0);
+      });
+      const lowItems = items.filter(i => {
+        const min = i.stokMin || 0;
+        if (min <= 0) return false;
+        const current = stokMap[i.id] || 0;
+        return current <= min;
+      });
+      if (lowItems.length > 0) {
+        const names = lowItems.slice(0, 5).map(i => i.nama).join(', ');
+        const more = lowItems.length > 5 ? ` +${lowItems.length-5} lagi` : '';
+        Notify.warning(`${lowItems.length} item stok menipis`, `${names}${more}`);
+        // Push notif to admin/superadmin
+        if (window.PushModule && (Auth.isSuperAdmin() || Auth.can('inventory','edit'))) {
+          const lastPush = localStorage.getItem('becca_low_stock_push');
+          const today = new Date().toISOString().split('T')[0];
+          if (lastPush !== today) {
+            localStorage.setItem('becca_low_stock_push', today);
+            PushModule.broadcast(`⚠️ ${lowItems.length} item stok menipis`, `${names}${more}`).catch(()=>{});
+          }
+        }
+      }
+    } catch(e) { /* silent */ }
+  },
 
   async _autoBackup() {
     const today = new Date().toISOString().split('T')[0];

@@ -55,6 +55,17 @@ const Auth = {
     ['click','keydown','touchstart'].forEach(e => document.addEventListener(e, update, { passive:true, once:false }));
   },
 
+  /** Hash password using SHA-256 (Web Crypto API) */
+  async _hash(password) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode('becca_salt_v1_' + password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
+  /** Check if a string looks like a SHA-256 hash (64 hex chars) */
+  _isHashed(s) { return typeof s === 'string' && /^[a-f0-9]{64}$/.test(s); },
+
   /* ===================== LOGIN ===================== */
   async login(username, password, remember = false) {
     let users = [];
@@ -79,11 +90,23 @@ const Auth = {
     }
     if (!users.length) throw new Error('Tidak dapat terhubung ke server. Pastikan koneksi internet aktif.');
 
-    const user = users.find(u =>
-      u.username.toLowerCase() === username.toLowerCase() &&
-      u.password === password &&
-      u.aktif !== false
-    );
+    const hashedInput = await this._hash(password);
+    let user = null;
+    for (const u of users) {
+      if (u.username.toLowerCase() !== username.toLowerCase() || u.aktif === false) continue;
+      if (this._isHashed(u.password)) {
+        // Compare hash vs hash
+        if (u.password === hashedInput) { user = u; break; }
+      } else {
+        // Legacy plaintext — compare, then auto-migrate to hash
+        if (u.password === password) {
+          user = u;
+          u.password = hashedInput;
+          DB.saveUser(u).catch(() => {});
+          break;
+        }
+      }
+    }
     if (!user) throw new Error('Username atau password salah, atau akun tidak aktif');
 
     this._user = { ...user };

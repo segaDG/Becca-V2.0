@@ -402,6 +402,8 @@ const DB = (() => {
 
     if (!obj.id) obj.id = Utils.uid();
     obj.updated_at = new Date().toISOString();
+    // Sanitize string fields to prevent XSS
+    if (typeof Utils !== 'undefined' && Utils.sanitizeObj) Utils.sanitizeObj(obj);
 
     // Pre-save ke localStorage + invalidate cache SEBELUM Supabase call
     // agar data tidak hilang jika user navigasi saat request masih in-flight
