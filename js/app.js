@@ -14,7 +14,7 @@ const App = {
     news      : 'js/modules/news.js?v=20260401a',
     kas       : 'js/modules/kas.js?v=20260428a',
     'daily-order': 'js/modules/daily-order.js?v=20260429a',
-    inventory : 'js/modules/inventory.js?v=20260429a',
+    inventory : 'js/modules/inventory.js?v=20260429b',
     employee  : 'js/modules/employee.js?v=20260428a',
     ap        : 'js/modules/ap.js?v=20260425a',
     po        : 'js/modules/po.js?v=20260427a',
@@ -24,7 +24,7 @@ const App = {
     chat      : 'js/modules/chat.js?v=20260428a',
     personal  : 'js/modules/personal.js?v=20260428a',
     report    : 'js/modules/report.js?v=20260326r',
-    settings  : 'js/modules/settings.js?v=20260428a',
+    settings  : 'js/modules/settings.js?v=20260429b',
   },
 
   _loadScript(src) {
@@ -99,6 +99,24 @@ const App = {
     setTimeout(() => this._deferredBoot(), 2000);
     // FABs — always visible
     setTimeout(() => { this._injectChatFAB(); this._injectNotesFAB(); }, 500);
+    // Offline indicator
+    this._watchOnline();
+  },
+
+  _watchOnline() {
+    const show = (online) => {
+      let el = document.getElementById('becca-offline-bar');
+      if (online) { if (el) el.remove(); return; }
+      if (el) return;
+      el = document.createElement('div');
+      el.id = 'becca-offline-bar';
+      el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#ef4444;color:#fff;text-align:center;padding:4px;font-size:11px;font-weight:700';
+      el.textContent = '⚠ OFFLINE — data tidak tersinkron';
+      document.body.appendChild(el);
+    };
+    window.addEventListener('online', () => show(true));
+    window.addEventListener('offline', () => show(false));
+    if (!navigator.onLine) show(false);
   },
 
   _injectChatFAB() {

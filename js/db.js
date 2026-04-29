@@ -276,7 +276,7 @@ const DB = (() => {
       const { data, error } = await q;
       if (error) { console.warn('[DB] fetchAll ' + table + ':', error.message); break; }
       if (!data || data.length === 0) break;
-      all = all.concat(data);
+      all.push(...data);
       if (data.length < PAGE) break;
       from += PAGE;
     }

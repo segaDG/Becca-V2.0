@@ -1295,8 +1295,20 @@ else { window.SettingsModule = (() => {
 
   function exportData() {
     const keys = ['orders','invoices','customers','kas','kas_masuk','inventory','inv_products','employees','emp_logs','ap','suppliers','tasks','settings','users','activity_log'];
+    const HEAVY = ['fotoUrl','ktpUrl','faceDescriptors','mediaUrl','logoUrl'];
     const out  = {_exportedAt:new Date().toISOString(),_version:'2.0'};
-    keys.forEach(k=>{ try{out[k]=JSON.parse(localStorage.getItem('becca_'+k)||'[]');}catch{} });
+    keys.forEach(k=>{
+      try {
+        let arr = JSON.parse(localStorage.getItem('becca_'+k)||'[]');
+        // Strip heavy base64 fields to keep export small
+        if (Array.isArray(arr)) arr = arr.map(r => {
+          const clean = {...r};
+          HEAVY.forEach(f => { if (clean[f] && typeof clean[f] === 'string' && clean[f].length > 500) delete clean[f]; });
+          return clean;
+        });
+        out[k] = arr;
+      } catch{}
+    });
     const a = Object.assign(document.createElement('a'),{
       href: URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'})),
       download:`becca-backup-${new Date().toISOString().split('T')[0]}.json`

@@ -308,6 +308,17 @@ const InventoryModule = (() => {
     }
 
     const totalNilai = filtered.reduce((a, i) => a + (i._stok || 0) * (i.hargaSatuan || 0), 0);
+    // Pre-build log lookup map: itemId → {in, out} — avoids O(n·m) in render loop
+    if (!_logStockMap || _logStockMapVer !== _logs.length) {
+      _logStockMap = {};
+      _logs.forEach(l => {
+        if (!l.itemId) return;
+        if (!_logStockMap[l.itemId]) _logStockMap[l.itemId] = { in:0, out:0 };
+        if (l.jenis === 'MASUK') _logStockMap[l.itemId].in += (l.jumlah||0);
+        else if (l.jenis === 'KELUAR') _logStockMap[l.itemId].out += (l.jumlah||0);
+      });
+      _logStockMapVer = _logs.length;
+    }
     const totalStokPg = Math.max(1, Math.ceil(filtered.length / _stokPerPage));
     if (_stokPage > totalStokPg) _stokPage = totalStokPg;
     const stokOffset  = (_stokPage - 1) * _stokPerPage;
@@ -383,10 +394,10 @@ const InventoryModule = (() => {
                 const nilai   = _getFIFOStockValue(item.id);
                 const isLow   = stok <= min;
                 const isEmpty = stok <= 0;
-                // Calculate stock in/out from logs
-                const itemLogs = _logs.filter(l => l.itemId === item.id);
-                const stockIn  = itemLogs.filter(l=>l.jenis==='MASUK').reduce((s,l)=>s+(l.jumlah||0),0);
-                const stockOut = itemLogs.filter(l=>l.jenis==='KELUAR').reduce((s,l)=>s+(l.jumlah||0),0);
+                // Stock in/out from pre-built map (O(1) lookup)
+                const _ls = _logStockMap[item.id] || { in:0, out:0 };
+                const stockIn = _ls.in;
+                const stockOut = _ls.out;
                 return `
                   <tr>
                     <td class="text-muted text-small">${i_abs+1}</td>
@@ -463,6 +474,8 @@ const InventoryModule = (() => {
   let _invEditId   = null;
   let _stokPage      = 1;
   let _stokPerPage   = parseInt(localStorage.getItem('becca_inv_stok_perPage') || '50');
+  let _logStockMap   = null; // itemId → {in, out} — cached for render performance
+  let _logStockMapVer = 0;
   let _invLogPage    = 1;
   let _invLogPerPage = parseInt(localStorage.getItem('becca_inv_log_perPage') || '50');
   let _logFilterNama = '';
