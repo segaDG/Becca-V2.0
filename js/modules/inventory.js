@@ -618,7 +618,7 @@ const InventoryModule = (() => {
         border-radius:8px;background:${statusBg};cursor:pointer;min-width:70px;transition:.15s;
         ${isFullSync?'opacity:.5;filter:grayscale(.3)':''}"
         onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)';this.style.opacity='1';this.style.filter=''"
-        onmouseout="this.style.transform='';this.style.boxShadow='';${isFullSync?"this.style.opacity='.5';this.style.filter='grayscale(.3)'":"'}">
+        onmouseout="this.style.transform='';this.style.boxShadow='';${isFullSync?`this.style.opacity='.5';this.style.filter='grayscale(.3)'`:``}">
         <span style="font-size:9px;font-weight:700;color:var(--text-3)">${dateLabel}</span>
         <span style="font-size:11px;font-weight:700;color:var(--text)">${shiftLabel}</span>
         <span style="font-size:9px;font-weight:700;color:${statusColor}">${isFullSync?'✓ Synced':statusText}</span>

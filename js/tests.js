@@ -81,6 +81,22 @@ const BeccaTests = (() => {
     // No hardcoded passwords in default users
     const hasPassword = Auth._defaultUsers.some(u => u.password);
     assert(S, 'No hardcoded passwords in _defaultUsers', !hasPassword);
+
+    // Module load verification — catch syntax errors in lazy-loaded modules
+    const moduleChecks = [
+      ['DashboardModule','dashboard'], ['OrderModule','order'], ['InvoiceModule','invoice'],
+      ['CustomerModule','customer'], ['KasModule','kas'], ['InventoryModule','inventory'],
+      ['EmployeeModule','employee'], ['APModule','ap'], ['TaskModule','task'],
+      ['ChatModule','chat'], ['SettingsModule','settings'],
+    ];
+    for (const [global, pageId] of moduleChecks) {
+      // Try to load module if not already loaded
+      if (typeof window[global] === 'undefined' && App._MODULE_MAP[pageId]) {
+        try { await App._loadModule(pageId); } catch(e) {}
+      }
+      assert(S, `Module ${global} loads without syntax error`, typeof window[global] !== 'undefined',
+        typeof window[global] === 'undefined' ? 'FAILED TO LOAD — check console for SyntaxError' : 'loaded');
+    }
   }
 
   // ═══════════════════════════════════════════
