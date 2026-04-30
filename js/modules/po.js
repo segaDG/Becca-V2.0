@@ -254,11 +254,10 @@ else { window.POModule = (() => {
             ${(() => {
               const alokasiTotal = items.reduce((s,it) => s + (Number(it.alokasiDanaReal)||0), 0);
               const danaDiterima = Number(doc.danaDiterima)||0;
-              const sisaPrevReal = Number(doc.sisaPeriodeReal)||0;
               const cashReal = Number(doc.cashReal)||0;
               const atmReal = Number(doc.atmReal)||0;
               const totalDanaReal = cashReal + atmReal;
-              const sisaReal = danaDiterima + sisaPrevReal - alokasiTotal;
+              const sisaReal = danaDiterima - alokasiTotal;
               const selisih = sisaReal - totalDanaReal;
               const _inp = (field, val) => locked
                 ? `<span style="font-family:var(--font-mono);font-size:11px;font-weight:600">${rpA(val)}</span>`
@@ -282,13 +281,13 @@ else { window.POModule = (() => {
                   ? '<input type="number" step="1" value="'+(doc.sisaPeriode||0)+'" onchange="POModule._saveMeta(\''+id+'\',\'sisaPeriode\',+this.value);POModule._updateFooter(\''+id+'\')" style="width:120px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)">'
                   : '<span id="po-f-sisa-prev" style="font-family:var(--font-mono);font-size:12px;color:#10b981;font-weight:600">'+rpA(sisaPeriode)+'</span>'}
               </td>
-              <td style="padding:6px;${_rBg};text-align:right;font-size:10px;color:var(--text-3)">Dana Diterima ${_inp('danaDiterima', danaDiterima)}</td>
+              <td style="padding:6px;${_rBg}"></td>
               ${_ak}
             </tr>
             <tr style="background:rgba(99,102,241,.05)">
               <td colspan="6" style="padding:7px;text-align:right;font-size:11px;font-weight:700;color:#6366f1">Request Dana</td>
               <td style="padding:7px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:#6366f1" id="po-f-request">${requestDana > 0 ? rpA(requestDana) : 'Rp 0 (surplus '+rp(Math.abs(requestDana))+')'}</td>
-              <td style="padding:7px;${_rBg};text-align:right;font-size:10px;color:var(--text-3)">Sisa Periode ${_inp('sisaPeriodeReal', sisaPrevReal)}</td>
+              <td style="padding:7px;${_rBg};text-align:right;font-size:10px;color:var(--text-3)">Dana Diterima ${_inp('danaDiterima', danaDiterima)}</td>
               ${_ak}
             </tr>
             <tr style="background:var(--surface2)"><td colspan="6"></td>
@@ -303,8 +302,8 @@ else { window.POModule = (() => {
               <td></td>
               <td style="padding:4px 6px;${_rBg};text-align:right;font-size:10px;font-weight:600;color:var(--text-3)">Total Cash+ATM <span id="po-f-total-real" style="font-family:var(--font-mono);font-size:11px;font-weight:700">${rpA(totalDanaReal)}</span></td>
               ${_ak}</tr>
-            <tr style="background:${sisaUang>=0?'rgba(16,185,129,.06)':'rgba(239,68,68,.06)'}" id="po-f-sisa-row"><td colspan="6"></td>
-              <td style="padding:6px;text-align:right;font-size:11px;font-weight:700">SISA <span id="po-f-sisa" style="font-family:var(--font-mono);font-size:13px;color:${sisaUang>=0?'#10b981':'#ef4444'}">${sisaUang<0?'- ':''}${rpA(Math.abs(sisaUang))}</span></td>
+            <tr id="po-f-sisa-row"><td colspan="6"></td>
+              <td></td>
               <td style="padding:6px;${_rBg};text-align:right;font-size:11px;font-weight:700;color:#7c3aed">SISA (Real) <span id="po-f-sisa-real" style="font-family:var(--font-mono);font-size:13px;color:${sisaReal>=0?'#10b981':'#ef4444'}">${sisaReal<0?'- ':''}${rpA(Math.abs(sisaReal))}</span></td>
               ${_ak}</tr>
 
@@ -549,11 +548,10 @@ else { window.POModule = (() => {
     const totalDana = sisaPeriode + (Number(doc.cash)||0) + (Number(doc.atm)||0);
     const sisaUang = totalDana - itemsTotal;
     const danaDiterima = Number(doc.danaDiterima)||0;
-    const sisaPrevReal = Number(doc.sisaPeriodeReal)||0;
     const cashReal = Number(doc.cashReal)||0;
     const atmReal = Number(doc.atmReal)||0;
     const totalDanaReal = cashReal + atmReal;
-    const sisaReal = danaDiterima + sisaPrevReal - alokasiTotal;
+    const sisaReal = danaDiterima - alokasiTotal;
     const selisih = sisaReal - totalDanaReal;
 
     const $ = id => document.getElementById(id);
