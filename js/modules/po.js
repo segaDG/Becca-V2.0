@@ -251,47 +251,80 @@ else { window.POModule = (() => {
           </tr></thead>
           <tbody>${items.map((it,i) => _viewRow(id, it, i, locked)).join('')}</tbody>
           <tfoot>
+            ${(() => {
+              const alokasiTotal = items.reduce((s,it) => s + (Number(it.alokasiDanaReal)||0), 0);
+              const danaDiterima = Number(doc.danaDiterima)||0;
+              const sisaPrevReal = Number(doc.sisaPeriodeReal)||0;
+              const cashReal = Number(doc.cashReal)||0;
+              const atmReal = Number(doc.atmReal)||0;
+              const totalDanaReal = cashReal + atmReal;
+              const sisaReal = danaDiterima + sisaPrevReal - alokasiTotal;
+              const selisih = sisaReal - totalDanaReal;
+              const _inp = (field, val) => locked
+                ? `<span style="font-family:var(--font-mono);font-size:11px;font-weight:600">${rpA(val)}</span>`
+                : `<input type="number" step="1" value="${val||0}" onchange="POModule._saveMeta('${id}','${field}',+this.value);POModule._updateFooter('${id}')" style="width:110px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)">`;
+              const cs = locked ? 1 : 2; // colspan for aksi column
+              return `
             <tr style="border-top:2px solid var(--border);background:rgba(220,38,38,.06)">
               <td colspan="5" style="padding:7px;text-align:right;font-size:11px;font-weight:700;color:#dc2626">Total Kebutuhan</td>
-              <td colspan="2" style="padding:7px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:#dc2626" id="po-f-kebutuhan">${rpA(itemsTotal)}</td><td></td>
+              <td style="padding:7px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:#dc2626" id="po-f-kebutuhan">${rpA(itemsTotal)}</td>
+              <td style="padding:7px;text-align:right;font-family:var(--font-mono);font-size:12px;font-weight:700;color:#dc2626;background:rgba(244,63,94,.05)" id="po-f-alokasi-total">${rpA(alokasiTotal)}</td>
+              ${locked?'':'<td></td>'}
             </tr>
             <tr style="background:var(--surface2)">
               <td colspan="5" style="padding:6px;text-align:right;font-size:10px;color:var(--text-3)">
                 Sisa Periode Sebelumnya
-                ${!isFirst ? `<span style="font-size:8px;background:rgba(99,102,241,.1);color:#6366f1;padding:1px 5px;border-radius:3px;margin-left:4px">auto dari #${chainIdx}</span>` : ''}
+                ${!isFirst ? '<span style="font-size:8px;background:rgba(99,102,241,.1);color:#6366f1;padding:1px 5px;border-radius:3px;margin-left:4px">auto dari #'+chainIdx+'</span>' : ''}
               </td>
-              <td colspan="2" style="padding:6px;text-align:right">
+              <td style="padding:6px;text-align:right">
                 ${isFirst && !locked
-                  ? `<input type="number" step="1" value="${doc.sisaPeriode||0}" id="po-f-sisa-prev-input"
-                      onchange="POModule._saveMeta('${id}','sisaPeriode',+this.value);POModule._updateFooter('${id}')"
-                      style="width:120px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)">`
-                  : `<span id="po-f-sisa-prev" style="font-family:var(--font-mono);font-size:12px;color:#10b981;font-weight:600">${rpA(sisaPeriode)}</span>`}
-              </td><td></td>
+                  ? '<input type="number" step="1" value="'+(doc.sisaPeriode||0)+'" onchange="POModule._saveMeta(\''+id+'\',\'sisaPeriode\',+this.value);POModule._updateFooter(\''+id+'\')" style="width:120px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)">'
+                  : '<span id="po-f-sisa-prev" style="font-family:var(--font-mono);font-size:12px;color:#10b981;font-weight:600">'+rpA(sisaPeriode)+'</span>'}
+              </td><td></td>${locked?'':'<td></td>'}
             </tr>
             <tr style="background:rgba(99,102,241,.05)">
-              <td colspan="5" style="padding:7px;text-align:right;font-size:11px;font-weight:700;color:#6366f1">
-                Request Dana
-                <span style="font-size:8px;color:var(--text-3);font-weight:400;margin-left:4px">= kebutuhan − sisa prev</span>
-              </td>
-              <td colspan="2" style="padding:7px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:#6366f1" id="po-f-request">${requestDana > 0 ? rpA(requestDana) : 'Rp 0 (surplus '+rp(Math.abs(requestDana))+')'}</td><td></td>
+              <td colspan="5" style="padding:7px;text-align:right;font-size:11px;font-weight:700;color:#6366f1">Request Dana</td>
+              <td style="padding:7px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:#6366f1" id="po-f-request">${requestDana > 0 ? rpA(requestDana) : 'Rp 0 (surplus '+rp(Math.abs(requestDana))+')'}</td>
+              <td style="padding:7px;text-align:right;font-size:10px;color:var(--text-3);background:rgba(244,63,94,.05)">Dana Diterima: ${_inp('danaDiterima', danaDiterima)}</td>
+              ${locked?'':'<td></td>'}
             </tr>
             <tr style="background:var(--surface2)"><td colspan="5"></td>
               <td style="padding:4px 6px;text-align:right;font-size:10px;color:var(--text-3)">Cash</td>
               <td style="padding:4px 6px"><input type="number" step="1" value="${doc.cash||0}" id="po-f-cash"
                 onchange="POModule._saveMeta('${id}','cash',+this.value);POModule._updateFooter('${id}')" ${locked?'disabled':''}
-                style="width:120px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)"></td><td></td></tr>
+                style="width:120px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)"></td>${locked?'':'<td></td>'}</tr>
             <tr style="background:var(--surface2)"><td colspan="5"></td>
               <td style="padding:4px 6px;text-align:right;font-size:10px;color:var(--text-3)">ATM</td>
               <td style="padding:4px 6px"><input type="number" step="1" value="${doc.atm||0}" id="po-f-atm"
                 onchange="POModule._saveMeta('${id}','atm',+this.value);POModule._updateFooter('${id}')" ${locked?'disabled':''}
-                style="width:120px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)"></td><td></td></tr>
+                style="width:120px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)"></td>${locked?'':'<td></td>'}</tr>
             <tr style="background:var(--surface2)"><td colspan="5"></td>
               <td style="padding:4px 6px;text-align:right;font-size:10px;color:var(--text-3);font-weight:600">Total Dana</td>
-              <td style="padding:4px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:600" id="po-f-total-dana">${rpA(totalDana)}</td><td></td></tr>
-            <tr style="background:${sisaUang>=0?'rgba(16,185,129,.06)':'rgba(239,68,68,.06)'}" id="po-f-sisa-row">
-              <td colspan="5"></td>
+              <td style="padding:4px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:600" id="po-f-total-dana">${rpA(totalDana)}</td>${locked?'':'<td></td>'}</tr>
+            <tr style="background:${sisaUang>=0?'rgba(16,185,129,.06)':'rgba(239,68,68,.06)'}" id="po-f-sisa-row"><td colspan="5"></td>
               <td style="padding:6px;text-align:right;font-size:11px;font-weight:700">SISA</td>
-              <td style="padding:6px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:${sisaUang>=0?'#10b981':'#ef4444'}" id="po-f-sisa">${sisaUang<0?'- ':''}${rpA(Math.abs(sisaUang))}</td><td></td></tr>
+              <td style="padding:6px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:${sisaUang>=0?'#10b981':'#ef4444'}" id="po-f-sisa">${sisaUang<0?'- ':''}${rpA(Math.abs(sisaUang))}</td>${locked?'':'<td></td>'}</tr>
+
+            <tr style="border-top:2px solid var(--border);background:rgba(244,63,94,.04)"><td colspan="5"></td>
+              <td style="padding:5px 6px;text-align:right;font-size:10px;color:var(--text-3)">Sisa Periode (Real)</td>
+              <td style="padding:5px 6px">${_inp('sisaPeriodeReal', sisaPrevReal)}</td>${locked?'':'<td></td>'}</tr>
+            <tr style="background:rgba(244,63,94,.04)"><td colspan="5"></td>
+              <td style="padding:4px 6px;text-align:right;font-size:10px;color:var(--text-3)">Cash (Real)</td>
+              <td style="padding:4px 6px">${_inp('cashReal', cashReal)}</td>${locked?'':'<td></td>'}</tr>
+            <tr style="background:rgba(244,63,94,.04)"><td colspan="5"></td>
+              <td style="padding:4px 6px;text-align:right;font-size:10px;color:var(--text-3)">ATM (Real)</td>
+              <td style="padding:4px 6px">${_inp('atmReal', atmReal)}</td>${locked?'':'<td></td>'}</tr>
+            <tr style="background:rgba(244,63,94,.04)"><td colspan="5"></td>
+              <td style="padding:4px 6px;text-align:right;font-size:10px;font-weight:600;color:var(--text-3)">Total Cash+ATM (Real)</td>
+              <td style="padding:4px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:600" id="po-f-total-real">${rpA(totalDanaReal)}</td>${locked?'':'<td></td>'}</tr>
+            <tr style="background:rgba(139,92,246,.06)"><td colspan="5"></td>
+              <td style="padding:6px;text-align:right;font-size:11px;font-weight:700;color:#7c3aed">SISA (Real)</td>
+              <td style="padding:6px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:${sisaReal>=0?'#10b981':'#ef4444'}" id="po-f-sisa-real">${sisaReal<0?'- ':''}${rpA(Math.abs(sisaReal))}</td>${locked?'':'<td></td>'}</tr>
+            <tr style="background:${selisih===0?'rgba(16,185,129,.08)':selisih>0?'rgba(245,158,11,.08)':'rgba(239,68,68,.08)'}"><td colspan="5"></td>
+              <td style="padding:6px;text-align:right;font-size:11px;font-weight:700">SELISIH</td>
+              <td style="padding:6px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:${selisih===0?'#10b981':selisih>0?'#f59e0b':'#ef4444'}" id="po-f-selisih">${selisih===0?'Rp 0 ✓':(selisih>0?'+':'-')+rpA(Math.abs(selisih))}</td>${locked?'':'<td></td>'}</tr>
+            `;
+            })()}
           </tfoot>
         </table>
         </div>
@@ -521,24 +554,33 @@ else { window.POModule = (() => {
     if (!doc) return;
     const items = doc.items || [];
     const itemsTotal = items.reduce((s,it) => s + (Number(it.totalHarga)||0), 0);
+    const alokasiTotal = items.reduce((s,it) => s + (Number(it.alokasiDanaReal)||0), 0);
     const sisaPeriode = _getSisaPeriode(doc);
     const requestDana = itemsTotal - sisaPeriode;
     const totalDana = sisaPeriode + (Number(doc.cash)||0) + (Number(doc.atm)||0);
     const sisaUang = totalDana - itemsTotal;
+    const danaDiterima = Number(doc.danaDiterima)||0;
+    const sisaPrevReal = Number(doc.sisaPeriodeReal)||0;
+    const cashReal = Number(doc.cashReal)||0;
+    const atmReal = Number(doc.atmReal)||0;
+    const totalDanaReal = cashReal + atmReal;
+    const sisaReal = danaDiterima + sisaPrevReal - alokasiTotal;
+    const selisih = sisaReal - totalDanaReal;
 
-    const $k = document.getElementById('po-f-kebutuhan');
-    const $r = document.getElementById('po-f-request');
-    const $td = document.getElementById('po-f-total-dana');
-    const $s = document.getElementById('po-f-sisa');
-    const $sp = document.getElementById('po-f-sisa-prev');
-    const $sr = document.getElementById('po-f-sisa-row');
+    const $ = id => document.getElementById(id);
+    const set = (id, txt, col) => { const el=$(id); if(el){el.textContent=txt; if(col)el.style.color=col;} };
 
-    if ($k) $k.textContent = rpA(itemsTotal);
-    if ($r) $r.textContent = requestDana > 0 ? rpA(requestDana) : 'Rp 0 (surplus '+rp(Math.abs(requestDana))+')';
-    if ($td) $td.textContent = rpA(totalDana);
-    if ($s) { $s.textContent = (sisaUang<0?'- ':'')+rpA(Math.abs(sisaUang)); $s.style.color = sisaUang>=0?'#10b981':'#ef4444'; }
+    set('po-f-kebutuhan', rpA(itemsTotal));
+    set('po-f-alokasi-total', rpA(alokasiTotal));
+    set('po-f-request', requestDana > 0 ? rpA(requestDana) : 'Rp 0 (surplus '+rp(Math.abs(requestDana))+')');
+    set('po-f-total-dana', rpA(totalDana));
+    set('po-f-sisa', (sisaUang<0?'- ':'')+rpA(Math.abs(sisaUang)), sisaUang>=0?'#10b981':'#ef4444');
+    set('po-f-sisa-prev', rpA(sisaPeriode));
+    set('po-f-total-real', rpA(totalDanaReal));
+    set('po-f-sisa-real', (sisaReal<0?'- ':'')+rpA(Math.abs(sisaReal)), sisaReal>=0?'#10b981':'#ef4444');
+    set('po-f-selisih', selisih===0?'Rp 0 ✓':(selisih>0?'+':'-')+rpA(Math.abs(selisih)), selisih===0?'#10b981':selisih>0?'#f59e0b':'#ef4444');
+    const $sr = $('po-f-sisa-row');
     if ($sr) $sr.style.background = sisaUang>=0 ? 'rgba(16,185,129,.06)' : 'rgba(239,68,68,.06)';
-    if ($sp) $sp.textContent = rpA(sisaPeriode);
   }
 
   /* ── Meta save ─────────────────────────────── */
