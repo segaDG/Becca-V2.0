@@ -26,6 +26,15 @@ else { window.POModule = (() => {
     if (!sorted.length) return null;
     const idx = sorted.findIndex(d => d.id === docId);
     if (idx <= 0) return null;
+    // Use SISA Real from previous anggaran if available (more accurate than estimasi)
+    const prev = sorted[idx - 1];
+    const danaDiterima = Number(prev.danaDiterima) || 0;
+    const alokasiTotal = (prev.items||[]).reduce((s,it) => s + (Number(it.alokasiDanaReal)||0), 0);
+    // If real data exists (danaDiterima > 0 or alokasiTotal > 0), use real sisa
+    if (danaDiterima > 0 || alokasiTotal > 0) {
+      return danaDiterima - alokasiTotal;
+    }
+    // Fallback: estimasi chain
     let carry = Number(sorted[0].sisaPeriode) || 0;
     for (let i = 0; i < idx; i++) {
       const d = sorted[i];
