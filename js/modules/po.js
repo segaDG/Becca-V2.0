@@ -292,29 +292,25 @@ else { window.POModule = (() => {
               ${_ak}
             </tr>
             <tr style="background:var(--surface2)"><td colspan="6"></td>
-              <td style="padding:4px 6px"><span style="font-size:10px;color:var(--text-3)">Cash </span><input type="number" step="1" value="${doc.cash||0}" id="po-f-cash"
-                onchange="POModule._saveMeta('${id}','cash',+this.value);POModule._updateFooter('${id}')" ${locked?'disabled':''}
-                style="width:110px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)"></td>
+              <td></td>
               <td style="padding:4px 6px;${_rBg};text-align:right;font-size:10px;color:var(--text-3)">Cash ${_inp('cashReal', cashReal)}</td>
               ${_ak}</tr>
             <tr style="background:var(--surface2)"><td colspan="6"></td>
-              <td style="padding:4px 6px"><span style="font-size:10px;color:var(--text-3)">ATM </span><input type="number" step="1" value="${doc.atm||0}" id="po-f-atm"
-                onchange="POModule._saveMeta('${id}','atm',+this.value);POModule._updateFooter('${id}')" ${locked?'disabled':''}
-                style="width:110px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)"></td>
+              <td></td>
               <td style="padding:4px 6px;${_rBg};text-align:right;font-size:10px;color:var(--text-3)">ATM ${_inp('atmReal', atmReal)}</td>
               ${_ak}</tr>
             <tr style="background:var(--surface2)"><td colspan="6"></td>
-              <td style="padding:4px 6px;text-align:right;font-size:10px;color:var(--text-3);font-weight:600">Total Dana <span id="po-f-total-dana" style="font-family:var(--font-mono);font-size:11px;font-weight:700">${rpA(totalDana)}</span></td>
+              <td></td>
               <td style="padding:4px 6px;${_rBg};text-align:right;font-size:10px;font-weight:600;color:var(--text-3)">Total Cash+ATM <span id="po-f-total-real" style="font-family:var(--font-mono);font-size:11px;font-weight:700">${rpA(totalDanaReal)}</span></td>
               ${_ak}</tr>
             <tr style="background:${sisaUang>=0?'rgba(16,185,129,.06)':'rgba(239,68,68,.06)'}" id="po-f-sisa-row"><td colspan="6"></td>
-              <td style="padding:6px;text-align:right;font-size:11px;font-weight:700">SISA</td>
+              <td style="padding:6px;text-align:right;font-size:11px;font-weight:700">SISA <span id="po-f-sisa" style="font-family:var(--font-mono);font-size:13px;color:${sisaUang>=0?'#10b981':'#ef4444'}">${sisaUang<0?'- ':''}${rpA(Math.abs(sisaUang))}</span></td>
               <td style="padding:6px;${_rBg};text-align:right;font-size:11px;font-weight:700;color:#7c3aed">SISA (Real) <span id="po-f-sisa-real" style="font-family:var(--font-mono);font-size:13px;color:${sisaReal>=0?'#10b981':'#ef4444'}">${sisaReal<0?'- ':''}${rpA(Math.abs(sisaReal))}</span></td>
               ${_ak}</tr>
 
-            <tr><td colspan="6"></td>
-              <td style="padding:6px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:${sisaUang>=0?'#10b981':'#ef4444'}" id="po-f-sisa">${sisaUang<0?'- ':''}${rpA(Math.abs(sisaUang))}</td>
-              <td style="padding:6px;${selisih===0?'background:rgba(16,185,129,.08)':selisih>0?'background:rgba(245,158,11,.08)':'background:rgba(239,68,68,.08)'};text-align:right;font-size:11px;font-weight:700;border-radius:0 0 8px 0">SELISIH <span id="po-f-selisih" style="font-family:var(--font-mono);font-size:13px;color:${selisih===0?'#10b981':selisih>0?'#f59e0b':'#ef4444'}">${selisih===0?'Rp 0 ✓':(selisih>0?'+':'-')+rpA(Math.abs(selisih))}</span></td>
+            <tr style="${selisih===0?'background:rgba(16,185,129,.08)':selisih>0?'background:rgba(245,158,11,.08)':'background:rgba(239,68,68,.08)'}"><td colspan="6"></td>
+              <td></td>
+              <td style="padding:6px;text-align:right;font-size:11px;font-weight:700">SELISIH <span id="po-f-selisih" style="font-family:var(--font-mono);font-size:13px;color:${selisih===0?'#10b981':selisih>0?'#f59e0b':'#ef4444'}">${selisih===0?'Rp 0 ✓':(selisih>0?'+':'-')+rpA(Math.abs(selisih))}</span></td>
               ${_ak}</tr>
             `;
             })()}
