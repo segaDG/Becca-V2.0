@@ -259,9 +259,13 @@ else { window.POModule = (() => {
               const totalDanaReal = cashReal + atmReal;
               const sisaReal = danaDiterima - alokasiTotal;
               const selisih = sisaReal - totalDanaReal;
+              const _fmtInp = v => v ? 'Rp ' + Math.round(Number(v)).toLocaleString('id-ID') : '0';
               const _inp = (field, val) => locked
                 ? `<span style="font-family:var(--font-mono);font-size:11px;font-weight:600">${rpA(val)}</span>`
-                : `<input type="number" step="1" value="${val||0}" onchange="POModule._saveMeta('${id}','${field}',+this.value);POModule._updateFooter('${id}')" style="width:110px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)">`;
+                : `<input type="text" value="${_fmtInp(val)}" inputmode="numeric"
+                    onfocus="this.value=String(this.value).replace(/[^0-9-]/g,'')"
+                    onblur="var v=parseInt(String(this.value).replace(/[^0-9-]/g,''))||0;this.value=v?'Rp '+v.toLocaleString('id-ID'):'0';POModule._saveMeta('${id}','${field}',v);POModule._updateFooter('${id}')"
+                    style="width:120px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)">`;
               const _rBg = 'background:rgba(244,63,94,.05)';
               const _ak = locked ? '' : '<td></td>';
               return `
