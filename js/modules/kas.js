@@ -52,7 +52,7 @@ const KasModule = (() => {
     {keys:['pdam','water'],                            type:'PDAM'},
     {keys:['pulsa','kuota','internet','telp','hp'],    type:'Pulsa'},
     {keys:['pajak','tax','bpjs','iuran'],              type:'Pajak'},
-    {keys:['servis','service','perbaikan','repair','maintenance','ac','mesin'],type:'Maintenance'},
+    {keys:['servis','service','perbaikan','repair','maintenance','service ac','pasang ac','freon','kompressor','mesin'],type:'Maintenance'},
     {keys:['transport','angkut','kurir','ongkir','logistik'],type:'B.Logistik'},
     {keys:['biaya','operasional','atk','alat tulis','kantor','cleaning','kebersihan','sewa','parkir',
            'etoll','e-toll','toll','admin transfer','admin bank','admin tf'],type:'OP.Expense'},
