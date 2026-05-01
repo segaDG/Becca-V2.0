@@ -105,12 +105,12 @@ const KasModule = (() => {
            'jambu','sawo','belimbing','sirsak','markisa','kiwi','pear','persik',
            'leci','ceri','kurma','tin','kelapa muda','degan'],type:'Buah segar'},
     // Raw Materials: bumbu, rempah, bahan kering
-    {keys:['minyak','tepung','gula','garam','kecap','saos','saus','bumbu',
+    {keys:['minyak','tepung','gula','garam','kecap','saos','saus','bumbu','bumbu racik',
            'merica','lada','pala','cengkeh','kayu manis','kunyit','kunir','jahe',
            'laos','daun salam','daun pandan',
            'ketumbar','jintan','kemiri','kluwek','asam','terasi','petis','tauco',
            'santan bubuk','kelapa','margarin','mentega','butter','keju','cream',
-           'tahu','tempe','tempeh','oncom','kedelai',
+           'tahu','tempe','tempeh','oncom','kedelai','kacang kedelai','kacang tanah','kacang',
            'beras','bihun','mie','mi','makaroni','pasta','spaghetti','roti tawar',
            'tepung terigu','tepung beras','tepung maizena','tepung sagu','tepung kanji',
            'krupuk','kerupuk','emping','rempeyek',
@@ -119,14 +119,16 @@ const KasModule = (() => {
            'kwetiau','bawang goreng','kulit lumpia','kulit pangsit','soun',
            'es batu'],type:'Raw Materials'},
     // Lain-lain (explicit matches)
-    {keys:['isi ulang air','air galon','galon air','refill galon'],type:'Lain-lain'},
+    {keys:['isi ulang air','air galon','galon air','refill galon','face mask','masker wajah'],type:'Lain-lain'},
   ];
 
   function _suggestType(nama) {
     if (!nama) return null;
-    const lower = nama.toLowerCase();
+    const lower = nama.toLowerCase().trim();
     for (const rule of TYPE_RULES) {
-      if (rule.keys.some(k => lower.includes(k))) return rule.type;
+      // Check longer keys first to avoid false positive from short substrings
+      const sorted = [...rule.keys].sort((a,b) => b.length - a.length);
+      if (sorted.some(k => lower.includes(k))) return rule.type;
     }
     return null;
   }
