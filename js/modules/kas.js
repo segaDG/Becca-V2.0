@@ -27,7 +27,7 @@ const KasModule = (() => {
     DB.saveSettings({ saldoAwal: v }).catch(()=>{});
   }
   let _activeTab = 'transaksi';
-  let _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'' };
+  let _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'', search:'' };
   let _page    = 1;
   let _perPage = parseInt(localStorage.getItem('becca_kas_perPage') || '50');
   let _editingId  = null;
@@ -270,6 +270,13 @@ const KasModule = (() => {
           <option value="TBC"  ${_filter.status==='TBC' ?'selected':''}>TBC</option>
           <option value="-"    ${_filter.status==='-'   ?'selected':''}>- (Kosong)</option>
         </select>
+        <button id="kas-search-btn" onclick="KasModule.toggleSearch()" title="Cari (Ctrl+F)"
+          style="height:34px;width:34px;min-width:34px;border-radius:var(--r-sm);border:1px solid ${_filter.search?'var(--primary)':'var(--border2)'};background:${_filter.search?'rgba(99,102,241,.12)':'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;color:${_filter.search?'var(--primary)':'var(--text-2)'};transition:all .15s;position:relative"
+          onmouseover="this.style.background='rgba(99,102,241,.1)';this.style.color='var(--primary)';this.style.borderColor='var(--primary)'"
+          onmouseout="this.style.background='${_filter.search?'rgba(99,102,241,.12)':'transparent'}';this.style.color='${_filter.search?'var(--primary)':'var(--text-2)'}';this.style.borderColor='${_filter.search?'var(--primary)':'var(--border2)'}'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          ${_filter.search?'<div style="position:absolute;top:-3px;right:-3px;width:8px;height:8px;border-radius:50%;background:var(--primary)"></div>':''}
+        </button>
         <button id="kas-reset-btn" onclick="KasModule.resetFilter()" title="Reset Filter" class="filter-reset-btn">↺</button>
         <button onclick="UndoRedo.undo('kas')" title="Undo (Ctrl+Z)"
           style="height:34px;width:34px;min-width:34px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:14px;transition:all .15s;${UndoRedo.canUndo('kas')?'':'opacity:.3;pointer-events:none'}"
@@ -287,9 +294,27 @@ const KasModule = (() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 6h18M3 12h12M3 18h6"/></svg>
           Re-arrange
         </button>
-        <span class="text-muted text-small" style="margin-left:auto">${total} baris</span>
+        <span class="text-muted text-small" style="margin-left:auto">${total} baris${_filter.search?` · "${_filter.search}"`:''}</span>
       </div>
 
+      <!-- Floating Search Bar -->
+      <div id="kas-search-bar" style="display:none;margin-bottom:var(--s3);position:relative">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border:1px solid var(--primary);border-radius:var(--r-lg);box-shadow:0 4px 16px rgba(0,0,0,.1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" width="16" height="16" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="kas-search-input" class="form-control"
+            value="${_filter.search||''}"
+            placeholder="Cari nama, vendor, penerima, type..."
+            style="flex:1;border:none;background:transparent;outline:none;font-size:13px;padding:4px 0;box-shadow:none"
+            oninput="KasModule.setFilter('search',this.value)"
+            onkeydown="if(event.key==='Escape'){KasModule.toggleSearch()}">
+          ${_filter.search?`<button onclick="KasModule.setFilter('search','');document.getElementById('kas-search-input').value=''" title="Hapus pencarian"
+            style="width:22px;height:22px;border-radius:50%;border:none;background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:12px;flex-shrink:0;transition:all .15s"
+            onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='var(--surface2)';this.style.color='var(--text-3)'">✕</button>`:''}
+          <button onclick="KasModule.toggleSearch()" title="Tutup pencarian"
+            style="width:22px;height:22px;border-radius:50%;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:16px;flex-shrink:0"
+            onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-3)'">↑</button>
+        </div>
+      </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;min-height:24px">
         <div id="kas-saldo-bar" style="font-size:12px;color:var(--text-3)"></div>
@@ -340,7 +365,7 @@ const KasModule = (() => {
     // Toggle reset button animation — double rAF to ensure browser painted inactive state first
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const rb = document.getElementById('kas-reset-btn');
-      if (rb) { if (_filter.dateFrom||_filter.dateTo||_filter.bulan||_filter.type||_filter.status) rb.classList.add('active'); else rb.classList.remove('active'); }
+      if (rb) { if (_filter.dateFrom||_filter.dateTo||_filter.bulan||_filter.type||_filter.status||_filter.search) rb.classList.add('active'); else rb.classList.remove('active'); }
     }));
   }
 
@@ -831,6 +856,7 @@ const KasModule = (() => {
 
   /* ===================== FILTER & PAGE ===================== */
   function _applyFilter(data) {
+    const q = (_filter.search||'').toLowerCase().trim();
     return data.filter(r=>{
       if (_filter.bulan   && r.bulan !==_filter.bulan)   return false;
       if (_filter.type    && r.type  !==_filter.type)    return false;
@@ -840,14 +866,29 @@ const KasModule = (() => {
       }
       if (_filter.dateFrom && r.tgl  < _filter.dateFrom) return false;
       if (_filter.dateTo  && r.tgl   > _filter.dateTo)   return false;
+      if (q) {
+        const hay = [r.nama,r.type,r.vendor,r.penerima,r.tgl,r.satuan,r.status].map(v=>(v||'').toLowerCase()).join(' ');
+        if (!hay.includes(q)) return false;
+      }
       return true;
     });
   }
-  function setFilter(k,v){ if(_editingId)commitEdit(_editingId); _filter[k]=v; _page=1; renderTransaksi(); }
+  function setFilter(k,v){ if(_editingId)commitEdit(_editingId); _filter[k]=v; _page=1; renderTransaksi();
+    // Keep search bar open & refocus after re-render
+    if (k==='search') { const sb=document.getElementById('kas-search-bar'); if(sb) sb.style.display=''; const inp=document.getElementById('kas-search-input'); if(inp){inp.focus();inp.selectionStart=inp.selectionEnd=inp.value.length;} }
+  }
   function resetFilter() {
     const btn = document.getElementById('kas-reset-btn');
     if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
-    if(_editingId)commitEdit(_editingId); _filter={}; _page=1; renderTransaksi();
+    if(_editingId)commitEdit(_editingId); _filter={search:''}; _page=1; renderTransaksi();
+  }
+  function toggleSearch() {
+    const bar = document.getElementById('kas-search-bar');
+    if (!bar) return;
+    const isHidden = bar.style.display === 'none';
+    bar.style.display = isHidden ? '' : 'none';
+    if (isHidden) { const inp=document.getElementById('kas-search-input'); if(inp){inp.focus();inp.select();} }
+    else if (_filter.search) { _filter.search=''; _page=1; renderTransaksi(); }
   }
   function goPage(p)      { if(_editingId)commitEdit(_editingId); _page=p; renderTransaksi(); }
   function setPerPage(n)  { _perPage=n; localStorage.setItem('becca_kas_perPage',n); _page=1; renderTransaksi(); }
@@ -2300,6 +2341,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
+  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
 })();
 window.KasModule = KasModule;
