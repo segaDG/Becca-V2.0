@@ -44,24 +44,63 @@ const KasModule = (() => {
 
   /* ===================== AI TYPE SUGGESTION ===================== */
   const TYPE_RULES = [
-    {keys:['gaji','salary','upah','thr'],             type:'Gaji'},
+    // === Non-food (exact categories, checked first) ===
+    {keys:['gaji','salary','upah','thr','honor'],      type:'Gaji'},
     {keys:['kasbon','pinjam','piutang','hutang'],      type:'Kasbon'},
     {keys:['bensin','solar','bbm','pertamax','pertalite','fuel'],type:'Bensin'},
     {keys:['listrik','pln','kwh'],                     type:'Listrik PLN'},
-    {keys:['pdam','air','water'],                      type:'PDAM'},
+    {keys:['pdam','water'],                            type:'PDAM'},
     {keys:['pulsa','kuota','internet','telp','hp'],    type:'Pulsa'},
     {keys:['pajak','tax','bpjs','iuran'],              type:'Pajak'},
-    {keys:['ayam','daging','ikan','sapi','udang','telur'],type:'Raw Food'},
-    {keys:['sayur','kangkung','bayam','wortel','kubis','brokoli','sawi'],type:'Sayuran'},
-    {keys:['buah','apel','jeruk','pisang','mangga','melon'],type:'Buah segar'},
-    {keys:['minyak','tepung','gula','garam','kecap','saos','bumbu'],type:'Raw Materials'},
-    {keys:['air mineral','teh','kopi','jus','minuman','sirup'],type:'Minuman'},
-    {keys:['snack','keripik','biskuit','kue','roti','camilan'],type:'Snack'},
     {keys:['servis','service','perbaikan','repair','maintenance','ac','mesin'],type:'Maintenance'},
     {keys:['transport','angkut','kurir','ongkir','logistik'],type:'B.Logistik'},
-    {keys:['biaya','operasional','atk','alat','tulis','kantor'],type:'OP.Expense'},
-    {keys:['kas','transfer','bank','dana','gopay','ovo'],type:'Kas'},
-    {keys:['dp','seragam','seragam','uniform'],        type:'OP.Expense'},
+    {keys:['biaya','operasional','atk','alat tulis','kantor','cleaning','kebersihan','sewa','parkir'],type:'OP.Expense'},
+    {keys:['kas','transfer','bank','dana','gopay','ovo','setoran'],type:'Kas'},
+    {keys:['dp','seragam','uniform'],                  type:'OP.Expense'},
+    // === Food — specific before generic ===
+    // Raw Food: protein hewani
+    {keys:['ayam','chicken','daging','ikan','sapi','beef','udang','shrimp','telur','egg',
+           'cumi','kepiting','kerang','lele','nila','gurame','patin','kakap','tongkol','tuna',
+           'bandeng','bawal','cakalang','tenggiri','baronang','kembung','salem',
+           'paha','dada','fillet','tulang','ekor','hati ampela','usus','ceker','sayap',
+           'bakso','sosis','nugget','kornet','otak','rawon'],type:'Raw Food'},
+    // Sayuran
+    {keys:['sayur','kangkung','bayam','wortel','kubis','brokoli','sawi','selada',
+           'kentang','kol','lobak','tauge','toge','terong','terung','labu','timun','mentimun',
+           'tomat','buncis','kacang panjang','pete','petai','jengkol','pare',
+           'jagung','daun bawang','daun sup','seledri','kemangi','genjer',
+           'paprika','asparagus','rebung','jamur','champignon','enoki',
+           'cabe','cabai','cabe merah','cabe rawit','cabe hijau','cabe keriting',
+           'bawang merah','bawang putih','bawang bombay','bawang pre',
+           'santan','nangka','pepaya muda',
+           'putren','oyong','gambas','sengon','kecipir','kluwih',
+           'kembang kol','baby corn','edamame'],type:'Sayuran'},
+    // Buah segar
+    {keys:['buah','apel','jeruk','pisang','mangga','melon','semangka',
+           'anggur','strawberry','stroberi','alpukat','nanas','pepaya','salak',
+           'rambutan','durian','kelengkeng','manggis','lemon','lime','limau',
+           'jambu','sawo','belimbing','sirsak','markisa','kiwi','pear','persik',
+           'leci','ceri','kurma','tin','kelapa muda','degan'],type:'Buah segar'},
+    // Raw Materials: bumbu, rempah, bahan kering
+    {keys:['minyak','tepung','gula','garam','kecap','saos','saus','bumbu',
+           'merica','lada','pala','cengkeh','kayu manis','kunyit','kunir','jahe',
+           'lengkuas','laos','sereh','serai','daun salam','daun jeruk','daun pandan',
+           'ketumbar','jintan','kemiri','asam','terasi','petis','tauco',
+           'santan bubuk','kelapa','margarin','mentega','butter','keju','susu','cream',
+           'tahu','tempe','tempeh','oncom','kedelai',
+           'beras','bihun','mie','mi','makaroni','pasta','spaghetti','roti tawar',
+           'tepung terigu','tepung beras','tepung maizena','tepung sagu','tepung kanji',
+           'krupuk','kerupuk','emping','rempeyek',
+           'madu','selai','coklat','vanili','pewarna','pengembang',
+           'cuka','mayones','mustard','sambal','bon cabe',
+           'air mineral','air galon','es batu'],type:'Raw Materials'},
+    // Minuman
+    {keys:['teh','kopi','coffee','jus','juice','minuman','sirup','syrup',
+           'susu kotak','susu cair','yakult','pocari','aqua','soda','cola',
+           'capuccino','latte','matcha','smoothie','milkshake'],type:'Minuman'},
+    // Snack
+    {keys:['snack','keripik','biskuit','kue','camilan','permen','cokelat',
+           'wafer','crackers','popcorn','dodol','nastar','kastengel','putri salju'],type:'Snack'},
   ];
 
   function _suggestType(nama) {
@@ -150,7 +189,7 @@ const KasModule = (() => {
       .ks-tbl td{border:1px solid var(--border);padding:0;height:32px;background:var(--surface);vertical-align:middle;}
       .ks-tbl td .ks-cell{display:flex;align-items:center;padding:0 8px;height:32px;cursor:cell;
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
-      .ks-tbl td .ks-cell[title]{cursor:help;}
+      .ks-tbl td .ks-cell[title]{cursor:cell;}
       .ks-tbl tr.ks-view:hover td{background:rgba(99,102,241,.1);cursor:pointer;}
       .ks-tbl tr.ks-editing td{background:rgba(99,102,241,.08)!important;outline:2px solid var(--primary);outline-offset:-1px;box-shadow:inset 0 0 0 1px rgba(99,102,241,.15);}
       .ks-inp{width:100%;height:100%;border:none;outline:none;padding:0 6px;background:transparent;
@@ -170,7 +209,7 @@ const KasModule = (() => {
       .ks-saved{animation:ksSv 1.2s ease;}
       @keyframes ksSv{0%,30%{background:rgba(34,197,94,.25)}100%{background:transparent}}
       .ks-ai-badge{font-size:9px;background:rgba(99,102,241,.2);color:var(--primary-h);
-        border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;cursor:help;}
+        border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;}
       .ks-tbl tr.ks-row-kas td{background:rgba(59,130,246,.10)!important;}
       .ks-tbl tr.ks-row-kas:hover td{background:rgba(59,130,246,.20)!important;}
       .ks-tbl tr.ks-row-done td{background:rgba(22,101,52,.18)!important;}
