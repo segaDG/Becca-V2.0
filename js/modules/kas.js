@@ -1615,6 +1615,8 @@ const KasModule = (() => {
           title:`Transaksi outlier di ${type}`,
           desc:`"${r.nama||'-'}" pada ${(r.tgl||'').split('-').reverse().join('-')} senilai ${fR(r.jumlah||0)} — jauh di atas rata-rata kategori ${fR(Math.round(mean))} (${((r.jumlah/mean-1)*100).toFixed(0)}% lebih tinggi)`,
           amount: r.jumlah||0,
+          ids: [r.id],
+          search: r.nama||'',
         });
       });
     });
@@ -1633,6 +1635,8 @@ const KasModule = (() => {
         title:`Kemungkinan duplikat (${dupes.length}x)`,
         desc:`"${r.nama||'-'}" — ${(r.tgl||'').split('-').reverse().join('-')} — ${fR(r.jumlah||0)} × ${dupes.length} kali, vendor "${r.vendor||'-'}". Total: ${fR((r.jumlah||0)*dupes.length)}`,
         amount: (r.jumlah||0)*dupes.length,
+        ids: dupes.map(d=>d.id),
+        search: r.nama||'',
       });
     });
 
@@ -1657,6 +1661,8 @@ const KasModule = (() => {
           title:`Harga satuan tidak wajar`,
           desc:`"${expensiveItem?.nama||nama}" pada ${(expensiveItem?.tgl||'').split('-').reverse().join('-')} — harga ${fR(maxPrice)}/${expensiveItem?.satuan||'unit'}, rata-rata biasanya ${fR(Math.round(avg))}/${expensiveItem?.satuan||'unit'} (${((maxPrice/avg-1)*100).toFixed(0)}% lebih mahal)`,
           amount: maxPrice,
+          ids: [expensiveItem?.id].filter(Boolean),
+          search: expensiveItem?.nama||nama,
         });
       }
     });
@@ -1670,6 +1676,7 @@ const KasModule = (() => {
         title:`${noVendor.length} transaksi tanpa vendor`,
         desc:`Total ${fR(totalNoVendor)} dari ${noVendor.length} transaksi (> Rp 50.000) tidak memiliki informasi vendor/supplier. Sebaiknya dilengkapi untuk audit trail.`,
         amount: totalNoVendor,
+        ids: noVendor.map(r=>r.id),
       });
     }
 
@@ -1684,6 +1691,7 @@ const KasModule = (() => {
         title:`${roundTx.length} transaksi bernilai bulat`,
         desc:`Ditemukan ${roundTx.length} transaksi dengan nilai kelipatan Rp 100.000 (≥ Rp 500.000). Contoh: ${roundTx.slice(0,3).map(r=>`"${r.nama||'-'}" ${fR(r.jumlah||0)}`).join(', ')}. Nilai bulat bisa mengindikasikan estimasi, bukan nilai aktual.`,
         amount: roundTx.reduce((s,r)=>s+(r.jumlah||0),0),
+        ids: roundTx.map(r=>r.id),
       });
     }
 
@@ -1695,6 +1703,8 @@ const KasModule = (() => {
           title:`Lonjakan pengeluaran pada ${d.split('-').reverse().join('-')}`,
           desc:`Total ${fR(v.total)} dalam ${v.count} transaksi — ${((v.total/avgDaily-1)*100).toFixed(0)}% di atas rata-rata harian (${fR(avgDaily)}). Item terbesar: ${v.items.sort((a,b)=>(b.jumlah||0)-(a.jumlah||0)).slice(0,3).map(r=>`"${r.nama||'-'}" ${fR(r.jumlah||0)}`).join(', ')}.`,
           amount: v.total,
+          ids: v.items.map(r=>r.id),
+          dateFrom: d, dateTo: d,
         });
       }
     });
@@ -1711,6 +1721,39 @@ const KasModule = (() => {
     const sevBg     = {high:'rgba(239,68,68,.06)', medium:'rgba(245,158,11,.06)', low:'rgba(148,163,184,.06)'};
     const sevBorder = {high:'rgba(239,68,68,.2)', medium:'rgba(245,158,11,.2)', low:'rgba(148,163,184,.2)'};
 
+    // Store findings globally for goToAnomaly
+    window._kasAnomalyFindings = findings;
+
+    // Build detail table for each finding
+    const _findingDetail = (f, idx) => {
+      const relatedRows = (f.ids||[]).map(id => rows.find(r=>r.id===id)).filter(Boolean);
+      if (!relatedRows.length) return '';
+      return `<div id="ks-anomaly-detail-${idx}" style="display:none;margin-top:8px;padding:8px 0 0 22px;border-top:1px dashed ${sevBorder[f.severity]}">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="padding:4px 6px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">Tanggal</th>
+            <th style="padding:4px 6px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">Nama</th>
+            <th style="padding:4px 6px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">Type</th>
+            <th style="padding:4px 6px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">Vendor</th>
+            <th style="padding:4px 6px;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">Qty</th>
+            <th style="padding:4px 6px;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">Harga/Sat</th>
+            <th style="padding:4px 6px;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">Total</th>
+          </tr></thead>
+          <tbody>${relatedRows.slice(0,20).map(r => `<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="KasModule.goToAnomaly(${idx},'${r.id}')">
+            <td style="padding:4px 6px;white-space:nowrap">${(r.tgl||'').split('-').reverse().join('-')}</td>
+            <td style="padding:4px 6px;font-weight:500">${r.nama||'-'}</td>
+            <td style="padding:4px 6px;color:var(--text-3)">${r.type||'-'}</td>
+            <td style="padding:4px 6px;color:var(--text-3)">${r.vendor||'-'}</td>
+            <td style="padding:4px 6px;text-align:right;font-family:var(--font-mono)">${r.qty||'-'} ${r.satuan||''}</td>
+            <td style="padding:4px 6px;text-align:right;font-family:var(--font-mono)">${fR(r.hargaSatuan||0)}</td>
+            <td style="padding:4px 6px;text-align:right;font-family:var(--font-mono);font-weight:600">${fR(r.jumlah||0)}</td>
+          </tr>`).join('')}
+          ${relatedRows.length>20?`<tr><td colspan="7" style="padding:4px 6px;color:var(--text-3);font-size:10px">...dan ${relatedRows.length-20} transaksi lainnya</td></tr>`:''}
+          </tbody>
+        </table>
+      </div>`;
+    };
+
     const anomalyHtml = findings.length > 0
       ? `<div style="font-size:11px;color:var(--text-3);margin-bottom:12px">Ditemukan <strong style="color:var(--heading)">${findings.length}</strong> temuan yang perlu diperhatikan</div>
          ${findings.map((f,i) => `<div style="margin-bottom:8px;padding:10px 14px;border-radius:8px;border:1px solid ${sevBorder[f.severity]};background:${sevBg[f.severity]}">
@@ -1720,8 +1763,21 @@ const KasModule = (() => {
              <span style="font-size:9px;padding:2px 6px;border-radius:3px;font-weight:700;background:${sevBg[f.severity]};color:${sevColors[f.severity]};border:1px solid ${sevBorder[f.severity]}">${sevLabels[f.severity]}</span>
            </div>
            <div style="font-size:11px;color:var(--text-2);line-height:1.6;padding-left:22px">${f.desc}</div>
+           <div style="display:flex;gap:6px;margin-top:6px;padding-left:22px">
+             ${(f.ids&&f.ids.length)?`<button onclick="KasModule.toggleAnomalyDetail(${i})" style="font-size:10px;padding:3px 10px;border-radius:4px;border:1px solid ${sevBorder[f.severity]};background:transparent;color:${sevColors[f.severity]};cursor:pointer;font-weight:600;display:flex;align-items:center;gap:4px;transition:all .15s"
+               onmouseover="this.style.background='${sevBg[f.severity]}'" onmouseout="this.style.background='transparent'">
+               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M9 5l7 7-7 7"/></svg>
+               ${f.ids.length} data
+             </button>`:''}
+             ${(f.ids&&f.ids.length)?`<button onclick="KasModule.goToAnomaly(${i})" style="font-size:10px;padding:3px 10px;border-radius:4px;border:1px solid var(--primary);background:transparent;color:var(--primary);cursor:pointer;font-weight:600;display:flex;align-items:center;gap:4px;transition:all .15s"
+               onmouseover="this.style.background='rgba(99,102,241,.1)'" onmouseout="this.style.background='transparent'">
+               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+               Lihat di Tabel
+             </button>`:''}
+           </div>
+           ${_findingDetail(f, i)}
          </div>`).join('')}`
-      : '<div style="padding:16px;text-align:center;color:var(--success);font-size:12px">✅ Tidak ditemukan anomali atau transaksi janggal pada bulan ini.</div>';
+      : '<div style="padding:16px;text-align:center;color:var(--success);font-size:12px">Tidak ditemukan anomali atau transaksi janggal pada bulan ini.</div>';
 
     // Top 10 transaksi terbesar table
     const topTxHtml = `<div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:6px;margin-top:16px;text-transform:uppercase;letter-spacing:.04em">Top 10 Transaksi Terbesar</div>
@@ -1754,6 +1810,66 @@ const KasModule = (() => {
       + _sec(`Perbandingan vs Bulan Sebelumnya`, momHtml)
       + _sec(`Analisa Pengeluaran Harian`, dailyHtml)
       + _sec(`Deteksi Anomali & Transaksi Janggal`, anomalyHtml + topTxHtml);
+  }
+
+  function toggleAnomalyDetail(idx) {
+    const el = document.getElementById('ks-anomaly-detail-'+idx);
+    if (!el) return;
+    const isOpen = el.style.display !== 'none';
+    el.style.display = isOpen ? 'none' : '';
+    // Rotate arrow icon
+    const btn = el.previousElementSibling?.querySelector('button');
+    if (btn) {
+      const svg = btn.querySelector('svg');
+      if (svg) svg.style.transform = isOpen ? '' : 'rotate(90deg)';
+    }
+  }
+
+  function goToAnomaly(idx, singleId) {
+    const findings = window._kasAnomalyFindings;
+    if (!findings || !findings[idx]) return;
+    const f = findings[idx];
+    const ids = singleId ? [singleId] : (f.ids||[]);
+    if (!ids.length) return;
+
+    // Switch to transaksi tab
+    switchTab('transaksi');
+
+    // Apply search filter if available, or date filter
+    if (f.search) {
+      _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'', search: f.search };
+    } else if (f.dateFrom) {
+      _filter = { bulan:'', type:'', status:'', dateFrom: f.dateFrom, dateTo: f.dateTo||f.dateFrom, search:'' };
+    } else {
+      _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'', search:'' };
+    }
+    _page = 1;
+    renderTransaksi();
+
+    // Highlight matching rows with pulse animation
+    requestAnimationFrame(() => {
+      let firstEl = null;
+      ids.forEach(id => {
+        const row = document.getElementById('ks-row-'+id);
+        if (row) {
+          if (!firstEl) firstEl = row;
+          row.style.transition = 'none';
+          row.style.outline = '2px solid var(--primary)';
+          row.style.outlineOffset = '-2px';
+          row.style.boxShadow = '0 0 0 3px rgba(99,102,241,.2)';
+          row.querySelectorAll('td').forEach(td => { td.style.background = 'rgba(99,102,241,.15)'; });
+          // Clear highlight after 4s
+          setTimeout(() => {
+            row.style.transition = 'all .5s';
+            row.style.outline = 'none';
+            row.style.boxShadow = 'none';
+            row.querySelectorAll('td').forEach(td => { td.style.background = ''; });
+          }, 4000);
+        }
+      });
+      // Scroll to first match
+      if (firstEl) firstEl.scrollIntoView({ behavior:'smooth', block:'center' });
+    });
   }
 
   function printMonthly() {
@@ -2371,6 +2487,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
+  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
 })();
 window.KasModule = KasModule;
