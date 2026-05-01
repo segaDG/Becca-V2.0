@@ -1729,6 +1729,7 @@ const KasModule = (() => {
       const relatedRows = (f.ids||[]).map(id => rows.find(r=>r.id===id)).filter(Boolean);
       if (!relatedRows.length) return '';
       return `<div id="ks-anomaly-detail-${idx}" style="display:none;margin-top:8px;padding:8px 0 0 22px;border-top:1px dashed ${sevBorder[f.severity]}">
+        <div style="max-height:250px;overflow-y:auto;border-radius:6px">
         <table style="width:100%;border-collapse:collapse;font-size:11px">
           <thead><tr style="border-bottom:1px solid var(--border)">
             <th style="padding:4px 6px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">Tanggal</th>
@@ -1739,7 +1740,8 @@ const KasModule = (() => {
             <th style="padding:4px 6px;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">Harga/Sat</th>
             <th style="padding:4px 6px;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">Total</th>
           </tr></thead>
-          <tbody>${relatedRows.slice(0,20).map(r => `<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="KasModule.goToAnomaly(${idx},'${r.id}')">
+          <tbody>${relatedRows.slice(0,20).map(r => `<tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s" onclick="KasModule.goToAnomaly(${idx},'${r.id}')"
+            onmouseover="this.style.background='rgba(99,102,241,.08)'" onmouseout="this.style.background=''">
             <td style="padding:4px 6px;white-space:nowrap">${(r.tgl||'').split('-').reverse().join('-')}</td>
             <td style="padding:4px 6px;font-weight:500">${r.nama||'-'}</td>
             <td style="padding:4px 6px;color:var(--text-3)">${r.type||'-'}</td>
@@ -1751,6 +1753,7 @@ const KasModule = (() => {
           ${relatedRows.length>20?`<tr><td colspan="7" style="padding:4px 6px;color:var(--text-3);font-size:10px">...dan ${relatedRows.length-20} transaksi lainnya</td></tr>`:''}
           </tbody>
         </table>
+        </div>
       </div>`;
     };
 
@@ -1817,11 +1820,16 @@ const KasModule = (() => {
     if (!el) return;
     const isOpen = el.style.display !== 'none';
     el.style.display = isOpen ? 'none' : '';
-    // Rotate arrow icon
-    const btn = el.previousElementSibling?.querySelector('button');
-    if (btn) {
-      const svg = btn.querySelector('svg');
-      if (svg) svg.style.transform = isOpen ? '' : 'rotate(90deg)';
+    // Rotate arrow icon on the button that triggered this
+    const card = el.closest('div[style*="border-radius:8px"]');
+    if (card) {
+      const svgs = card.querySelectorAll('svg');
+      // First svg in the action buttons row (the arrow)
+      const actionRow = card.querySelector('div[style*="display:flex;gap:6px"]');
+      if (actionRow) {
+        const arrow = actionRow.querySelector('svg');
+        if (arrow) { arrow.style.transition = 'transform .2s'; arrow.style.transform = isOpen ? '' : 'rotate(90deg)'; }
+      }
     }
   }
 
@@ -1836,15 +1844,20 @@ const KasModule = (() => {
     switchTab('transaksi');
 
     // Apply search filter if available, or date filter
+    let filterDesc = '';
     if (f.search) {
       _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'', search: f.search };
+      filterDesc = `Filter: "${f.search}"`;
     } else if (f.dateFrom) {
       _filter = { bulan:'', type:'', status:'', dateFrom: f.dateFrom, dateTo: f.dateTo||f.dateFrom, search:'' };
+      filterDesc = `Filter: tanggal ${f.dateFrom.split('-').reverse().join('-')}`;
     } else {
       _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'', search:'' };
+      filterDesc = 'Menampilkan semua data';
     }
     _page = 1;
     renderTransaksi();
+    Notify.info(`${f.title} — ${ids.length} data ditandai. ${filterDesc}`);
 
     // Highlight matching rows with pulse animation
     requestAnimationFrame(() => {
@@ -1885,10 +1898,15 @@ const KasModule = (() => {
       'var(--heading)':'#0f172a','var(--text)':'#1e293b','var(--text-2)':'#475569','var(--text-3)':'#94a3b8',
       'var(--primary)':'#6366f1','var(--primary-h)':'#4f46e5',
       'var(--danger)':'#ef4444','var(--success)':'#22c55e','var(--warning)':'#eab308',
-      'var(--r-lg)':'12px',
-      'var(--s3)':'12px','var(--s4)':'16px','var(--s5)':'20px',
+      'var(--r-lg)':'12px','var(--r-md)':'8px','var(--r-sm)':'4px',
+      'var(--s2)':'8px','var(--s3)':'12px','var(--s4)':'16px','var(--s5)':'20px','var(--s6)':'24px',
+      'var(--thead-bg)':'#1e293b','var(--thead-text)':'#fff',
     };
     for (const [k,v] of Object.entries(varMap)) html = html.replaceAll(k,v);
+    // Remove interactive buttons from print (anomaly action buttons, etc.)
+    html = html.replace(/<button[^>]*onclick[^>]*>[\s\S]*?<\/button>/gi, '');
+    const reportTitle = el.querySelector('div[style*="font-size:22px"]')?.textContent?.trim() || 'Laporan Kas Kecil';
+    const printDate = new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
     win.document.write(`<!DOCTYPE html><html><head><title>Laporan Kas Kecil</title>
       <style>
         *{margin:0;padding:0;box-sizing:border-box}
@@ -1896,10 +1914,17 @@ const KasModule = (() => {
         table{width:100%;border-collapse:collapse}
         th,td{padding:6px 10px;border:1px solid #e2e8f0;font-size:11px}
         th{background:#1e293b;color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.05em}
-        @page{size:landscape;margin:10mm}
-        @media print{body{padding:0}}
+        @page{size:landscape;margin:12mm 10mm}
+        @media print{
+          body{padding:0}
+          .no-print{display:none!important}
+        }
       </style>
     </head><body>${html}
+    <div style="margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8">
+      <span>Dicetak: ${printDate}</span>
+      <span>${reportTitle} — BECCA V2.0</span>
+    </div>
     <script>setTimeout(()=>{window.print()},300)<\/script>
     </body></html>`);
     win.document.close();
