@@ -154,7 +154,14 @@ const KasModule = (() => {
     }
 
     if (!toUpdate.length) {
-      Notify.success('Semua type sudah sesuai — tidak ada perubahan');
+      Modal.open({ title:'Re-Classify Selesai', size:'modal-sm',
+        body:`<div style="text-align:center;padding:16px 0">
+          <div style="font-size:36px;margin-bottom:8px">✅</div>
+          <div style="font-size:14px;font-weight:600;color:var(--heading)">Semua type sudah sesuai</div>
+          <div style="font-size:12px;color:var(--text-3);margin-top:4px">${unchanged} data diperiksa — tidak ada perubahan</div>
+        </div>`,
+        footer:`<button class="btn btn-primary btn-sm" onclick="Modal.close()">OK</button>`
+      });
       return;
     }
 
@@ -165,9 +172,42 @@ const KasModule = (() => {
       errors += results.filter(r => r.status === 'rejected').length;
     }
 
+    // Group changes by type for summary
+    const byNewType = {};
+    toUpdate.forEach(r => { byNewType[r.type] = (byNewType[r.type]||0)+1; });
+    const typeSummary = Object.entries(byNewType).sort((a,b)=>b[1]-a[1])
+      .map(([t,c]) => `<tr><td style="padding:4px 8px;font-weight:500">${t}</td><td style="padding:4px 8px;text-align:right;font-family:var(--font-mono)">${c}</td></tr>`).join('');
+
     renderTransaksi();
     DB.logActivity({ type: 'reclassify_kas', detail: `Re-classify type: ${changed} diubah, ${unchanged} tetap, ${errors} error` });
-    Notify.success(`Selesai: ${changed} type diperbarui, ${unchanged} sudah sesuai${errors ? ', '+errors+' error' : ''}`);
+
+    Modal.open({ title:'Re-Classify Selesai', size:'modal-sm',
+      body:`<div style="padding:8px 0">
+        <div style="display:grid;grid-template-columns:1fr 1fr ${errors?'1fr':''};gap:12px;margin-bottom:16px">
+          <div style="text-align:center;padding:12px;background:rgba(99,102,241,.06);border-radius:8px">
+            <div style="font-size:24px;font-weight:800;color:var(--primary)">${changed}</div>
+            <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;margin-top:2px">Diperbarui</div>
+          </div>
+          <div style="text-align:center;padding:12px;background:rgba(34,197,94,.06);border-radius:8px">
+            <div style="font-size:24px;font-weight:800;color:var(--success)">${unchanged}</div>
+            <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;margin-top:2px">Sudah Sesuai</div>
+          </div>
+          ${errors?`<div style="text-align:center;padding:12px;background:rgba(239,68,68,.06);border-radius:8px">
+            <div style="font-size:24px;font-weight:800;color:var(--danger)">${errors}</div>
+            <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;margin-top:2px">Error</div>
+          </div>`:''}
+        </div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:6px;text-transform:uppercase">Perubahan per Kategori</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="padding:4px 8px;text-align:left;font-size:10px;color:var(--text-3)">Type</th>
+            <th style="padding:4px 8px;text-align:right;font-size:10px;color:var(--text-3)">Jumlah</th>
+          </tr></thead>
+          <tbody>${typeSummary}</tbody>
+        </table>
+      </div>`,
+      footer:`<button class="btn btn-primary btn-sm" onclick="Modal.close()">OK</button>`
+    });
   }
 
   /* ===================== INIT ===================== */
