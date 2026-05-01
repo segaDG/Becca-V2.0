@@ -78,14 +78,18 @@ const APModule = (() => {
   }
 
 
+  // Normalize status: kosong/undefined/null → 'LUNAS' (data lama tanpa status = sudah lunas)
+  function _st(r) { const s = r.status; return (s && s !== 'undefined' && s !== 'null') ? s.toUpperCase() : 'LUNAS'; }
+  function _isLunas(r) { return _st(r) === 'LUNAS'; }
+
   function render() {
     const canEdit = Auth.can('ap','edit');
     const today   = new Date().toISOString().split('T')[0];
     const BL      = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
     const sorted  = [..._ap].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
 
-    const totalHutang  = _ap.filter(r=>r.status!=='LUNAS').reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
-    const totalLunas   = _ap.filter(r=>r.status==='LUNAS').reduce((s,r)=>s+(r.total||0),0);
+    const totalHutang  = _ap.filter(r=>!_isLunas(r)).reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
+    const totalLunas   = _ap.filter(r=>_isLunas(r)).reduce((s,r)=>s+(r.total||0),0);
     const totalTagihan = _ap.reduce((s,r)=>s+(r.total||0),0);
 
     // Month options
@@ -117,8 +121,8 @@ const APModule = (() => {
       <!-- STATS CARDS -->
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--s3);margin-bottom:var(--s5)">
         ${[
-          {l:'Sisa Hutang',    v:Utils.formatRupiah(totalHutang,true),  c:'#ef4444', ic:'⚠️', sub:_ap.filter(r=>r.status!=='LUNAS').length+' tagihan belum lunas', click:true},
-          {l:'Sudah Dibayar',  v:Utils.formatRupiah(totalLunas,true),   c:'#10b981', ic:'✅', sub:_ap.filter(r=>r.status==='LUNAS').length+' transaksi lunas'},
+          {l:'Sisa Hutang',    v:Utils.formatRupiah(totalHutang,true),  c:'#ef4444', ic:'⚠️', sub:_ap.filter(r=>!_isLunas(r)).length+' tagihan belum lunas', click:true},
+          {l:'Sudah Dibayar',  v:Utils.formatRupiah(totalLunas,true),   c:'#10b981', ic:'✅', sub:_ap.filter(r=>_isLunas(r)).length+' transaksi lunas'},
           {l:'Total AP',       v:Utils.formatRupiah(totalTagihan,true),  c:'#6366f1', ic:'📋', sub:sorted.length+' total transaksi'},
           {l:'Supplier Aktif', v:_suppliers.length+' supplier',          c:'#f59e0b', ic:'🏭', sub:supList.length+' supplier punya tagihan'},
         ].map(s=>`
@@ -249,9 +253,8 @@ const APModule = (() => {
     };
 
     tbody.innerHTML = paged.map((r, i) => {
-      const sisa = (r.status==='LUNAS'||r.status==='lunas') ? 0
-                 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
-      const st = r.status && r.status !== 'undefined' ? r.status : 'LUNAS';
+      const sisa = _isLunas(r) ? 0 : (r.total||0)-(r.jumlah_bayar||r.terbayar||0);
+      const st = _st(r);
       const badgeC = st==='LUNAS' ? '#10b981' : '#ef4444';
       const badge  = '<span style="background:'+badgeC+'15;color:'+badgeC+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">'+st+'</span>';
       const acts = canEdit
@@ -329,10 +332,10 @@ const APModule = (() => {
     const el = document.getElementById('ap-footer-total');
     if (!el) return;
     const totalAP    = data.reduce((s, r) => s + (r.total || 0), 0);
-    const totalLunas = data.filter(r => r.status === 'LUNAS' || r.status === 'lunas')
+    const totalLunas = data.filter(r => _isLunas(r))
                            .reduce((s, r) => s + (r.total || 0), 0);
     // Belum Lunas = sisa tagihan yang belum lunas (total - terbayar per row)
-    const totalBelum = data.filter(r => r.status !== 'LUNAS' && r.status !== 'lunas')
+    const totalBelum = data.filter(r => !_isLunas(r))
                            .reduce((s, r) => s + (r.total || 0) - (r.terbayar || 0), 0);
     el.innerHTML =
       '<span style="color:var(--text-3)">Total: <b style="color:var(--heading)">' + Utils.formatRupiah(totalAP) + '</b></span>' +
@@ -677,7 +680,7 @@ const APModule = (() => {
         ${[
           {l:'Total Supplier', v:totalSup+' supplier',       c:'var(--primary-h)'},
           {l:'Punya Tagihan',  v:supWithAP+' supplier',      c:'var(--warning)'},
-          {l:'Total AP Aktif', v:_ap.filter(a=>a.status!=='LUNAS').length+' tagihan', c:'var(--danger)'},
+          {l:'Total AP Aktif', v:_ap.filter(a=>!_isLunas(a)).length+' tagihan', c:'var(--danger)'},
         ].map(s=>`
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 150px;min-width:0;max-width:220px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
@@ -834,8 +837,8 @@ const APModule = (() => {
                 </tr></thead>
                 <tbody>
                   ${apItems.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).map(a=>{
-                    const sisaA = (a.status==='LUNAS'||a.status==='lunas') ? 0 : (a.total||0)-(a.terbayar||0);
-                    const sc    = a.status==='LUNAS'?'badge-success':a.status==='CICILAN'?'badge-warning':'badge-danger';
+                    const sisaA = _isLunas(a) ? 0 : (a.total||0)-(a.terbayar||0);
+                    const sc    = _isLunas(a)?'badge-success':_st(a)==='CICILAN'?'badge-warning':'badge-danger';
                     return `<tr>
                       <td style="padding:5px 8px;border-bottom:1px solid var(--border);white-space:nowrap">${a.tgl?a.tgl.split('-').reverse().join('/'):'-'}</td>
                       <td style="padding:5px 8px;border-bottom:1px solid var(--border)">${a.keterangan||'-'}</td>
@@ -1049,7 +1052,7 @@ const APModule = (() => {
 
     let data = [..._ap];
     if (bulan)  data = data.filter(r=>r.tgl?.startsWith(bulan));
-    if (status==='unpaid') data = data.filter(r=>r.status!=='LUNAS');
+    if (status==='unpaid') data = data.filter(r=>!_isLunas(r));
 
     const supGroups = {};
     data.forEach(r=>{ if(!supGroups[r.supplier]) supGroups[r.supplier]=[]; supGroups[r.supplier].push(r); });
@@ -1391,7 +1394,7 @@ const APModule = (() => {
 
   function _apRowEdit(r) {
     const supOpts = _suppliers.map(s=>'<option value="'+s.nama+'" '+(r.supplier===s.nama?'selected':'')+'>'+s.nama+'</option>').join('');
-    const curSt   = r.status && r.status !== 'undefined' ? r.status : 'LUNAS';
+    const curSt   = _st(r);
     const stOpts  = ['BELUM','LUNAS'].map(s=>'<option value="'+s+'" '+(curSt===s?'selected':'')+'>'+s+'</option>').join('');
     const eid = (r.id||'').replace(/'/g,'');
     const inp = (f,v,t,ex) => '<input data-f="'+f+'" data-eid="'+eid+'" type="'+(t||'text')+'" value="'+(v===0?0:v||'')+'" '+(ex||'')+' style="width:100%;border:none;outline:none;background:transparent;padding:0 4px;font-size:12px;font-family:inherit" onkeydown="APModule._apKey(event)">';
