@@ -331,7 +331,9 @@ const APModule = (() => {
     const totalAP    = data.reduce((s, r) => s + (r.total || 0), 0);
     const totalLunas = data.filter(r => r.status === 'LUNAS' || r.status === 'lunas')
                            .reduce((s, r) => s + (r.total || 0), 0);
-    const totalBelum = totalAP - totalLunas;
+    // Belum Lunas = sisa tagihan yang belum lunas (total - terbayar per row)
+    const totalBelum = data.filter(r => r.status !== 'LUNAS' && r.status !== 'lunas')
+                           .reduce((s, r) => s + (r.total || 0) - (r.terbayar || 0), 0);
     el.innerHTML =
       '<span style="color:var(--text-3)">Total: <b style="color:var(--heading)">' + Utils.formatRupiah(totalAP) + '</b></span>' +
       '<span style="color:#10b981">Lunas: <b>' + Utils.formatRupiah(totalLunas) + '</b></span>' +
