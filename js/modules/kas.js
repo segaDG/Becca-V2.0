@@ -1414,14 +1414,17 @@ const KasModule = (() => {
       +'<div><div style="font-size:13px;font-weight:800;color:var(--heading);margin-bottom:var(--s3)">🤖 Analisa & Rekomendasi</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s3)">'+analysisHtml+'</div></div>';
   }
   function renderMonthly() {
-    // Normalize dan deduplicate bulan
-    const rawBulans = _kas.map(r=>_normalizeBulan(r.bulan)).filter(Boolean);
-    const opts = [...new Set(rawBulans)].sort((a,b)=>(_BULAN_IDX[a]||99)-(_BULAN_IDX[b]||99));
-    const sel=opts[opts.length-1]||'';
+    // Group by YYYY-MM from tgl (tanggal transaksi), not r.bulan
+    const ymSet = new Set();
+    _kas.forEach(r => { const ym = _tglToYM(r.tgl); if (ym) ymSet.add(ym); });
+    const opts = [...ymSet].sort(); // "2026-01","2026-02",...
+    const sel = opts[opts.length-1] || '';
+    const BL = {1:'Januari',2:'Februari',3:'Maret',4:'April',5:'Mei',6:'Juni',7:'Juli',8:'Agustus',9:'September',10:'Oktober',11:'November',12:'Desember'};
+    const ymLabel = ym => { if (!ym) return ''; const [y,m]=ym.split('-'); return BL[parseInt(m)]+' '+y; };
     document.getElementById('kas-tab-monthly').innerHTML=`
       <div class="filter-bar" style="margin-bottom:var(--s5)">
         <select class="form-control" style="width:160px" onchange="KasModule.renderMonthlyTable(this.value)">
-          ${opts.map(b=>`<option value="${b}" ${b===sel?'selected':''}>${_bulanLabel(b)}</option>`).join('')}
+          ${opts.map(ym=>`<option value="${ym}" ${ym===sel?'selected':''}>${ymLabel(ym)}</option>`).join('')}
         </select>
         <button class="btn btn-ghost btn-sm" onclick="KasModule.printMonthly()">Print / PDF</button>
       </div>
@@ -1430,7 +1433,8 @@ const KasModule = (() => {
   }
 
   function renderMonthlyTable(bulan) {
-    const allRows = _kas.filter(r => _normalizeBulan(r.bulan) === bulan);
+    // bulan is now "YYYY-MM" format, filter by tgl
+    const allRows = _kas.filter(r => _tglToYM(r.tgl) === bulan);
     // Separate kas masuk vs pengeluaran
     const kasMasuk = allRows.filter(r => r.type === 'Kas');
     const rows     = allRows.filter(r => r.type !== 'Kas'); // pengeluaran only
@@ -1446,7 +1450,9 @@ const KasModule = (() => {
     const grandTBC   = rows.filter(r=>r.status==='TBC').reduce((s,r)=>s+(r.jumlah||0),0);
     const saldoAwal  = _saldoAwal;
     const saldoAkhir = saldoAwal + totalMasuk - grand;
-    const bulanLabel = _bulanLabel(bulan);
+    // bulan is "YYYY-MM" format
+    const _BL = {1:'Januari',2:'Februari',3:'Maret',4:'April',5:'Mei',6:'Juni',7:'Juli',8:'Agustus',9:'September',10:'Oktober',11:'November',12:'Desember'};
+    const bulanLabel = bulan ? _BL[parseInt(bulan.split('-')[1])] + ' ' + bulan.split('-')[0] : '';
 
     const typesSorted = Object.entries(byType)
       .map(([type, items]) => ({type, items, total: items.reduce((s,r)=>s+(r.jumlah||0),0)}))
@@ -1646,18 +1652,20 @@ const KasModule = (() => {
     }).join('');
 
     // ── 3. PERBANDINGAN VS BULAN SEBELUMNYA ──
-    const allBulans = [...new Set(_kas.map(r=>_normalizeBulan(r.bulan)).filter(Boolean))].sort((a,b)=>(_BULAN_IDX[a]||99)-(_BULAN_IDX[b]||99));
-    const curIdx = allBulans.indexOf(bulan);
-    const prevBulan = curIdx > 0 ? allBulans[curIdx-1] : null;
+    // bulan is "YYYY-MM" format
+    const allYM = [...new Set(_kas.map(r=>_tglToYM(r.tgl)).filter(Boolean))].sort();
+    const curIdx = allYM.indexOf(bulan);
+    const prevBulan = curIdx > 0 ? allYM[curIdx-1] : null;
+    const _ymLabel = ym => { if(!ym) return ''; const _B={1:'Januari',2:'Februari',3:'Maret',4:'April',5:'Mei',6:'Juni',7:'Juli',8:'Agustus',9:'September',10:'Oktober',11:'November',12:'Desember'}; const[y,m]=ym.split('-'); return _B[parseInt(m)]+' '+y; };
     let momHtml = '';
     if (prevBulan) {
-      const prevRows = _kas.filter(r => _normalizeBulan(r.bulan) === prevBulan && r.type !== 'Kas');
+      const prevRows = _kas.filter(r => _tglToYM(r.tgl) === prevBulan && r.type !== 'Kas');
       const prevTotal = prevRows.reduce((s,r)=>s+(r.jumlah||0),0);
       const prevByType = {};
       prevRows.forEach(r => { const t=r.type||'Lain-lain'; prevByType[t]=(prevByType[t]||0)+(r.jumlah||0); });
       const delta = grand - prevTotal;
       const deltaPct = prevTotal > 0 ? ((delta/prevTotal)*100).toFixed(1) : 0;
-      const prevLabel = _bulanLabel(prevBulan);
+      const prevLabel = _ymLabel(prevBulan);
 
       // Category comparison
       const allCats = [...new Set([...Object.keys(byType),...Object.keys(prevByType)])];
@@ -2346,6 +2354,19 @@ const KasModule = (() => {
     if (!b) return '';
     const lower = b.toLowerCase().trim();
     return _BULAN_NORMALIZE[lower] || b;
+  }
+
+  // Extract month code from tgl (YYYY-MM-DD) → "Jan","Feb",...
+  const _IDX_BULAN = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+  function _tglToBulan(tgl) {
+    if (!tgl || tgl.length < 7) return '';
+    const m = parseInt(tgl.substring(5,7));
+    return _IDX_BULAN[m] || '';
+  }
+  // Extract "YYYY-MM" from tgl for grouping
+  function _tglToYM(tgl) {
+    if (!tgl || tgl.length < 7) return '';
+    return tgl.substring(0,7);
   }
 
   function _bulanLabel(bulan) {
