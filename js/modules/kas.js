@@ -35,7 +35,7 @@ const KasModule = (() => {
   const _KAS_LOCK_KEY = 'becca_kas_locked_ids';
   let _pendingChanges = {};
 
-  const TYPES = ['Raw Food','Sayuran','Buah segar','Raw Materials','Minuman','Snack',
+  const TYPES = ['Raw Food','Sayuran','Buah segar','Raw Materials','Plastik','Minuman','Snack',
     'Kasbon','Gaji','Bensin','Maintenance','OP.Expense','B.Logistik',
     'Listrik PLN','PDAM','Pulsa','Pajak','Kas','Lain-lain'];
   const SATUANS = ['Kg','Pcs','Bks','Box','Btl','Kli','Prsi','Gbng','Ikt','Lbr',
@@ -57,6 +57,15 @@ const KasModule = (() => {
     {keys:['biaya','operasional','atk','alat tulis','kantor','cleaning','kebersihan','sewa','parkir'],type:'OP.Expense'},
     {keys:['kas','transfer','bank','dana','gopay','ovo','setoran'],type:'Kas'},
     {keys:['dp','seragam','uniform'],                  type:'OP.Expense'},
+    // Plastik & packaging
+    {keys:['plastik','mika','mika bento','styrofoam','sterofoam','wadah plastik',
+           'sendok plastik','garpu plastik','sedotan','kantong','kresek',
+           'cup plastik','cup puding','cup salad','tutup cup','lid cup',
+           'box makan','lunch box','food container','food box','food pail',
+           'aluminium foil','alumunium foil','cling wrap','wrapping','stretch film',
+           'tray','tray foam','paper bag','paper bowl','paper cup','paper box',
+           'toples','zipper bag','ziplock','vacuum bag','standing pouch',
+           'sarung tangan','glove','tissue','tisu','serbet'],type:'Plastik'},
     // === Food — specific before generic ===
     // Raw Food: protein hewani
     {keys:['ayam','chicken','daging','ikan','sapi','beef','udang','shrimp','telur','egg',
@@ -110,6 +119,55 @@ const KasModule = (() => {
       if (rule.keys.some(k => lower.includes(k))) return rule.type;
     }
     return null;
+  }
+
+  /* ===================== RE-CLASSIFY ALL TYPES ===================== */
+  async function reClassifyTypes() {
+    const ok = await Modal.confirm({
+      title: 'Re-Classify Semua Type',
+      message: `<p>Fungsi ini akan memperbarui kolom <strong>Type</strong> pada seluruh data kas berdasarkan AI rules terbaru.</p>
+        <ul style="font-size:12px;margin:8px 0;padding-left:18px;color:var(--text-2)">
+          <li>Item yang dikenali → Type diperbarui otomatis</li>
+          <li>Item yang <strong>tidak</strong> dikenali → Type diubah ke <strong>Lain-lain</strong></li>
+          <li>Type non-food (Gaji, Kasbon, Bensin, dll) tetap diproses ulang</li>
+        </ul>
+        <p style="font-size:12px;color:var(--warning)">⚠ Proses ini akan mengubah data di database. Pastikan Anda yakin.</p>`,
+      confirmText: 'Ya, Re-Classify', confirmClass: 'btn-primary', cancelText: 'Batal'
+    });
+    if (!ok) return;
+
+    Notify.info('Memproses re-classify...');
+    let changed = 0, unchanged = 0, errors = 0;
+    const CHUNK = 10;
+    const toUpdate = [];
+
+    for (const r of _kas) {
+      if (!r.nama) continue;
+      const newType = _suggestType(r.nama) || 'Lain-lain';
+      if (r.type !== newType) {
+        r.type = newType;
+        toUpdate.push(r);
+        changed++;
+      } else {
+        unchanged++;
+      }
+    }
+
+    if (!toUpdate.length) {
+      Notify.success('Semua type sudah sesuai — tidak ada perubahan');
+      return;
+    }
+
+    // Save to Supabase in chunks
+    for (let i = 0; i < toUpdate.length; i += CHUNK) {
+      const batch = toUpdate.slice(i, i + CHUNK);
+      const results = await Promise.allSettled(batch.map(r => DB.saveKas({...r})));
+      errors += results.filter(r => r.status === 'rejected').length;
+    }
+
+    renderTransaksi();
+    DB.logActivity({ type: 'reclassify_kas', detail: `Re-classify type: ${changed} diubah, ${unchanged} tetap, ${errors} error` });
+    Notify.success(`Selesai: ${changed} type diperbarui, ${unchanged} sudah sesuai${errors ? ', '+errors+' error' : ''}`);
   }
 
   /* ===================== INIT ===================== */
@@ -273,7 +331,8 @@ const KasModule = (() => {
     if (hdr) hdr.innerHTML = tab==='transaksi' && Auth.can('kas','edit')
       ? `<button class="btn btn-ghost btn-sm" onclick="KasModule.importExcel()" title="Import data dari file Excel (.xlsx)">Import Excel</button>
          <button class="btn btn-ghost btn-sm" onclick="KasModule.exportCSV()">Export CSV</button>
-         <button class="btn btn-ghost btn-sm" onclick="KasModule.printPDF()">Print PDF</button>`
+         <button class="btn btn-ghost btn-sm" onclick="KasModule.printPDF()">Print PDF</button>
+         ${Auth.currentUser()?.role==='superadmin'?'<button class="btn btn-ghost btn-sm" onclick="KasModule.reClassifyTypes()" title="Perbarui kolom Type berdasarkan AI rules terbaru">Re-Classify Type</button>':''}`
       : '';
     // BP dashboard visibility follows transaksi tab
     const bpEl = document.getElementById('kas-bp-dash');
@@ -2551,6 +2610,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
+  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
 })();
 window.KasModule = KasModule;
