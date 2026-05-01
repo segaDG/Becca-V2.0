@@ -54,19 +54,29 @@ const KasModule = (() => {
     {keys:['pajak','tax','bpjs','iuran'],              type:'Pajak'},
     {keys:['servis','service','perbaikan','repair','maintenance','ac','mesin'],type:'Maintenance'},
     {keys:['transport','angkut','kurir','ongkir','logistik'],type:'B.Logistik'},
-    {keys:['biaya','operasional','atk','alat tulis','kantor','cleaning','kebersihan','sewa','parkir'],type:'OP.Expense'},
+    {keys:['biaya','operasional','atk','alat tulis','kantor','cleaning','kebersihan','sewa','parkir',
+           'etoll','e-toll','toll','admin transfer','admin bank','admin tf'],type:'OP.Expense'},
     {keys:['kas','transfer','bank','dana','gopay','ovo','setoran'],type:'Kas'},
     {keys:['dp','seragam','uniform'],                  type:'OP.Expense'},
     // Plastik & packaging
     {keys:['plastik','mika','mika bento','styrofoam','sterofoam','wadah plastik',
-           'sendok plastik','garpu plastik','sedotan','kantong','kresek',
+           'sendok plastik','garpu plastik','sendok bening','sedotan','kantong','kresek',
            'cup plastik','cup puding','cup salad','tutup cup','lid cup',
            'box makan','lunch box','food container','food box','food pail',
            'aluminium foil','alumunium foil','cling wrap','wrapping','stretch film',
            'tray','tray foam','paper bag','paper bowl','paper cup','paper box',
            'toples','zipper bag','ziplock','vacuum bag','standing pouch',
-           'sarung tangan','glove','tissue','tisu','serbet'],type:'Plastik'},
+           'sarung tangan','glove','tissue','tisu','serbet',
+           'hd sampah','trash bag','kantong sampah'],type:'Plastik'},
     // === Food — specific before generic ===
+    // Snack (before food so "pop mie" → Snack, not Raw Materials from "mie")
+    {keys:['snack','keripik','biskuit','kue','camilan','permen','cokelat',
+           'wafer','crackers','popcorn','dodol','nastar','kastengel','putri salju',
+           'roti manis','pop mie','pop mi','indomie snack'],type:'Snack'},
+    // Minuman (before Raw Materials so "susu uht" → Minuman, not from "susu")
+    {keys:['teh','kopi','coffee','jus','juice','minuman','sirup','syrup',
+           'susu uht','susu kotak','susu cair','susu','yakult','pocari','aqua','soda','cola',
+           'capuccino','latte','matcha','smoothie','milkshake'],type:'Minuman'},
     // Raw Food: protein hewani
     {keys:['ayam','chicken','daging','ikan','sapi','beef','udang','shrimp','telur','egg',
            'cumi','kepiting','kerang','lele','nila','gurame','patin','kakap','tongkol','tuna',
@@ -80,10 +90,14 @@ const KasModule = (() => {
            'jagung','daun bawang','daun sup','seledri','kemangi','genjer',
            'paprika','asparagus','rebung','jamur','champignon','enoki',
            'cabe','cabai','cabe merah','cabe rawit','cabe hijau','cabe keriting',
-           'bawang merah','bawang putih','bawang bombay','bawang pre',
+           'bawang merah','bawang putih','bawang bombay','bawang bombai','bawang pre',
            'santan','nangka','pepaya muda',
            'putren','oyong','gambas','sengon','kecipir','kluwih',
-           'kembang kol','baby corn','edamame'],type:'Sayuran'},
+           'kembang kol','baby corn','edamame',
+           'melinjo','kencur','sereh','serai','lengkuas',
+           'pakcoy','pak choy','pecay','pe cay',
+           'daun singkong','sesin','daun pisang',
+           'daun jeruk'],type:'Sayuran'},
     // Buah segar
     {keys:['buah','apel','jeruk','pisang','mangga','melon','semangka',
            'anggur','strawberry','stroberi','alpukat','nanas','pepaya','salak',
@@ -93,23 +107,19 @@ const KasModule = (() => {
     // Raw Materials: bumbu, rempah, bahan kering
     {keys:['minyak','tepung','gula','garam','kecap','saos','saus','bumbu',
            'merica','lada','pala','cengkeh','kayu manis','kunyit','kunir','jahe',
-           'lengkuas','laos','sereh','serai','daun salam','daun jeruk','daun pandan',
-           'ketumbar','jintan','kemiri','asam','terasi','petis','tauco',
-           'santan bubuk','kelapa','margarin','mentega','butter','keju','susu','cream',
+           'laos','daun salam','daun pandan',
+           'ketumbar','jintan','kemiri','kluwek','asam','terasi','petis','tauco',
+           'santan bubuk','kelapa','margarin','mentega','butter','keju','cream',
            'tahu','tempe','tempeh','oncom','kedelai',
            'beras','bihun','mie','mi','makaroni','pasta','spaghetti','roti tawar',
            'tepung terigu','tepung beras','tepung maizena','tepung sagu','tepung kanji',
            'krupuk','kerupuk','emping','rempeyek',
            'madu','selai','coklat','vanili','pewarna','pengembang',
            'cuka','mayones','mustard','sambal','bon cabe',
-           'air mineral','air galon','es batu'],type:'Raw Materials'},
-    // Minuman
-    {keys:['teh','kopi','coffee','jus','juice','minuman','sirup','syrup',
-           'susu kotak','susu cair','yakult','pocari','aqua','soda','cola',
-           'capuccino','latte','matcha','smoothie','milkshake'],type:'Minuman'},
-    // Snack
-    {keys:['snack','keripik','biskuit','kue','camilan','permen','cokelat',
-           'wafer','crackers','popcorn','dodol','nastar','kastengel','putri salju'],type:'Snack'},
+           'kwetiau','bawang goreng','kulit lumpia','kulit pangsit','soun',
+           'es batu'],type:'Raw Materials'},
+    // Lain-lain (explicit matches)
+    {keys:['isi ulang air','air galon','galon air','refill galon'],type:'Lain-lain'},
   ];
 
   function _suggestType(nama) {
