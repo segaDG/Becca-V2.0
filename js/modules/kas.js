@@ -150,11 +150,12 @@ const KasModule = (() => {
       .ks-tbl td{border:1px solid var(--border);padding:0;height:32px;background:var(--surface);vertical-align:middle;}
       .ks-tbl td .ks-cell{display:flex;align-items:center;padding:0 8px;height:32px;cursor:cell;
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
+      .ks-tbl td .ks-cell[title]{cursor:help;}
       .ks-tbl tr.ks-view:hover td{background:rgba(99,102,241,.1);cursor:pointer;}
-      .ks-tbl tr.ks-editing td{background:rgba(99,102,241,.06)!important;outline:1px solid var(--primary);outline-offset:-1px;}
+      .ks-tbl tr.ks-editing td{background:rgba(99,102,241,.08)!important;outline:2px solid var(--primary);outline-offset:-1px;box-shadow:inset 0 0 0 1px rgba(99,102,241,.15);}
       .ks-inp{width:100%;height:100%;border:none;outline:none;padding:0 6px;background:transparent;
         color:var(--text);font-size:13px;font-family:var(--font);box-sizing:border-box;min-height:32px;}
-      .ks-inp:focus{background:rgba(99,102,241,.08)}
+      .ks-inp:focus{background:rgba(99,102,241,.1);box-shadow:inset 0 -2px 0 var(--primary);}
       .ks-sel{width:100%;height:32px;border:none;outline:none;padding:0 4px;background:var(--surface3);
         color:var(--text);font-size:12px;font-family:var(--font);cursor:pointer;}
       .ks-num{text-align:right;font-family:var(--font-mono);}
@@ -166,22 +167,32 @@ const KasModule = (() => {
       .ks-del-btn{width:26px;height:26px;border:none;background:transparent;cursor:pointer;color:var(--text-3);
         border-radius:4px;display:flex;align-items:center;justify-content:center;margin:auto;transition:all .15s;}
       .ks-del-btn:hover{background:rgba(239,68,68,.15);color:var(--danger);}
-      .ks-saved{animation:ksSv .5s ease;}
-      @keyframes ksSv{0%{background:rgba(34,197,94,.25)}100%{background:transparent}}
+      .ks-saved{animation:ksSv 1.2s ease;}
+      @keyframes ksSv{0%,30%{background:rgba(34,197,94,.25)}100%{background:transparent}}
       .ks-ai-badge{font-size:9px;background:rgba(99,102,241,.2);color:var(--primary-h);
-        border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;}
+        border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;cursor:help;}
       .ks-tbl tr.ks-row-kas td{background:rgba(59,130,246,.10)!important;}
       .ks-tbl tr.ks-row-kas:hover td{background:rgba(59,130,246,.20)!important;}
-      .ks-tbl tr.ks-row-done td{background:rgba(30,40,30,.55)!important;color:rgba(220,255,220,.85)!important;}
-      .ks-tbl tr.ks-row-done:hover td{background:rgba(30,50,30,.70)!important;}
+      .ks-tbl tr.ks-row-done td{background:rgba(22,101,52,.18)!important;}
+      .ks-tbl tr.ks-row-done:hover td{background:rgba(22,101,52,.28)!important;}
       .ks-tbl tr.ks-row-done .badge{background:#16a34a!important;color:#fff!important;font-weight:700!important;}
-      .ks-tbl tr.ks-row-done .ks-cell{color:rgba(220,255,220,.85)!important;}
+      .ks-tbl tr.ks-row-done .ks-cell{color:var(--text-2)!important;}
       .ks-tbl tr.ks-row-tbc td{background:rgba(245,158,11,.10)!important;}
       .ks-tbl tr.ks-row-tbc:hover td{background:rgba(245,158,11,.20)!important;}
       .ks-tbl tr.ks-row-tbc .badge-warning{background:#d97706!important;color:#fff!important;font-weight:700!important;}
       .ks-tbl tr.ks-row-bp td{background:rgba(8,145,178,.06)!important;}
       .ks-tbl tr.ks-row-bp:hover td{background:rgba(8,145,178,.12)!important;}
       .ks-tbl tr.ks-row-bp td:first-child{border-left:3px solid #0891b2!important;}
+      .ks-action-group{display:flex;align-items:center;gap:4px;padding:2px;background:var(--surface2);border-radius:var(--r-sm);border:1px solid var(--border);}
+      .ks-act-btn{height:30px;min-width:30px;border-radius:4px;border:none;background:transparent;cursor:pointer;
+        display:flex;align-items:center;justify-content:center;gap:4px;color:var(--text-2);font-size:11px;
+        font-weight:600;transition:all .15s;padding:0 6px;white-space:nowrap;}
+      .ks-act-btn:hover{background:var(--surface3);color:var(--primary);}
+      .ks-act-btn[disabled]{opacity:.3;pointer-events:none;}
+      .ks-act-btn svg{flex-shrink:0;}
+      .ks-search-float{margin-bottom:var(--s3);overflow:hidden;transition:max-height .2s ease,opacity .2s ease;}
+      .ks-search-float.open{max-height:60px;opacity:1;}
+      .ks-search-float.closed{max-height:0;opacity:0;margin:0;}
     `;
     document.head.appendChild(s);
     // Auto-select text on focus for edit inputs
@@ -254,8 +265,8 @@ const KasModule = (() => {
     document.getElementById('kas-tab-transaksi').innerHTML = `
       <div style="margin-bottom:var(--s4)" id="kas-strip-wrap">${_summaryStrip(filtered)}<div id="kas-balance-cards" style="margin-top:var(--s3)"></div></div>
       <div class="filter-bar" style="margin-bottom:var(--s3)">
-        <input type="date" class="form-control" value="${_filter.dateFrom}" onchange="KasModule.setFilter('dateFrom',this.value)" style="width:140px">
-        <input type="date" class="form-control" value="${_filter.dateTo}"   onchange="KasModule.setFilter('dateTo',this.value)"   style="width:140px">
+        <input type="date" class="form-control" value="${_filter.dateFrom}" onchange="KasModule.setFilter('dateFrom',this.value)" style="width:140px" title="Dari tanggal">
+        <input type="date" class="form-control" value="${_filter.dateTo}"   onchange="KasModule.setFilter('dateTo',this.value)"   style="width:140px" title="Sampai tanggal">
         <select class="form-control" onchange="KasModule.setFilter('bulan',this.value)" style="width:130px">
           <option value="">Semua Bulan</option>
           ${bulanOpts.map(b=>`<option value="${b}" ${_filter.bulan===b?'selected':''}>${b}</option>`).join('')}
@@ -270,36 +281,30 @@ const KasModule = (() => {
           <option value="TBC"  ${_filter.status==='TBC' ?'selected':''}>TBC</option>
           <option value="-"    ${_filter.status==='-'   ?'selected':''}>- (Kosong)</option>
         </select>
-        <button id="kas-search-btn" onclick="KasModule.toggleSearch()" title="Cari (Ctrl+F)"
-          style="height:34px;width:34px;min-width:34px;border-radius:var(--r-sm);border:1px solid ${_filter.search?'var(--primary)':'var(--border2)'};background:${_filter.search?'rgba(99,102,241,.12)':'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;color:${_filter.search?'var(--primary)':'var(--text-2)'};transition:all .15s;position:relative"
-          onmouseover="this.style.background='rgba(99,102,241,.1)';this.style.color='var(--primary)';this.style.borderColor='var(--primary)'"
-          onmouseout="this.style.background='${_filter.search?'rgba(99,102,241,.12)':'transparent'}';this.style.color='${_filter.search?'var(--primary)':'var(--text-2)'}';this.style.borderColor='${_filter.search?'var(--primary)':'var(--border2)'}'">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          ${_filter.search?'<div style="position:absolute;top:-3px;right:-3px;width:8px;height:8px;border-radius:50%;background:var(--primary)"></div>':''}
-        </button>
-        <button id="kas-reset-btn" onclick="KasModule.resetFilter()" title="Reset Filter" class="filter-reset-btn">↺</button>
-        <button onclick="UndoRedo.undo('kas')" title="Undo (Ctrl+Z)"
-          style="height:34px;width:34px;min-width:34px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:14px;transition:all .15s;${UndoRedo.canUndo('kas')?'':'opacity:.3;pointer-events:none'}"
-          onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">↩</button>
-        <button onclick="UndoRedo.redo('kas')" title="Redo (Ctrl+Shift+Z)"
-          style="height:34px;width:34px;min-width:34px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:14px;transition:all .15s;${UndoRedo.canRedo('kas')?'':'opacity:.3;pointer-events:none'}"
-          onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">↪</button>
-        <button onclick="KasModule.reArrange()" title="Urutkan berdasarkan tanggal"
-          style="height:34px;padding:0 10px;border-radius:var(--r-sm);
-                 border:1px solid var(--border2);background:transparent;
-                 cursor:pointer;display:flex;align-items:center;gap:4px;
-                 color:var(--text-2);font-size:11px;font-weight:600;transition:all .15s;white-space:nowrap"
-          onmouseover="this.style.background='rgba(99,102,241,.1)';this.style.color='var(--primary)';this.style.borderColor='var(--primary)'"
-          onmouseout="this.style.background='transparent';this.style.color='var(--text-2)';this.style.borderColor='var(--border2)'">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 6h18M3 12h12M3 18h6"/></svg>
-          Re-arrange
-        </button>
-        <span class="text-muted text-small" style="margin-left:auto">${total} baris${_filter.search?` · "${_filter.search}"`:''}</span>
+
+        <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+          <div class="ks-action-group">
+            <button class="ks-act-btn${_filter.search?' active':''}" onclick="KasModule.toggleSearch()" title="Cari data (Ctrl+F)" style="${_filter.search?'color:var(--primary);background:rgba(99,102,241,.12)':''}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
+            <button class="ks-act-btn" onclick="UndoRedo.undo('kas')" title="Undo (Ctrl+Z)" ${UndoRedo.canUndo('kas')?'':'disabled'}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 10h13a4 4 0 010 8H7"/><path d="M7 6l-4 4 4 4"/></svg>
+            </button>
+            <button class="ks-act-btn" onclick="UndoRedo.redo('kas')" title="Redo (Ctrl+Shift+Z)" ${UndoRedo.canRedo('kas')?'':'disabled'}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10H8a4 4 0 000 8h9"/><path d="M17 6l4 4-4 4"/></svg>
+            </button>
+            <button class="ks-act-btn" onclick="KasModule.reArrange()" title="Urutkan berdasarkan tanggal">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 6h18M3 12h12M3 18h6"/></svg>
+            </button>
+          </div>
+          <button id="kas-reset-btn" onclick="KasModule.resetFilter()" title="Reset semua filter" class="filter-reset-btn">↺</button>
+          <span class="text-muted text-small">${total} baris${_filter.search?` · "${_filter.search}"`:''}</span>
+        </div>
       </div>
 
       <!-- Floating Search Bar -->
-      <div id="kas-search-bar" style="display:none;margin-bottom:var(--s3);position:relative">
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border:1px solid var(--primary);border-radius:var(--r-lg);box-shadow:0 4px 16px rgba(0,0,0,.1)">
+      <div id="kas-search-bar" class="ks-search-float closed">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border:1px solid var(--primary);border-radius:var(--r-lg);box-shadow:0 4px 16px rgba(0,0,0,.08)">
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" width="16" height="16" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input type="text" id="kas-search-input" class="form-control"
             value="${_filter.search||''}"
@@ -308,11 +313,13 @@ const KasModule = (() => {
             oninput="KasModule.setFilter('search',this.value)"
             onkeydown="if(event.key==='Escape'){KasModule.toggleSearch()}">
           ${_filter.search?`<button onclick="KasModule.setFilter('search','');document.getElementById('kas-search-input').value=''" title="Hapus pencarian"
-            style="width:22px;height:22px;border-radius:50%;border:none;background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:12px;flex-shrink:0;transition:all .15s"
+            style="width:24px;height:24px;border-radius:50%;border:none;background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:12px;flex-shrink:0;transition:all .15s"
             onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='var(--surface2)';this.style.color='var(--text-3)'">✕</button>`:''}
           <button onclick="KasModule.toggleSearch()" title="Tutup pencarian"
-            style="width:22px;height:22px;border-radius:50%;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:16px;flex-shrink:0"
-            onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-3)'">↑</button>
+            style="width:24px;height:24px;border-radius:50%;border:none;background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);flex-shrink:0;transition:all .15s"
+            onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='var(--surface2)';this.style.color='var(--text-3)'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
         </div>
       </div>
 
@@ -339,7 +346,7 @@ const KasModule = (() => {
             </th>
             <th style="width:108px">Tanggal</th>
             <th style="min-width:180px">Nama / Keterangan</th>
-            <th style="width:130px">Type <span class="ks-ai-badge">AI</span></th>
+            <th style="width:130px">Type <span class="ks-ai-badge" title="Otomatis terisi berdasarkan nama barang">AI</span></th>
             <th style="width:110px">Vendor</th>
             <th style="width:55px" class="ks-num">Qty</th>
             <th style="width:55px">Sat</th>
@@ -347,7 +354,7 @@ const KasModule = (() => {
             <th style="width:115px" class="ks-num">Total (Rp)</th>
             <th style="width:100px">Penerima</th>
             <th style="width:75px">Status</th>
-            ${canEdit ? '<th style="width:32px"></th>' : ''}
+            ${canEdit ? '<th style="width:58px"></th>' : ''}
             ${canEdit ? `<th style="width:28px;padding:0;text-align:center"><input type="checkbox" title="Pilih semua" onchange="KasModule._bulkToggleAll(this.checked)" style="cursor:pointer"></th>` : ''}
           </tr></thead>
           <tbody id="kas-tbody">
@@ -382,14 +389,14 @@ const KasModule = (() => {
         </div>
       </td>
       <td data-field="ks-tgl-${r.id}" style="white-space:nowrap"><div class="ks-cell">${r.tgl ? r.tgl.split('-').reverse().join('-') : ''}</div></td>
-      <td data-field="ks-nama-${r.id}"><div class="ks-cell">${r.nama||''}${isBP?'<span style="font-size:8px;background:rgba(8,145,178,.15);color:#0891b2;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">PASAR</span>':''}</div></td>
+      <td data-field="ks-nama-${r.id}"><div class="ks-cell" ${r.nama?`title="${(r.nama||'').replace(/"/g,'&quot;')}${r.penerima?' → '+r.penerima:''}"`:''}>${r.nama||''}${isBP?'<span style="font-size:8px;background:rgba(8,145,178,.15);color:#0891b2;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">PASAR</span>':''}</div></td>
       <td data-field="ks-type-${r.id}"><div class="ks-cell"><span class="badge badge-neutral" style="font-size:10px">${r.type||''}</span></div></td>
-      <td data-field="ks-vendor-${r.id}"><div class="ks-cell">${r.vendor||''}</div></td>
+      <td data-field="ks-vendor-${r.id}"><div class="ks-cell" ${r.vendor?`title="${(r.vendor||'').replace(/"/g,'&quot;')}"`:''}>${r.vendor||''}</div></td>
       <td data-field="ks-qty-${r.id}" class="ks-num"><div class="ks-cell">${(r.qty||0)%1===0?(r.qty||0):parseFloat((r.qty||0).toFixed(2))}</div></td>
       <td data-field="ks-sat-${r.id}"><div class="ks-cell">${r.satuan||''}</div></td>
       <td data-field="ks-harga-${r.id}" class="ks-num"><div class="ks-cell">${Utils.formatRupiah(r.hargaSatuan||0)}</div></td>
       <td data-field="ks-jumlah-${r.id}" class="ks-num"><div class="ks-cell"><strong>${Utils.formatRupiah(r.jumlah||0)}</strong></div></td>
-      <td data-field="ks-penerima-${r.id}"><div class="ks-cell">${r.penerima||''}</div></td>
+      <td data-field="ks-penerima-${r.id}"><div class="ks-cell" ${r.penerima?`title="${(r.penerima||'').replace(/"/g,'&quot;')}"`:''}>${r.penerima||''}</div></td>
       <td data-field="ks-status-${r.id}"><div class="ks-cell"><span class="badge ${sc}" style="font-size:10px">${r.status||''}</span></div></td>
       ${canEdit?`<td>
         <div style='display:flex;gap:2px;align-items:center'>
@@ -448,11 +455,16 @@ const KasModule = (() => {
             onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
       <td><select class="ks-sel" id="ks-status-${r.id}"
             onkeydown="KasModule._rowKeyDown(event,'${r.id}')">${statusOpts}</select></td>
-      ${canEdit?`<td><button class="ks-del-btn" style="color:var(--success);border:1px solid var(--success)"
-          onclick="event.stopPropagation();KasModule.commitEdit('${r.id}')" title="Simpan">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-            <polyline points="20,6 9,17 4,12"/>
-          </svg></button></td>`:''}
+      ${canEdit?`<td><div style="display:flex;gap:2px;justify-content:center">
+          <button class="ks-del-btn" style="color:var(--success);border:1px solid var(--success)"
+            onclick="event.stopPropagation();KasModule.commitEdit('${r.id}')" title="Simpan (Enter)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <polyline points="20,6 9,17 4,12"/></svg></button>
+          <button class="ks-del-btn" style="color:var(--danger);border:1px solid rgba(239,68,68,.3)"
+            onclick="event.stopPropagation();KasModule.cancelEdit()" title="Batal (Esc)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <path d="M18 6L6 18M6 6l12 12"/></svg></button>
+        </div></td>`:''}
       ${canEdit?'<td style="width:28px"></td>':''}
     </tr>`;
   }
@@ -511,6 +523,9 @@ const KasModule = (() => {
       </div>`;
     }).join('');
     document.body.appendChild(drop);
+    // Auto-highlight first item so Enter immediately selects it
+    _acIdx = 0;
+    _highlightAc(drop.querySelectorAll('.ks-ac-item'));
 
     // Close on blur (delayed to allow mousedown on suggestion)
     inp._acBlur = () => setTimeout(() => drop.remove(), 150);
@@ -831,9 +846,15 @@ const KasModule = (() => {
   }
 
   async function deleteRow(id) {
-    if (_editingId===id) { document.removeEventListener('click',_handleOutsideClick); _editingId=null; }
     const deleted = _kas.find(r=>r.id===id);
     if (!deleted) return;
+    const ok = await Modal.confirm({
+      title: 'Hapus Transaksi',
+      message: `<p>Hapus "<strong>${deleted.nama||'-'}</strong>" — ${Utils.formatRupiah(deleted.jumlah||0)}?</p>`,
+      confirmText: 'Hapus', confirmClass: 'btn-danger', cancelText: 'Batal'
+    });
+    if (!ok) return;
+    if (_editingId===id) { document.removeEventListener('click',_handleOutsideClick); _editingId=null; }
     _kas = _kas.filter(r=>r.id!==id);
     UndoRedo.push('kas', {
       id, before: deleted, after: null,
@@ -875,7 +896,7 @@ const KasModule = (() => {
   }
   function setFilter(k,v){ if(_editingId)commitEdit(_editingId); _filter[k]=v; _page=1; renderTransaksi();
     // Keep search bar open & refocus after re-render
-    if (k==='search') { const sb=document.getElementById('kas-search-bar'); if(sb) sb.style.display=''; const inp=document.getElementById('kas-search-input'); if(inp){inp.focus();inp.selectionStart=inp.selectionEnd=inp.value.length;} }
+    if (k==='search') { const sb=document.getElementById('kas-search-bar'); if(sb){sb.classList.remove('closed');sb.classList.add('open');} const inp=document.getElementById('kas-search-input'); if(inp){inp.focus();inp.selectionStart=inp.selectionEnd=inp.value.length;} }
   }
   function resetFilter() {
     const btn = document.getElementById('kas-reset-btn');
@@ -885,10 +906,14 @@ const KasModule = (() => {
   function toggleSearch() {
     const bar = document.getElementById('kas-search-bar');
     if (!bar) return;
-    const isHidden = bar.style.display === 'none';
-    bar.style.display = isHidden ? '' : 'none';
-    if (isHidden) { const inp=document.getElementById('kas-search-input'); if(inp){inp.focus();inp.select();} }
-    else if (_filter.search) { _filter.search=''; _page=1; renderTransaksi(); }
+    const isOpen = bar.classList.contains('open');
+    if (isOpen) {
+      bar.classList.remove('open'); bar.classList.add('closed');
+      if (_filter.search) { _filter.search=''; _page=1; renderTransaksi(); }
+    } else {
+      bar.classList.remove('closed'); bar.classList.add('open');
+      const inp=document.getElementById('kas-search-input'); if(inp){inp.focus();inp.select();}
+    }
   }
   function goPage(p)      { if(_editingId)commitEdit(_editingId); _page=p; renderTransaksi(); }
   function setPerPage(n)  { _perPage=n; localStorage.setItem('becca_kas_perPage',n); _page=1; renderTransaksi(); }
@@ -1783,8 +1808,12 @@ const KasModule = (() => {
             <div style="font-size:20px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
           </div>`).join('')}
       </div>
+      <div style="padding:8px 14px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:var(--r-md);margin-bottom:var(--s4);display:flex;align-items:center;gap:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" width="16" height="16" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span style="font-size:11px;color:var(--text-2)">Cash flow hanya menghitung transaksi dengan status <strong>DONE</strong>. Transaksi TBC/pending tidak termasuk agar laporan mencerminkan arus kas aktual yang sudah terkonfirmasi.</span>
+      </div>
       <div class="table-wrapper"><div class="table-scroll"><table class="table">
-        <thead><tr><th>Tanggal</th><th class="num" style="color:var(--success)">Kas Masuk</th><th class="num" style="color:var(--danger)">Kas Keluar</th><th class="num">Net</th><th class="num">Balance</th></tr></thead>
+        <thead><tr><th>Tanggal</th><th class="num" style="color:var(--success)">Kas Masuk</th><th class="num" style="color:var(--danger)">Kas Keluar (DONE)</th><th class="num">Net</th><th class="num">Balance</th></tr></thead>
         <tbody>${rows.map(r=>{const n=r.m-r.k;return`<tr><td style="white-space:nowrap">${Utils.formatDate(r.tgl,'dd mmm yyyy')}</td><td class="num" style="color:var(--success)">${r.m?Utils.formatRupiah(r.m):'-'}</td><td class="num" style="color:var(--danger)">${r.k?Utils.formatRupiah(r.k):'-'}</td><td class="num" style="color:${n>=0?'var(--success)':'var(--danger)'};font-weight:600">${n?Utils.formatRupiah(Math.abs(n)):'-'}</td><td class="num"><strong style="color:${r.bal>=0?'var(--text)':'var(--danger)'}">${Utils.formatRupiah(r.bal)}</strong></td></tr>`;}).join('')}</tbody>
       </table></div></div>`;
   }
@@ -1895,7 +1924,8 @@ const KasModule = (() => {
     function _renderMasukTable(rows) {
       if (!rows.length) return UI.empty({iconKey:'chart', title:'Tidak ada data pada periode ini'});
       const total = rows.reduce((s,r)=>s+(r.kredit||0),0);
-      return '<div class="table-scroll"><table class="table" style="font-size:12px">'
+      return '<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">' + rows.length + ' transaksi</div>'
+        + '<div class="table-scroll" style="max-height:400px;overflow-y:auto"><table class="table" style="font-size:12px">'
         + '<thead><tr><th>Tanggal</th><th>Keterangan</th><th class="num">Jumlah</th></tr></thead>'
         + '<tbody>'
         + rows.map(r =>
