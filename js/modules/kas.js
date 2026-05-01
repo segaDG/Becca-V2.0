@@ -1206,24 +1206,29 @@ const KasModule = (() => {
         <select class="form-control" style="width:160px" onchange="KasModule.renderMonthlyTable(this.value)">
           ${opts.map(b=>`<option value="${b}" ${b===sel?'selected':''}>${_bulanLabel(b)}</option>`).join('')}
         </select>
-        <button class="btn btn-ghost btn-sm" onclick="window.print()">Print / PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="KasModule.printMonthly()">Print / PDF</button>
       </div>
       <div id="monthly-table-wrap"></div>`;
     renderMonthlyTable(sel);
   }
 
   function renderMonthlyTable(bulan) {
-    const rows   = _kas.filter(r => _normalizeBulan(r.bulan) === bulan);
+    const allRows = _kas.filter(r => _normalizeBulan(r.bulan) === bulan);
+    // Separate kas masuk vs pengeluaran
+    const kasMasuk = allRows.filter(r => r.type === 'Kas');
+    const rows     = allRows.filter(r => r.type !== 'Kas'); // pengeluaran only
     const byType = {};
     rows.forEach(r => {
       const t = r.type || 'Lain-lain';
       if (!byType[t]) byType[t] = [];
       byType[t].push(r);
     });
-    const grand      = rows.reduce((s,r) => s+( r.jumlah||0), 0);
+    const totalMasuk = kasMasuk.reduce((s,r) => s+(r.jumlah||0), 0);
+    const grand      = rows.reduce((s,r) => s+(r.jumlah||0), 0);
     const grandDone  = rows.filter(r=>r.status==='DONE').reduce((s,r)=>s+(r.jumlah||0),0);
     const grandTBC   = rows.filter(r=>r.status==='TBC').reduce((s,r)=>s+(r.jumlah||0),0);
     const saldoAwal  = _saldoAwal;
+    const saldoAkhir = saldoAwal + totalMasuk - grand;
     const bulanLabel = _bulanLabel(bulan);
 
     const typesSorted = Object.entries(byType)
@@ -1231,7 +1236,6 @@ const KasModule = (() => {
       .sort((a,b) => b.total - a.total);
 
     document.getElementById('monthly-table-wrap').innerHTML = `
-      <!-- Print Header -->
       <div id="monthly-report" style="font-family:var(--font)">
 
         <!-- Title Bar -->
@@ -1239,7 +1243,7 @@ const KasModule = (() => {
                     padding:16px 20px;background:var(--surface);border:1px solid var(--border);
                     border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:none">
           <div>
-            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:2px">Laporan Kas Kecil</div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:2px">Laporan Kas Kecil Bulanan</div>
             <div style="font-size:22px;font-weight:700;color:var(--heading)">${bulanLabel}</div>
           </div>
           <div style="text-align:right">
@@ -1249,20 +1253,46 @@ const KasModule = (() => {
         </div>
 
         <!-- Summary Cards -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;
-                    border:1px solid var(--border);border-top:none;border-radius:0;overflow:hidden">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0;
+                    border:1px solid var(--border);border-top:none;overflow:hidden">
           ${[
-            {l:'Saldo Awal',  v:Utils.formatRupiah(saldoAwal),  c:'var(--primary-h)'},
-            {l:'Confirmed',   v:Utils.formatRupiah(grandDone),  c:'var(--success)'},
-            {l:'TBC / Pending',v:Utils.formatRupiah(grandTBC),  c:'var(--warning)'},
-            {l:'Kategori',    v:Object.keys(byType).length+' jenis', c:'var(--text-2)'},
+            {l:'Saldo Awal',     v:Utils.formatRupiah(saldoAwal),  c:'var(--primary-h)'},
+            {l:'Kas Masuk',      v:Utils.formatRupiah(totalMasuk), c:'var(--success)'},
+            {l:'Kas Keluar',     v:Utils.formatRupiah(grand),      c:'var(--danger)'},
+            {l:'Confirmed',      v:Utils.formatRupiah(grandDone),  c:'var(--success)'},
+            {l:'TBC / Pending',  v:Utils.formatRupiah(grandTBC),   c:'var(--warning)'},
+            {l:'Saldo Akhir',    v:Utils.formatRupiah(saldoAkhir), c:saldoAkhir>=0?'var(--success)':'var(--danger)'},
           ].map((s,i) => `
             <div style="padding:12px 16px;background:var(--surface);
                         ${i>0?'border-left:1px solid var(--border)':''}">
               <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:3px">${s.l}</div>
-              <div style="font-size:16px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
+              <div style="font-size:14px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
             </div>`).join('')}
         </div>
+
+        <!-- Kas Masuk Section -->
+        ${totalMasuk > 0 ? `
+        <div style="border:1px solid var(--border);border-top:none;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(16,185,129,.06)">
+            <span style="font-size:13px;font-weight:700;color:var(--success)">Kas Masuk (Dana Diterima)</span>
+            <span style="font-size:14px;font-weight:700;color:var(--success);font-family:var(--font-mono)">${Utils.formatRupiah(totalMasuk)}</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:var(--surface3)">
+              <th style="padding:6px 12px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text-3)">Tanggal</th>
+              <th style="padding:6px 12px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text-3)">Keterangan</th>
+              <th style="padding:6px 12px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text-3)">Vendor</th>
+              <th style="padding:6px 12px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--text-3)">Jumlah</th>
+            </tr></thead>
+            <tbody>${kasMasuk.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).map((r,i) => `
+              <tr style="background:${i%2?'var(--surface2)':'var(--surface)'}">
+                <td style="padding:7px 12px;color:var(--text-2)">${r.tgl?r.tgl.split('-').reverse().join('-'):'-'}</td>
+                <td style="padding:7px 12px;font-weight:500">${r.nama||'-'}</td>
+                <td style="padding:7px 12px;color:var(--text-3)">${r.vendor||'-'}</td>
+                <td style="padding:7px 12px;text-align:right;font-family:var(--font-mono);font-weight:600;color:var(--success)">${Utils.formatRupiah(r.jumlah||0)}</td>
+              </tr>`).join('')}</tbody>
+          </table>
+        </div>` : ''}
 
         <!-- Detail per Kategori -->
         <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r-lg) var(--r-lg);overflow:hidden">
@@ -1340,14 +1370,74 @@ const KasModule = (() => {
           <!-- Grand Total Footer -->
           <div style="display:flex;justify-content:space-between;align-items:center;
                       padding:14px 20px;background:var(--surface);border-top:2px solid var(--border2)">
-            <div style="font-size:13px;font-weight:700;color:var(--heading)">GRAND TOTAL — ${bulanLabel}</div>
+            <div style="font-size:13px;font-weight:700;color:var(--heading)">TOTAL PENGELUARAN — ${bulanLabel}</div>
             <div style="font-family:var(--font-mono);font-size:20px;font-weight:800;color:var(--danger)">${Utils.formatRupiah(grand)}</div>
           </div>
+        </div>
+
+        <!-- ANALISA LAPORAN -->
+        <div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px">
+          <div style="font-size:13px;font-weight:700;color:var(--heading);margin-bottom:12px">Analisa Laporan ${bulanLabel}</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px">
+            <tbody>
+              <tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:8px 0;color:var(--text-3)">Saldo Awal</td>
+                <td style="padding:8px 0;text-align:right;font-family:var(--font-mono);font-weight:600">${Utils.formatRupiah(saldoAwal)}</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:8px 0;color:var(--success)">+ Kas Masuk (${kasMasuk.length} transaksi)</td>
+                <td style="padding:8px 0;text-align:right;font-family:var(--font-mono);font-weight:600;color:var(--success)">${Utils.formatRupiah(totalMasuk)}</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:8px 0;color:var(--danger)">− Kas Keluar (${rows.length} transaksi, ${Object.keys(byType).length} kategori)</td>
+                <td style="padding:8px 0;text-align:right;font-family:var(--font-mono);font-weight:600;color:var(--danger)">${Utils.formatRupiah(grand)}</td>
+              </tr>
+              <tr style="border-top:2px solid var(--border)">
+                <td style="padding:10px 0;font-weight:700;font-size:13px;color:var(--heading)">Saldo Akhir</td>
+                <td style="padding:10px 0;text-align:right;font-family:var(--font-mono);font-weight:800;font-size:16px;color:${saldoAkhir>=0?'var(--success)':'var(--danger)'}">${Utils.formatRupiah(saldoAkhir)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <!-- Top 3 kategori terbesar -->
+          <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Kategori Pengeluaran Terbesar</div>
+          ${typesSorted.slice(0,5).map((t,i) => {
+            const pct = grand > 0 ? (t.total/grand*100).toFixed(1) : 0;
+            return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <span style="font-size:11px;font-weight:700;color:var(--text-3);width:18px">${i+1}.</span>
+              <span style="font-size:12px;font-weight:600;flex:1">${t.type}</span>
+              <div style="width:100px;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden">
+                <div style="width:${pct}%;height:100%;background:var(--primary);border-radius:3px"></div>
+              </div>
+              <span style="font-size:11px;font-family:var(--font-mono);color:var(--text-2);min-width:90px;text-align:right">${Utils.formatRupiah(t.total)}</span>
+              <span style="font-size:10px;color:var(--text-3);min-width:35px;text-align:right">${pct}%</span>
+            </div>`;
+          }).join('')}
+          ${grandTBC > 0 ? `<div style="margin-top:12px;padding:8px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:6px;font-size:11px;color:var(--warning)">⚠ Masih ada ${rows.filter(r=>r.status==='TBC').length} transaksi TBC senilai ${Utils.formatRupiah(grandTBC)} yang belum dikonfirmasi.</div>` : ''}
         </div>
       </div>
     `;
   }
 
+
+  function printMonthly() {
+    const el = document.getElementById('monthly-report');
+    if (!el) { Notify.warning('Buat report dulu'); return; }
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>Laporan Kas Kecil</title>
+      <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;padding:20px;color:#1e293b;font-size:12px}
+        table{width:100%;border-collapse:collapse}
+        th,td{padding:6px 10px;border:1px solid #e2e8f0;font-size:11px}
+        th{background:#1e293b;color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.05em}
+        @page{size:landscape;margin:10mm}
+        @media print{body{padding:0}}
+      </style>
+    </head><body>${el.innerHTML}
+    <script>setTimeout(()=>{window.print()},300)<\/script>
+    </body></html>`);
+    win.document.close();
+  }
 
   /* ===================== CASH FLOW ===================== */
   function renderCashflow() {
@@ -1926,6 +2016,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
+  return { init, switchTab, setFilter, resetFilter, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
 })();
 window.KasModule = KasModule;
