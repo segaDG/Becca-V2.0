@@ -163,14 +163,15 @@ const KasModule = (() => {
       }
     }
 
+    const rcMid = 'rc-result-' + Date.now();
     if (!toUpdate.length) {
-      Modal.open({ title:'Re-Classify Selesai', size:'modal-sm',
+      Modal.open({ id: rcMid, title:'Re-Classify Selesai', size:'modal-sm',
         body:`<div style="text-align:center;padding:16px 0">
           <div style="font-size:36px;margin-bottom:8px">✅</div>
           <div style="font-size:14px;font-weight:600;color:var(--heading)">Semua type sudah sesuai</div>
           <div style="font-size:12px;color:var(--text-3);margin-top:4px">${unchanged} data diperiksa — tidak ada perubahan</div>
         </div>`,
-        footer:`<button class="btn btn-primary btn-sm" onclick="Modal.close()">OK</button>`
+        footer:`<button class="btn btn-primary btn-sm" onclick="Modal.close('${rcMid}')">OK</button>`
       });
       return;
     }
@@ -191,7 +192,7 @@ const KasModule = (() => {
     renderTransaksi();
     DB.logActivity({ type: 'reclassify_kas', detail: `Re-classify type: ${changed} diubah, ${unchanged} tetap, ${errors} error` });
 
-    Modal.open({ title:'Re-Classify Selesai', size:'modal-sm',
+    Modal.open({ id: rcMid, title:'Re-Classify Selesai', size:'modal-sm',
       body:`<div style="padding:8px 0">
         <div style="display:grid;grid-template-columns:1fr 1fr ${errors?'1fr':''};gap:12px;margin-bottom:16px">
           <div style="text-align:center;padding:12px;background:rgba(99,102,241,.06);border-radius:8px">
@@ -216,7 +217,7 @@ const KasModule = (() => {
           <tbody>${typeSummary}</tbody>
         </table>
       </div>`,
-      footer:`<button class="btn btn-primary btn-sm" onclick="Modal.close()">OK</button>`
+      footer:`<button class="btn btn-primary btn-sm" onclick="Modal.close('${rcMid}')">OK</button>`
     });
   }
 
