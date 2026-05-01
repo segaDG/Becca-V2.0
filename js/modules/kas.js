@@ -1326,6 +1326,7 @@ const KasModule = (() => {
                     <tr style="background:var(--surface3)">
                       <th style="padding:6px 12px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase;white-space:nowrap;width:90px">Tanggal</th>
                       <th style="padding:6px 12px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase">Nama / Keterangan</th>
+                      <th style="padding:6px 12px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase;white-space:nowrap">Kategori</th>
                       <th style="padding:6px 12px;text-align:left;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase;white-space:nowrap">Vendor</th>
                       <th style="padding:6px 12px;text-align:right;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase;white-space:nowrap">Qty × Sat</th>
                       <th style="padding:6px 12px;text-align:right;font-weight:600;color:var(--text-3);font-size:10px;text-transform:uppercase;white-space:nowrap">Harga/Sat</th>
@@ -1341,6 +1342,7 @@ const KasModule = (() => {
                           <div style="font-weight:500;color:var(--text)">${r.nama||'-'}</div>
                           ${r.penerima?`<div style="font-size:10px;color:var(--text-3)">→ ${r.penerima}</div>`:''}
                         </td>
+                        <td style="padding:7px 12px"><span style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--surface2);color:var(--text-2);font-weight:500">${r.type||'-'}</span></td>
                         <td style="padding:7px 12px;color:var(--text-3)">${r.vendor||'-'}</td>
                         <td style="padding:7px 12px;text-align:right;font-family:var(--font-mono);color:var(--text-2)">${r.qty||1} ${r.satuan||''}</td>
                         <td style="padding:7px 12px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${Utils.formatRupiah(r.hargaSatuan||0)}</td>
@@ -1355,7 +1357,7 @@ const KasModule = (() => {
                       </tr>`).join('')}
                     <!-- Subtotal row -->
                     <tr style="background:var(--surface3);border-top:1px solid var(--border)">
-                      <td colspan="5" style="padding:7px 12px;font-weight:700;color:var(--text-2);font-size:11px">
+                      <td colspan="6" style="padding:7px 12px;font-weight:700;color:var(--text-2);font-size:11px">
                         Subtotal ${type}
                       </td>
                       <td style="padding:7px 12px;text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--danger)">${Utils.formatRupiah(total)}</td>
@@ -1376,53 +1378,335 @@ const KasModule = (() => {
         </div>
 
         <!-- ANALISA LAPORAN -->
-        <div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px">
-          <div style="font-size:13px;font-weight:700;color:var(--heading);margin-bottom:12px">Analisa Laporan ${bulanLabel}</div>
-          <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px">
-            <tbody>
-              <tr style="border-bottom:1px solid var(--border)">
-                <td style="padding:8px 0;color:var(--text-3)">Saldo Awal</td>
-                <td style="padding:8px 0;text-align:right;font-family:var(--font-mono);font-weight:600">${Utils.formatRupiah(saldoAwal)}</td>
-              </tr>
-              <tr style="border-bottom:1px solid var(--border)">
-                <td style="padding:8px 0;color:var(--success)">+ Kas Masuk (${kasMasuk.length} transaksi)</td>
-                <td style="padding:8px 0;text-align:right;font-family:var(--font-mono);font-weight:600;color:var(--success)">${Utils.formatRupiah(totalMasuk)}</td>
-              </tr>
-              <tr style="border-bottom:1px solid var(--border)">
-                <td style="padding:8px 0;color:var(--danger)">− Kas Keluar (${rows.length} transaksi, ${Object.keys(byType).length} kategori)</td>
-                <td style="padding:8px 0;text-align:right;font-family:var(--font-mono);font-weight:600;color:var(--danger)">${Utils.formatRupiah(grand)}</td>
-              </tr>
-              <tr style="border-top:2px solid var(--border)">
-                <td style="padding:10px 0;font-weight:700;font-size:13px;color:var(--heading)">Saldo Akhir</td>
-                <td style="padding:10px 0;text-align:right;font-family:var(--font-mono);font-weight:800;font-size:16px;color:${saldoAkhir>=0?'var(--success)':'var(--danger)'}">${Utils.formatRupiah(saldoAkhir)}</td>
-              </tr>
-            </tbody>
-          </table>
-          <!-- Top 3 kategori terbesar -->
-          <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Kategori Pengeluaran Terbesar</div>
-          ${typesSorted.slice(0,5).map((t,i) => {
-            const pct = grand > 0 ? (t.total/grand*100).toFixed(1) : 0;
-            return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-              <span style="font-size:11px;font-weight:700;color:var(--text-3);width:18px">${i+1}.</span>
-              <span style="font-size:12px;font-weight:600;flex:1">${t.type}</span>
-              <div style="width:100px;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden">
-                <div style="width:${pct}%;height:100%;background:var(--primary);border-radius:3px"></div>
-              </div>
-              <span style="font-size:11px;font-family:var(--font-mono);color:var(--text-2);min-width:90px;text-align:right">${Utils.formatRupiah(t.total)}</span>
-              <span style="font-size:10px;color:var(--text-3);min-width:35px;text-align:right">${pct}%</span>
-            </div>`;
-          }).join('')}
-          ${grandTBC > 0 ? `<div style="margin-top:12px;padding:8px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:6px;font-size:11px;color:var(--warning)">⚠ Masih ada ${rows.filter(r=>r.status==='TBC').length} transaksi TBC senilai ${Utils.formatRupiah(grandTBC)} yang belum dikonfirmasi.</div>` : ''}
-        </div>
+        ${_buildAnalysis({rows, kasMasuk, byType, typesSorted, grand, grandDone, grandTBC, totalMasuk, saldoAwal, saldoAkhir, bulanLabel, bulan})}
       </div>
     `;
   }
 
 
+  /* ===================== ANALISA DETAIL ===================== */
+  function _buildAnalysis({rows, kasMasuk, byType, typesSorted, grand, grandDone, grandTBC, totalMasuk, saldoAwal, saldoAkhir, bulanLabel, bulan}) {
+    const fR = Utils.formatRupiah;
+    const _sec = (title, body) => `<div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+      <div style="padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface2)">
+        <div style="font-size:13px;font-weight:700;color:var(--heading)">${title}</div>
+      </div><div style="padding:16px 20px">${body}</div></div>`;
+
+    // ── 1. RINGKASAN KEUANGAN ──
+    const summaryRows = [
+      {l:'Saldo Awal', v:fR(saldoAwal), c:''},
+      {l:`+ Kas Masuk (${kasMasuk.length} transaksi)`, v:fR(totalMasuk), c:'var(--success)'},
+      {l:`− Kas Keluar (${rows.length} transaksi, ${Object.keys(byType).length} kategori)`, v:fR(grand), c:'var(--danger)'},
+      {l:`  ├ Confirmed (DONE)`, v:fR(grandDone), c:'var(--success)'},
+      {l:`  └ Pending (TBC)`, v:fR(grandTBC), c:'var(--warning)'},
+    ];
+    const summaryHtml = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>${summaryRows.map(r => `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 0;color:${r.c||'var(--text-3)'}">${r.l}</td>
+        <td style="padding:8px 0;text-align:right;font-family:var(--font-mono);font-weight:600;color:${r.c||'var(--text)'}">${r.v}</td>
+      </tr>`).join('')}
+      <tr style="border-top:2px solid var(--border)">
+        <td style="padding:10px 0;font-weight:700;font-size:13px;color:var(--heading)">Saldo Akhir</td>
+        <td style="padding:10px 0;text-align:right;font-family:var(--font-mono);font-weight:800;font-size:16px;color:${saldoAkhir>=0?'var(--success)':'var(--danger)'}">${fR(saldoAkhir)}</td>
+      </tr></tbody></table>
+      ${grandTBC > 0 ? `<div style="margin-top:12px;padding:8px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:6px;font-size:11px;color:var(--warning)">⚠ Masih ada ${rows.filter(r=>r.status==='TBC').length} transaksi TBC senilai ${fR(grandTBC)} yang belum dikonfirmasi.</div>` : ''}`;
+
+    // ── 2. DISTRIBUSI KATEGORI ──
+    const catHtml = typesSorted.map((t,i) => {
+      const pct = grand > 0 ? (t.total/grand*100).toFixed(1) : 0;
+      const avgPerTx = t.items.length > 0 ? Math.round(t.total/t.items.length) : 0;
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:700;color:var(--text-3);width:18px">${i+1}.</span>
+        <span style="font-size:12px;font-weight:600;min-width:110px">${t.type}</span>
+        <span style="font-size:10px;color:var(--text-3);min-width:40px">${t.items.length} tx</span>
+        <div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:var(--primary);border-radius:3px"></div>
+        </div>
+        <span style="font-size:11px;font-family:var(--font-mono);color:var(--text-2);min-width:100px;text-align:right">${fR(t.total)}</span>
+        <span style="font-size:10px;color:var(--text-3);min-width:35px;text-align:right">${pct}%</span>
+        <span style="font-size:10px;color:var(--text-3);min-width:90px;text-align:right">avg ${fR(avgPerTx)}</span>
+      </div>`;
+    }).join('');
+
+    // ── 3. PERBANDINGAN VS BULAN SEBELUMNYA ──
+    const allBulans = [...new Set(_kas.map(r=>_normalizeBulan(r.bulan)).filter(Boolean))].sort((a,b)=>(_BULAN_IDX[a]||99)-(_BULAN_IDX[b]||99));
+    const curIdx = allBulans.indexOf(bulan);
+    const prevBulan = curIdx > 0 ? allBulans[curIdx-1] : null;
+    let momHtml = '';
+    if (prevBulan) {
+      const prevRows = _kas.filter(r => _normalizeBulan(r.bulan) === prevBulan && r.type !== 'Kas');
+      const prevTotal = prevRows.reduce((s,r)=>s+(r.jumlah||0),0);
+      const prevByType = {};
+      prevRows.forEach(r => { const t=r.type||'Lain-lain'; prevByType[t]=(prevByType[t]||0)+(r.jumlah||0); });
+      const delta = grand - prevTotal;
+      const deltaPct = prevTotal > 0 ? ((delta/prevTotal)*100).toFixed(1) : 0;
+      const prevLabel = _bulanLabel(prevBulan);
+
+      // Category comparison
+      const allCats = [...new Set([...Object.keys(byType),...Object.keys(prevByType)])];
+      const catChanges = allCats.map(cat => {
+        const cur = (byType[cat]||[]).reduce((s,r)=>s+(r.jumlah||0),0);
+        const prev = prevByType[cat]||0;
+        const d = cur - prev;
+        const dp = prev > 0 ? ((d/prev)*100).toFixed(0) : (cur > 0 ? 100 : 0);
+        return {cat, cur, prev, d, dp: Number(dp)};
+      }).sort((a,b) => Math.abs(b.d) - Math.abs(a.d));
+
+      momHtml = `<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px;padding:10px 14px;border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase">${prevLabel}</div>
+          <div style="font-size:16px;font-weight:700;font-family:var(--font-mono);color:var(--text)">${fR(prevTotal)}</div>
+          <div style="font-size:10px;color:var(--text-3)">${prevRows.length} transaksi</div>
+        </div>
+        <div style="flex:1;min-width:140px;padding:10px 14px;border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase">${bulanLabel}</div>
+          <div style="font-size:16px;font-weight:700;font-family:var(--font-mono);color:var(--text)">${fR(grand)}</div>
+          <div style="font-size:10px;color:var(--text-3)">${rows.length} transaksi</div>
+        </div>
+        <div style="flex:1;min-width:140px;padding:10px 14px;border-radius:8px;border:1px solid ${delta>0?'rgba(239,68,68,.2)':'rgba(34,197,94,.2)'};background:${delta>0?'rgba(239,68,68,.04)':'rgba(34,197,94,.04)'}">
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase">Selisih</div>
+          <div style="font-size:16px;font-weight:700;font-family:var(--font-mono);color:${delta>0?'var(--danger)':'var(--success)'}">${delta>0?'+':''}${fR(delta)}</div>
+          <div style="font-size:10px;font-weight:600;color:${delta>0?'var(--danger)':'var(--success)'}">${delta>0?'▲':'▼'} ${Math.abs(deltaPct)}%</div>
+        </div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Perubahan per Kategori</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="padding:6px 0;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">Kategori</th>
+          <th style="padding:6px 0;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">${prevLabel}</th>
+          <th style="padding:6px 0;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">${bulanLabel}</th>
+          <th style="padding:6px 0;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">Selisih</th>
+          <th style="padding:6px 0;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">%</th>
+        </tr></thead>
+        <tbody>${catChanges.map(c => `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:5px 0;font-weight:500">${c.cat}</td>
+          <td style="padding:5px 0;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${fR(c.prev)}</td>
+          <td style="padding:5px 0;text-align:right;font-family:var(--font-mono)">${fR(c.cur)}</td>
+          <td style="padding:5px 0;text-align:right;font-family:var(--font-mono);font-weight:600;color:${c.d>0?'var(--danger)':'var(--success)'}">${c.d>0?'+':''}${fR(c.d)}</td>
+          <td style="padding:5px 0;text-align:right;font-weight:600;color:${c.d>0?'var(--danger)':'var(--success)'}">${c.d>0?'▲':'▼'}${Math.abs(c.dp)}%</td>
+        </tr>`).join('')}</tbody>
+      </table>`;
+    } else {
+      momHtml = '<div style="font-size:12px;color:var(--text-3)">Tidak ada data bulan sebelumnya untuk perbandingan.</div>';
+    }
+
+    // ── 4. ANALISA PER HARI ──
+    const byDate = {};
+    rows.forEach(r => { const d=r.tgl||'unknown'; if(!byDate[d]) byDate[d]={total:0,count:0,items:[]}; byDate[d].total+=(r.jumlah||0); byDate[d].count++; byDate[d].items.push(r); });
+    const dates = Object.entries(byDate).sort((a,b)=>b[1].total-a[1].total);
+    const avgDaily = dates.length > 0 ? Math.round(grand / dates.length) : 0;
+    const peakDay = dates[0];
+    const dailyHtml = `<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:120px;padding:10px 14px;border-radius:8px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text-3);text-transform:uppercase">Hari Aktif</div>
+        <div style="font-size:18px;font-weight:700;color:var(--heading)">${dates.length}</div>
+      </div>
+      <div style="flex:1;min-width:120px;padding:10px 14px;border-radius:8px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text-3);text-transform:uppercase">Rata-rata / Hari</div>
+        <div style="font-size:14px;font-weight:700;font-family:var(--font-mono);color:var(--text)">${fR(avgDaily)}</div>
+      </div>
+      ${peakDay ? `<div style="flex:1;min-width:120px;padding:10px 14px;border-radius:8px;border:1px solid rgba(239,68,68,.15);background:rgba(239,68,68,.04)">
+        <div style="font-size:10px;color:var(--text-3);text-transform:uppercase">Hari Tertinggi</div>
+        <div style="font-size:14px;font-weight:700;font-family:var(--font-mono);color:var(--danger)">${fR(peakDay[1].total)}</div>
+        <div style="font-size:10px;color:var(--text-3)">${peakDay[0].split('-').reverse().join('-')} (${peakDay[1].count} tx)</div>
+      </div>` : ''}
+    </div>
+    <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Top 10 Hari Pengeluaran Tertinggi</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:5px 0;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">#</th>
+        <th style="padding:5px 0;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">Tanggal</th>
+        <th style="padding:5px 0;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">Jumlah Tx</th>
+        <th style="padding:5px 0;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">Total</th>
+        <th style="padding:5px 0;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">vs Rata-rata</th>
+      </tr></thead>
+      <tbody>${dates.slice(0,10).map(([d,v],i) => {
+        const ratio = avgDaily > 0 ? ((v.total/avgDaily-1)*100).toFixed(0) : 0;
+        const isHigh = Number(ratio) > 100;
+        return `<tr style="border-bottom:1px solid var(--border)${isHigh?';background:rgba(239,68,68,.04)':''}">
+          <td style="padding:5px 0;color:var(--text-3)">${i+1}</td>
+          <td style="padding:5px 0;font-weight:500">${d.split('-').reverse().join('-')}</td>
+          <td style="padding:5px 0;text-align:right;color:var(--text-2)">${v.count}</td>
+          <td style="padding:5px 0;text-align:right;font-family:var(--font-mono);font-weight:600">${fR(v.total)}</td>
+          <td style="padding:5px 0;text-align:right;font-weight:600;color:${Number(ratio)>0?'var(--danger)':'var(--success)'}">+${ratio}%${isHigh?' ⚠':''}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+
+    // ── 5. DETEKSI ANOMALI & TRANSAKSI JANGGAL ──
+    const findings = [];
+
+    // 5a. Transaksi bernilai tinggi (outlier) — > mean + 2*stddev per kategori
+    typesSorted.forEach(({type, items}) => {
+      if (items.length < 3) return;
+      const vals = items.map(r=>r.jumlah||0);
+      const mean = vals.reduce((s,v)=>s+v,0)/vals.length;
+      const stddev = Math.sqrt(vals.reduce((s,v)=>s+(v-mean)**2,0)/vals.length);
+      const threshold = mean + 2*stddev;
+      items.filter(r=>(r.jumlah||0)>threshold).forEach(r => {
+        findings.push({
+          severity:'high', icon:'⚠️',
+          title:`Transaksi outlier di ${type}`,
+          desc:`"${r.nama||'-'}" pada ${(r.tgl||'').split('-').reverse().join('-')} senilai ${fR(r.jumlah||0)} — jauh di atas rata-rata kategori ${fR(Math.round(mean))} (${((r.jumlah/mean-1)*100).toFixed(0)}% lebih tinggi)`,
+          amount: r.jumlah||0,
+        });
+      });
+    });
+
+    // 5b. Duplikat — nama + jumlah + vendor sama pada hari yang sama
+    const dupMap = {};
+    rows.forEach(r => {
+      const key = `${r.tgl}|${(r.nama||'').toLowerCase().trim()}|${r.jumlah}|${(r.vendor||'').toLowerCase().trim()}`;
+      if (!dupMap[key]) dupMap[key] = [];
+      dupMap[key].push(r);
+    });
+    Object.entries(dupMap).filter(([,v])=>v.length>1).forEach(([,dupes]) => {
+      const r = dupes[0];
+      findings.push({
+        severity:'medium', icon:'🔁',
+        title:`Kemungkinan duplikat (${dupes.length}x)`,
+        desc:`"${r.nama||'-'}" — ${(r.tgl||'').split('-').reverse().join('-')} — ${fR(r.jumlah||0)} × ${dupes.length} kali, vendor "${r.vendor||'-'}". Total: ${fR((r.jumlah||0)*dupes.length)}`,
+        amount: (r.jumlah||0)*dupes.length,
+      });
+    });
+
+    // 5c. Harga satuan tinggi vs rata-rata item serupa
+    const byNama = {};
+    rows.forEach(r => {
+      const n = (r.nama||'').toLowerCase().trim();
+      if (!n) return;
+      if (!byNama[n]) byNama[n] = [];
+      byNama[n].push(r);
+    });
+    Object.entries(byNama).forEach(([nama, items]) => {
+      if (items.length < 3) return;
+      const prices = items.map(r=>r.hargaSatuan||0).filter(v=>v>0);
+      if (prices.length < 3) return;
+      const avg = prices.reduce((s,v)=>s+v,0)/prices.length;
+      const maxPrice = Math.max(...prices);
+      if (maxPrice > avg * 2 && maxPrice > 10000) {
+        const expensiveItem = items.find(r=>(r.hargaSatuan||0)===maxPrice);
+        findings.push({
+          severity:'medium', icon:'💰',
+          title:`Harga satuan tidak wajar`,
+          desc:`"${expensiveItem?.nama||nama}" pada ${(expensiveItem?.tgl||'').split('-').reverse().join('-')} — harga ${fR(maxPrice)}/${expensiveItem?.satuan||'unit'}, rata-rata biasanya ${fR(Math.round(avg))}/${expensiveItem?.satuan||'unit'} (${((maxPrice/avg-1)*100).toFixed(0)}% lebih mahal)`,
+          amount: maxPrice,
+        });
+      }
+    });
+
+    // 5d. Transaksi tanpa vendor
+    const noVendor = rows.filter(r => !r.vendor && (r.jumlah||0) > 50000);
+    if (noVendor.length > 0) {
+      const totalNoVendor = noVendor.reduce((s,r)=>s+(r.jumlah||0),0);
+      findings.push({
+        severity:'low', icon:'📋',
+        title:`${noVendor.length} transaksi tanpa vendor`,
+        desc:`Total ${fR(totalNoVendor)} dari ${noVendor.length} transaksi (> Rp 50.000) tidak memiliki informasi vendor/supplier. Sebaiknya dilengkapi untuk audit trail.`,
+        amount: totalNoVendor,
+      });
+    }
+
+    // 5e. Transaksi bernilai bulat besar (kemungkinan estimasi, bukan aktual)
+    const roundTx = rows.filter(r => {
+      const j = r.jumlah||0;
+      return j >= 500000 && j % 100000 === 0;
+    });
+    if (roundTx.length >= 3) {
+      findings.push({
+        severity:'low', icon:'🔢',
+        title:`${roundTx.length} transaksi bernilai bulat`,
+        desc:`Ditemukan ${roundTx.length} transaksi dengan nilai kelipatan Rp 100.000 (≥ Rp 500.000). Contoh: ${roundTx.slice(0,3).map(r=>`"${r.nama||'-'}" ${fR(r.jumlah||0)}`).join(', ')}. Nilai bulat bisa mengindikasikan estimasi, bukan nilai aktual.`,
+        amount: roundTx.reduce((s,r)=>s+(r.jumlah||0),0),
+      });
+    }
+
+    // 5f. Hari dengan pengeluaran sangat tinggi vs rata-rata
+    dates.forEach(([d,v]) => {
+      if (avgDaily > 0 && v.total > avgDaily * 3 && v.total > 1000000) {
+        findings.push({
+          severity:'medium', icon:'📅',
+          title:`Lonjakan pengeluaran pada ${d.split('-').reverse().join('-')}`,
+          desc:`Total ${fR(v.total)} dalam ${v.count} transaksi — ${((v.total/avgDaily-1)*100).toFixed(0)}% di atas rata-rata harian (${fR(avgDaily)}). Item terbesar: ${v.items.sort((a,b)=>(b.jumlah||0)-(a.jumlah||0)).slice(0,3).map(r=>`"${r.nama||'-'}" ${fR(r.jumlah||0)}`).join(', ')}.`,
+          amount: v.total,
+        });
+      }
+    });
+
+    // 5g. Top 10 transaksi terbesar
+    const topTx = [...rows].sort((a,b)=>(b.jumlah||0)-(a.jumlah||0)).slice(0,10);
+
+    // Sort findings by severity then amount
+    const sevOrder = {high:0, medium:1, low:2};
+    findings.sort((a,b) => (sevOrder[a.severity]||9) - (sevOrder[b.severity]||9) || (b.amount||0) - (a.amount||0));
+
+    const sevColors = {high:'var(--danger)', medium:'var(--warning)', low:'var(--text-3)'};
+    const sevLabels = {high:'Tinggi', medium:'Sedang', low:'Info'};
+    const sevBg     = {high:'rgba(239,68,68,.06)', medium:'rgba(245,158,11,.06)', low:'rgba(148,163,184,.06)'};
+    const sevBorder = {high:'rgba(239,68,68,.2)', medium:'rgba(245,158,11,.2)', low:'rgba(148,163,184,.2)'};
+
+    const anomalyHtml = findings.length > 0
+      ? `<div style="font-size:11px;color:var(--text-3);margin-bottom:12px">Ditemukan <strong style="color:var(--heading)">${findings.length}</strong> temuan yang perlu diperhatikan</div>
+         ${findings.map((f,i) => `<div style="margin-bottom:8px;padding:10px 14px;border-radius:8px;border:1px solid ${sevBorder[f.severity]};background:${sevBg[f.severity]}">
+           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+             <span style="font-size:14px">${f.icon}</span>
+             <span style="font-size:12px;font-weight:700;color:var(--heading);flex:1">${f.title}</span>
+             <span style="font-size:9px;padding:2px 6px;border-radius:3px;font-weight:700;background:${sevBg[f.severity]};color:${sevColors[f.severity]};border:1px solid ${sevBorder[f.severity]}">${sevLabels[f.severity]}</span>
+           </div>
+           <div style="font-size:11px;color:var(--text-2);line-height:1.6;padding-left:22px">${f.desc}</div>
+         </div>`).join('')}`
+      : '<div style="padding:16px;text-align:center;color:var(--success);font-size:12px">✅ Tidak ditemukan anomali atau transaksi janggal pada bulan ini.</div>';
+
+    // Top 10 transaksi terbesar table
+    const topTxHtml = `<div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:6px;margin-top:16px;text-transform:uppercase;letter-spacing:.04em">Top 10 Transaksi Terbesar</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="padding:5px 0;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">#</th>
+          <th style="padding:5px 0;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">Tanggal</th>
+          <th style="padding:5px 0;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">Nama</th>
+          <th style="padding:5px 0;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">Kategori</th>
+          <th style="padding:5px 0;text-align:left;font-weight:600;color:var(--text-3);font-size:10px">Vendor</th>
+          <th style="padding:5px 0;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">Total</th>
+          <th style="padding:5px 0;text-align:right;font-weight:600;color:var(--text-3);font-size:10px">% dari Total</th>
+        </tr></thead>
+        <tbody>${topTx.map((r,i) => {
+          const pct = grand > 0 ? ((r.jumlah||0)/grand*100).toFixed(1) : 0;
+          return `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:5px 0;color:var(--text-3)">${i+1}</td>
+            <td style="padding:5px 0;white-space:nowrap">${(r.tgl||'').split('-').reverse().join('-')}</td>
+            <td style="padding:5px 0;font-weight:500">${r.nama||'-'}</td>
+            <td style="padding:5px 0;color:var(--text-3)">${r.type||'-'}</td>
+            <td style="padding:5px 0;color:var(--text-3)">${r.vendor||'-'}</td>
+            <td style="padding:5px 0;text-align:right;font-family:var(--font-mono);font-weight:600">${fR(r.jumlah||0)}</td>
+            <td style="padding:5px 0;text-align:right;color:var(--text-3)">${pct}%</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+
+    return _sec(`Ringkasan Keuangan — ${bulanLabel}`, summaryHtml)
+      + _sec(`Distribusi Pengeluaran per Kategori`, catHtml)
+      + _sec(`Perbandingan vs Bulan Sebelumnya`, momHtml)
+      + _sec(`Analisa Pengeluaran Harian`, dailyHtml)
+      + _sec(`Deteksi Anomali & Transaksi Janggal`, anomalyHtml + topTxHtml);
+  }
+
   function printMonthly() {
     const el = document.getElementById('monthly-report');
     if (!el) { Notify.warning('Buat report dulu'); return; }
     const win = window.open('', '_blank');
+    // Replace CSS variables with concrete values for print
+    let html = el.innerHTML;
+    const varMap = {
+      'var(--font)':'Inter,sans-serif','var(--font-mono)':'monospace',
+      'var(--surface)':'#fff','var(--surface2)':'#f8fafc','var(--surface3)':'#f1f5f9',
+      'var(--border)':'#e2e8f0','var(--border2)':'#cbd5e1',
+      'var(--heading)':'#0f172a','var(--text)':'#1e293b','var(--text-2)':'#475569','var(--text-3)':'#94a3b8',
+      'var(--primary)':'#6366f1','var(--primary-h)':'#4f46e5',
+      'var(--danger)':'#ef4444','var(--success)':'#22c55e','var(--warning)':'#eab308',
+      'var(--r-lg)':'12px',
+      'var(--s3)':'12px','var(--s4)':'16px','var(--s5)':'20px',
+    };
+    for (const [k,v] of Object.entries(varMap)) html = html.replaceAll(k,v);
     win.document.write(`<!DOCTYPE html><html><head><title>Laporan Kas Kecil</title>
       <style>
         *{margin:0;padding:0;box-sizing:border-box}
@@ -1433,7 +1717,7 @@ const KasModule = (() => {
         @page{size:landscape;margin:10mm}
         @media print{body{padding:0}}
       </style>
-    </head><body>${el.innerHTML}
+    </head><body>${html}
     <script>setTimeout(()=>{window.print()},300)<\/script>
     </body></html>`);
     win.document.close();
