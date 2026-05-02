@@ -159,6 +159,8 @@ const DBExtensions = (() => {
       inv_activities: () => {
         // Skip re-init when user is on inventory page — their local state is fresh
         if (window.App?._currentPage === 'inventory') return;
+        // Cross-device sync: reload inventory data when user is on another page
+        if (window.InventoryModule?.init) window.InventoryModule.init();
       },
       ap: () => {
         // Skip re-init when user is on AP page — their local state is fresh

@@ -94,16 +94,16 @@ const InventoryModule = (() => {
     }
 
     // Background-load full dataset
-    if (!cachedItems || !cachedLogs || !cachedOpname) {
+    if (!cachedItems?.length || !cachedLogs?.length || !cachedOpname?.length) {
       const [freshItems, freshLogs, freshOpname] = await Promise.all([
-        cachedItems  ? Promise.resolve(cachedItems)  : DB.getInventoryItems(),
-        cachedLogs   ? Promise.resolve(cachedLogs)   : DB.getInventory(),
-        cachedOpname ? Promise.resolve(cachedOpname) : (typeof DB.getOpnameLogs === 'function' ? DB.getOpnameLogs().catch(()=>[]) : Promise.resolve([])),
+        cachedItems?.length  ? Promise.resolve(cachedItems)  : DB.getInventoryItems(),
+        cachedLogs?.length   ? Promise.resolve(cachedLogs)   : DB.getInventory(),
+        cachedOpname?.length ? Promise.resolve(cachedOpname) : (typeof DB.getOpnameLogs === 'function' ? DB.getOpnameLogs().catch(()=>[]) : Promise.resolve([])),
       ]);
-      _items      = freshItems;
-      _logs       = freshLogs;
+      if (freshItems?.length)  _items = freshItems;
+      if (freshLogs?.length)   _logs  = freshLogs; else if (!_logs.length && freshLogs) _logs = freshLogs;
       _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
-      _opnameLogs = freshOpname;
+      if (freshOpname?.length) _opnameLogs = freshOpname; else if (!_opnameLogs.length && freshOpname) _opnameLogs = freshOpname;
 
       // Auto-dedup: jika ada nama barang ganda (dari double-migration), bersihkan otomatis
       _checkAndDedup();
@@ -274,13 +274,15 @@ const InventoryModule = (() => {
     if (tab === 'transaksi') {
       UndoRedo.setActive('inv');
       _bpDocsCache = null; // force refresh BP docs on tab switch
-      // Reload logs (MASUK/KELUAR only) - OPNAME ada di tab sendiri
+      // Render immediately with current data, then refresh from DB
+      renderTransaksi();
       DB.getInventory().then(freshLogs => {
+        if (!freshLogs || !freshLogs.length) { if(window.BECCA_DEBUG) console.warn('[Inventory] Fresh logs empty, keeping cached data'); return; }
         _logs = freshLogs;
         _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
         _recalcStok();
         renderTransaksi();
-      }).catch(() => renderTransaksi());
+      }).catch(() => {});
     } else if (tab === 'opname') {
       // Reload opname logs dari DB terpisah
       const _getOp = typeof DB.getOpnameLogs === 'function' ? DB.getOpnameLogs() : Promise.resolve([]);
@@ -1157,7 +1159,6 @@ const InventoryModule = (() => {
     const canEdit = Auth.can('inventory','edit');
     const sorted  = [..._logs]
       .filter(l => l.jenis !== 'OPNAME')
-      .filter(l => l.itemNama || l.tgl)
       .filter(l => !_logFilterNama || (l.itemNama||'').toLowerCase().includes(_logFilterNama))
       .filter(l => !_logFilterTgl  || (l.tgl||'') === _logFilterTgl);
 
