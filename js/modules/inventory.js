@@ -2626,6 +2626,92 @@ const InventoryModule = (() => {
     } catch(e) { Notify.error('Gagal tolak', e.message); }
   }
 
+  /* ===================== DELETE / RESET OPNAME (admin only) ===================== */
+  async function deleteOpnameLog(id) {
+    const userRole = Auth.currentUser()?.role || '';
+    if (userRole !== 'superadmin' && userRole !== 'admin') {
+      Notify.error('Akses ditolak', 'Hanya admin/superadmin yang dapat menghapus hasil opname');
+      return;
+    }
+    const row = _opnameLogs.find(l => String(l.id) === String(id));
+    if (!row) { Notify.warning('Data tidak ditemukan'); return; }
+    const sat = (_items.find(i => String(i.id) === String(row.itemId))?.satuan) || '';
+    const ok = await Modal.confirm({
+      title: 'Hapus Hasil Stok Opname',
+      message: `<p>Hapus hasil opname berikut?</p>
+        <div style="margin:8px 0;padding:10px 14px;background:var(--surface2);border-radius:6px;font-size:12px">
+          <div><strong>${Utils.esc(row.itemNama||'-')}</strong></div>
+          <div style="color:var(--text-3);margin-top:4px">Tanggal: ${(row.tgl||'').split('-').reverse().join('-')}</div>
+          <div style="color:var(--text-3)">Stok Sistem: ${_r2(row.stokSistem||0)} ${sat} → Jumlah Fisik: ${_r2(row.jumlah||0)} ${sat}</div>
+        </div>
+        <p style="font-size:11px;color:var(--danger)">⚠ Aksi ini permanen dan tidak dapat dibatalkan.</p>`,
+      confirmText: 'Hapus', confirmClass: 'btn-danger', danger: true
+    });
+    if (!ok) return;
+    try {
+      if (typeof DB.deleteOpnameLog === 'function') await DB.deleteOpnameLog(id);
+      else await DB.delete('opname_logs', id);
+      _opnameLogs = _opnameLogs.filter(r => r.id !== id);
+      DB.logActivity({ type:'opname_delete', detail:`Hapus opname "${row.itemNama}" (${(row.tgl||'').split('-').reverse().join('-')})` });
+      Notify.success('Hasil opname dihapus');
+      renderLaporanBulanan();
+    } catch(e) { Notify.error('Gagal hapus', e.message); }
+  }
+
+  async function resetOpnameMonth(yearMonth) {
+    const userRole = Auth.currentUser()?.role || '';
+    if (userRole !== 'superadmin' && userRole !== 'admin') {
+      Notify.error('Akses ditolak', 'Hanya admin/superadmin yang dapat reset bulan');
+      return;
+    }
+    const period = yearMonth || _opnamePeriod;
+    const monthLogs = _opnameLogs.filter(l => (l.tgl||'').startsWith(period));
+    if (!monthLogs.length) { Notify.info('Tidak ada data opname pada bulan ini'); return; }
+    const BULAN = {1:'Januari',2:'Februari',3:'Maret',4:'April',5:'Mei',6:'Juni',7:'Juli',8:'Agustus',9:'September',10:'Oktober',11:'November',12:'Desember'};
+    const [yr, mo] = period.split('-');
+    const bulanLabel = (BULAN[parseInt(mo)]||mo) + ' ' + yr;
+
+    // Two-step confirmation untuk safety
+    const ok1 = await Modal.confirm({
+      title: 'Reset Hasil Stok Opname',
+      message: `<p>Hapus <strong>seluruh ${monthLogs.length} hasil opname</strong> bulan <strong>${bulanLabel}</strong>?</p>
+        <div style="margin:8px 0;padding:10px 14px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:6px;font-size:12px;color:var(--danger)">
+          <strong>⚠ Aksi ini permanen dan tidak dapat dibatalkan!</strong>
+          <div style="margin-top:4px;color:var(--text-2)">Semua data perubahan stok dari opname bulan ini akan hilang.</div>
+        </div>`,
+      confirmText: 'Lanjut',
+      confirmClass: 'btn-danger',
+      danger: true
+    });
+    if (!ok1) return;
+
+    const ok2 = await Modal.confirm({
+      title: 'Konfirmasi Akhir',
+      message: `<p style="font-size:13px">Anda yakin ingin <strong style="color:var(--danger)">menghapus ${monthLogs.length} record</strong> opname bulan <strong>${bulanLabel}</strong>?</p>
+        <p style="margin-top:8px;font-size:11px;color:var(--text-3)">Klik "Ya, Hapus Semua" hanya jika Anda benar-benar yakin.</p>`,
+      confirmText: 'Ya, Hapus Semua',
+      confirmClass: 'btn-danger',
+      danger: true
+    });
+    if (!ok2) return;
+
+    Notify.info('Memproses reset bulan...');
+    let deleted = 0, errors = 0;
+    const CHUNK = 10;
+    for (let i = 0; i < monthLogs.length; i += CHUNK) {
+      const batch = monthLogs.slice(i, i + CHUNK);
+      const results = await Promise.allSettled(batch.map(l =>
+        typeof DB.deleteOpnameLog === 'function' ? DB.deleteOpnameLog(l.id) : DB.delete('opname_logs', l.id)
+      ));
+      deleted += results.filter(r => r.status === 'fulfilled').length;
+      errors  += results.filter(r => r.status === 'rejected').length;
+    }
+    _opnameLogs = _opnameLogs.filter(l => !(l.tgl||'').startsWith(period));
+    DB.logActivity({ type:'opname_reset_month', detail:`Reset opname ${bulanLabel}: ${deleted} record dihapus${errors?', '+errors+' error':''}` });
+    Notify.success(`Reset ${bulanLabel}: ${deleted} record dihapus${errors ? ', '+errors+' gagal' : ''}`);
+    renderLaporanBulanan();
+  }
+
   /* ===================== PRINT OPNAME REPORT (PDF) ===================== */
   function printOpnameReport(yearMonth) {
     const period = yearMonth || _opnamePeriod;
@@ -3202,7 +3288,12 @@ const InventoryModule = (() => {
                 <button class="btn btn-ghost btn-sm" onclick="InventoryModule.printOpnameReport('${currMonth}')" title="Cetak laporan opname">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
                   Print PDF
-                </button>` : ''}
+                </button>
+                ${(()=>{const r=Auth.currentUser()?.role||'';return (r==='superadmin'||r==='admin')?`
+                <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,.3)" onclick="InventoryModule.resetOpnameMonth('${currMonth}')" title="Hapus seluruh hasil opname bulan ini">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
+                  Reset Bulan
+                </button>`:''})()}` : ''}
             </div>
           </div>
           <div class="table-scroll" style="max-height:500px;overflow-y:auto">
@@ -3252,6 +3343,9 @@ const InventoryModule = (() => {
                           <button class="btn btn-sm btn-ghost" style="padding:3px 8px;font-size:10px" onclick="InventoryModule.editOpnameRow('${l.id}')" title="Edit hasil opname">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                           </button>
+                          ${isAdmin ? `<button class="btn btn-sm btn-ghost" style="padding:3px 8px;font-size:10px;color:var(--danger)" onclick="InventoryModule.deleteOpnameLog('${l.id}')" title="Hapus hasil opname">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
+                          </button>` : ''}
                         `}
                       </div>
                     </td>` : ''}
@@ -3482,6 +3576,8 @@ const InventoryModule = (() => {
     _submitOpnameEdit,
     approveOpnameChange,
     rejectOpnameChange,
+    deleteOpnameLog,
+    resetOpnameMonth,
     printOpnameReport,
     exportOpnameCSV,
     hppLearn,
