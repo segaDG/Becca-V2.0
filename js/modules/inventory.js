@@ -30,6 +30,12 @@ const InventoryModule = (() => {
   let _opnameDraftSavedRev = 0; // last revision saved to DB
   const _OP_DRAFT_LS_KEY = 'becca_opname_draft'; // local fallback only
 
+  // Round to max 2 decimal places (avoids floating-point noise like "30.580000000000005")
+  function _r2(n) {
+    const x = Math.round((Number(n)||0) * 100) / 100;
+    return x % 1 === 0 ? String(x) : x.toFixed(2);
+  }
+
   // Save draft to Supabase (debounced 800ms) + immediate localStorage backup
   function _saveOpnameDraft() {
     try { localStorage.setItem(_OP_DRAFT_LS_KEY, JSON.stringify({ period:_opnamePeriod, tgl:_opnameTgl, draft:_opnameDraft })); } catch {}
@@ -2337,7 +2343,7 @@ const InventoryModule = (() => {
               style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:12px">
           </div>
           <button class="btn btn-ghost btn-sm" onclick="InventoryModule.exportOpnameCSV()">Export CSV</button>
-          ${filledCount > 0 ? `
+          ${filledCount > 0 && Auth.can('inventory','edit') ? `
             <button class="btn btn-ghost btn-sm" onclick="InventoryModule._resetOpnameDraft()">Reset Draft</button>
             <button class="btn btn-primary" onclick="InventoryModule._submitOpnameBulk()">
               💾 Simpan ${filledCount} Item
@@ -2404,7 +2410,7 @@ const InventoryModule = (() => {
         </div>
       </div>
 
-      ${filledCount > 0 ? `
+      ${filledCount > 0 && Auth.can('inventory','edit') ? `
         <div style="margin-top:var(--s3);display:flex;justify-content:flex-end;gap:8px">
           <button class="btn btn-ghost" onclick="InventoryModule._resetOpnameDraft()">Reset Draft</button>
           <button class="btn btn-primary" onclick="InventoryModule._submitOpnameBulk()" style="min-width:200px">
@@ -2436,9 +2442,9 @@ const InventoryModule = (() => {
                   return `<tr>
                     <td style="white-space:nowrap">${(l.tgl||'').split('-').reverse().join('-')}</td>
                     <td class="font-semibold">${l.itemNama||''}</td>
-                    <td class="num" style="font-family:var(--font-mono)">${l.jumlah||0}</td>
-                    <td class="num text-muted" style="font-family:var(--font-mono)">${l.stokSistem??'-'}</td>
-                    <td class="num font-semibold" style="color:${sc};font-family:var(--font-mono)">${sel>=0?'+':''}${sel}</td>
+                    <td class="num" style="font-family:var(--font-mono)">${_r2(l.jumlah||0)}</td>
+                    <td class="num text-muted" style="font-family:var(--font-mono)">${l.stokSistem==null?'-':_r2(l.stokSistem)}</td>
+                    <td class="num font-semibold" style="color:${sc};font-family:var(--font-mono)">${sel>=0?'+':''}${_r2(sel)}</td>
                     <td class="text-muted text-small">${l.catatan||''}</td>
                     ${Auth.can('inventory','edit') ? `<td><button class="iv-del" title="Hapus"
                       onclick="InventoryModule.deleteOpnameRow('${l.id}')">
@@ -2577,15 +2583,15 @@ const InventoryModule = (() => {
     }
     if (!toSave.length) { Notify.warning('Belum ada data yang diisi'); return; }
 
-    // Confirmation with summary table
+    // Confirmation with summary table — round to 2 decimal places
     const rowsHtml = toSave.slice(0, 15).map(({ item, jumlah }) => {
       const stokSis = item._stok || 0;
       const sel = jumlah - stokSis;
       const sc  = sel === 0 ? 'var(--text-2)' : sel > 0 ? '#10b981' : '#ef4444';
       return `<tr>
         <td style="padding:4px 8px;font-size:12px">${Utils.esc(item.nama)}</td>
-        <td style="padding:4px 8px;font-size:12px;text-align:right;font-family:monospace">${stokSis} → ${jumlah} ${item.satuan||''}</td>
-        <td style="padding:4px 8px;font-size:12px;text-align:right;font-family:monospace;color:${sc};font-weight:700">${sel>=0?'+':''}${sel}</td>
+        <td style="padding:4px 8px;font-size:12px;text-align:right;font-family:monospace">${_r2(stokSis)} → ${_r2(jumlah)} ${item.satuan||''}</td>
+        <td style="padding:4px 8px;font-size:12px;text-align:right;font-family:monospace;color:${sc};font-weight:700">${sel>=0?'+':''}${_r2(sel)}</td>
       </tr>`;
     }).join('');
     const moreHtml = toSave.length > 15
@@ -2875,7 +2881,7 @@ const InventoryModule = (() => {
           ${[
             {l:'Stock In (Masuk)',    v:totalMasukQty.toFixed(2)+' unit',  sub:'Nilai: '+Utils.formatRupiah(totalMasukVal), c:'var(--success)'},
             {l:'Stock Out (Keluar)',  v:totalKeluarQty.toFixed(2)+' unit', sub:'HPP: '+Utils.formatRupiah(totalKeluarHPP), c:'var(--danger)'},
-            {l:'Stock Opname',       v:opnameMonth.length+' item',         sub:opnameMonth.length?`Selisih: ${opTotalSelisihQty>=0?'+':''}${opTotalSelisihQty.toFixed(2)} unit`:'Belum ada opname', c:'var(--primary)'},
+            {l:'Stock Opname',       v:opnameMonth.length+' item',         sub:opnameMonth.length?`Selisih: ${opTotalSelisihQty>=0?'+':''}${_r2(opTotalSelisihQty)} unit`:'Belum ada opname', c:'var(--primary)'},
             {l:'Rusak / Retur',      v:totalReturQty.toFixed(2)+' unit',   sub:'Nilai: '+Utils.formatRupiah(totalReturVal), c:'var(--warning)'},
           ].map(c=>`
             <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s4)">
@@ -2976,9 +2982,9 @@ const InventoryModule = (() => {
                     <td style="white-space:nowrap;color:var(--text-2)">${tgl2}</td>
                     <td class="font-semibold">${l.itemNama||'-'}</td>
                     <td><span class="badge badge-neutral" style="font-size:10px">${item?.kategori||'-'}</span></td>
-                    <td class="num" style="color:#6366f1;font-family:var(--font-mono)">${(l.stokSistem??0).toFixed?.(2)||l.stokSistem||0} ${sat}</td>
-                    <td class="num" style="color:#f59e0b;font-family:var(--font-mono);font-weight:600">${(l.jumlah||0).toFixed?.(2)||l.jumlah||0} ${sat}</td>
-                    <td class="num font-semibold" style="color:${sc};font-family:var(--font-mono)">${sel>=0?'+':''}${sel.toFixed(2)} ${sat}</td>
+                    <td class="num" style="color:#6366f1;font-family:var(--font-mono)">${_r2(l.stokSistem||0)} ${sat}</td>
+                    <td class="num" style="color:#f59e0b;font-family:var(--font-mono);font-weight:600">${_r2(l.jumlah||0)} ${sat}</td>
+                    <td class="num font-semibold" style="color:${sc};font-family:var(--font-mono)">${sel>=0?'+':''}${_r2(sel)} ${sat}</td>
                     <td class="num" style="color:${sc};font-family:var(--font-mono)">${sel===0?'—':(sel>=0?'+':'')+Utils.formatRupiah(Math.abs(selVal))}</td>
                     <td class="text-muted text-small">${l.catatan||'-'}</td>
                   </tr>`;
