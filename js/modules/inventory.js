@@ -2673,11 +2673,11 @@ const InventoryModule = (() => {
 
     // Two-step confirmation untuk safety
     const ok1 = await Modal.confirm({
-      title: 'Reset Hasil Stok Opname',
-      message: `<p>Hapus <strong>seluruh ${monthLogs.length} hasil opname</strong> bulan <strong>${bulanLabel}</strong>?</p>
+      title: 'Reset Hasil Opname',
+      message: `<p>Hapus <strong>seluruh ${monthLogs.length} hasil opname</strong> pada periode <strong>${bulanLabel}</strong>?</p>
         <div style="margin:8px 0;padding:10px 14px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:6px;font-size:12px;color:var(--danger)">
-          <strong>⚠ Aksi ini permanen dan tidak dapat dibatalkan!</strong>
-          <div style="margin-top:4px;color:var(--text-2)">Semua data perubahan stok dari opname bulan ini akan hilang.</div>
+          <strong>⚠ Hanya menghapus data hasil opname (bukan data inventory).</strong>
+          <div style="margin-top:4px;color:var(--text-2)">Stok barang dan transaksi MASUK/KELUAR tetap aman. Hanya hasil perhitungan opname pada periode ini yang akan dihapus.</div>
         </div>`,
       confirmText: 'Lanjut',
       confirmClass: 'btn-danger',
@@ -2687,7 +2687,7 @@ const InventoryModule = (() => {
 
     const ok2 = await Modal.confirm({
       title: 'Konfirmasi Akhir',
-      message: `<p style="font-size:13px">Anda yakin ingin <strong style="color:var(--danger)">menghapus ${monthLogs.length} record</strong> opname bulan <strong>${bulanLabel}</strong>?</p>
+      message: `<p style="font-size:13px">Anda yakin ingin <strong style="color:var(--danger)">menghapus ${monthLogs.length} record hasil opname</strong> periode <strong>${bulanLabel}</strong>?</p>
         <p style="margin-top:8px;font-size:11px;color:var(--text-3)">Klik "Ya, Hapus Semua" hanya jika Anda benar-benar yakin.</p>`,
       confirmText: 'Ya, Hapus Semua',
       confirmClass: 'btn-danger',
@@ -3292,7 +3292,7 @@ const InventoryModule = (() => {
                 ${(()=>{const r=Auth.currentUser()?.role||'';return (r==='superadmin'||r==='admin')?`
                 <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,.3)" onclick="InventoryModule.resetOpnameMonth('${currMonth}')" title="Hapus seluruh hasil opname bulan ini">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
-                  Reset Bulan
+                  Reset
                 </button>`:''})()}` : ''}
             </div>
           </div>
