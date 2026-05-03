@@ -24,6 +24,22 @@ const InventoryModule = (() => {
   let _opnamePeriod = new Date().toISOString().slice(0,7); // period filter for opname
   let _opnameDraft  = {}; // itemId → value (string, as typed) — live draft state
   let _opnameTgl    = new Date().toISOString().slice(0,10);  // tanggal opname
+  const _OP_DRAFT_KEY = 'becca_opname_draft';
+  function _saveOpnameDraft() {
+    try { localStorage.setItem(_OP_DRAFT_KEY, JSON.stringify({ period:_opnamePeriod, tgl:_opnameTgl, draft:_opnameDraft })); } catch {}
+  }
+  function _loadOpnameDraft() {
+    try {
+      const raw = localStorage.getItem(_OP_DRAFT_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      // Only restore draft if same period
+      if (data.period === _opnamePeriod) {
+        _opnameDraft = data.draft || {};
+        if (data.tgl) _opnameTgl = data.tgl;
+      }
+    } catch {}
+  }
   let _bulkSelected = new Set(); // bulk delete selection
 
   const KATEGORIS = ['Bahan Baku','Bumbu','Minuman','Kemasan','Peralatan','Sembako','Fresh','Lain-lain'];
@@ -80,6 +96,8 @@ const InventoryModule = (() => {
     _invEditId = null;
     _invLogPage = 1;
     try { _invLocked = new Set(JSON.parse(localStorage.getItem(_INV_LOCK_KEY)||'[]')); } catch { _invLocked = new Set(); }
+    // Restore opname draft from localStorage (survives refresh)
+    _loadOpnameDraft();
 
     // Render segera dengan data yang ada (cache atau kosong)
     _recalcStok();
@@ -2393,6 +2411,7 @@ const InventoryModule = (() => {
     if (!inp) return;
     const val = inp.value;
     _opnameDraft[itemId] = val;
+    _saveOpnameDraft();
     inp.style.borderColor = val !== '' ? '#6366f1' : 'var(--border)';
     // Update row highlight
     const row = document.getElementById('op-row-' + itemId);
@@ -2444,6 +2463,7 @@ const InventoryModule = (() => {
     const d = new Date(y, m - 1 + delta, 1);
     _opnamePeriod = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
     _opnameDraft  = {};
+    _loadOpnameDraft(); // restore draft for new period if exists
     renderOpnameTab();
   }
 
@@ -2451,12 +2471,17 @@ const InventoryModule = (() => {
     if (!val) return;
     _opnamePeriod = val;
     _opnameDraft  = {};
+    _loadOpnameDraft();
     renderOpnameTab();
   }
 
-  function _setOpnameTgl(val) { _opnameTgl = val; }
+  function _setOpnameTgl(val) { _opnameTgl = val; _saveOpnameDraft(); }
 
-  function _resetOpnameDraft() { _opnameDraft = {}; renderOpnameTab(); }
+  function _resetOpnameDraft() {
+    _opnameDraft = {};
+    try { localStorage.removeItem(_OP_DRAFT_KEY); } catch {}
+    renderOpnameTab();
+  }
 
   async function _submitOpnameBulk() {
     const toSave = [];
@@ -2525,6 +2550,7 @@ const InventoryModule = (() => {
     }
 
     _opnameDraft = {};
+    try { localStorage.removeItem(_OP_DRAFT_KEY); } catch {}
     renderOpnameTab();
     Notify.success('Stok Opname tersimpan: ' + saved + ' item ✓');
     DB.logActivity({ type:'opname_bulk', detail:'Opname massal: '+saved+' item pada '+_opnameTgl });
@@ -2721,6 +2747,19 @@ const InventoryModule = (() => {
     const returLogs  = monthLogs.filter(l => l.isRetur || (l.kodeAktivitas && (l.kodeAktivitas.toUpperCase().includes('RUSAK') || l.kodeAktivitas.toUpperCase().includes('RETUR'))));
     const keluarLogs = monthLogs.filter(l => l.jenis === 'KELUAR' && !returLogs.includes(l));
 
+    // Hasil Stok Opname — dari _opnameLogs (tabel terpisah)
+    const opnameMonth = [..._opnameLogs].filter(l => (l.tgl||'').startsWith(currMonth))
+      .sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+    const opSelisihPlus  = opnameMonth.filter(l => ((l.jumlah||0) - (l.stokSistem||0)) > 0);
+    const opSelisihMinus = opnameMonth.filter(l => ((l.jumlah||0) - (l.stokSistem||0)) < 0);
+    const opSelisihZero  = opnameMonth.filter(l => ((l.jumlah||0) - (l.stokSistem||0)) === 0);
+    const opTotalSelisihQty = opnameMonth.reduce((s,l) => s + ((l.jumlah||0) - (l.stokSistem||0)), 0);
+    const opTotalSelisihVal = opnameMonth.reduce((s,l) => {
+      const item = _items.find(i => String(i.id) === String(l.itemId)) || _items.find(i => i.nama === l.itemNama);
+      const harga = item?._hargaTerbaru || item?.hargaSatuan || l.harga || 0;
+      return s + ((l.jumlah||0) - (l.stokSistem||0)) * harga;
+    }, 0);
+
     const totalMasukQty  = masukLogs.reduce((s,l)=>s+(l.jumlah||0),0);
     const totalMasukVal  = masukLogs.reduce((s,l)=>s+(l.jumlah||0)*(l.harga||0),0);
     const totalKeluarQty = keluarLogs.reduce((s,l)=>s+(l.jumlah||0),0);
@@ -2753,7 +2792,7 @@ const InventoryModule = (() => {
           ${[
             {l:'Stock In (Masuk)',    v:totalMasukQty.toFixed(2)+' unit',  sub:'Nilai: '+Utils.formatRupiah(totalMasukVal), c:'var(--success)'},
             {l:'Stock Out (Keluar)',  v:totalKeluarQty.toFixed(2)+' unit', sub:'HPP: '+Utils.formatRupiah(totalKeluarHPP), c:'var(--danger)'},
-            {l:'Stock Opname',       v:opnameLogs.length+' item',          sub:'Data awal stok', c:'var(--primary)'},
+            {l:'Stock Opname',       v:opnameMonth.length+' item',         sub:opnameMonth.length?`Selisih: ${opTotalSelisihQty>=0?'+':''}${opTotalSelisihQty.toFixed(2)} unit`:'Belum ada opname', c:'var(--primary)'},
             {l:'Rusak / Retur',      v:totalReturQty.toFixed(2)+' unit',   sub:'Nilai: '+Utils.formatRupiah(totalReturVal), c:'var(--warning)'},
           ].map(c=>`
             <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s4)">
@@ -2810,6 +2849,60 @@ const InventoryModule = (() => {
             </div>
           </div>
 
+        </div>
+
+        <!-- HASIL STOK OPNAME -->
+        <div style="margin-top:var(--s5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+          <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div>
+              <span style="font-size:14px;font-weight:700;color:var(--heading)">📋 Hasil Stok Opname — ${bulanLabel}</span>
+              <span style="font-size:11px;color:var(--text-3);margin-left:6px">${opnameMonth.length} item di-opname</span>
+            </div>
+            ${opnameMonth.length ? `
+              <div style="display:flex;gap:12px;flex-wrap:wrap">
+                <span style="font-size:11px;color:var(--text-3)">Lebih: <strong style="color:#10b981">${opSelisihPlus.length}</strong></span>
+                <span style="font-size:11px;color:var(--text-3)">Kurang: <strong style="color:#ef4444">${opSelisihMinus.length}</strong></span>
+                <span style="font-size:11px;color:var(--text-3)">Cocok: <strong style="color:var(--text-2)">${opSelisihZero.length}</strong></span>
+                <span style="font-size:11px;color:var(--text-3)">Total nilai selisih: <strong style="color:${opTotalSelisihVal>=0?'#10b981':'#ef4444'};font-family:var(--font-mono)">${opTotalSelisihVal>=0?'+':''}${Utils.formatRupiah(Math.abs(opTotalSelisihVal))}</strong></span>
+              </div>` : ''}
+          </div>
+          <div class="table-scroll" style="max-height:500px;overflow-y:auto">
+            <table class="table" style="font-size:12px">
+              <thead>
+                <tr style="position:sticky;top:0;background:var(--surface2);z-index:1">
+                  <th>Tanggal</th>
+                  <th>Nama Barang</th>
+                  <th>Kategori</th>
+                  <th class="num" style="color:#6366f1">Stok Sistem</th>
+                  <th class="num" style="color:#f59e0b">Jumlah Fisik</th>
+                  <th class="num">Selisih Qty</th>
+                  <th class="num">Selisih Nilai</th>
+                  <th>Catatan</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${opnameMonth.length ? opnameMonth.map(l => {
+                  const sel = (l.jumlah||0) - (l.stokSistem||0);
+                  const sc  = sel===0?'var(--text-2)':sel>0?'#10b981':'#ef4444';
+                  const item = _items.find(i => String(i.id) === String(l.itemId)) || _items.find(i => i.nama === l.itemNama);
+                  const harga = item?._hargaTerbaru || item?.hargaSatuan || l.harga || 0;
+                  const selVal = sel * harga;
+                  const sat = item?.satuan || '';
+                  const tgl2 = (l.tgl||'').split('-').reverse().join('-');
+                  return `<tr>
+                    <td style="white-space:nowrap;color:var(--text-2)">${tgl2}</td>
+                    <td class="font-semibold">${l.itemNama||'-'}</td>
+                    <td><span class="badge badge-neutral" style="font-size:10px">${item?.kategori||'-'}</span></td>
+                    <td class="num" style="color:#6366f1;font-family:var(--font-mono)">${(l.stokSistem??0).toFixed?.(2)||l.stokSistem||0} ${sat}</td>
+                    <td class="num" style="color:#f59e0b;font-family:var(--font-mono);font-weight:600">${(l.jumlah||0).toFixed?.(2)||l.jumlah||0} ${sat}</td>
+                    <td class="num font-semibold" style="color:${sc};font-family:var(--font-mono)">${sel>=0?'+':''}${sel.toFixed(2)} ${sat}</td>
+                    <td class="num" style="color:${sc};font-family:var(--font-mono)">${sel===0?'—':(sel>=0?'+':'')+Utils.formatRupiah(Math.abs(selVal))}</td>
+                    <td class="text-muted text-small">${l.catatan||'-'}</td>
+                  </tr>`;
+                }).join('') : '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-3)">Belum ada stok opname pada bulan ini</td></tr>'}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     `;
