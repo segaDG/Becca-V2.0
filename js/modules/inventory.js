@@ -2283,9 +2283,11 @@ const InventoryModule = (() => {
                         <td class="num">
                           <input type="number" min="0" step="1"
                             id="op-in-${item.id}"
+                            data-op-row="${i}"
                             value="${hasDraft?draftVal:''}"
                             placeholder="${+stokSis.toFixed(2)}"
                             oninput="InventoryModule._onOpnameInput('${item.id}',${stokSis},'${item.satuan||''}')"
+                            onkeydown="InventoryModule._onOpnameKey(event,${i})"
                             style="width:108px;padding:4px 7px;border:1px solid ${hasDraft?'#6366f1':'var(--border)'};
                               border-radius:5px;background:var(--surface);color:var(--text);font-size:12px;
                               text-align:right;font-family:var(--font-mono);outline:none;box-sizing:border-box">
@@ -2414,6 +2416,27 @@ const InventoryModule = (() => {
       el.textContent = filled > 0 ? `💾 Simpan ${filled} Item` : '';
       el.style.display = filled > 0 ? '' : 'none';
     });
+  }
+
+  function _onOpnameKey(e, rowIdx) {
+    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+    e.preventDefault();
+    const dir = e.shiftKey ? -1 : 1;
+    const inputs = Array.from(document.querySelectorAll('input[data-op-row]'));
+    if (!inputs.length) return;
+    // Find next non-disabled input
+    let nextIdx = rowIdx + dir;
+    while (nextIdx >= 0 && nextIdx < inputs.length) {
+      const next = inputs[nextIdx];
+      if (next && !next.disabled) {
+        next.focus();
+        next.select();
+        return;
+      }
+      nextIdx += dir;
+    }
+    // No next row — blur current input (auto-save already happened via oninput)
+    e.target.blur();
   }
 
   function _adjOpnamePeriod(delta) {
@@ -2992,6 +3015,7 @@ const InventoryModule = (() => {
     flushPendingEdit,
     renderOpnameTab,
     _onOpnameInput,
+    _onOpnameKey,
     _adjOpnamePeriod,
     _setOpnamePeriod,
     _setOpnameTgl,
