@@ -24,20 +24,89 @@ const InventoryModule = (() => {
   let _opnamePeriod = new Date().toISOString().slice(0,7); // period filter for opname
   let _opnameDraft  = {}; // itemId → value (string, as typed) — live draft state
   let _opnameTgl    = new Date().toISOString().slice(0,10);  // tanggal opname
-  const _OP_DRAFT_KEY = 'becca_opname_draft';
+  let _opnameSaveTimer = null;
+  let _opnameSyncTimer = null;
+  let _opnameDraftRev  = 0; // local revision counter — increment on every change
+  let _opnameDraftSavedRev = 0; // last revision saved to DB
+  const _OP_DRAFT_LS_KEY = 'becca_opname_draft'; // local fallback only
+
+  // Save draft to Supabase (debounced 800ms) + immediate localStorage backup
   function _saveOpnameDraft() {
-    try { localStorage.setItem(_OP_DRAFT_KEY, JSON.stringify({ period:_opnamePeriod, tgl:_opnameTgl, draft:_opnameDraft })); } catch {}
+    try { localStorage.setItem(_OP_DRAFT_LS_KEY, JSON.stringify({ period:_opnamePeriod, tgl:_opnameTgl, draft:_opnameDraft })); } catch {}
+    _opnameDraftRev++;
+    if (_opnameSaveTimer) clearTimeout(_opnameSaveTimer);
+    _opnameSaveTimer = setTimeout(async () => {
+      const revToSave = _opnameDraftRev;
+      try {
+        const cfg = await DB.getSettings().catch(()=>({})) || {};
+        const _opnameDraftDB = {
+          period: _opnamePeriod,
+          tgl: _opnameTgl,
+          draft: _opnameDraft,
+          updatedAt: new Date().toISOString(),
+          updatedBy: Auth.currentUser()?.id || '',
+        };
+        await DB.saveSettings({ ...cfg, _opnameDraft: _opnameDraftDB });
+        _opnameDraftSavedRev = revToSave;
+      } catch (e) { if(window.BECCA_DEBUG) console.warn('[Opname] save to DB failed, kept in localStorage:', e); }
+    }, 800);
   }
-  function _loadOpnameDraft() {
+
+  // Load draft from Supabase (with localStorage fallback)
+  async function _loadOpnameDraft() {
     try {
-      const raw = localStorage.getItem(_OP_DRAFT_KEY);
+      const cfg = await DB.getSettings().catch(()=>({})) || {};
+      const dbDraft = cfg._opnameDraft;
+      if (dbDraft && dbDraft.period === _opnamePeriod) {
+        _opnameDraft = dbDraft.draft || {};
+        if (dbDraft.tgl) _opnameTgl = dbDraft.tgl;
+        return;
+      }
+    } catch {}
+    // Fallback to localStorage
+    try {
+      const raw = localStorage.getItem(_OP_DRAFT_LS_KEY);
       if (!raw) return;
       const data = JSON.parse(raw);
-      // Only restore draft if same period
       if (data.period === _opnamePeriod) {
         _opnameDraft = data.draft || {};
         if (data.tgl) _opnameTgl = data.tgl;
       }
+    } catch {}
+  }
+
+  // Clear draft from both DB and localStorage
+  async function _clearOpnameDraft() {
+    try { localStorage.removeItem(_OP_DRAFT_LS_KEY); } catch {}
+    try {
+      const cfg = await DB.getSettings().catch(()=>({})) || {};
+      delete cfg._opnameDraft;
+      await DB.saveSettings(cfg);
+    } catch {}
+  }
+
+  // Poll DB every 10s while user is on opname tab — sync changes from other users
+  async function _pollOpnameDraft() {
+    if (_activeTab !== 'opname') return;
+    try {
+      const cfg = await DB.getSettings().catch(()=>({})) || {};
+      const dbDraft = cfg._opnameDraft;
+      if (!dbDraft || dbDraft.period !== _opnamePeriod) return;
+      // Skip if local has unsaved changes (don't overwrite user's typing)
+      if (_opnameDraftRev !== _opnameDraftSavedRev) return;
+      // Skip if data identical (avoid unnecessary re-render)
+      const incoming = JSON.stringify(dbDraft.draft || {});
+      const current  = JSON.stringify(_opnameDraft);
+      if (incoming === current) return;
+      // Preserve currently focused input value
+      const focusedEl = document.activeElement;
+      const focusedItemId = focusedEl?.id?.startsWith('op-in-') ? focusedEl.id.replace('op-in-','') : null;
+      const focusedVal = focusedEl?.value;
+      _opnameDraft = dbDraft.draft || {};
+      if (focusedItemId && focusedVal !== undefined) _opnameDraft[focusedItemId] = focusedVal;
+      renderOpnameTab();
+      // Restore focus
+      if (focusedItemId) { const el = document.getElementById('op-in-'+focusedItemId); if (el) el.focus(); }
     } catch {}
   }
   let _bulkSelected = new Set(); // bulk delete selection
@@ -96,8 +165,8 @@ const InventoryModule = (() => {
     _invEditId = null;
     _invLogPage = 1;
     try { _invLocked = new Set(JSON.parse(localStorage.getItem(_INV_LOCK_KEY)||'[]')); } catch { _invLocked = new Set(); }
-    // Restore opname draft from localStorage (survives refresh)
-    _loadOpnameDraft();
+    // Restore opname draft from DB (survives refresh, shared across users)
+    _loadOpnameDraft().then(() => { if (_activeTab === 'opname') renderOpnameTab(); });
 
     // Render segera dengan data yang ada (cache atau kosong)
     _recalcStok();
@@ -271,6 +340,10 @@ const InventoryModule = (() => {
 
   /* ===================== TAB SWITCH ===================== */
   function switchTab(tab) {
+    // Stop opname polling if leaving opname tab
+    if (_activeTab === 'opname' && tab !== 'opname' && _opnameSyncTimer) {
+      clearInterval(_opnameSyncTimer); _opnameSyncTimer = null;
+    }
     _activeTab = tab;
     // Update header button based on active tab
     const hdrBtns = document.getElementById('inv-header-btns');
@@ -308,6 +381,10 @@ const InventoryModule = (() => {
         _opnameLogs = fresh;
         renderOpnameTab();
       });
+      // Reload draft from DB and start polling for collaborative editing
+      _loadOpnameDraft().then(() => renderOpnameTab());
+      if (_opnameSyncTimer) clearInterval(_opnameSyncTimer);
+      _opnameSyncTimer = setInterval(_pollOpnameDraft, 10000);
     } else if (tab === 'laporan') {
       renderLaporanBulanan();
     } else if (tab === 'summary') {
@@ -2248,6 +2325,10 @@ const InventoryModule = (() => {
             style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:13px;font-weight:700;cursor:pointer">
           <button class="btn btn-sm" onclick="InventoryModule._adjOpnamePeriod(1)">›</button>
           <span style="font-size:12px;color:var(--text-3);margin-left:4px">${periodItems.length} barang aktif</span>
+          <span style="font-size:10px;color:var(--success);margin-left:4px;display:flex;align-items:center;gap:4px" title="Draft tersimpan otomatis ke database — bisa dilanjutkan dari device lain">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><polyline points="9 12 11 14 15 10"/></svg>
+            Sync ke DB
+          </span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <div style="display:flex;align-items:center;gap:6px">
@@ -2458,28 +2539,30 @@ const InventoryModule = (() => {
     e.target.blur();
   }
 
-  function _adjOpnamePeriod(delta) {
+  async function _adjOpnamePeriod(delta) {
     const [y, m] = _opnamePeriod.split('-').map(Number);
     const d = new Date(y, m - 1 + delta, 1);
     _opnamePeriod = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
     _opnameDraft  = {};
-    _loadOpnameDraft(); // restore draft for new period if exists
+    renderOpnameTab();
+    await _loadOpnameDraft(); // restore draft for new period if exists
     renderOpnameTab();
   }
 
-  function _setOpnamePeriod(val) {
+  async function _setOpnamePeriod(val) {
     if (!val) return;
     _opnamePeriod = val;
     _opnameDraft  = {};
-    _loadOpnameDraft();
+    renderOpnameTab();
+    await _loadOpnameDraft();
     renderOpnameTab();
   }
 
   function _setOpnameTgl(val) { _opnameTgl = val; _saveOpnameDraft(); }
 
-  function _resetOpnameDraft() {
+  async function _resetOpnameDraft() {
     _opnameDraft = {};
-    try { localStorage.removeItem(_OP_DRAFT_KEY); } catch {}
+    await _clearOpnameDraft();
     renderOpnameTab();
   }
 
@@ -2550,7 +2633,7 @@ const InventoryModule = (() => {
     }
 
     _opnameDraft = {};
-    try { localStorage.removeItem(_OP_DRAFT_KEY); } catch {}
+    await _clearOpnameDraft();
     renderOpnameTab();
     Notify.success('Stok Opname tersimpan: ' + saved + ' item ✓');
     DB.logActivity({ type:'opname_bulk', detail:'Opname massal: '+saved+' item pada '+_opnameTgl });
