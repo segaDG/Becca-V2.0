@@ -2476,6 +2476,249 @@ const InventoryModule = (() => {
     } catch(e) { Notify.error('Gagal', e.message); }
   }
 
+  /* ===================== EDIT OPNAME WITH APPROVAL WORKFLOW ===================== */
+  function editOpnameRow(id) {
+    const row = _opnameLogs.find(l => String(l.id) === String(id));
+    if (!row) { Notify.warning('Data tidak ditemukan'); return; }
+    const item = _items.find(i => String(i.id) === String(row.itemId)) || _items.find(i => i.nama === row.itemNama);
+    const sat = item?.satuan || '';
+    const userRole = Auth.currentUser()?.role || '';
+    const isAdmin = userRole === 'superadmin' || userRole === 'admin';
+    const mid = 'edit-op-'+id;
+    Modal.open({
+      id: mid,
+      title: 'Edit Hasil Stok Opname',
+      size: 'modal-md',
+      body: `
+        <div style="margin-bottom:12px;padding:10px 14px;background:var(--surface2);border-radius:6px">
+          <div style="font-size:11px;color:var(--text-3);text-transform:uppercase">Barang</div>
+          <div style="font-size:14px;font-weight:700;color:var(--heading)">${Utils.esc(row.itemNama||'-')}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:4px">Tanggal: ${(row.tgl||'').split('-').reverse().join('-')} · Stok Sistem: <strong>${_r2(row.stokSistem||0)} ${sat}</strong></div>
+        </div>
+        ${!isAdmin ? `<div style="padding:10px 14px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:6px;margin-bottom:12px;font-size:12px;color:var(--warning)">
+          ⏳ Perubahan akan menunggu approval dari admin sebelum disimpan permanen.
+        </div>` : ''}
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label">Jumlah Fisik (${sat})</label>
+          <input type="number" min="0" step="0.01" id="ed-op-jumlah" value="${row.jumlah||0}" class="form-control" style="font-family:var(--font-mono)">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Catatan (opsional)</label>
+          <textarea id="ed-op-catatan" class="form-control" rows="2" placeholder="Alasan perubahan...">${Utils.esc(row.catatan||'')}</textarea>
+        </div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+               <button class="btn btn-primary" onclick="InventoryModule._submitOpnameEdit('${id}','${mid}')">${isAdmin?'💾 Simpan':'⏳ Ajukan Approval'}</button>`,
+    });
+    setTimeout(() => { document.getElementById('ed-op-jumlah')?.focus(); document.getElementById('ed-op-jumlah')?.select(); }, 100);
+  }
+
+  async function _submitOpnameEdit(id, mid) {
+    const row = _opnameLogs.find(l => String(l.id) === String(id));
+    if (!row) return;
+    const newJumlah = parseFloat(document.getElementById('ed-op-jumlah')?.value) || 0;
+    const newCatatan = document.getElementById('ed-op-catatan')?.value || '';
+    if (newJumlah === row.jumlah && newCatatan === (row.catatan||'')) {
+      Notify.info('Tidak ada perubahan');
+      Modal.close(mid);
+      return;
+    }
+    const userRole = Auth.currentUser()?.role || '';
+    const isAdmin = userRole === 'superadmin' || userRole === 'admin';
+    const user = Auth.currentUser() || {};
+
+    if (isAdmin) {
+      // Direct save
+      const before = { jumlah: row.jumlah, catatan: row.catatan||'' };
+      row.jumlah  = newJumlah;
+      row.catatan = newCatatan;
+      row.pendingChange = null;
+      row.pendingBy = null;
+      row.pendingAt = null;
+      try {
+        await DB.saveOpnameLog({...row});
+        DB.logActivity({ type:'opname_edit', detail:`Edit opname "${row.itemNama}": ${_r2(before.jumlah)} → ${_r2(newJumlah)}` });
+        Modal.close(mid);
+        Notify.success('Hasil opname diperbarui');
+        renderLaporanBulanan();
+      } catch(e) { Notify.error('Gagal simpan', e.message); }
+    } else {
+      // Save as pending change for admin approval
+      row.pendingChange = { jumlah: newJumlah, catatan: newCatatan };
+      row.pendingBy = user.nama || user.username || user.id || '-';
+      row.pendingAt = new Date().toISOString();
+      try {
+        await DB.saveOpnameLog({...row});
+        DB.logActivity({ type:'opname_edit_pending', detail:`Pending edit opname "${row.itemNama}" oleh ${row.pendingBy}` });
+        Modal.close(mid);
+        Notify.success('Perubahan diajukan — menunggu approval admin');
+        renderLaporanBulanan();
+      } catch(e) { Notify.error('Gagal ajukan', e.message); }
+    }
+  }
+
+  async function approveOpnameChange(id) {
+    const row = _opnameLogs.find(l => String(l.id) === String(id));
+    if (!row || !row.pendingChange) return;
+    const before = { jumlah: row.jumlah, catatan: row.catatan||'' };
+    const after  = { jumlah: row.pendingChange.jumlah, catatan: row.pendingChange.catatan||'' };
+    const sat = (_items.find(i => String(i.id) === String(row.itemId))?.satuan) || '';
+    const ok = await Modal.confirm({
+      title: 'Setujui Perubahan Opname',
+      message: `<div style="font-size:13px">
+        <p style="margin-bottom:8px"><strong>${Utils.esc(row.itemNama)}</strong> — diajukan oleh <strong>${Utils.esc(row.pendingBy||'-')}</strong></p>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px">
+          <thead><tr style="background:var(--surface2)">
+            <th style="padding:6px 8px;text-align:left">Field</th>
+            <th style="padding:6px 8px;text-align:right;color:var(--text-3)">Sebelum</th>
+            <th style="padding:6px 8px;text-align:right;color:var(--success)">Sesudah</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:6px 8px;font-weight:600">Jumlah Fisik</td>
+              <td style="padding:6px 8px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${_r2(before.jumlah)} ${sat}</td>
+              <td style="padding:6px 8px;text-align:right;font-family:var(--font-mono);font-weight:700;color:${after.jumlah>before.jumlah?'#10b981':after.jumlah<before.jumlah?'#ef4444':'var(--text)'}">${_r2(after.jumlah)} ${sat}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 8px;font-weight:600">Catatan</td>
+              <td style="padding:6px 8px;text-align:right;font-family:var(--font-mono);color:var(--text-3);font-size:11px">${Utils.esc(before.catatan)||'-'}</td>
+              <td style="padding:6px 8px;text-align:right;font-family:var(--font-mono);font-weight:700;font-size:11px">${Utils.esc(after.catatan)||'-'}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin-top:10px;font-size:11px;color:var(--text-3)">Diajukan pada: ${row.pendingAt?new Date(row.pendingAt).toLocaleString('id-ID'):'-'}</p>
+      </div>`,
+      confirmText: 'Setujui & Simpan',
+      cancelText: 'Batal'
+    });
+    if (!ok) return;
+    row.jumlah  = after.jumlah;
+    row.catatan = after.catatan;
+    row.pendingChange = null;
+    row.pendingBy = null;
+    row.pendingAt = null;
+    try {
+      await DB.saveOpnameLog({...row});
+      DB.logActivity({ type:'opname_approve', detail:`Approve perubahan opname "${row.itemNama}": ${_r2(before.jumlah)} → ${_r2(after.jumlah)}` });
+      Notify.success('Perubahan disetujui');
+      renderLaporanBulanan();
+    } catch(e) { Notify.error('Gagal approve', e.message); }
+  }
+
+  async function rejectOpnameChange(id) {
+    const row = _opnameLogs.find(l => String(l.id) === String(id));
+    if (!row || !row.pendingChange) return;
+    const ok = await Modal.confirm({
+      title: 'Tolak Perubahan',
+      message: `<p>Tolak perubahan opname "<strong>${Utils.esc(row.itemNama)}</strong>" dari ${Utils.esc(row.pendingBy||'-')}?</p>
+        <p style="font-size:11px;color:var(--text-3);margin-top:6px">Perubahan akan dihapus dan data tetap menggunakan nilai sebelumnya.</p>`,
+      confirmText: 'Tolak', confirmClass: 'btn-danger', danger: true
+    });
+    if (!ok) return;
+    const reqBy = row.pendingBy;
+    row.pendingChange = null;
+    row.pendingBy = null;
+    row.pendingAt = null;
+    try {
+      await DB.saveOpnameLog({...row});
+      DB.logActivity({ type:'opname_reject', detail:`Tolak perubahan opname "${row.itemNama}" dari ${reqBy}` });
+      Notify.success('Perubahan ditolak');
+      renderLaporanBulanan();
+    } catch(e) { Notify.error('Gagal tolak', e.message); }
+  }
+
+  /* ===================== PRINT OPNAME REPORT (PDF) ===================== */
+  function printOpnameReport(yearMonth) {
+    const period = yearMonth || _opnamePeriod;
+    const opnameMonth = [..._opnameLogs].filter(l => (l.tgl||'').startsWith(period))
+      .sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+    if (!opnameMonth.length) { Notify.warning('Tidak ada data opname'); return; }
+    const [yr, mo] = period.split('-');
+    const BULAN = {1:'Januari',2:'Februari',3:'Maret',4:'April',5:'Mei',6:'Juni',7:'Juli',8:'Agustus',9:'September',10:'Oktober',11:'November',12:'Desember'};
+    const bulanLabel = (BULAN[parseInt(mo)]||mo) + ' ' + yr;
+
+    const totalSelisihQty = opnameMonth.reduce((s,l)=>s+((l.jumlah||0)-(l.stokSistem||0)),0);
+    const totalSelisihVal = opnameMonth.reduce((s,l) => {
+      const item = _items.find(i => String(i.id) === String(l.itemId)) || _items.find(i => i.nama === l.itemNama);
+      const harga = item?._hargaTerbaru || item?.hargaSatuan || l.harga || 0;
+      return s + ((l.jumlah||0) - (l.stokSistem||0)) * harga;
+    }, 0);
+    const cntPlus  = opnameMonth.filter(l => ((l.jumlah||0)-(l.stokSistem||0)) > 0).length;
+    const cntMinus = opnameMonth.filter(l => ((l.jumlah||0)-(l.stokSistem||0)) < 0).length;
+    const cntZero  = opnameMonth.filter(l => ((l.jumlah||0)-(l.stokSistem||0)) === 0).length;
+
+    const rowsHtml = opnameMonth.map((l,i) => {
+      const sel = (l.jumlah||0) - (l.stokSistem||0);
+      const item = _items.find(it => String(it.id) === String(l.itemId)) || _items.find(it => it.nama === l.itemNama);
+      const harga = item?._hargaTerbaru || item?.hargaSatuan || l.harga || 0;
+      const selVal = sel * harga;
+      const sat = item?.satuan || '';
+      const tgl2 = (l.tgl||'').split('-').reverse().join('-');
+      const sc = sel===0?'#475569':sel>0?'#16a34a':'#dc2626';
+      return `<tr>
+        <td style="text-align:right">${i+1}</td>
+        <td>${tgl2}</td>
+        <td>${l.itemNama||'-'}</td>
+        <td>${item?.kategori||'-'}</td>
+        <td style="text-align:right;font-family:monospace">${_r2(l.stokSistem||0)} ${sat}</td>
+        <td style="text-align:right;font-family:monospace;font-weight:600">${_r2(l.jumlah||0)} ${sat}</td>
+        <td style="text-align:right;font-family:monospace;color:${sc};font-weight:700">${sel>=0?'+':''}${_r2(sel)} ${sat}</td>
+        <td style="text-align:right;font-family:monospace;color:${sc}">${sel===0?'—':(sel>=0?'+':'-')+'Rp '+Math.abs(selVal).toLocaleString('id-ID')}</td>
+        <td>${l.catatan||'-'}</td>
+      </tr>`;
+    }).join('');
+
+    const printDate = new Date().toLocaleString('id-ID',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const sumColor = totalSelisihVal>=0?'#16a34a':'#dc2626';
+    const w = window.open('','_blank');
+    w.document.write(`<!DOCTYPE html><html><head><title>Laporan Stok Opname — ${bulanLabel}</title>
+      <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',Arial,sans-serif;padding:18px;color:#1e293b;font-size:11px}
+        h1{font-size:18px;margin-bottom:4px}
+        h2{font-size:13px;color:#64748b;font-weight:500;margin-bottom:12px}
+        .summary{display:flex;gap:14px;margin:12px 0;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;flex-wrap:wrap}
+        .summary span{font-size:11px}
+        .summary strong{font-size:13px;display:block;margin-top:2px}
+        table{width:100%;border-collapse:collapse;margin-top:8px}
+        th,td{padding:5px 7px;border:1px solid #e2e8f0;font-size:10px;vertical-align:top}
+        th{background:#1e293b;color:#fff;text-transform:uppercase;letter-spacing:.04em;font-size:9px;text-align:left}
+        tfoot td{background:#f1f5f9;font-weight:700}
+        .footer{margin-top:14px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+        @page{size:landscape;margin:10mm}
+        @media print{body{padding:0}.no-print{display:none}}
+      </style></head><body>
+      <h1>Laporan Stok Opname — ${bulanLabel}</h1>
+      <h2>BECCA Inventory Management · ${opnameMonth.length} item di-opname</h2>
+      <div class="summary">
+        <span>Lebih: <strong style="color:#16a34a">${cntPlus} item</strong></span>
+        <span>Kurang: <strong style="color:#dc2626">${cntMinus} item</strong></span>
+        <span>Cocok: <strong style="color:#475569">${cntZero} item</strong></span>
+        <span style="margin-left:auto">Total Selisih Qty: <strong style="color:${sumColor}">${totalSelisihQty>=0?'+':''}${_r2(totalSelisihQty)} unit</strong></span>
+        <span>Total Nilai Selisih: <strong style="color:${sumColor}">${totalSelisihVal>=0?'+':''}Rp ${Math.abs(totalSelisihVal).toLocaleString('id-ID')}</strong></span>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="width:30px">#</th>
+          <th style="width:75px">Tanggal</th>
+          <th>Nama Barang</th>
+          <th style="width:90px">Kategori</th>
+          <th style="width:80px;text-align:right">Stok Sistem</th>
+          <th style="width:80px;text-align:right">Jumlah Fisik</th>
+          <th style="width:90px;text-align:right">Selisih Qty</th>
+          <th style="width:100px;text-align:right">Selisih Nilai</th>
+          <th>Catatan</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div class="footer">
+        <span>Dicetak: ${printDate}</span>
+        <span>Laporan Stok Opname — BECCA V2.0</span>
+      </div>
+      <script>setTimeout(()=>window.print(),300)<\/script>
+      </body></html>`);
+    w.document.close();
+  }
+
   function exportOpnameCSV() {
     const rows = [..._opnameLogs].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
     const hdr = ['Tanggal','Nama Barang','Jumlah Fisik','Stok Sistem','Selisih','Catatan'];
@@ -2946,14 +3189,21 @@ const InventoryModule = (() => {
             <div>
               <span style="font-size:14px;font-weight:700;color:var(--heading)">📋 Hasil Stok Opname — ${bulanLabel}</span>
               <span style="font-size:11px;color:var(--text-3);margin-left:6px">${opnameMonth.length} item di-opname</span>
+              ${opnameMonth.filter(l=>l.pendingChange).length ? `<span style="font-size:11px;color:#f59e0b;margin-left:6px;font-weight:600">⏳ ${opnameMonth.filter(l=>l.pendingChange).length} menunggu approval</span>` : ''}
             </div>
-            ${opnameMonth.length ? `
-              <div style="display:flex;gap:12px;flex-wrap:wrap">
-                <span style="font-size:11px;color:var(--text-3)">Lebih: <strong style="color:#10b981">${opSelisihPlus.length}</strong></span>
-                <span style="font-size:11px;color:var(--text-3)">Kurang: <strong style="color:#ef4444">${opSelisihMinus.length}</strong></span>
-                <span style="font-size:11px;color:var(--text-3)">Cocok: <strong style="color:var(--text-2)">${opSelisihZero.length}</strong></span>
-                <span style="font-size:11px;color:var(--text-3)">Total nilai selisih: <strong style="color:${opTotalSelisihVal>=0?'#10b981':'#ef4444'};font-family:var(--font-mono)">${opTotalSelisihVal>=0?'+':''}${Utils.formatRupiah(Math.abs(opTotalSelisihVal))}</strong></span>
-              </div>` : ''}
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              ${opnameMonth.length ? `
+                <div style="display:flex;gap:12px;flex-wrap:wrap;margin-right:8px">
+                  <span style="font-size:11px;color:var(--text-3)">Lebih: <strong style="color:#10b981">${opSelisihPlus.length}</strong></span>
+                  <span style="font-size:11px;color:var(--text-3)">Kurang: <strong style="color:#ef4444">${opSelisihMinus.length}</strong></span>
+                  <span style="font-size:11px;color:var(--text-3)">Cocok: <strong style="color:var(--text-2)">${opSelisihZero.length}</strong></span>
+                  <span style="font-size:11px;color:var(--text-3)">Total nilai: <strong style="color:${opTotalSelisihVal>=0?'#10b981':'#ef4444'};font-family:var(--font-mono)">${opTotalSelisihVal>=0?'+':''}${Utils.formatRupiah(Math.abs(opTotalSelisihVal))}</strong></span>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="InventoryModule.printOpnameReport('${currMonth}')" title="Cetak laporan opname">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
+                  Print PDF
+                </button>` : ''}
+            </div>
           </div>
           <div class="table-scroll" style="max-height:500px;overflow-y:auto">
             <table class="table" style="font-size:12px">
@@ -2967,6 +3217,7 @@ const InventoryModule = (() => {
                   <th class="num">Selisih Qty</th>
                   <th class="num">Selisih Nilai</th>
                   <th>Catatan</th>
+                  ${Auth.can('inventory','edit') ? '<th style="width:90px">Aksi</th>' : ''}
                 </tr>
               </thead>
               <tbody>
@@ -2978,17 +3229,34 @@ const InventoryModule = (() => {
                   const selVal = sel * harga;
                   const sat = item?.satuan || '';
                   const tgl2 = (l.tgl||'').split('-').reverse().join('-');
-                  return `<tr>
+                  const hasPending = !!l.pendingChange;
+                  const userRole = Auth.currentUser()?.role || '';
+                  const isAdmin = userRole === 'superadmin' || userRole === 'admin';
+                  return `<tr style="${hasPending?'background:rgba(245,158,11,.06)':''}">
                     <td style="white-space:nowrap;color:var(--text-2)">${tgl2}</td>
-                    <td class="font-semibold">${l.itemNama||'-'}</td>
+                    <td class="font-semibold">${l.itemNama||'-'}${hasPending?' <span style="font-size:9px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:3px;font-weight:700;margin-left:4px">⏳ PENDING</span>':''}</td>
                     <td><span class="badge badge-neutral" style="font-size:10px">${item?.kategori||'-'}</span></td>
                     <td class="num" style="color:#6366f1;font-family:var(--font-mono)">${_r2(l.stokSistem||0)} ${sat}</td>
                     <td class="num" style="color:#f59e0b;font-family:var(--font-mono);font-weight:600">${_r2(l.jumlah||0)} ${sat}</td>
                     <td class="num font-semibold" style="color:${sc};font-family:var(--font-mono)">${sel>=0?'+':''}${_r2(sel)} ${sat}</td>
                     <td class="num" style="color:${sc};font-family:var(--font-mono)">${sel===0?'—':(sel>=0?'+':'')+Utils.formatRupiah(Math.abs(selVal))}</td>
                     <td class="text-muted text-small">${l.catatan||'-'}</td>
+                    ${Auth.can('inventory','edit') ? `<td>
+                      <div style="display:flex;gap:4px">
+                        ${hasPending && isAdmin ? `
+                          <button class="btn btn-sm" style="background:#10b981;color:#fff;padding:3px 8px;font-size:10px" onclick="InventoryModule.approveOpnameChange('${l.id}')" title="Setujui perubahan">✓</button>
+                          <button class="btn btn-sm" style="background:#ef4444;color:#fff;padding:3px 8px;font-size:10px" onclick="InventoryModule.rejectOpnameChange('${l.id}')" title="Tolak perubahan">✕</button>
+                        ` : hasPending ? `
+                          <span style="font-size:10px;color:var(--warning);font-weight:600">Menunggu admin</span>
+                        ` : `
+                          <button class="btn btn-sm btn-ghost" style="padding:3px 8px;font-size:10px" onclick="InventoryModule.editOpnameRow('${l.id}')" title="Edit hasil opname">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                        `}
+                      </div>
+                    </td>` : ''}
                   </tr>`;
-                }).join('') : '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-3)">Belum ada stok opname pada bulan ini</td></tr>'}
+                }).join('') : '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-3)">Belum ada stok opname pada bulan ini</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -3210,6 +3478,11 @@ const InventoryModule = (() => {
     _onJenisChange,
     _onQtyChange,
     deleteOpnameRow,
+    editOpnameRow,
+    _submitOpnameEdit,
+    approveOpnameChange,
+    rejectOpnameChange,
+    printOpnameReport,
     exportOpnameCSV,
     hppLearn,
     hppAIStats,
