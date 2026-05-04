@@ -13,11 +13,13 @@ const ReportModule = (() => {
       </div>
       <div class="tabs">
         <button class="tab-btn active" data-tab="trend"    onclick="ReportModule.switchTab('trend')">📈 Trend 12 Bulan</button>
+        <button class="tab-btn"        data-tab="profit"   onclick="ReportModule.switchTab('profit')">💎 Profitability</button>
         <button class="tab-btn"        data-tab="kas"      onclick="ReportModule.switchTab('kas')">💰 Laporan Kas</button>
         <button class="tab-btn"        data-tab="order"    onclick="ReportModule.switchTab('order')">📋 Laporan Order</button>
         <button class="tab-btn"        data-tab="karyawan" onclick="ReportModule.switchTab('karyawan')">👷 Laporan Karyawan</button>
       </div>
       <div id="rpt-trend"></div>
+      <div id="rpt-profit"   class="hidden"></div>
       <div id="rpt-kas"      class="hidden"></div>
       <div id="rpt-order"    class="hidden"></div>
       <div id="rpt-karyawan" class="hidden"></div>
@@ -26,11 +28,11 @@ const ReportModule = (() => {
   }
 
   function switchTab(tab) {
-    ['trend','kas','order','karyawan'].forEach(t => {
+    ['trend','profit','kas','order','karyawan'].forEach(t => {
       document.getElementById(`rpt-${t}`)?.classList.toggle('hidden', t !== tab);
       document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
     });
-    const renders = { trend: renderTrend, kas: renderKas, order: renderOrder, karyawan: renderKaryawan };
+    const renders = { trend: renderTrend, profit: renderProfitability, kas: renderKas, order: renderOrder, karyawan: renderKaryawan };
     renders[tab]?.();
   }
 
@@ -487,6 +489,239 @@ const ReportModule = (() => {
         </div>
         <div style="padding:8px 18px 12px;font-size:11px;color:var(--text-3);background:var(--surface2);border-top:1px solid var(--border)">
           ⚠ Estimasi sederhana. Payroll = total gaji aktif × bulan. Tidak termasuk biaya operasional rutin (sewa, listrik, dll). Pakai sebagai indikasi awal, bukan pengganti cash budget detail.
+        </div>
+      </div>
+    `;
+  }
+
+  /* ========================================================
+     PROFITABILITY ANALYSIS — Per Customer (LTV, AR, Segmentation)
+     Method: Historical LTV (Σ invoice.total all-time per customer)
+     Segmentation: RFM-lite based on Last Order Days + LTV percentile
+  ======================================================== */
+
+  // Hitung selisih hari antara 2 tanggal (string YYYY-MM-DD)
+  function _daysBetween(d1, d2) {
+    const a = new Date(d1), b = new Date(d2);
+    return Math.floor((b - a) / 86400000);
+  }
+
+  function _segmentBadge(seg) {
+    const m = {
+      vip:      { label:'💎 VIP',     bg:'rgba(16,185,129,.15)', color:'#10b981', border:'rgba(16,185,129,.4)' },
+      regular:  { label:'✅ Regular',  bg:'rgba(99,102,241,.12)', color:'#6366f1', border:'rgba(99,102,241,.3)' },
+      atrisk:   { label:'⚠ At Risk',  bg:'rgba(245,158,11,.12)', color:'#f59e0b', border:'rgba(245,158,11,.4)' },
+      churned:  { label:'💀 Churned', bg:'rgba(239,68,68,.10)',  color:'#ef4444', border:'rgba(239,68,68,.35)' },
+    };
+    const s = m[seg] || m.regular;
+    return `<span style="display:inline-flex;align-items:center;font-size:10px;padding:3px 8px;border-radius:99px;background:${s.bg};color:${s.color};border:1px solid ${s.border};font-weight:700;white-space:nowrap">${s.label}</span>`;
+  }
+
+  async function renderProfitability() {
+    const container = document.getElementById('rpt-profit');
+    if (!container) return;
+    container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-3)">Memuat data profitability...</div>`;
+
+    const [invoices, customers] = await Promise.all([
+      DB.getInvoices().catch(()=>[]),
+      DB.getCustomers().catch(()=>[]),
+    ]);
+
+    if (!invoices.length) {
+      container.innerHTML = '<div style="padding:60px;text-align:center;color:var(--text-3)">Belum ada data invoice — analisa profitability butuh history invoice</div>';
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0,10);
+
+    // === Group invoice per customer ===
+    const byCustomer = {};
+    invoices.forEach(inv => {
+      const name = inv.customer || '(tanpa nama)';
+      if (!byCustomer[name]) byCustomer[name] = {
+        name,
+        invoices: [],
+        ltv: 0,
+        invoiceCount: 0,
+        paidCount: 0,
+        arOutstanding: 0,
+        lastOrder: '',
+        firstOrder: '',
+        totalPayDays: 0,
+        payDaysCount: 0,
+      };
+      const c = byCustomer[name];
+      c.invoices.push(inv);
+      c.invoiceCount++;
+      c.ltv += +(inv.total || 0);
+      const tgl = inv.tglInvoice || inv.tgl || '';
+      if (tgl) {
+        if (!c.firstOrder || tgl < c.firstOrder) c.firstOrder = tgl;
+        if (!c.lastOrder  || tgl > c.lastOrder)  c.lastOrder  = tgl;
+      }
+      // Status normalization (legacy: 'Paid'/'Unpaid'/'Overdue', some uses 'LUNAS')
+      const isPaid = inv.status === 'Paid' || inv.status === 'LUNAS' || inv.status === 'Lunas';
+      if (isPaid) {
+        c.paidCount++;
+        // Average payment days kalau ada tglTerbayar
+        if (inv.tglTerbayar && tgl) {
+          const days = _daysBetween(tgl, inv.tglTerbayar);
+          if (days >= 0 && days < 365) { c.totalPayDays += days; c.payDaysCount++; }
+        }
+      } else {
+        c.arOutstanding += +(inv.sisa || inv.afterPph || inv.total || 0);
+      }
+    });
+
+    // Compute derived fields per customer
+    const list = Object.values(byCustomer).map(c => {
+      const aov = c.invoiceCount > 0 ? c.ltv / c.invoiceCount : 0;
+      const lastDays = c.lastOrder ? _daysBetween(c.lastOrder, today) : 9999;
+      const avgPayDays = c.payDaysCount > 0 ? Math.round(c.totalPayDays / c.payDaysCount) : null;
+      // Lookup customer master
+      const master = customers.find(x => x.nama === c.name);
+      const tempo = master?.tempo || null;
+      return { ...c, aov, lastDays, avgPayDays, tempo };
+    });
+
+    // === Compute LTV percentile threshold (top 20% = VIP) ===
+    const sortedByLTV = [...list].sort((a,b) => b.ltv - a.ltv);
+    const top20Idx = Math.max(0, Math.floor(list.length * 0.2));
+    const ltvVipThreshold = sortedByLTV[top20Idx]?.ltv || 0;
+
+    // === Segmentation ===
+    list.forEach(c => {
+      if (c.lastDays > 60)        c.segment = 'churned';
+      else if (c.lastDays > 30)   c.segment = 'atrisk';
+      else if (c.ltv >= ltvVipThreshold && ltvVipThreshold > 0) c.segment = 'vip';
+      else                        c.segment = 'regular';
+    });
+
+    // === KPI summary ===
+    const totalLtv      = list.reduce((s,c) => s + c.ltv, 0);
+    const totalAR       = list.reduce((s,c) => s + c.arOutstanding, 0);
+    const segCount      = { vip:0, regular:0, atrisk:0, churned:0 };
+    list.forEach(c => segCount[c.segment]++);
+    const activeCount   = segCount.vip + segCount.regular;
+    const avgLtv        = activeCount > 0 ? totalLtv / list.length : 0;
+    const totalInvoices = list.reduce((s,c)=>s+c.invoiceCount, 0);
+
+    // Sort customers by LTV desc for table
+    const sortedList = [...list].sort((a,b) => b.ltv - a.ltv);
+
+    // === RENDER ===
+    container.innerHTML = `
+      <!-- KPI Cards -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:var(--s3);margin-bottom:var(--s4)">
+        ${[
+          { l:'Total Customers',  v:list.length+' customer',                                 c:'#6366f1' },
+          { l:'Total LTV (Hist)', v:Utils.formatRupiah(totalLtv),                            c:'#10b981' },
+          { l:'Avg LTV',          v:Utils.formatRupiah(avgLtv),                              c:'#3b82f6' },
+          { l:'AR Outstanding',   v:Utils.formatRupiah(totalAR),                             c:'#ef4444' },
+        ].map(c => `
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
+            <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">${c.l}</div>
+            <div style="font-size:18px;font-weight:800;color:${c.c};font-family:var(--font-mono)">${c.v}</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- Segmentation breakdown -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:var(--s4)">
+        <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+          <div style="font-size:14px;font-weight:700;color:var(--heading)">🎯 Customer Segmentation (RFM-Lite)</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:2px">
+            Last Order Days + LTV percentile. <strong>VIP</strong>: aktif (≤30d) di top 20% LTV.
+            <strong>Regular</strong>: aktif (≤30d). <strong>At Risk</strong>: 30-60 hari tidak order.
+            <strong>Churned</strong>: &gt;60 hari tidak order.
+          </div>
+        </div>
+        <div style="padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s3)">
+          ${[
+            { seg:'vip',     l:'💎 VIP',      n:segCount.vip,     desc:'Top 20% LTV + aktif',  c:'#10b981' },
+            { seg:'regular', l:'✅ Regular',   n:segCount.regular, desc:'Aktif, LTV menengah',  c:'#6366f1' },
+            { seg:'atrisk',  l:'⚠ At Risk',   n:segCount.atrisk,  desc:'30-60 hari quiet',     c:'#f59e0b' },
+            { seg:'churned', l:'💀 Churned',  n:segCount.churned, desc:'>60 hari, lepas',      c:'#ef4444' },
+          ].map(s => `
+            <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;border-left:3px solid ${s.c}">
+              <div style="font-size:11px;font-weight:700;color:${s.c};margin-bottom:4px">${s.l}</div>
+              <div style="font-size:22px;font-weight:800;color:var(--heading);font-family:var(--font-mono)">${s.n}</div>
+              <div style="font-size:10px;color:var(--text-3);margin-top:2px">${s.desc}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Top 10 Customers by LTV -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:var(--s4)">
+        <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+          <div style="font-size:14px;font-weight:700;color:var(--heading)">🏆 Top 10 Customer by LTV</div>
+        </div>
+        <div style="padding:12px 18px">
+          ${sortedList.slice(0, 10).map((c, i) => {
+            const pct = totalLtv > 0 ? (c.ltv / sortedList[0].ltv * 100) : 0;
+            return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="font-size:11px;font-weight:700;color:var(--text-3);width:22px;text-align:right">${i+1}.</span>
+              <span style="font-size:13px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${c.name}">${c.name}</span>
+              ${_segmentBadge(c.segment)}
+              <div style="flex:1;max-width:200px;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden">
+                <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#6366f1,#10b981);border-radius:3px"></div>
+              </div>
+              <span style="font-size:12px;font-family:var(--font-mono);font-weight:600;min-width:120px;text-align:right;color:var(--heading)">${Utils.formatRupiah(c.ltv, true)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Customer Detail Table -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+        <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--heading)">📋 Detail Per Customer</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:2px">Sortir LTV ↓. Klik header (segera tersedia di v2).</div>
+          </div>
+        </div>
+        <div style="overflow-x:auto;max-height:600px;overflow-y:auto">
+          <table class="table" style="font-size:12px">
+            <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
+              <tr>
+                <th style="width:36px">#</th>
+                <th>Customer</th>
+                <th style="width:90px">Segment</th>
+                <th class="num" style="width:80px">Invoice</th>
+                <th class="num" style="width:120px">LTV</th>
+                <th class="num" style="width:110px">Avg Order</th>
+                <th class="num" style="width:120px">AR Outstanding</th>
+                <th class="num" style="width:90px">Last Order</th>
+                <th class="num" style="width:90px">Avg Bayar</th>
+                <th class="num" style="width:70px">Tempo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sortedList.map((c, i) => {
+                const lastDaysStr = c.lastOrder ? `${c.lastDays}d lalu` : '—';
+                const lastColor = c.lastDays <= 30 ? '#10b981' : c.lastDays <= 60 ? '#f59e0b' : '#ef4444';
+                const payDaysStr = c.avgPayDays !== null ? `${c.avgPayDays}d` : '—';
+                const payColor = c.avgPayDays === null ? 'var(--text-3)' : (c.tempo && c.avgPayDays > c.tempo ? '#ef4444' : '#10b981');
+                return `<tr>
+                  <td style="color:var(--text-3)">${i+1}</td>
+                  <td style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px" title="${c.name}">${c.name}</td>
+                  <td>${_segmentBadge(c.segment)}</td>
+                  <td class="num" style="font-family:var(--font-mono)">${c.invoiceCount}<div style="font-size:9px;color:var(--text-3)">(${c.paidCount} paid)</div></td>
+                  <td class="num" style="font-family:var(--font-mono);font-weight:700;color:#10b981">${Utils.formatRupiah(c.ltv, true)}</td>
+                  <td class="num" style="font-family:var(--font-mono);color:var(--text-2)">${Utils.formatRupiah(c.aov, true)}</td>
+                  <td class="num" style="font-family:var(--font-mono);color:${c.arOutstanding > 0 ? '#ef4444' : 'var(--text-3)'}">${c.arOutstanding > 0 ? Utils.formatRupiah(c.arOutstanding, true) : '—'}</td>
+                  <td class="num" style="color:${lastColor};font-family:var(--font-mono)">${lastDaysStr}</td>
+                  <td class="num" style="color:${payColor};font-family:var(--font-mono)">${payDaysStr}</td>
+                  <td class="num" style="color:var(--text-3);font-family:var(--font-mono)">${c.tempo ? c.tempo+'d' : '—'}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:8px 18px;font-size:11px;color:var(--text-3);background:var(--surface2);border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <span><strong>${list.length}</strong> customer · <strong>${totalInvoices}</strong> invoice all-time</span>
+          <span>📌 LTV = total revenue historis. AR = invoice belum lunas. Avg Bayar lebih dari Tempo = bayar telat (merah).</span>
         </div>
       </div>
     `;
