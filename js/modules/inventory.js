@@ -3214,8 +3214,8 @@ const InventoryModule = (() => {
         </div>
 
         ${(()=>{
-          // Total HPP semua KELUAR (kumulatif all-time)
-          const totalHPPAllTime = _logs.filter(l => l.jenis === 'KELUAR').reduce((s,l)=>s+_hppOf(l),0);
+          // Total HPP bulan ini = HPP keluar + nilai retur (sesuai filter bulan)
+          const totalHPPMonth = totalKeluarHPP + totalReturVal;
           // Nilai inventory real-time = sum dari (stock × harga) untuk semua item
           const totalInventoryValue = _items.reduce((s,it) => {
             const stok = it._stok || 0;
@@ -3227,7 +3227,7 @@ const InventoryModule = (() => {
             {l:'Stock Out (Keluar)', v:Utils.formatRupiah(totalKeluarHPP), sub:_r2(totalKeluarQty)+' unit', c:'var(--danger)'},
             {l:'Rusak / Retur',     v:Utils.formatRupiah(totalReturVal), sub:_r2(totalReturQty)+' unit',  c:'var(--warning)'},
             {l:'Stock Opname',      v:opnameMonth.length+' item',        sub:opnameMonth.length?(opTotalSelisihQty>=0?'+':'')+_r2(opTotalSelisihQty)+' selisih':'belum ada', c:'var(--primary)'},
-            {l:'Total HPP',         v:Utils.formatRupiah(totalHPPAllTime), sub:'Kumulatif keluar', c:'#dc2626'},
+            {l:'Total HPP',         v:Utils.formatRupiah(totalHPPMonth), sub:'Periode '+bulanLabel, c:'#dc2626'},
             {l:'Nilai Inventory',   v:Utils.formatRupiah(totalInventoryValue), sub:_items.length+' item · real-time', c:'#7c3aed'},
           ];
           return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:var(--s2);margin-bottom:var(--s4)">
