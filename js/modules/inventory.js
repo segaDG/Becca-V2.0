@@ -3457,6 +3457,114 @@ const InventoryModule = (() => {
             </table>
           </div>
         </div>
+
+        <!-- ANOMALI INVENTORY -->
+        ${(() => {
+          // Detect 3 anomaly types untuk bulan ini, reuse 2σ pattern from kas.js
+          const findings = [];
+          const monthLogsAll = monthLogs; // already computed above
+          const keluarOnly = keluarLogs;   // KELUAR yang bukan retur
+
+          // Helper: severity colors
+          const sevColors = {high:'#dc2626', medium:'#f59e0b', low:'var(--text-3)'};
+          const sevBg     = {high:'rgba(220,38,38,.06)', medium:'rgba(245,158,11,.06)', low:'rgba(148,163,184,.06)'};
+          const sevBorder = {high:'rgba(220,38,38,.2)', medium:'rgba(245,158,11,.2)', low:'rgba(148,163,184,.2)'};
+          const sevLabels = {high:'Tinggi', medium:'Sedang', low:'Info'};
+
+          // 1. USAGE SPIKE — daily KELUAR qty per item > mean + 2σ vs item's own daily mean
+          //    Group by itemId+date, lalu detect outlier per item
+          const itemDaily = {}; // itemId → { name, dailyQty: { date: qty } }
+          keluarOnly.forEach(l => {
+            if (!l.itemId || !l.tgl) return;
+            const key = String(l.itemId);
+            if (!itemDaily[key]) itemDaily[key] = { name: l.itemNama || '-', satuan: l.satuan || '', dailyQty: {} };
+            itemDaily[key].dailyQty[l.tgl] = (itemDaily[key].dailyQty[l.tgl] || 0) + (l.jumlah || 0);
+          });
+          Object.entries(itemDaily).forEach(([itemId, info]) => {
+            const dates = Object.keys(info.dailyQty);
+            if (dates.length < 5) return; // perlu min 5 data point
+            const vals = dates.map(d => info.dailyQty[d]);
+            const mean = vals.reduce((s,v) => s+v, 0) / vals.length;
+            if (mean <= 0) return;
+            const stddev = Math.sqrt(vals.reduce((s,v) => s+(v-mean)**2, 0) / vals.length);
+            const threshold = mean + 2 * stddev;
+            dates.forEach(d => {
+              const q = info.dailyQty[d];
+              if (q > threshold && q > mean * 1.5) {
+                findings.push({
+                  severity: 'high', icon: '📈',
+                  title: `Lonjakan pemakaian: ${info.name}`,
+                  desc: `Pada ${d.split('-').reverse().join('-')} keluar <strong>${_r2(q)} ${info.satuan}</strong> — biasanya rata-rata ${_r2(mean)} ${info.satuan}/hari (${((q/mean-1)*100).toFixed(0)}% di atas normal). Cek kemungkinan typo input atau pemakaian tidak biasa.`,
+                  amount: q,
+                });
+              }
+            });
+          });
+
+          // 2. NEGATIVE STOCK — item dengan stock current < 0 (data corruption / unrecorded MASUK)
+          _items.forEach(it => {
+            const stok = it._stok || 0;
+            if (stok < 0) {
+              findings.push({
+                severity: 'high', icon: '⚠',
+                title: `Stok minus: ${it.nama}`,
+                desc: `Stok saat ini <strong>${_r2(stok)} ${it.satuan||''}</strong> — kemungkinan ada KELUAR tanpa MASUK terdokumentasi atau opname belum di-input. Lakukan stok opname untuk koreksi.`,
+                amount: Math.abs(stok),
+              });
+            }
+          });
+
+          // 3. NO MOVEMENT — item dengan stok > 0 tapi tidak ada activity > 60 hari (mati stok)
+          const today = new Date().toISOString().slice(0, 10);
+          const cutoff60 = new Date(Date.now() - 60*86400000).toISOString().slice(0, 10);
+          _items.forEach(it => {
+            const stok = it._stok || 0;
+            if (stok <= 0) return;
+            const itemLogs = _logs.filter(l => String(l.itemId) === String(it.id) && (l.jenis === 'MASUK' || l.jenis === 'KELUAR'));
+            if (!itemLogs.length) return;
+            const lastDate = itemLogs.map(l => l.tgl||'').sort().pop();
+            if (!lastDate || lastDate < cutoff60) {
+              const days = lastDate ? Math.floor((new Date(today) - new Date(lastDate)) / 86400000) : 999;
+              const harga = it._weightedAvgPrice || it._hargaTerbaru || it.hargaSatuan || 0;
+              const tied = stok * harga;
+              findings.push({
+                severity: 'medium', icon: '🐢',
+                title: `Mati stok: ${it.nama}`,
+                desc: `Stok ${_r2(stok)} ${it.satuan||''} (Rp ${tied.toLocaleString('id-ID')}) — tidak ada aktivitas MASUK/KELUAR selama <strong>${days} hari</strong>. Pertimbangkan dijual cepat atau dihapus.`,
+                amount: tied,
+              });
+            }
+          });
+
+          // Sort: high → medium → low, then by amount desc
+          const sevOrder = {high:0, medium:1, low:2};
+          findings.sort((a,b) => (sevOrder[a.severity]||9) - (sevOrder[b.severity]||9) || (b.amount||0) - (a.amount||0));
+
+          // Show top 20 to avoid wall of text
+          const top = findings.slice(0, 20);
+
+          return `<div style="margin-top:var(--s5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+            <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+              <div>
+                <span style="font-size:14px;font-weight:700;color:var(--heading)">🚨 Anomali & Peringatan Inventory</span>
+                <span style="font-size:11px;color:var(--text-3);margin-left:6px">${findings.length} temuan</span>
+              </div>
+              ${findings.length > 20 ? `<span style="font-size:11px;color:var(--text-3)">Menampilkan 20 teratas</span>` : ''}
+            </div>
+            <div style="padding:var(--s4);max-height:480px;overflow-y:auto">
+              ${top.length ? top.map(f => `
+                <div style="margin-bottom:8px;padding:10px 14px;border-radius:8px;border:1px solid ${sevBorder[f.severity]};background:${sevBg[f.severity]}">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                    <span style="font-size:14px">${f.icon}</span>
+                    <span style="font-size:12px;font-weight:700;color:var(--heading);flex:1">${f.title}</span>
+                    <span style="font-size:9px;padding:2px 6px;border-radius:3px;font-weight:700;background:${sevBg[f.severity]};color:${sevColors[f.severity]};border:1px solid ${sevBorder[f.severity]}">${sevLabels[f.severity]}</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-2);line-height:1.6;padding-left:22px">${f.desc}</div>
+                </div>
+              `).join('') : `<div style="padding:24px;text-align:center;color:var(--success);font-size:13px">✅ Tidak ada anomali terdeteksi pada periode ini.</div>`}
+            </div>
+          </div>`;
+        })()}
       </div>
     `;
   }
