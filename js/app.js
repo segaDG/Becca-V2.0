@@ -226,7 +226,7 @@ const App = {
         if (fresh?.role && fresh.role!==_cu.role) {
           Auth._user = {..._cu, role:fresh.role};
           Utils.ls.get(Auth._SESSION_KEY)?Utils.ls.set(Auth._SESSION_KEY,Auth._user):sessionStorage.setItem(Auth._SESSION_KEY,JSON.stringify(Auth._user));
-          this._renderHeader(); if(typeof Sidebar!=='undefined') Sidebar.render();
+          this._renderHeader(); if(typeof Sidebar!=='undefined') Sidebar.render(); if(typeof BottomNav!=='undefined') BottomNav.render();
         }
       }).catch(()=>{});
     }
@@ -337,6 +337,7 @@ const App = {
     _ov.onclick = () => this._closeMobileSidebar();
     _ov.ontouchend = (e) => { e.preventDefault(); this._closeMobileSidebar(); };
     Sidebar.render();
+    if (typeof BottomNav !== 'undefined') BottomNav.render();
     this._renderHeader();
 
     // Deep link: open specific task after login
@@ -534,6 +535,7 @@ const App = {
 
     this._currentPage = pageId;
     Sidebar.setActive(pageId);
+    if (typeof BottomNav !== 'undefined') BottomNav.setActive(pageId);
 
     const titles = {
       dashboard : 'Dashboard',
@@ -632,6 +634,7 @@ const App = {
     `;
     page.classList.add('active');
     Sidebar.setActive(pageId);
+    if (typeof BottomNav !== 'undefined') BottomNav.setActive(pageId);
   },
 
   /* === Presence / User Online === */
