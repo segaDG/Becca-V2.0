@@ -174,10 +174,20 @@ const InventoryModule = (() => {
     // Restore opname draft from DB (survives refresh, shared across users)
     _loadOpnameDraft().then(() => { if (_activeTab === 'opname') renderOpnameTab(); });
 
+    // Restore filter state from URL (refresh / shared link)
+    let _restoredTab = '';
+    if (Utils.urlState) {
+      const r = Utils.urlState.read('inventory', ['tab','nama','tgl','page']);
+      if (r.nama) _logFilterNama = String(r.nama).toLowerCase();
+      if (r.tgl)  _logFilterTgl  = r.tgl;
+      if (r.page) { const p = parseInt(r.page); if (p > 0) _invLogPage = p; }
+      if (r.tab && ['transaksi','alert','opname','laporan','summary'].includes(r.tab)) _restoredTab = r.tab;
+    }
+
     // Render segera dengan data yang ada (cache atau kosong)
     _recalcStok();
-    // Preserve active tab across re-init (e.g. navigating away and back)
-    const restoreTab = _activeTab || 'stok';
+    // Preserve active tab: URL → in-memory → default 'stok'
+    const restoreTab = _restoredTab || _activeTab || 'stok';
     switchTab(restoreTab);
 
     // Fast first page for activity logs (heaviest table)
@@ -351,6 +361,8 @@ const InventoryModule = (() => {
       clearInterval(_opnameSyncTimer); _opnameSyncTimer = null;
     }
     _activeTab = tab;
+    // Sync tab to URL (so refresh stays on same tab)
+    if (typeof _syncInvUrlState === 'function') _syncInvUrlState();
     // Update header button based on active tab
     const hdrBtns = document.getElementById('inv-header-btns');
     if (hdrBtns && Auth.can('inventory','edit')) {
@@ -620,12 +632,21 @@ const InventoryModule = (() => {
   function setStokPerPage(n)    { _stokPerPage = n; localStorage.setItem('becca_inv_stok_perPage', n); _stokPage = 1; renderStok(); }
   function setInvLogPerPage(n)  { _invLogPerPage = n; localStorage.setItem('becca_inv_log_perPage', n); _invLogPage = 1; renderTransaksi(); }
 
-  function setLogFilterNama(v) { _logFilterNama = v.trim().toLowerCase(); _invLogPage = 1; renderTransaksi(); }
-  function setLogFilterTgl(v)  { _logFilterTgl  = v; _invLogPage = 1; renderTransaksi(); }
+  function setLogFilterNama(v) { _logFilterNama = v.trim().toLowerCase(); _invLogPage = 1; renderTransaksi(); _syncInvUrlState(); }
+  function setLogFilterTgl(v)  { _logFilterTgl  = v; _invLogPage = 1; renderTransaksi(); _syncInvUrlState(); }
   function clearLogFilter() {
     const btn = document.getElementById('inv-log-reset');
     if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
     _logFilterNama = ''; _logFilterTgl = ''; _invLogPage = 1; renderTransaksi();
+    Utils.urlState?.clear('inventory');
+  }
+  function _syncInvUrlState() {
+    Utils.urlState?.write('inventory', {
+      tab: _activeTab && _activeTab !== 'stok' ? _activeTab : '',
+      nama: _logFilterNama,
+      tgl:  _logFilterTgl,
+      page: _invLogPage > 1 ? _invLogPage : '',
+    });
   }
 
   /* ═══ SYNC FORM PRODUKSI → ACTIVITY LINE ═══ */

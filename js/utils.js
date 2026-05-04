@@ -137,6 +137,65 @@ const Utils = {
     Object.keys(existing).forEach(k => { if (!(k in data)) data[k] = existing[k]; });
     return data;
   },
+
+  /** URL state helper — sync filter/page state with URL query params.
+   *
+   *  Pattern di module:
+   *    init() {
+   *      const restored = Utils.urlState.read('kas', ['bulan','type','status']);
+   *      Object.assign(_filter, restored);
+   *    }
+   *    setFilter(k,v) {
+   *      _filter[k] = v;
+   *      Utils.urlState.write('kas', _filter);
+   *    }
+   *
+   *  URL format: ?<ns>_<key>=<value> (e.g. ?kas_bulan=Apr&kas_type=Gaji)
+   *  history.replaceState() — tidak nambah history entry, jadi back button tetap normal.
+   */
+  urlState: {
+    read(namespace, whitelist) {
+      const out = {};
+      try {
+        const params = new URLSearchParams(location.search);
+        const prefix = namespace + '_';
+        const list = Array.isArray(whitelist) ? whitelist : null;
+        params.forEach((v, k) => {
+          if (!k.startsWith(prefix)) return;
+          const key = k.slice(prefix.length);
+          if (list && !list.includes(key)) return;
+          if (v !== '') out[key] = v;
+        });
+      } catch {}
+      return out;
+    },
+    write(namespace, state) {
+      try {
+        // Skip if user navigated away from this module's page (avoid clobbering)
+        if (typeof App !== 'undefined' && App._currentPage && App._currentPage !== namespace) return;
+        const params = new URLSearchParams(location.search);
+        const prefix = namespace + '_';
+        [...params.keys()].forEach(k => { if (k.startsWith(prefix)) params.delete(k); });
+        if (state && typeof state === 'object') {
+          Object.entries(state).forEach(([k, v]) => {
+            if (v === null || v === undefined || v === '') return;
+            params.set(prefix + k, String(v));
+          });
+        }
+        const qs = params.toString();
+        history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+      } catch {}
+    },
+    clear(namespace) {
+      try {
+        const params = new URLSearchParams(location.search);
+        const prefix = namespace + '_';
+        [...params.keys()].forEach(k => { if (k.startsWith(prefix)) params.delete(k); });
+        const qs = params.toString();
+        history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+      } catch {}
+    },
+  },
 };
 
 window.Utils = Utils;

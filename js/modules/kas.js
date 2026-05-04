@@ -232,6 +232,12 @@ const KasModule = (() => {
     _editingId = null;
     _pendingChanges = {};
     UndoRedo.setActive('kas');
+    // Restore filter state from URL (refresh / shared link)
+    if (Utils.urlState) {
+      const restored = Utils.urlState.read('kas', ['bulan','type','status','dateFrom','dateTo','search','page']);
+      Object.assign(_filter, restored);
+      if (restored.page) { const p = parseInt(restored.page); if (p > 0) _page = p; }
+    }
 
     // Progressive loading — fast first page, background load rest
     const cachedKas   = DB.getCached('kas');
@@ -1046,6 +1052,7 @@ const KasModule = (() => {
     });
   }
   function setFilter(k,v){ if(_editingId)commitEdit(_editingId); _filter[k]=v; _page=1; renderTransaksi();
+    Utils.urlState?.write('kas', {..._filter, page: _page>1?_page:''});
     // Keep search bar open & refocus after re-render
     if (k==='search') { const sb=document.getElementById('kas-search-bar'); if(sb){sb.classList.remove('closed');sb.classList.add('open');} const inp=document.getElementById('kas-search-input'); if(inp){inp.focus();inp.selectionStart=inp.selectionEnd=inp.value.length;} }
   }
@@ -1053,6 +1060,7 @@ const KasModule = (() => {
     const btn = document.getElementById('kas-reset-btn');
     if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
     if(_editingId)commitEdit(_editingId); _filter={search:''}; _page=1; renderTransaksi();
+    Utils.urlState?.clear('kas');
   }
   function toggleSearch() {
     const bar = document.getElementById('kas-search-bar');
@@ -1066,7 +1074,7 @@ const KasModule = (() => {
       const inp=document.getElementById('kas-search-input'); if(inp){inp.focus();inp.select();}
     }
   }
-  function goPage(p)      { if(_editingId)commitEdit(_editingId); _page=p; renderTransaksi(); }
+  function goPage(p)      { if(_editingId)commitEdit(_editingId); _page=p; renderTransaksi(); Utils.urlState?.write('kas', {..._filter, page: _page>1?_page:''}); }
   function setPerPage(n)  { _perPage=n; localStorage.setItem('becca_kas_perPage',n); _page=1; renderTransaksi(); }
 
   /* ===================== SUMMARY STRIP ===================== */

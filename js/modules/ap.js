@@ -186,8 +186,19 @@ const APModule = (() => {
       </div>
     `;
 
-    // Initial render rows
-    setTimeout(() => APModule.applyFilter(), 10);
+    // Restore filter state from URL (refresh / shared link), then apply
+    setTimeout(() => {
+      if (Utils.urlState) {
+        const r = Utils.urlState.read('ap', ['from','to','bulan','sup','status','page']);
+        if (r.from)   { const e=document.getElementById('ap-fil-from');   if(e) e.value = r.from;   }
+        if (r.to)     { const e=document.getElementById('ap-fil-to');     if(e) e.value = r.to;     }
+        if (r.bulan)  { const e=document.getElementById('ap-fil-bulan');  if(e) e.value = r.bulan;  }
+        if (r.sup)    { const e=document.getElementById('ap-fil-sup');    if(e) e.value = r.sup;    }
+        if (r.status) { const e=document.getElementById('ap-fil-status'); if(e) e.value = r.status; }
+        if (r.page)   { const p=parseInt(r.page); if (p>0) _apPage = p; }
+      }
+      APModule.applyFilter();
+    }, 10);
   }
 
 
@@ -204,6 +215,8 @@ const APModule = (() => {
     const bulan  = document.getElementById('ap-fil-bulan')?.value || '';
     const sup    = document.getElementById('ap-fil-sup')?.value   || '';
     const status = document.getElementById('ap-fil-status')?.value|| '';
+
+    Utils.urlState?.write('ap', { from, to, bulan, sup, status, page: _apPage>1?_apPage:'' });
 
     let data = [..._ap];
 
@@ -350,6 +363,7 @@ const APModule = (() => {
       const el = document.getElementById(id); if(el) el.value='';
     });
     _apPage = 1;
+    Utils.urlState?.clear('ap');
     applyFilter();
   }
   function goApPage(p) { _apPage = Math.max(1,p); applyFilter(); }
