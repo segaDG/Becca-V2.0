@@ -3178,10 +3178,17 @@ const InventoryModule = (() => {
       return s + ((l.jumlah||0) - (l.stokSistem||0)) * harga;
     }, 0);
 
+    // Helper: hitung HPP per transaksi. l.hpp lama bisa jadi flag (true/1) bukan amount —
+    // hanya gunakan l.hpp jika nilainya wajar (number > 100), selain itu hitung dari jumlah×harga.
+    const _hppOf = l => {
+      const v = (typeof l.hpp === 'number' && l.hpp > 100) ? l.hpp : (l.jumlah||0)*(l.harga||0);
+      return v;
+    };
+
     const totalMasukQty  = masukLogs.reduce((s,l)=>s+(l.jumlah||0),0);
     const totalMasukVal  = masukLogs.reduce((s,l)=>s+(l.jumlah||0)*(l.harga||0),0);
     const totalKeluarQty = keluarLogs.reduce((s,l)=>s+(l.jumlah||0),0);
-    const totalKeluarHPP = keluarLogs.reduce((s,l)=>s+(l.hpp||(l.jumlah||0)*(l.harga||0)),0);
+    const totalKeluarHPP = keluarLogs.reduce((s,l)=>s+_hppOf(l),0);
     const totalReturQty  = returLogs.reduce((s,l)=>s+(l.jumlah||0),0);
     const totalReturVal  = returLogs.reduce((s,l)=>s+(l.jumlah||0)*(l.harga||0),0);
 
@@ -3191,7 +3198,7 @@ const InventoryModule = (() => {
       if (!l.itemNama) return;
       if (!byItem[l.itemNama]) byItem[l.itemNama] = { nama:l.itemNama, qty:0, hpp:0 };
       byItem[l.itemNama].qty += l.jumlah||0;
-      byItem[l.itemNama].hpp += l.hpp||(l.jumlah||0)*(l.harga||0);
+      byItem[l.itemNama].hpp += _hppOf(l);
     });
     const top10 = Object.values(byItem).sort((a,b)=>b.hpp-a.hpp).slice(0,10);
 
