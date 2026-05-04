@@ -3220,21 +3220,27 @@ const InventoryModule = (() => {
             </div>`).join('')}
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s5);align-items:start">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:var(--s5);align-items:start">
 
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;min-width:0">
             <div style="padding:12px 18px;border-bottom:1px solid var(--border);font-size:14px;font-weight:700;color:var(--heading)">
               Top 10 Produk — HPP Tertinggi
             </div>
-            <div class="table-scroll">
-              <table class="table" style="font-size:12px">
+            <div style="overflow-x:auto">
+              <table class="table" style="font-size:12px;table-layout:fixed;width:100%">
+                <colgroup>
+                  <col style="width:32px">
+                  <col>
+                  <col style="width:80px">
+                  <col style="width:115px">
+                </colgroup>
                 <thead><tr><th>#</th><th>Nama Produk</th><th class="num">Qty</th><th class="num">HPP</th></tr></thead>
                 <tbody>
                   ${top10.length ? top10.map((it,i)=>`<tr>
                     <td class="text-muted">${i+1}</td>
-                    <td style="font-weight:500">${it.nama}</td>
-                    <td class="num" style="font-family:var(--font-mono)">${it.qty.toFixed(2)}</td>
-                    <td class="num" style="font-family:var(--font-mono);color:var(--danger)">${Utils.formatRupiah(it.hpp)}</td>
+                    <td style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${Utils.esc(it.nama)}">${it.nama}</td>
+                    <td class="num" style="font-family:var(--font-mono);font-size:11px">${_r2(it.qty)}</td>
+                    <td class="num" style="font-family:var(--font-mono);color:var(--danger);font-size:11px">${Utils.formatRupiah(it.hpp)}</td>
                   </tr>`).join('')
                   : '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-3)">Belum ada data keluar</td></tr>'}
                 </tbody>
@@ -3242,24 +3248,32 @@ const InventoryModule = (() => {
             </div>
           </div>
 
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;min-width:0">
             <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
               <span style="font-size:14px;font-weight:700;color:var(--heading)">⚠️ Barang Rusak / Retur</span>
               <span style="font-size:11px;color:var(--text-3)">${returLogs.length} transaksi</span>
             </div>
-            <div class="table-scroll">
-              <table class="table" style="font-size:12px">
+            <div style="overflow-x:auto">
+              <table class="table" style="font-size:12px;table-layout:fixed;width:100%">
+                <colgroup>
+                  <col style="width:78px">
+                  <col>
+                  <col style="width:60px">
+                  <col style="width:90px">
+                  <col style="width:70px">
+                  <col style="width:70px">
+                </colgroup>
                 <thead><tr><th>Tanggal</th><th>Nama Produk</th><th class="num">Qty</th><th class="num">Nilai</th><th>Kode</th><th>PJ</th></tr></thead>
                 <tbody>
                   ${returLogs.length ? returLogs.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).map(l=>{
                     const tgl2=(l.tgl||'').slice(8,10)+'-'+(l.tgl||'').slice(5,7)+'-'+(l.tgl||'').slice(0,4);
                     return `<tr>
-                      <td style="white-space:nowrap;color:var(--text-2)">${tgl2||'-'}</td>
-                      <td style="font-weight:500">${l.itemNama||'-'}</td>
-                      <td class="num" style="font-family:var(--font-mono);color:var(--warning)">${(l.jumlah||0).toFixed(2)}</td>
-                      <td class="num" style="font-family:var(--font-mono)">${Utils.formatRupiah((l.jumlah||0)*(l.harga||0))}</td>
-                      <td><span class="badge badge-warning" style="font-size:10px">${l.kodeAktivitas||'-'}</span></td>
-                      <td style="color:var(--text-3)">${l.penanggungJawab||'-'}</td>
+                      <td style="white-space:nowrap;color:var(--text-2);font-size:11px">${tgl2||'-'}</td>
+                      <td style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${Utils.esc(l.itemNama||'-')}">${l.itemNama||'-'}</td>
+                      <td class="num" style="font-family:var(--font-mono);color:var(--warning);font-size:11px">${_r2(l.jumlah||0)}</td>
+                      <td class="num" style="font-family:var(--font-mono);font-size:11px">${Utils.formatRupiah((l.jumlah||0)*(l.harga||0))}</td>
+                      <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${Utils.esc(l.kodeAktivitas||'-')}"><span class="badge badge-warning" style="font-size:9px">${l.kodeAktivitas||'-'}</span></td>
+                      <td style="color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px" title="${Utils.esc(l.penanggungJawab||'-')}">${l.penanggungJawab||'-'}</td>
                     </tr>`;
                   }).join('') : '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-3)">Tidak ada data rusak/retur</td></tr>'}
                 </tbody>
