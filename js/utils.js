@@ -226,6 +226,41 @@ const Utils = {
     const h = opts.height || '60px';
     return `<div class="skeleton" style="width:${w};height:${h};border-radius:var(--r-md);margin-bottom:var(--s2)"></div>`;
   },
+
+  /** Normalize Indonesian phone → format wa.me-compatible (628xxx).
+   *  Input: "08123456789", "0812-3456-7890", "+628123456789", "8123456789"
+   *  Output: "628123456789" (no +, no spaces, no dashes)
+   *  Returns empty string if input doesn't look like a phone.
+   */
+  normalizePhone(input) {
+    if (!input) return '';
+    let s = String(input).replace(/[^\d+]/g, '');
+    if (!s) return '';
+    if (s.startsWith('+')) s = s.slice(1);
+    if (s.startsWith('62')) return s;
+    if (s.startsWith('0')) return '62' + s.slice(1);
+    if (s.startsWith('8')) return '62' + s; // local format without leading zero
+    return s;
+  },
+
+  /** Open WhatsApp with pre-filled message via wa.me deeplink.
+   *  Pattern: https://wa.me/<phone>?text=<encoded-message>
+   *  - phone: any Indonesian format (auto-normalized)
+   *  - message: plain text, will be URL-encoded
+   *  If phone empty/invalid, opens wa.me/?text=... (user picks contact in WA).
+   *  Returns true if window.open succeeded.
+   */
+  waShare(phone, message) {
+    const num = Utils.normalizePhone(phone);
+    const text = encodeURIComponent(String(message || ''));
+    const url = num
+      ? `https://wa.me/${num}?text=${text}`
+      : `https://wa.me/?text=${text}`;
+    try {
+      const w = window.open(url, '_blank', 'noopener,noreferrer');
+      return !!w;
+    } catch { return false; }
+  },
 };
 
 window.Utils = Utils;

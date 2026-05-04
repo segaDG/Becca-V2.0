@@ -824,6 +824,11 @@ const InvoiceModule = (() => {
             style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.35)">
             ✉ Kirim Email
           </button>
+          <button class="btn" onclick="InvoiceModule._sendWA('${inv.id||inv.invoiceNum}')"
+            style="background:rgba(37,211,102,.12);color:#25d366;border:1px solid rgba(37,211,102,.4)" title="Kirim ke WhatsApp">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true" style="vertical-align:-2px"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347zM12 .5C5.65.5.5 5.65.5 12c0 2.107.553 4.137 1.594 5.917L.058 23.5l5.708-1.498A11.469 11.469 0 0 0 12 23.5c6.351 0 11.5-5.149 11.5-11.5C23.5 5.65 18.351.5 12 .5zm0 21A9.482 9.482 0 0 1 7.022 20.1l-.357-.214-3.679.965.984-3.586-.232-.369A9.45 9.45 0 0 1 2.5 12C2.5 6.752 6.752 2.5 12 2.5S21.5 6.752 21.5 12 17.248 21.5 12 21.5z"/></svg>
+            WhatsApp
+          </button>
           <button class="btn" onclick="InvoiceModule._printFromDetail('${inv.id||inv.invoiceNum}')"
             style="background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.35)">
             🖨 Cetak / PDF
@@ -1106,6 +1111,63 @@ www.pangan.co.id`
           ✉ Buka di Email
         </button>`
     });
+  }
+
+  // Kirim invoice via WhatsApp (wa.me URL — no API needed)
+  function _sendWA(key) {
+    const inv = _findInv(key);
+    if (!inv) return;
+    const orderRec = _getOrderRec(inv.invoiceNum);
+
+    // Lookup customer phone & PIC
+    let custHp = '', custPic = '';
+    try {
+      const c = _getCustomers().find(x => x.nama === inv.customer);
+      custHp  = c?.noHp || c?.no_hp || c?.telepon || '';
+      custPic = c?.pic  || '';
+    } catch {}
+
+    const rp = n => n ? `Rp ${Number(n).toLocaleString('id')}` : '-';
+    const pb1   = Math.round((inv.total||0) * 0.10);
+    const pph   = Math.round((inv.total||0) * 0.02);
+    const grand = (inv.total||0) + pb1 - pph;
+    const periodeStr = orderRec
+      ? (_fmtDate(orderRec.dari) + ' s/d ' + _fmtDate(orderRec.sampai))
+      : (_fmtDate(inv.tglInvoice)||'');
+
+    const message = `Halo ${custPic||'Bapak/Ibu'} - ${inv.customer},
+
+Berikut invoice catering kami:
+
+*INVOICE #${inv.invoiceNum}*
+Periode: ${periodeStr}
+Subtotal: ${rp(inv.total)}
+Pb1 (10%): ${rp(pb1)}
+PPh 23 (2%): -${rp(pph)}
+*TOTAL: ${rp(grand)}*
+
+Pembayaran ditujukan ke:
+Bank Mandiri KC Karawang 17300
+No. Rekening: 173-00-0153197-0
+a.n PT. Boga Pangan Sentosa
+
+Mohon cantumkan No. Invoice (${inv.invoiceNum}) di keterangan transfer.
+
+Terima kasih.
+
+— PT. Boga Pangan Sentosa`;
+
+    if (!custHp) {
+      // No phone on file — open WA chooser via wa.me/?text=
+      Notify.warning('No HP customer kosong di master', 'Buka WA tanpa nomor — Anda pilih kontak manual.');
+    }
+    const ok = Utils.waShare(custHp, message);
+    if (ok) {
+      Notify.success('WhatsApp terbuka', custHp ? `Pesan disiapkan untuk ${Utils.normalizePhone(custHp)}` : 'Pilih kontak di WhatsApp.');
+      try { DB.logActivity?.({type:'invoice_wa', detail:`Kirim WA invoice ${inv.invoiceNum} ke ${inv.customer}`}); } catch {}
+    } else {
+      Notify.error('Gagal buka WhatsApp', 'Pop-up mungkin diblokir browser.');
+    }
   }
 
   function _doSendEmail(modalId, invNumEnc, custEnc, periodeEnc, totalEnc) {
@@ -2000,7 +2062,7 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, setFilter, reArrangeAR, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _showConfirmPreview, _createInvoice, _toggleAdditional, _addAdditionalRow, _calcAddRowTotal };
+  return { init, switchTab, setSearch, setFilter, reArrangeAR, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _sendWA, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _showConfirmPreview, _createInvoice, _toggleAdditional, _addAdditionalRow, _calcAddRowTotal };
 })();
 
 window.InvoiceModule = InvoiceModule;
