@@ -3213,19 +3213,32 @@ const InventoryModule = (() => {
           <span style="font-size:15px;font-weight:700;color:var(--heading)">Laporan Inventory — ${bulanLabel}</span>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:var(--s3);margin-bottom:var(--s5)">
-          ${[
-            {l:'Stock In (Masuk)',    v:totalMasukQty.toFixed(2)+' unit',  sub:'Nilai: '+Utils.formatRupiah(totalMasukVal), c:'var(--success)'},
-            {l:'Stock Out (Keluar)',  v:totalKeluarQty.toFixed(2)+' unit', sub:'HPP: '+Utils.formatRupiah(totalKeluarHPP), c:'var(--danger)'},
-            {l:'Stock Opname',       v:opnameMonth.length+' item',         sub:opnameMonth.length?`Selisih: ${opTotalSelisihQty>=0?'+':''}${_r2(opTotalSelisihQty)} unit`:'Belum ada opname', c:'var(--primary)'},
-            {l:'Rusak / Retur',      v:totalReturQty.toFixed(2)+' unit',   sub:'Nilai: '+Utils.formatRupiah(totalReturVal), c:'var(--warning)'},
-          ].map(c=>`
-            <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s4)">
-              <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${c.l}</div>
-              <div style="font-size:18px;font-weight:700;color:${c.c};font-family:var(--font-mono)">${c.v}</div>
-              <div style="font-size:11px;color:var(--text-3);margin-top:4px">${c.sub}</div>
-            </div>`).join('')}
-        </div>
+        ${(()=>{
+          // Total HPP semua KELUAR (kumulatif all-time)
+          const totalHPPAllTime = _logs.filter(l => l.jenis === 'KELUAR').reduce((s,l)=>s+_hppOf(l),0);
+          // Nilai inventory real-time = sum dari (stock × harga) untuk semua item
+          const totalInventoryValue = _items.reduce((s,it) => {
+            const stok = it._stok || 0;
+            const harga = it._weightedAvgPrice || it._hargaTerbaru || it.hargaSatuan || 0;
+            return s + stok * harga;
+          }, 0);
+          const cards = [
+            {l:'Stock In (Masuk)',  v:Utils.formatRupiah(totalMasukVal), sub:_r2(totalMasukQty)+' unit',  c:'var(--success)'},
+            {l:'Stock Out (Keluar)', v:Utils.formatRupiah(totalKeluarHPP), sub:_r2(totalKeluarQty)+' unit', c:'var(--danger)'},
+            {l:'Rusak / Retur',     v:Utils.formatRupiah(totalReturVal), sub:_r2(totalReturQty)+' unit',  c:'var(--warning)'},
+            {l:'Stock Opname',      v:opnameMonth.length+' item',        sub:opnameMonth.length?(opTotalSelisihQty>=0?'+':'')+_r2(opTotalSelisihQty)+' selisih':'belum ada', c:'var(--primary)'},
+            {l:'Total HPP',         v:Utils.formatRupiah(totalHPPAllTime), sub:'Kumulatif keluar', c:'#dc2626'},
+            {l:'Nilai Inventory',   v:Utils.formatRupiah(totalInventoryValue), sub:_items.length+' item · real-time', c:'#7c3aed'},
+          ];
+          return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:var(--s2);margin-bottom:var(--s4)">
+            ${cards.map(c=>`
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;min-width:0">
+                <div style="font-size:10px;color:var(--text-3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.l}</div>
+                <div style="font-size:14px;font-weight:800;color:${c.c};font-family:var(--font-mono);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${c.v}">${c.v}</div>
+                <div style="font-size:10px;color:var(--text-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${c.sub}">${c.sub}</div>
+              </div>`).join('')}
+          </div>`;
+        })()}
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:var(--s5);align-items:start">
 
