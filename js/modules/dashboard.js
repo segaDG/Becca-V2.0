@@ -333,24 +333,44 @@ const DashboardModule = (() => {
 
   function _renderLowStockCard(lowStock) {
     const nav = "App.navigate(\'inventory\')";
+    // Auto-PO Suggestion: hitung saran qty & total estimasi nilai
+    // Formula: target restock = max(stokMin × 2, stokMin + 7 days safety stock)
+    //          suggested qty = target - currentStok (clamp to >= ceil(stokMin))
+    const suggestions = lowStock.map(p => {
+      const stok = +(p._stok||p.balance||0);
+      const min  = +(p.stokMin||0);
+      const harga = +(p.harga||p.hargaSatuan||p._weightedAvgPrice||p._hargaTerbaru||0);
+      // Default safety multiplier: 2× minimum (bisa di-tune nanti per item)
+      const target = Math.max(min * 2, min + Math.ceil(min * 0.5));
+      const suggested = Math.max(Math.ceil(min), target - stok);
+      return { ...p, _stok: stok, _min: min, _harga: harga, _suggested: suggested, _estCost: suggested * harga };
+    });
+    const totalEstCost = suggestions.reduce((s, x) => s + (x._estCost || 0), 0);
+    const totalQty = suggestions.reduce((s, x) => s + (x._suggested || 0), 0);
+
     let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">'
-      + '<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(245,158,11,.1);display:flex;align-items:center;justify-content:center;font-size:15px">⚠️</div>'
-      + '<div><div style="font-size:14px;font-weight:700">Stok Menipis</div>'
-      + '<div style="font-size:11px;color:var(--text-3)">' + lowStock.length + ' item di bawah minimum</div></div></div>'
+      + '<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(245,158,11,.1);display:flex;align-items:center;justify-content:center;font-size:15px">🛒</div>'
+      + '<div><div style="font-size:14px;font-weight:700">Stok Menipis · Saran PO</div>'
+      + '<div style="font-size:11px;color:var(--text-3)">' + lowStock.length + ' item perlu di-restock'
+      + (totalQty > 0 ? ' · estimasi <strong style="color:var(--warning)">' + Utils.formatRupiah(totalEstCost) + '</strong>' : '')
+      + '</div></div></div>'
       + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat →</button>'
       + '</div><div style="padding:8px 12px">';
-    if (!lowStock.length) {
+    if (!suggestions.length) {
       h += '<div style="text-align:center;padding:30px;color:var(--success);font-weight:600">Semua stok aman ✅</div>';
     } else {
-      lowStock.slice(0,8).forEach(function(p,i) {
-        const stok = p._stok||p.balance||0;
-        h += '<div onclick="' + nav + '" style="display:flex;align-items:center;justify-content:space-between;padding:10px 8px;border-radius:8px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'
-          + '<div style="display:flex;align-items:center;gap:10px">'
-          + '<span style="font-size:10px;color:var(--text-3);font-weight:700;width:20px">' + (i+1) + '</span>'
-          + '<div><div style="font-size:13px;font-weight:600">' + p.nama + '</div>'
-          + '<div style="font-size:10px;color:var(--text-3)">Min: ' + (p.stokMin||0) + ' ' + (p.satuan||'') + '</div></div></div>'
-          + '<span class="badge ' + (stok<=0?'badge-danger':'badge-warning') + '" style="font-family:var(--font-mono);font-weight:700">' + stok + ' ' + (p.satuan||'') + '</span>'
+      suggestions.slice(0,8).forEach(function(p,i) {
+        const stok = p._stok;
+        h += '<div onclick="' + nav + '" style="display:flex;align-items:center;justify-content:space-between;padding:10px 8px;border-radius:8px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s;gap:8px" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'
+          + '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">'
+          + '<span style="font-size:10px;color:var(--text-3);font-weight:700;width:20px;flex-shrink:0">' + (i+1) + '</span>'
+          + '<div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + p.nama + '">' + p.nama + '</div>'
+          + '<div style="font-size:10px;color:var(--text-3)">Stok: <strong style="color:' + (stok<=0?'#ef4444':'#f59e0b') + '">' + stok + '</strong> · Min: ' + p._min + ' ' + (p.satuan||'') + '</div></div></div>'
+          + '<div style="text-align:right;flex-shrink:0">'
+          + '<div style="font-size:11px;font-weight:700;color:var(--primary);font-family:var(--font-mono)">+' + p._suggested + ' ' + (p.satuan||'') + '</div>'
+          + (p._estCost > 0 ? '<div style="font-size:9px;color:var(--text-3);font-family:var(--font-mono)">~' + Utils.formatRupiah(p._estCost, true) + '</div>' : '')
+          + '</div>'
           + '</div>';
       });
     }
