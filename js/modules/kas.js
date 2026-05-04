@@ -9,6 +9,7 @@ const KasModule = (() => {
   let _masuk      = [];
   let _saldoAwal  = 0;  // Saldo awal kas, bisa di-edit user
   let _bulkSelected = new Set();
+  let _kasLoaded   = false; // false = first paint, show skeleton; true = data fetched
 
   async function _loadSaldoAwal() {
     try {
@@ -242,7 +243,7 @@ const KasModule = (() => {
     // Progressive loading — fast first page, background load rest
     const cachedKas   = DB.getCached('kas');
     const cachedMasuk = DB.getCached('kas_masuk');
-    if (cachedKas)   { _kas = cachedKas; _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); }
+    if (cachedKas)   { _kas = cachedKas; _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); _kasLoaded = true; }
     if (cachedMasuk) _masuk = cachedMasuk;
 
     switchTab('transaksi');
@@ -252,7 +253,7 @@ const KasModule = (() => {
       // Fast: fetch first page (50 rows) for instant render
       if (!cachedKas) {
         const first = await DB.getPage('kas', { page:1, perPage:100, orderBy:'created_at', ascending:false });
-        if (first.data.length) { _kas = first.data; _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); renderTransaksi(); }
+        if (first.data.length) { _kas = first.data; _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); _kasLoaded = true; renderTransaksi(); }
       }
       // Background: load full dataset
       const [freshKas, freshMasuk] = await Promise.all([
@@ -262,6 +263,7 @@ const KasModule = (() => {
       _kas   = freshKas;
       _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
       _masuk = freshMasuk;
+      _kasLoaded = true;
       if (_activeTab === 'transaksi') renderTransaksi();
       else switchTab(_activeTab);
     }
@@ -515,7 +517,11 @@ const KasModule = (() => {
             ${canEdit ? `<th style="width:28px;padding:0;text-align:center"><input type="checkbox" title="Pilih semua" onchange="KasModule._bulkToggleAll(this.checked)" style="cursor:pointer"></th>` : ''}
           </tr></thead>
           <tbody id="kas-tbody">
-            ${paged.map((r,i)=>_rowView(r,(_page-1)*_perPage+i+1,canEdit)).join('')}
+            ${paged.length
+              ? paged.map((r,i)=>_rowView(r,(_page-1)*_perPage+i+1,canEdit)).join('')
+              : (_kasLoaded
+                ? ''
+                : (Utils.skeletonRows ? Utils.skeletonRows(canEdit?13:11, 8) : ''))}
           </tbody>
         </table>
       </div>

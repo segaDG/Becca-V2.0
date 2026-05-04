@@ -196,6 +196,36 @@ const Utils = {
       } catch {}
     },
   },
+
+  /** Generate skeleton-loader HTML untuk tbody — N rows × M cols with shimmer animation.
+   *  Pattern: <tr><td><div class="skeleton skeleton-text"></div></td>...</tr> × N
+   *  Width tiap cell variabel agar terlihat lebih natural (bukan grid kaku).
+   *
+   *  Pakai: tbody.innerHTML = Utils.skeletonRows(11, 8);
+   *  CSS .skeleton sudah ada di components.css.
+   */
+  skeletonRows(cols, rows) {
+    const numCols = parseInt(cols) || 5;
+    const numRows = parseInt(rows) || 8;
+    const widths = ['80%','60%','45%','70%','55%','65%','50%','75%','40%','85%']; // variasi natural
+    let html = '';
+    for (let r = 0; r < numRows; r++) {
+      html += '<tr>';
+      for (let c = 0; c < numCols; c++) {
+        const w = widths[(r + c) % widths.length];
+        html += `<td><div class="skeleton skeleton-text" style="width:${w};height:12px"></div></td>`;
+      }
+      html += '</tr>';
+    }
+    return html;
+  },
+
+  /** Skeleton card placeholder — untuk dashboard summary cards saat loading. */
+  skeletonCard(opts = {}) {
+    const w = opts.width || '100%';
+    const h = opts.height || '60px';
+    return `<div class="skeleton" style="width:${w};height:${h};border-radius:var(--r-md);margin-bottom:var(--s2)"></div>`;
+  },
 };
 
 window.Utils = Utils;

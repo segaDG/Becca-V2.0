@@ -178,7 +178,7 @@ const APModule = (() => {
                 ${canEdit?'<th style="padding:10px 12px;width:56px"></th>':''}
               </tr>
             </thead>
-            <tbody id="ap-tbody"><tr><td colspan="11" style="text-align:center;padding:48px;color:var(--text-3)">Memuat data...</td></tr></tbody>
+            <tbody id="ap-tbody">${Utils.skeletonRows ? Utils.skeletonRows(11, 6) : '<tr><td colspan="11" style="text-align:center;padding:48px;color:var(--text-3)">Memuat data...</td></tr>'}</tbody>
           </table>
         </div>
         <!-- Footer total -->
@@ -1463,7 +1463,15 @@ const APModule = (() => {
   async function renderSummaryAP() {
     const page = document.getElementById('ap-tab-summary');
     if (!page) return;
-    page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3)">Memuat data summary...</div>';
+    page.innerHTML = `
+      <div style="padding:var(--s4) 0">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--s3);margin-bottom:var(--s5)">
+          ${[1,2,3,4].map(()=>Utils.skeletonCard?.({height:'72px'}) || '<div class="skeleton" style="height:72px;border-radius:var(--r-md)"></div>').join('')}
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+          <table class="table" style="font-size:12px"><tbody>${Utils.skeletonRows?.(5, 6) || ''}</tbody></table>
+        </div>
+      </div>`;
 
     const raw = await DB.getAP();
     if (!Array.isArray(raw)) { page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--danger)">Gagal memuat data</div>'; return; }

@@ -20,6 +20,7 @@ const InventoryModule = (() => {
   let _activeTab   = 'stok';
   let _filterKat   = '';
   let _search      = '';
+  let _logsLoaded  = false; // false = first paint, show skeleton; true = data fetched (even if empty)
   let _laporanBulan = null; // selected month for laporan tab
   let _opnamePeriod = new Date().toISOString().slice(0,7); // period filter for opname
   let _opnameDraft  = {}; // itemId → value (string, as typed) — live draft state
@@ -164,7 +165,7 @@ const InventoryModule = (() => {
     const cachedOpname = DB.getCached('opname_logs');
 
     if (cachedItems)  _items      = cachedItems;
-    if (cachedLogs)   { _logs = cachedLogs; _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||'')); }
+    if (cachedLogs)   { _logs = cachedLogs; _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||'')); _logsLoaded = true; }
     if (cachedOpname) _opnameLogs = cachedOpname;
 
     // Reset edit state
@@ -193,7 +194,9 @@ const InventoryModule = (() => {
     // Fast first page for activity logs (heaviest table)
     if (!cachedLogs) {
       const first = await DB.getPage('inv_activities', { page:1, perPage:100, orderBy:'created_at', ascending:false });
-      if (first.data.length) { _logs = first.data; _logs.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); _recalcStok(); }
+      if (first.data.length) { _logs = first.data; _logs.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); _logsLoaded = true; _recalcStok();
+        if (_activeTab === 'transaksi') renderTransaksi();
+      }
     }
 
     // Background-load full dataset
@@ -206,6 +209,7 @@ const InventoryModule = (() => {
       if (freshItems?.length)  _items = freshItems;
       if (freshLogs?.length)   _logs  = freshLogs; else if (!_logs.length && freshLogs) _logs = freshLogs;
       _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+      _logsLoaded = true;
       if (freshOpname?.length) _opnameLogs = freshOpname; else if (!_opnameLogs.length && freshOpname) _opnameLogs = freshOpname;
 
       // Auto-dedup: jika ada nama barang ganda (dari double-migration), bersihkan otomatis
@@ -1413,7 +1417,9 @@ const InventoryModule = (() => {
           </tr></thead>
           <tbody id="inv-tbody">
             ${pageData.length ? pageData.map((r,i)=>_ivRowView(r,i+1+offset,canEdit)).join('') :
-              `<tr><td colspan="${canEdit?14:11}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data. Klik + di header untuk mulai.</td></tr>`}
+              (_logsLoaded
+                ? `<tr><td colspan="${canEdit?14:11}" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data. Klik + di header untuk mulai.</td></tr>`
+                : (Utils.skeletonRows ? Utils.skeletonRows(canEdit?14:11, 8) : `<tr><td colspan="${canEdit?14:11}" style="text-align:center;padding:40px;color:var(--text-3)">Memuat...</td></tr>`))}
           </tbody>
         </table>
       </div>
