@@ -75,7 +75,7 @@
     </div>
   </div>
   <div id="sidebar-overlay"></div>
-  <div id="toast-container" class="toast-container"></div>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false" role="status"></div>
   <div id="modal-root"></div>
 
   <!-- Core — defer supaya tidak block render HTML, execute in-order sebelum DOMContentLoaded -->
@@ -103,7 +103,7 @@
 
   <!-- Boot — modules dimuat lazily saat navigate ke halaman tersebut -->
   <script src="js/tests.js?v=20260424b"               defer></script>
-  <script src="js/app.js?v=20260501a"                 defer></script>
+  <script src="js/app.js?v=20260505a"                 defer></script>
 
   <!-- PWA: daftarkan Service Worker -->
   <script>

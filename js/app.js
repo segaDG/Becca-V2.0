@@ -136,10 +136,10 @@ const App = {
         @keyframes chatFabIn{from{opacity:0;transform:scale(.5) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
         @media(max-width:768px){#chat-fab{bottom:16px;right:16px}#chat-fab .cfab-btn{width:43px;height:43px}}
       </style>
-      <div class="cfab-btn" onclick="App.navigate('chat')" title="Chat">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        <span id="chat-fab-badge" style="position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;background:#ef4444;color:white;border-radius:50%;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;border:2px solid var(--bg,#0c1020);padding:0 4px"></span>
-      </div>
+      <button class="cfab-btn" onclick="App.navigate('chat')" title="Chat" aria-label="Buka chat" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span id="chat-fab-badge" aria-label="Pesan belum dibaca" style="position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;background:#ef4444;color:white;border-radius:50%;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;border:2px solid var(--bg,#0c1020);padding:0 4px"></span>
+      </button>
     `;
     document.body.appendChild(div);
     // Start checking unread messages
@@ -203,7 +203,7 @@ const App = {
           <div style="background:#3b82f6;color:white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
         </div>
       </div>
-      <div class="nf-main" onclick="document.getElementById('notes-fab').classList.toggle('open')" title="Quick Notes">+</div>
+      <button class="nf-main" onclick="document.getElementById('notes-fab').classList.toggle('open')" title="Quick Notes" aria-label="Quick Notes menu" aria-expanded="false" type="button">+</button>
     `;
     document.body.appendChild(div);
     // Close FAB menu when clicking anywhere outside
@@ -386,8 +386,8 @@ const App = {
     const initials = Utils.initials ? Utils.initials(user?.nama||'?') : (user?.nama||'?').substring(0,2).toUpperCase();
     document.getElementById('header').innerHTML = `
       <div class="header-left">
-        <button id="btn-toggle-sidebar" onclick="App._toggleSidebar()" title="Toggle Sidebar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+        <button id="btn-toggle-sidebar" onclick="App._toggleSidebar()" title="Toggle Sidebar" aria-label="Toggle navigasi sidebar" aria-controls="sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
             <line x1="3" y1="6" x2="21" y2="6"/>
             <line x1="3" y1="12" x2="21" y2="12"/>
             <line x1="3" y1="18" x2="21" y2="18"/>
