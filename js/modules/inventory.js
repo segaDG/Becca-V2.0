@@ -3216,19 +3216,60 @@ const InventoryModule = (() => {
         ${(()=>{
           // Total HPP bulan ini = HPP keluar + nilai retur (sesuai filter bulan)
           const totalHPPMonth = totalKeluarHPP + totalReturVal;
-          // Nilai inventory real-time = sum dari (stock × harga) untuk semua item
-          const totalInventoryValue = _items.reduce((s,it) => {
-            const stok = it._stok || 0;
-            const harga = it._weightedAvgPrice || it._hargaTerbaru || it.hargaSatuan || 0;
-            return s + stok * harga;
-          }, 0);
+          // Nilai inventory: real-time jika bulan berjalan, snapshot akhir bulan jika periode lampau
+          const today = new Date();
+          const todayYM = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0');
+          const isCurrentMonth = currMonth >= todayYM;
+          let totalInventoryValue = 0;
+          let invSubtitle = '';
+          if (isCurrentMonth) {
+            totalInventoryValue = _items.reduce((s,it) => {
+              const stok = it._stok || 0;
+              const harga = it._weightedAvgPrice || it._hargaTerbaru || it.hargaSatuan || 0;
+              return s + stok * harga;
+            }, 0);
+            invSubtitle = _items.length + ' item · real-time';
+          } else {
+            // Hitung stok di akhir bulan terpilih untuk setiap item
+            const [yyy, mmm] = currMonth.split('-').map(Number);
+            const cutoffDate = new Date(yyy, mmm, 0); // tanggal terakhir bulan
+            const cutoff = cutoffDate.getFullYear() + '-' + String(cutoffDate.getMonth()+1).padStart(2,'0') + '-' + String(cutoffDate.getDate()).padStart(2,'0');
+            totalInventoryValue = _items.reduce((s,it) => {
+              // Anchor dari opname terakhir <= cutoff (jika ada)
+              const opnames = _opnameLogs
+                .filter(l => String(l.itemId) === String(it.id) && (l.tgl||'') <= cutoff)
+                .sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+              let stok = 0;
+              let anchorTgl = '';
+              if (opnames.length) {
+                stok = opnames[0].jumlah || 0;
+                anchorTgl = opnames[0].tgl;
+              }
+              // Apply MASUK/KELUAR setelah anchor s.d. cutoff
+              _logs.forEach(l => {
+                if (String(l.itemId) !== String(it.id)) return;
+                if ((l.tgl||'') > cutoff) return;
+                if (anchorTgl && (l.tgl||'') <= anchorTgl) return; // skip same-day & before opname
+                if (l.jenis === 'MASUK') stok += (l.jumlah||0);
+                else if (l.jenis === 'KELUAR') stok -= (l.jumlah||0);
+              });
+              stok = Math.max(0, stok);
+              // Harga: pakai latest MASUK price <= cutoff, fallback ke avg/current
+              const masuks = _logs
+                .filter(l => String(l.itemId) === String(it.id) && l.jenis === 'MASUK' && (l.tgl||'') <= cutoff && (l.harga||0) > 0)
+                .sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+              const harga = (masuks[0]?.harga) || it._weightedAvgPrice || it._hargaTerbaru || it.hargaSatuan || 0;
+              return s + stok * harga;
+            }, 0);
+            invSubtitle = `Akhir ${cutoffDate.getDate()}/${cutoffDate.getMonth()+1}/${cutoffDate.getFullYear()}`;
+          }
           const cards = [
             {l:'Stock In (Masuk)',  v:Utils.formatRupiah(totalMasukVal), sub:_r2(totalMasukQty)+' unit',  c:'var(--success)'},
             {l:'Stock Out (Keluar)', v:Utils.formatRupiah(totalKeluarHPP), sub:_r2(totalKeluarQty)+' unit', c:'var(--danger)'},
             {l:'Rusak / Retur',     v:Utils.formatRupiah(totalReturVal), sub:_r2(totalReturQty)+' unit',  c:'var(--warning)'},
             {l:'Stock Opname',      v:opnameMonth.length+' item',        sub:opnameMonth.length?(opTotalSelisihQty>=0?'+':'')+_r2(opTotalSelisihQty)+' selisih':'belum ada', c:'var(--primary)'},
             {l:'Total HPP',         v:Utils.formatRupiah(totalHPPMonth), sub:'Periode '+bulanLabel, c:'#dc2626'},
-            {l:'Nilai Inventory',   v:Utils.formatRupiah(totalInventoryValue), sub:_items.length+' item · real-time', c:'#7c3aed'},
+            {l:'Nilai Inventory',   v:Utils.formatRupiah(totalInventoryValue), sub:invSubtitle, c:'#7c3aed'},
           ];
           return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:var(--s2);margin-bottom:var(--s4)">
             ${cards.map(c=>`
