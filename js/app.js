@@ -17,7 +17,7 @@ const App = {
     inventory : 'js/modules/inventory.js?v=20260505b',
     employee  : 'js/modules/employee.js?v=20260505a',
     ap        : 'js/modules/ap.js?v=20260505a',
-    po        : 'js/modules/po.js?v=20260430g',
+    po        : 'js/modules/po.js?v=20260505a',
     task      : 'js/modules/task.js?v=20260428a',
     delivery  : 'js/modules/delivery.js?v=20260505a',
     menu      : 'js/modules/menu.js?v=20260428a',
@@ -123,25 +123,27 @@ const App = {
     if (document.getElementById('chat-fab')) return;
     const div = document.createElement('div');
     div.id = 'chat-fab';
-    div.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:450';
+    div.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:450;touch-action:none';
     div.innerHTML = `
       <style>
         #chat-fab .cfab-btn{width:43px;height:43px;border-radius:50%;position:relative;
           background:rgba(99,102,241,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-          color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;
-          box-shadow:0 4px 16px rgba(99,102,241,.3);transition:all .25s;border:1px solid rgba(255,255,255,.15);
-          animation:chatFabIn .4s cubic-bezier(.34,1.56,.64,1)}
-        #chat-fab .cfab-btn:hover{transform:scale(1.08);background:rgba(99,102,241,.65);box-shadow:0 6px 20px rgba(99,102,241,.4)}
-        #chat-fab .cfab-btn:active{transform:scale(.95)}
-        @keyframes chatFabIn{from{opacity:0;transform:scale(.5) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+          color:white;display:flex;align-items:center;justify-content:center;cursor:grab;
+          box-shadow:0 4px 16px rgba(99,102,241,.3);transition:opacity .2s,transform .15s,background .2s,box-shadow .2s;border:1px solid rgba(255,255,255,.15);
+          animation:chatFabIn .4s cubic-bezier(.34,1.56,.64,1);opacity:.65}
+        #chat-fab .cfab-btn:hover{transform:scale(1.08);background:rgba(99,102,241,.65);box-shadow:0 6px 20px rgba(99,102,241,.4);opacity:1}
+        #chat-fab .cfab-btn:active{transform:scale(.95);cursor:grabbing}
+        #chat-fab.dragging .cfab-btn{opacity:1;cursor:grabbing}
+        @keyframes chatFabIn{from{opacity:0;transform:scale(.5) translateY(20px)}to{opacity:.65;transform:scale(1) translateY(0)}}
         @media(max-width:768px){#chat-fab{bottom:16px;right:16px}#chat-fab .cfab-btn{width:43px;height:43px}}
       </style>
-      <button class="cfab-btn" onclick="App.navigate('chat')" title="Chat" aria-label="Buka chat" type="button">
+      <button class="cfab-btn" onclick="App.navigate('chat')" title="Chat (geser untuk pindah)" aria-label="Buka chat" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         <span id="chat-fab-badge" aria-label="Pesan belum dibaca" style="position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;background:#ef4444;color:white;border-radius:50%;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;border:2px solid var(--bg,#0c1020);padding:0 4px"></span>
       </button>
     `;
     document.body.appendChild(div);
+    this._initFabDrag('chat-fab', '.cfab-btn', 'becca_fab_chat_pos');
     // Start checking unread messages
     this._checkChatUnread();
     this._chatUnreadInterval = setInterval(() => this._checkChatUnread(), 30000);
@@ -174,7 +176,7 @@ const App = {
     div.id = 'notes-fab';
     div.innerHTML = `
       <style>
-        #notes-fab{position:fixed;bottom:88px;right:24px;z-index:400;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none}
+        #notes-fab{position:fixed;bottom:88px;right:24px;z-index:400;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none;touch-action:none}
         #notes-fab .fab-menu,#notes-fab .nf-main,#notes-fab .nf-item{pointer-events:auto}
         #notes-fab .fab-menu{display:none;flex-direction:column;gap:6px;align-items:flex-end}
         #notes-fab.open .fab-menu{display:flex;animation:nfIn .2s ease}
@@ -184,9 +186,11 @@ const App = {
         .nf-item span{font-size:11px;font-weight:600;color:#fff;background:rgba(30,35,55,.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:4px 12px;border-radius:9999px;box-shadow:0 1px 3px rgba(0,0,0,.15);white-space:nowrap;border:1px solid rgba(255,255,255,.1)}
         .nf-item div{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15);cursor:pointer;transition:transform .15s;opacity:.85}
         .nf-item div:hover{transform:scale(1.1)}
-        .nf-main{width:43px;height:43px;border-radius:50%;background:rgba(139,92,246,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(139,92,246,.25);transition:all .25s;font-size:18px;border:1px solid rgba(255,255,255,.15)}
-        .nf-main:hover{transform:scale(1.08);background:rgba(139,92,246,.6)}
-        #notes-fab.open .nf-main{transform:rotate(45deg);background:rgba(239,68,68,.45)}
+        .nf-main{width:43px;height:43px;border-radius:50%;background:rgba(139,92,246,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:white;display:flex;align-items:center;justify-content:center;cursor:grab;box-shadow:0 4px 12px rgba(139,92,246,.25);transition:opacity .2s,transform .15s,background .2s,box-shadow .2s;font-size:18px;border:1px solid rgba(255,255,255,.15);opacity:.65}
+        .nf-main:hover{transform:scale(1.08);background:rgba(139,92,246,.6);opacity:1}
+        .nf-main:active{cursor:grabbing}
+        #notes-fab.dragging .nf-main{opacity:1;cursor:grabbing}
+        #notes-fab.open .nf-main{transform:rotate(45deg);background:rgba(239,68,68,.45);opacity:1}
         @media(max-width:768px){#notes-fab{display:none!important}}
       </style>
       <div class="fab-menu">
@@ -206,6 +210,7 @@ const App = {
       <button class="nf-main" onclick="document.getElementById('notes-fab').classList.toggle('open')" title="Quick Notes" aria-label="Quick Notes menu" aria-expanded="false" type="button">+</button>
     `;
     document.body.appendChild(div);
+    this._initFabDrag('notes-fab', '.nf-main', 'becca_fab_notes_pos');
     // Close FAB menu when clicking anywhere outside
     document.addEventListener('click', e => {
       const fab = document.getElementById('notes-fab');
@@ -213,6 +218,107 @@ const App = {
         fab.classList.remove('open');
       }
     });
+  },
+
+  _initFabDrag(fabId, handleSel, persistKey) {
+    const fab = document.getElementById(fabId);
+    if (!fab) return;
+    const handle = fab.querySelector(handleSel);
+    if (!handle) return;
+    const THRESHOLD = 5;
+    const clamp = (v, min, max) => Math.max(min, Math.min(v, max));
+    const applyPos = (left, top) => {
+      const r = fab.getBoundingClientRect();
+      const w = window.innerWidth, h = window.innerHeight;
+      const cl = clamp(left, 4, Math.max(4, w - r.width - 4));
+      const ct = clamp(top, 4, Math.max(4, h - r.height - 4));
+      fab.style.left = cl + 'px';
+      fab.style.top = ct + 'px';
+      fab.style.right = 'auto';
+      fab.style.bottom = 'auto';
+    };
+    // Restore saved position
+    try {
+      const saved = JSON.parse(localStorage.getItem(persistKey) || 'null');
+      if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
+        applyPos(saved.left, saved.top);
+      }
+    } catch {}
+    // Re-clamp on resize
+    window.addEventListener('resize', () => {
+      if (fab.style.left) {
+        applyPos(parseFloat(fab.style.left)||0, parseFloat(fab.style.top)||0);
+      }
+    });
+
+    let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false, moved = false;
+    const onStart = (cx, cy) => {
+      const r = fab.getBoundingClientRect();
+      ox = r.left; oy = r.top;
+      sx = cx; sy = cy;
+      dragging = true; moved = false;
+    };
+    const onMove = (cx, cy) => {
+      if (!dragging) return;
+      const dx = cx - sx, dy = cy - sy;
+      if (!moved && Math.hypot(dx, dy) < THRESHOLD) return;
+      if (!moved) { fab.classList.add('dragging'); moved = true; }
+      applyPos(ox + dx, oy + dy);
+    };
+    const onEnd = () => {
+      if (!dragging) return;
+      dragging = false;
+      fab.classList.remove('dragging');
+      if (moved) {
+        try {
+          localStorage.setItem(persistKey, JSON.stringify({
+            left: parseFloat(fab.style.left)||0,
+            top: parseFloat(fab.style.top)||0,
+          }));
+        } catch {}
+      }
+    };
+    // Mouse
+    handle.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      onStart(e.clientX, e.clientY);
+      const mm = (ev) => onMove(ev.clientX, ev.clientY);
+      const mu = () => {
+        const wasMoved = moved;
+        onEnd();
+        document.removeEventListener('mousemove', mm);
+        document.removeEventListener('mouseup', mu);
+        if (wasMoved) {
+          // Suppress next click after drag
+          const stop = (ev2) => { ev2.stopPropagation(); ev2.preventDefault(); window.removeEventListener('click', stop, true); };
+          window.addEventListener('click', stop, true);
+        }
+      };
+      document.addEventListener('mousemove', mm);
+      document.addEventListener('mouseup', mu);
+    });
+    // Touch
+    handle.addEventListener('touchstart', (e) => {
+      if (!e.touches[0]) return;
+      const t = e.touches[0];
+      onStart(t.clientX, t.clientY);
+      const tm = (ev) => {
+        const t2 = ev.touches[0]; if (!t2) return;
+        if (moved) ev.preventDefault();
+        onMove(t2.clientX, t2.clientY);
+      };
+      const te = (ev) => {
+        const wasMoved = moved;
+        onEnd();
+        document.removeEventListener('touchmove', tm);
+        document.removeEventListener('touchend', te);
+        document.removeEventListener('touchcancel', te);
+        if (wasMoved) ev.preventDefault();
+      };
+      document.addEventListener('touchmove', tm, {passive: false});
+      document.addEventListener('touchend', te);
+      document.addEventListener('touchcancel', te);
+    }, {passive: true});
   },
 
   async _deferredBoot() {
