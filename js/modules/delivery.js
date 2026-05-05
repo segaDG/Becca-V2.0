@@ -540,7 +540,118 @@ const DeliveryModule = (() => {
           </tbody>
         </table></div>
       </div>
+      ${_buildDeliveryAnomalies(entries, drvMap)}
     `;
+  }
+
+  // Anomaly detection di Summary delivery — flag pengiriman bermasalah
+  function _buildDeliveryAnomalies(entries, drvMap) {
+    const findings = [];
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0,10);
+
+    // 1. ENTRIES TANPA DRIVER — perlu assign
+    const unassigned = entries.filter(e => !e.driverName);
+    if (unassigned.length > 0) {
+      const totalPax = unassigned.reduce((s,e)=>s+(e.totalPax||0),0);
+      findings.push({
+        severity: 'medium', icon: '🚛',
+        title: `${unassigned.length} pengantaran belum assign driver`,
+        desc: `Total <strong>${totalPax} pax</strong> belum ada driver. Customer: ${[...new Set(unassigned.map(e=>e.customerName).filter(Boolean))].slice(0,5).join(', ')}${unassigned.length>5?'...':''}.`,
+      });
+    }
+
+    // 2. PAST DUE NOT DELIVERED — entry tgl < today tapi status bukan delivered
+    const pastDueNotDelivered = entries.filter(e => {
+      if (!e.tgl || !e.status) return false;
+      return e.tgl < todayStr && e.status !== 'delivered' && e.status !== 'cancelled' && e.status !== 'batal';
+    });
+    if (pastDueNotDelivered.length > 0) {
+      pastDueNotDelivered.slice(0, 5).forEach(e => {
+        findings.push({
+          severity: 'high', icon: '⚠',
+          title: `Pengantaran lewat tanggal: ${e.customerName||'-'}`,
+          desc: `Tanggal <strong>${(e.tgl||'').split('-').reverse().join('-')}</strong> sudah lewat, status masih "${e.status||'pending'}". Total <strong>${e.totalPax||0} pax</strong>. Cek apakah sudah delivered tapi belum di-mark, atau memang gagal.`,
+        });
+      });
+      if (pastDueNotDelivered.length > 5) {
+        findings.push({
+          severity: 'medium', icon: '📋',
+          title: `+ ${pastDueNotDelivered.length - 5} pengantaran past-due lainnya`,
+          desc: `Total ${pastDueNotDelivered.length} entry past-due belum delivered/cancelled. Buka tab Jadwal untuk review semua.`,
+        });
+      }
+    }
+
+    // 3. DRIVER LOW COMPLETION RATE — driver dengan trips >= 5 tapi delivered rate < 60%
+    Object.entries(drvMap).forEach(([drvName, stats]) => {
+      if (drvName.startsWith('—') || stats.trips < 5) return; // skip "Belum assign" dan driver dengan few trips
+      const rate = (stats.delivered / stats.trips) * 100;
+      if (rate < 60) {
+        findings.push({
+          severity: 'medium', icon: '📉',
+          title: `Driver completion rate rendah: ${drvName}`,
+          desc: `Hanya <strong>${stats.delivered} dari ${stats.trips}</strong> (${rate.toFixed(0)}%) trip terselesaikan. Cek koordinasi atau kondisi driver.`,
+        });
+      }
+    });
+
+    // 4. PAX QTY OUTLIER per CUSTOMER — qty pax > 3× rata-rata customer ini
+    const byCust = {};
+    entries.forEach(e => {
+      if (!e.customerName || !(e.totalPax > 0)) return;
+      if (!byCust[e.customerName]) byCust[e.customerName] = [];
+      byCust[e.customerName].push(e);
+    });
+    Object.entries(byCust).forEach(([cust, list]) => {
+      if (list.length < 3) return; // perlu min 3 data point
+      const vals = list.map(e => e.totalPax);
+      const mean = vals.reduce((s,v) => s+v, 0) / vals.length;
+      list.forEach(e => {
+        if (mean > 0 && e.totalPax > mean * 3) {
+          findings.push({
+            severity: 'medium', icon: '🔢',
+            title: `Pax tidak wajar: ${cust}`,
+            desc: `Pengantaran <strong>${(e.tgl||'').split('-').reverse().join('-')}</strong>: <strong>${e.totalPax} pax</strong> — biasanya ${cust} rata-rata <strong>${Math.round(mean)} pax</strong>. Kemungkinan typo input atau order spesial.`,
+          });
+        }
+      });
+    });
+
+    // Sort & display
+    const sevOrder = {high:0, medium:1, low:2};
+    findings.sort((a,b) => (sevOrder[a.severity]||9) - (sevOrder[b.severity]||9));
+    const top = findings.slice(0, 20);
+
+    if (!top.length) {
+      return `<div style="margin-top:var(--s4);padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);font-size:12px;color:var(--success);text-align:center">
+        ✅ Tidak ada anomali pengantaran terdeteksi minggu ini
+      </div>`;
+    }
+
+    const sevColors = {high:'#dc2626', medium:'#f59e0b', low:'var(--text-3)'};
+    const sevBg     = {high:'rgba(220,38,38,.06)', medium:'rgba(245,158,11,.06)', low:'rgba(148,163,184,.06)'};
+    const sevBorder = {high:'rgba(220,38,38,.2)', medium:'rgba(245,158,11,.2)', low:'rgba(148,163,184,.2)'};
+    const sevLabels = {high:'Tinggi', medium:'Sedang', low:'Info'};
+
+    return `<div style="margin-top:var(--s4);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+      <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+        <span style="font-size:14px;font-weight:700;color:var(--heading)">🚨 Anomali Pengantaran</span>
+        <span style="font-size:11px;color:var(--text-3);margin-left:6px">${findings.length} temuan minggu ini</span>
+      </div>
+      <div style="padding:var(--s4);max-height:480px;overflow-y:auto">
+        ${top.map(f => `
+          <div style="margin-bottom:8px;padding:10px 14px;border-radius:8px;border:1px solid ${sevBorder[f.severity]};background:${sevBg[f.severity]}">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-size:14px">${f.icon}</span>
+              <span style="font-size:12px;font-weight:700;color:var(--heading);flex:1">${f.title}</span>
+              <span style="font-size:9px;padding:2px 6px;border-radius:3px;font-weight:700;background:${sevBg[f.severity]};color:${sevColors[f.severity]};border:1px solid ${sevBorder[f.severity]}">${sevLabels[f.severity]}</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-2);line-height:1.6;padding-left:22px">${f.desc}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
   }
 
   /* ═══ TRACKING ═══ */

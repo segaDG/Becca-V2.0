@@ -1970,7 +1970,128 @@ const EmployeeModule = (() => {
             })()}
           </tbody>
         </table>
-      </div></div>`;
+      </div></div>
+      ${_buildAttendanceAnomalies(emps, year, month)}
+      `;
+  }
+
+  // Anomaly detection di tab Absensi — flag pola absensi yang janggal
+  function _buildAttendanceAnomalies(emps, year, month) {
+    const findings = [];
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0,10);
+    // Window: 30 hari terakhir untuk pattern detection
+    const window30 = new Date(today.getTime() - 30 * 86400000).toISOString().slice(0,10);
+
+    // Helper: get all absensi for one employee within window
+    const empAbs = (emp) => _absensi.filter(a =>
+      (a.empId === emp.id || a.empNama === emp.nama) &&
+      a.tgl && a.tgl >= window30 && a.tgl <= todayStr
+    );
+
+    emps.forEach(emp => {
+      const abs = empAbs(emp);
+      if (!abs.length) {
+        // Tidak ada record absensi sama sekali dalam 30 hari → check kalau employee aktif
+        findings.push({
+          severity: 'medium', icon: '👻',
+          empName: emp.nama,
+          title: `Tidak ada record absensi: ${emp.nama}`,
+          desc: `Status karyawan AKTIF tapi tidak ada record absensi 30 hari terakhir. Cek apakah memang tidak masuk atau lupa input absen.`,
+        });
+        return;
+      }
+
+      // 1. ABSENT STREAK — 3+ hari berturut-turut absent
+      const absentDates = abs.filter(a => {
+        const stat = (a.status || '').toUpperCase();
+        return stat === 'ALPHA' || stat === 'A' || stat === 'TIDAK MASUK' || stat === 'ABSENT';
+      }).map(a => a.tgl).sort();
+      let streak = 1, maxStreak = 1, streakStart = '';
+      for (let i = 1; i < absentDates.length; i++) {
+        const prev = new Date(absentDates[i-1]);
+        const curr = new Date(absentDates[i]);
+        const diff = (curr - prev) / 86400000;
+        if (diff === 1) { streak++; if (streak > maxStreak) { maxStreak = streak; streakStart = absentDates[i - streak + 1]; } }
+        else streak = 1;
+      }
+      if (maxStreak >= 3) {
+        findings.push({
+          severity: 'high', icon: '🚨',
+          empName: emp.nama,
+          title: `Absent berturut: ${emp.nama}`,
+          desc: `${maxStreak} hari berturut-turut absent dimulai ${streakStart.split('-').reverse().join('-')}. Kemungkinan sakit panjang, masalah pribadi, atau sudah quit informal — perlu follow-up.`,
+        });
+      }
+
+      // 2. LATE PATTERN — telat >= 5x dalam 30 hari
+      const lateCount = abs.filter(a => {
+        const stat = (a.status || '').toUpperCase();
+        return stat === 'TELAT' || stat === 'LATE' || (a.jamMasuk && a.jamMasuk > '08:30');
+      }).length;
+      if (lateCount >= 5) {
+        findings.push({
+          severity: 'medium', icon: '⏰',
+          empName: emp.nama,
+          title: `Sering telat: ${emp.nama}`,
+          desc: `Tercatat <strong>${lateCount}× telat</strong> dalam 30 hari terakhir. Pertimbangkan teguran atau cek kondisi (transportasi, dll).`,
+        });
+      }
+
+      // 3. ATTENDANCE RATE LOW — kehadiran <70% dari hari kerja yang lewat
+      const totalDays = abs.length;
+      const presentCount = abs.filter(a => {
+        const stat = (a.status || '').toUpperCase();
+        return stat === 'HADIR' || stat === 'H' || stat === 'PRESENT' || stat === 'MASUK';
+      }).length;
+      if (totalDays >= 10) {
+        const rate = (presentCount / totalDays) * 100;
+        if (rate < 70) {
+          findings.push({
+            severity: 'high', icon: '📉',
+            empName: emp.nama,
+            title: `Tingkat kehadiran rendah: ${emp.nama}`,
+            desc: `Hadir hanya <strong>${rate.toFixed(0)}%</strong> dari ${totalDays} hari tercatat (${presentCount} hadir). Perlu evaluasi.`,
+          });
+        }
+      }
+    });
+
+    // Sort by severity
+    const sevOrder = {high:0, medium:1, low:2};
+    findings.sort((a,b) => (sevOrder[a.severity]||9) - (sevOrder[b.severity]||9));
+
+    if (!findings.length) {
+      return `<div style="margin-top:var(--s4);padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);font-size:12px;color:var(--success);text-align:center">
+        ✅ Tidak ada pola absensi anomali terdeteksi (window 30 hari)
+      </div>`;
+    }
+
+    const sevColors = {high:'#dc2626', medium:'#f59e0b', low:'var(--text-3)'};
+    const sevBg     = {high:'rgba(220,38,38,.06)', medium:'rgba(245,158,11,.06)', low:'rgba(148,163,184,.06)'};
+    const sevBorder = {high:'rgba(220,38,38,.2)', medium:'rgba(245,158,11,.2)', low:'rgba(148,163,184,.2)'};
+    const sevLabels = {high:'Tinggi', medium:'Sedang', low:'Info'};
+
+    return `<div style="margin-top:var(--s4);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+      <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <span style="font-size:14px;font-weight:700;color:var(--heading)">🚨 Pola Absensi Anomali</span>
+          <span style="font-size:11px;color:var(--text-3);margin-left:6px">${findings.length} temuan dari window 30 hari</span>
+        </div>
+      </div>
+      <div style="padding:var(--s4);max-height:480px;overflow-y:auto">
+        ${findings.map(f => `
+          <div style="margin-bottom:8px;padding:10px 14px;border-radius:8px;border:1px solid ${sevBorder[f.severity]};background:${sevBg[f.severity]}">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-size:14px">${f.icon}</span>
+              <span style="font-size:12px;font-weight:700;color:var(--heading);flex:1">${f.title}</span>
+              <span style="font-size:9px;padding:2px 6px;border-radius:3px;font-weight:700;background:${sevBg[f.severity]};color:${sevColors[f.severity]};border:1px solid ${sevBorder[f.severity]}">${sevLabels[f.severity]}</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-2);line-height:1.6;padding-left:22px">${f.desc}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
   }
 
   function _absSetMonth(val, type) {
