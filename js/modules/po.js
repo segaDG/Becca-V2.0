@@ -267,7 +267,7 @@ else { window.POModule = (() => {
               const atmReal = Number(doc.atmReal)||0;
               const totalDanaReal = cashReal + atmReal;
               const sisaReal = itemsTotal - alokasiTotal;
-              const selisih = (danaDiterima - alokasiTotal) - totalDanaReal;
+              const selisih = sisaReal - totalDanaReal;
               const _fmtInp = v => v ? 'Rp ' + Math.round(Number(v)).toLocaleString('id-ID') : '0';
               const _inp = (field, val) => locked
                 ? `<span style="font-family:var(--font-mono);font-size:11px;font-weight:600">${rpA(val)}</span>`
@@ -565,7 +565,7 @@ else { window.POModule = (() => {
     const atmReal = Number(doc.atmReal)||0;
     const totalDanaReal = cashReal + atmReal;
     const sisaReal = itemsTotal - alokasiTotal;
-    const selisih = (danaDiterima - alokasiTotal) - totalDanaReal;
+    const selisih = sisaReal - totalDanaReal;
 
     const $ = id => document.getElementById(id);
     const set = (id, txt, col) => { const el=$(id); if(el){el.textContent=txt; if(col)el.style.color=col;} };
