@@ -1364,20 +1364,20 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         const qty = totals[c.key]||0;
         if (!qty) return '';
         const descMap = {
-          shift1:'Food Catering Service Shift 1 — Makan Siang',
-          spare1:'Food Catering Service Shift 1 — Spare',
-          shift2:'Food Catering Service Shift 2 — Makan Sore',
-          spare2:'Food Catering Service Shift 2 — Spare',
-          shift3:'Food Catering Service Shift 3 — Makan Malam',
-          spare3:'Food Catering Service Shift 3 — Spare',
-          snack1:'Food Catering Service Shift 1 — Snack',
-          snack2:'Food Catering Service Shift 2 — Takjil',
-          snack3:'Food Catering Service Shift 3 — Takjil',
-          ot1:'Food Catering Service — OT Shift 1',
-          ot2:'Food Catering Service — OT Shift 2',
-          ot3:'Food Catering Service — OT Shift 3',
-          snackBerat:'Food Catering Service — Snack Berat',
           breakfast:'Food Catering Service — Breakfast',
+          shift1:'Food Catering Service — Shift 1',
+          spare1:'Food Catering Service — Spare 1',
+          ot1:'Food Catering Service — OT 1',
+          snack1:'Food Catering Service — Snack 1',
+          shift2:'Food Catering Service — Shift 2',
+          spare2:'Food Catering Service — Spare 2',
+          ot2:'Food Catering Service — OT 2',
+          snack2:'Food Catering Service — Snack 2',
+          shift3:'Food Catering Service — Shift 3',
+          spare3:'Food Catering Service — Spare 3',
+          ot3:'Food Catering Service — OT 3',
+          snack3:'Food Catering Service — Snack 3',
+          snackBerat:'Food Catering Service — Snack Berat',
         };
         const stripe = i%2===0?'#ffffff':C.BP;
         return `<tr style="background:${stripe}">
