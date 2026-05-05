@@ -28,11 +28,11 @@ else { window.POModule = (() => {
     if (idx <= 0) return null;
     // Use SISA Real from previous anggaran if available (more accurate than estimasi)
     const prev = sorted[idx - 1];
-    const danaDiterima = Number(prev.danaDiterima) || 0;
+    const itemsTotalPrev = (prev.items||[]).reduce((s,it) => s + (Number(it.totalHarga)||0), 0);
     const alokasiTotal = (prev.items||[]).reduce((s,it) => s + (Number(it.alokasiDanaReal)||0), 0);
-    // If real data exists (danaDiterima > 0 or alokasiTotal > 0), use real sisa
-    if (danaDiterima > 0 || alokasiTotal > 0) {
-      return danaDiterima - alokasiTotal;
+    // If real alokasi exists, gunakan formula baru: sisa = kebutuhan - alokasi
+    if (alokasiTotal > 0) {
+      return itemsTotalPrev - alokasiTotal;
     }
     // Fallback: estimasi chain
     let carry = Number(sorted[0].sisaPeriode) || 0;
@@ -128,6 +128,12 @@ else { window.POModule = (() => {
       ${list.map(d => {
         const chainIdx = sorted.findIndex(s => s.id === d.id);
         const kebutuhan = (d.items||[]).reduce((s,it) => s + (Number(it.totalHarga)||0), 0);
+        const alokasiTotal = (d.items||[]).reduce((s,it) => s + (Number(it.alokasiDanaReal)||0), 0);
+        const cashReal = Number(d.cashReal)||0, atmReal = Number(d.atmReal)||0;
+        const totalDanaReal = cashReal + atmReal;
+        const sisaReal = kebutuhan - alokasiTotal;
+        const selisih = sisaReal - totalDanaReal;
+        const hasReal = alokasiTotal > 0 || totalDanaReal > 0;
         const sisaPrev = _getSisaPeriode(d);
         const requestDana = kebutuhan - sisaPrev;
         const isConfirmed = d.confirmedBy;
@@ -154,6 +160,8 @@ else { window.POModule = (() => {
             <span>Kebutuhan: <strong style="color:var(--text)">${rp(kebutuhan)||'-'}</strong></span>
             ${sisaPrev ? `<span>Sisa Prev: <strong style="color:#10b981">${rp(sisaPrev)}</strong></span>` : ''}
             ${requestDana > 0 ? `<span>Request: <strong style="color:#6366f1">${rp(requestDana)}</strong></span>` : ''}
+            ${hasReal ? `<span>Sisa: <strong style="color:${sisaReal>=0?'#10b981':'#ef4444'}">${(sisaReal<0?'- ':'')+rp(Math.abs(sisaReal))}</strong></span>` : ''}
+            ${hasReal ? `<span>Selisih: <strong style="color:${selisih===0?'#10b981':selisih>0?'#f59e0b':'#ef4444'}">${selisih===0?'Rp 0 ✓':(selisih>0?'+':'-')+rp(Math.abs(selisih))}</strong></span>` : ''}
             <span>Items: <strong>${(d.items||[]).filter(it=>it.namaBarang).length}</strong></span>
           </div>
         </div>`;
