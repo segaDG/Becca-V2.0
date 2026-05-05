@@ -1107,7 +1107,7 @@ const KasModule = (() => {
       ${_card('\ud83d\udce4','Total Keluar', Utils.formatRupiah(keluar.reduce((s,r)=>s+(r.jumlah||0),0)), 'var(--danger)', '#ef4444')}
       ${_card('\u2705','Confirmed',    Utils.formatRupiah(done.reduce((s,r)=>s+(r.jumlah||0),0)),   'var(--success)', '#22c55e')}
       ${_card('\u23f3','TBC',          Utils.formatRupiah(tbc.reduce((s,r)=>s+(r.jumlah||0),0)),    'var(--warning)', '#f59e0b', "KasModule.filterByStatus('TBC')")}
-      ${_card('\u2753','Belum Diisi',  noSt.length+' baris',                                        'var(--text-2)', '#64748b', "KasModule.filterByStatus('-')")}
+      ${_card('\u2753','Tanpa Status', noSt.length+' baris',                                        'var(--text-2)', '#64748b', "KasModule.filterByStatus('-')")}
       ${_card('\ud83d\udcb0','Kas Masuk',   Utils.formatRupiah(masuk.reduce((s,r)=>s+(r.jumlah||0),0)),  'var(--success)', '#10b981', "KasModule.filterKasMasukType()")}
     </div>`;
   }
