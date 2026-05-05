@@ -11,13 +11,22 @@ const KasModule = (() => {
   let _bulkSelected = new Set();
   let _kasLoaded   = false; // false = first paint, show skeleton; true = data fetched
 
+  // Manual override snapshots per bulan: { 'YYYY-MM': number }
+  let _saldoAwalSnapshots = {};
+
   async function _loadSaldoAwal() {
     try {
       const cfg = await DB.getSettings().catch(()=>({}));
-      if (cfg && cfg.saldoAwal !== undefined && cfg.saldoAwal !== null) {
-        const v = parseFloat(cfg.saldoAwal) || 0;
-        localStorage.setItem('becca_kas_saldo_awal', String(v));
-        return v;
+      if (cfg) {
+        // Snapshots per-bulan (kalau ada)
+        if (cfg.saldoAwalSnapshots && typeof cfg.saldoAwalSnapshots === 'object') {
+          _saldoAwalSnapshots = { ...cfg.saldoAwalSnapshots };
+        }
+        if (cfg.saldoAwal !== undefined && cfg.saldoAwal !== null) {
+          const v = parseFloat(cfg.saldoAwal) || 0;
+          localStorage.setItem('becca_kas_saldo_awal', String(v));
+          return v;
+        }
       }
     } catch {}
     return parseFloat(localStorage.getItem('becca_kas_saldo_awal')||'0') || 0;
@@ -26,6 +35,50 @@ const KasModule = (() => {
     localStorage.setItem('becca_kas_saldo_awal', String(v));
     _saldoAwal = v;
     DB.saveSettings({ saldoAwal: v }).catch(()=>{});
+  }
+
+  // Get saldo awal untuk bulan tertentu (YYYY-MM format).
+  // Resolusi: (1) snapshot manual kalau ada → (2) otomatis hitung dari saldo awal
+  // global + Σ transaksi sebelum bulan ini.
+  // Returns { value, source: 'manual'|'computed', firstTxDate? }
+  function _getSaldoAwalForMonth(yearMonth) {
+    if (!yearMonth || yearMonth.length < 7) {
+      return { value: _saldoAwal, source: 'computed' };
+    }
+    // Manual override?
+    if (_saldoAwalSnapshots && typeof _saldoAwalSnapshots[yearMonth] === 'number') {
+      return { value: _saldoAwalSnapshots[yearMonth], source: 'manual' };
+    }
+    // Otomatis: saldo awal global + Σ kas masuk SEBELUM bulan ini − Σ kas keluar SEBELUM bulan ini
+    const cutoff = yearMonth + '-01'; // pertama bulan terpilih
+    let sumIn = 0, sumOut = 0;
+    _kas.forEach(r => {
+      const tgl = r.tgl || '';
+      if (!tgl || tgl >= cutoff) return; // skip transaksi di/sesudah bulan ini
+      if (r.type === 'Kas') sumIn += (r.jumlah || 0);
+      else                  sumOut += (r.jumlah || 0);
+    });
+    return { value: _saldoAwal + sumIn - sumOut, source: 'computed' };
+  }
+
+  // Save snapshot manual untuk bulan tertentu (override otomatis)
+  async function _saveSaldoAwalSnapshot(yearMonth, value) {
+    _saldoAwalSnapshots[yearMonth] = parseFloat(value) || 0;
+    try {
+      const cfg = await DB.getSettings().catch(()=>({})) || {};
+      cfg.saldoAwalSnapshots = { ..._saldoAwalSnapshots };
+      await DB.saveSettings(cfg);
+    } catch (e) { if(window.BECCA_DEBUG) console.warn('[Kas] saveSaldoAwalSnapshot failed:', e); }
+  }
+
+  // Remove snapshot manual (revert ke otomatis)
+  async function _clearSaldoAwalSnapshot(yearMonth) {
+    delete _saldoAwalSnapshots[yearMonth];
+    try {
+      const cfg = await DB.getSettings().catch(()=>({})) || {};
+      cfg.saldoAwalSnapshots = { ..._saldoAwalSnapshots };
+      await DB.saveSettings(cfg);
+    } catch {}
   }
   let _activeTab = 'transaksi';
   let _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'', search:'' };
@@ -1462,7 +1515,9 @@ const KasModule = (() => {
     const grand      = rows.reduce((s,r) => s+(r.jumlah||0), 0);
     const grandDone  = rows.filter(r=>r.status==='DONE').reduce((s,r)=>s+(r.jumlah||0),0);
     const grandTBC   = rows.filter(r=>r.status==='TBC').reduce((s,r)=>s+(r.jumlah||0),0);
-    const saldoAwal  = _saldoAwal;
+    // Saldo awal per-bulan: snapshot manual kalau ada, otomatis dari saldo global + sum tx sebelumnya
+    const saldoAwalInfo = _getSaldoAwalForMonth(bulan);
+    const saldoAwal  = saldoAwalInfo.value;
     const saldoAkhir = saldoAwal + totalMasuk - grand;
     // bulan is "YYYY-MM" format
     const _BL = {1:'Januari',2:'Februari',3:'Maret',4:'April',5:'Mei',6:'Juni',7:'Juli',8:'Agustus',9:'September',10:'Oktober',11:'November',12:'Desember'};
@@ -1493,15 +1548,16 @@ const KasModule = (() => {
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0;
                     border:1px solid var(--border);border-top:none;overflow:hidden">
           ${[
-            {l:'Saldo Awal',     v:Utils.formatRupiah(saldoAwal),  c:'var(--primary-h)'},
+            {l:'Saldo Awal',     v:Utils.formatRupiah(saldoAwal),  c:'var(--primary-h)', extra:`<button title="${saldoAwalInfo.source==='manual'?'Snapshot manual — klik untuk edit/reset':'Otomatis dari saldo awal global + transaksi sebelumnya — klik untuk override manual'}" onclick="KasModule.openSaldoAwalSnapshot('${bulan}')" style="position:absolute;top:6px;right:6px;background:transparent;border:none;cursor:pointer;font-size:9px;color:${saldoAwalInfo.source==='manual'?'#10b981':'var(--text-3)'};padding:2px 5px;border-radius:3px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">${saldoAwalInfo.source==='manual'?'📌 manual':'auto ✎'}</button>`},
             {l:'Kas Masuk',      v:Utils.formatRupiah(totalMasuk), c:'var(--success)'},
             {l:'Kas Keluar',     v:Utils.formatRupiah(grand),      c:'var(--danger)'},
             {l:'Confirmed',      v:Utils.formatRupiah(grandDone),  c:'var(--success)'},
             {l:'TBC / Pending',  v:Utils.formatRupiah(grandTBC),   c:'var(--warning)'},
             {l:'Saldo Akhir',    v:Utils.formatRupiah(saldoAkhir), c:saldoAkhir>=0?'var(--success)':'var(--danger)'},
           ].map((s,i) => `
-            <div style="padding:12px 16px;background:var(--surface);
+            <div style="padding:12px 16px;background:var(--surface);position:relative;
                         ${i>0?'border-left:1px solid var(--border)':''}">
+              ${s.extra||''}
               <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:3px">${s.l}</div>
               <div style="font-size:14px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
             </div>`).join('')}
@@ -2308,6 +2364,83 @@ const KasModule = (() => {
   }
 
   /* ===================== EDIT SALDO AWAL ===================== */
+  // Buka modal untuk override / reset saldo awal bulan tertentu (per-bulan snapshot)
+  function openSaldoAwalSnapshot(yearMonth) {
+    const role = Auth.currentUser()?.role || '';
+    if (role !== 'superadmin' && role !== 'admin') {
+      Notify.error('Akses ditolak', 'Hanya admin/superadmin yang dapat mengubah saldo awal bulan');
+      return;
+    }
+    if (!yearMonth) { Notify.warning('Bulan tidak valid'); return; }
+    const info = _getSaldoAwalForMonth(yearMonth);
+    const _BL = {1:'Januari',2:'Februari',3:'Maret',4:'April',5:'Mei',6:'Juni',7:'Juli',8:'Agustus',9:'September',10:'Oktober',11:'November',12:'Desember'};
+    const [y, m] = yearMonth.split('-');
+    const bulanLabel = (_BL[parseInt(m)] || m) + ' ' + y;
+    const isManual = info.source === 'manual';
+    const mid = 'saldo-snap-' + Date.now();
+    const computedVal = (() => {
+      // Hitung apa kalau auto, untuk show "auto suggestion"
+      if (isManual) {
+        const tmp = _saldoAwalSnapshots[yearMonth];
+        delete _saldoAwalSnapshots[yearMonth];
+        const auto = _getSaldoAwalForMonth(yearMonth).value;
+        _saldoAwalSnapshots[yearMonth] = tmp;
+        return auto;
+      }
+      return info.value;
+    })();
+
+    Modal.open({ id: mid,
+      title: `Saldo Awal — ${bulanLabel}`,
+      size: 'modal-sm',
+      body: `
+        <div style="font-size:12px;color:var(--text-2);margin-bottom:12px">
+          ${isManual
+            ? `Saat ini <strong style="color:#10b981">manual snapshot</strong> aktif.`
+            : `Saat ini <strong>otomatis</strong> dari saldo awal global + Σ transaksi sebelum ${bulanLabel}.`}
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label">Saldo Awal Manual (Rp)</label>
+          <input type="number" step="1" class="form-control" id="saldo-snap-inp" value="${info.value}" placeholder="0">
+          <div class="form-hint" style="font-size:11px;margin-top:4px">
+            Otomatis hitung: <strong>${Utils.formatRupiah(computedVal)}</strong> (dari saldo global + transaksi sebelumnya).
+            ${isManual ? `<br/>Manual saat ini: <strong style="color:#10b981">${Utils.formatRupiah(info.value)}</strong>.` : ''}
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);background:var(--surface2);padding:8px 10px;border-radius:6px">
+          📌 Snapshot manual berguna saat rekonsiliasi end-of-month dengan rekening bank.
+          Reset ke otomatis kalau ingin sistem kalkulasi sendiri.
+        </div>`,
+      footer: `
+        <button class="btn btn-ghost btn-sm" onclick="Modal.close('${mid}')">Batal</button>
+        ${isManual ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="KasModule._resetSaldoAwalSnapshot('${yearMonth}','${mid}')">Reset ke Otomatis</button>` : ''}
+        <button class="btn btn-primary btn-sm" onclick="KasModule._saveSaldoAwalSnapshot('${yearMonth}','${mid}')">Simpan Manual</button>
+      `,
+    });
+    setTimeout(() => {
+      const inp = document.getElementById('saldo-snap-inp');
+      if (inp) { inp.focus(); inp.select(); }
+    }, 100);
+  }
+
+  async function _saveSaldoAwalSnapshotHandler(yearMonth, mid) {
+    const val = parseFloat(document.getElementById('saldo-snap-inp')?.value) || 0;
+    await _saveSaldoAwalSnapshot(yearMonth, val);
+    Modal.close(mid);
+    Notify.success('Saldo awal manual disimpan', `${Utils.formatRupiah(val)} untuk bulan terpilih`);
+    DB.logActivity?.({type:'saldo_awal_snapshot', detail:`Set saldo awal manual ${yearMonth}: ${Utils.formatRupiah(val)}`});
+    // Re-render monthly view
+    if (_activeTab === 'monthly') renderMonthlyTable(yearMonth);
+  }
+
+  async function _resetSaldoAwalSnapshotHandler(yearMonth, mid) {
+    await _clearSaldoAwalSnapshot(yearMonth);
+    Modal.close(mid);
+    Notify.success('Snapshot manual dihapus', 'Saldo awal kembali ke otomatis');
+    DB.logActivity?.({type:'saldo_awal_snapshot_clear', detail:`Reset snapshot ${yearMonth} ke otomatis`});
+    if (_activeTab === 'monthly') renderMonthlyTable(yearMonth);
+  }
+
   function editSaldoAwal() {
     if (!Auth.isSuperAdmin()) { Notify.error('Hanya Superadmin yang dapat mengubah Saldo Awal'); return; }
     const current = _saldoAwal;
@@ -2698,6 +2831,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
+  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
 })();
 window.KasModule = KasModule;
