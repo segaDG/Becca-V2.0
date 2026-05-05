@@ -23,7 +23,7 @@ const App = {
     menu      : 'js/modules/menu.js?v=20260428a',
     chat      : 'js/modules/chat.js?v=20260428a',
     personal  : 'js/modules/personal.js?v=20260428a',
-    report    : 'js/modules/report.js?v=20260505c',
+    report    : 'js/modules/report.js?v=20260505d',
     settings  : 'js/modules/settings.js?v=20260429b',
   },
 

@@ -762,9 +762,9 @@ const ReportModule = (() => {
       const lastColor = c.lastDays <= 30 ? '#10b981' : c.lastDays <= 60 ? '#f59e0b' : '#ef4444';
       const payDaysStr = c.avgPayDays !== null ? `${c.avgPayDays}d` : '—';
       const payColor = c.avgPayDays === null ? 'var(--text-3)' : (c.tempo && c.avgPayDays > c.tempo ? '#ef4444' : '#10b981');
-      return `<tr style="cursor:default" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      return `<tr style="cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="ReportModule.openCustomerDetail('${(c.name||'').replace(/'/g,'\\\'')}')" title="Klik untuk detail customer">
         <td style="color:var(--text-3)">${i+1}</td>
-        <td style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px" title="${c.name}">${c.name}</td>
+        <td style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;color:var(--primary-h)" title="${c.name}">${c.name}</td>
         <td>${_segmentBadge(c.segment)}</td>
         <td class="num" style="font-family:var(--font-mono)">${c.invoiceCount}<div style="font-size:9px;color:var(--text-3)">(${c.paidCount} paid)</div></td>
         <td class="num" style="font-family:var(--font-mono);font-weight:700;color:#10b981">${Utils.formatRupiah(c.ltv, true)}</td>
@@ -796,6 +796,144 @@ const ReportModule = (() => {
     const sortedList = _sortProfitList(_profitData.list, _profitSort.key, _profitSort.dir);
     const wrap = document.getElementById('rpt-profit-table-wrap');
     if (wrap) wrap.innerHTML = _renderProfitTable(sortedList);
+  }
+
+  // Public: open detail modal for one customer
+  function openCustomerDetail(customerName) {
+    if (!_profitData) { Notify.warning('Data belum siap, buka tab Profitability dulu'); return; }
+    const c = _profitData.list.find(x => x.name === customerName);
+    if (!c) { Notify.error('Customer tidak ditemukan'); return; }
+
+    const fmtRp = (n, compact=false) => Utils.formatRupiah(n, compact);
+    const today = new Date().toISOString().slice(0,10);
+    const invoices = [...c.invoices].sort((a,b) => (b.tglInvoice||b.tgl||'').localeCompare(a.tglInvoice||a.tgl||''));
+
+    // Lookup customer master untuk info tambahan
+    let master = null;
+    try {
+      const customers = (window.CustomerModule && CustomerModule._cachedCustomers) || [];
+      master = customers.find(x => x.nama === customerName);
+    } catch {}
+
+    // Timeline: monthly revenue 12 bulan terakhir untuk customer ini
+    const months = _last12Months();
+    const monthKeys = months.map(m => m.key);
+    const monthlyRev = monthKeys.map(() => 0);
+    invoices.forEach(inv => {
+      const ym = (inv.tglInvoice || inv.tgl || '').slice(0,7);
+      const idx = monthKeys.indexOf(ym);
+      if (idx >= 0) monthlyRev[idx] += +(inv.total || 0);
+    });
+
+    // Stats lain
+    const paidInvoices = invoices.filter(i => i.status === 'Paid' || i.status === 'LUNAS' || i.status === 'Lunas');
+    const unpaidInvoices = invoices.filter(i => !(i.status === 'Paid' || i.status === 'LUNAS' || i.status === 'Lunas'));
+    const ytdRev = monthlyRev.reduce((s,v)=>s+v, 0);
+    const customerLifeMonths = c.firstOrder ? Math.max(1, Math.floor(_daysBetween(c.firstOrder, today) / 30)) : 1;
+    const monthlyAvg = c.ltv / customerLifeMonths;
+
+    // Last 5 invoices preview
+    const recentInv = invoices.slice(0, 8);
+    const recentInvHtml = recentInv.length === 0 ? `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-3)">Belum ada invoice</td></tr>` : recentInv.map(inv => {
+      const isPaid = inv.status === 'Paid' || inv.status === 'LUNAS' || inv.status === 'Lunas';
+      const statusBadge = isPaid
+        ? `<span style="background:rgba(16,185,129,.15);color:#10b981;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">LUNAS</span>`
+        : `<span style="background:rgba(239,68,68,.12);color:#ef4444;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">BELUM</span>`;
+      return `<tr style="cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="if(window.InvoiceModule){Modal.close(window._custDetailMid);InvoiceModule.openInvDetail('${inv.id||inv.invoiceNum}')}">
+        <td style="white-space:nowrap;color:var(--text-2)">${(inv.tglInvoice||'').split('-').reverse().join('-')||'-'}</td>
+        <td style="font-family:var(--font-mono);font-size:11px">${inv.invoiceNum||'-'}</td>
+        <td class="num" style="font-family:var(--font-mono);font-weight:600">${fmtRp(inv.total, true)}</td>
+        <td class="num" style="font-family:var(--font-mono);color:${(inv.sisa||0)>0?'#ef4444':'#10b981'}">${(inv.sisa||0)>0?fmtRp(inv.sisa, true):'lunas'}</td>
+        <td>${statusBadge}</td>
+        <td style="text-align:center;color:var(--text-3);font-size:11px">→</td>
+      </tr>`;
+    }).join('');
+
+    // Mini bar chart 12 bulan revenue (compact, no line)
+    const maxRev = Math.max(...monthlyRev, 1);
+    const barChart = `<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:3px;align-items:end;height:60px;padding:8px 0">
+      ${monthlyRev.map((v, i) => {
+        const h = (v / maxRev) * 100;
+        return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+          <div style="width:100%;background:linear-gradient(180deg,#6366f1,#8b5cf6);height:${Math.max(h, 2)}%;border-radius:2px 2px 0 0;min-height:2px" title="${months[i].short}: ${fmtRp(v)}"></div>
+          <div style="font-size:8px;color:var(--text-3)">${months[i].label.slice(0,3)}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+    const mid = 'cust-detail-' + Date.now();
+    window._custDetailMid = mid;
+
+    Modal.open({
+      id: mid,
+      title: `📊 Detail Customer: ${customerName}`,
+      size: 'modal-lg',
+      body: `
+        <!-- Master info -->
+        <div style="background:var(--surface2);padding:12px 14px;border-radius:var(--r-md);margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:12px">
+          <div><div style="font-size:10px;color:var(--text-3)">SEGMENT</div><div style="margin-top:2px">${_segmentBadge(c.segment)}</div></div>
+          <div><div style="font-size:10px;color:var(--text-3)">PIC</div><div style="font-weight:600;margin-top:2px">${master?.pic || '—'}</div></div>
+          <div><div style="font-size:10px;color:var(--text-3)">No. HP</div><div style="font-family:var(--font-mono);font-size:11px;margin-top:2px">${master?.noHp || '—'}</div></div>
+          <div><div style="font-size:10px;color:var(--text-3)">JENIS</div><div style="margin-top:2px">${master?.jenisPelayanan || '—'}</div></div>
+          <div><div style="font-size:10px;color:var(--text-3)">TEMPO</div><div style="font-weight:600;margin-top:2px">${c.tempo ? c.tempo+' hari' : '—'}</div></div>
+          <div><div style="font-size:10px;color:var(--text-3)">KOTA</div><div style="margin-top:2px">${master?.kota || '—'}</div></div>
+        </div>
+
+        <!-- KPI cards -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px">
+          ${[
+            { l:'LTV (Historis)',  v:fmtRp(c.ltv),                                 c:'#10b981' },
+            { l:'Total Invoice',   v:c.invoiceCount + ` (${c.paidCount} paid)`,    c:'#6366f1' },
+            { l:'Avg Order',       v:fmtRp(c.aov, true),                           c:'#3b82f6' },
+            { l:'AR Outstanding',  v:c.arOutstanding>0 ? fmtRp(c.arOutstanding) : '—', c: c.arOutstanding>0 ? '#ef4444' : 'var(--text-3)' },
+            { l:'Last Order',      v:c.lastOrder ? `${c.lastDays} hari lalu` : '—',c: c.lastDays<=30?'#10b981':c.lastDays<=60?'#f59e0b':'#ef4444' },
+            { l:'Avg Bayar',       v:c.avgPayDays!==null ? `${c.avgPayDays} hari` : '—', c: c.avgPayDays===null?'var(--text-3)':(c.tempo&&c.avgPayDays>c.tempo?'#ef4444':'#10b981') },
+            { l:'Avg/Bulan',       v:fmtRp(monthlyAvg, true),                      c:'#8b5cf6' },
+            { l:'Lifespan',        v:c.firstOrder ? customerLifeMonths+' bulan' : '—', c:'var(--text-2)' },
+          ].map(s => `
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px">
+              <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em">${s.l}</div>
+              <div style="font-size:13px;font-weight:700;color:${s.c};font-family:var(--font-mono);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${s.v}">${s.v}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Mini chart 12 bulan -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;margin-bottom:14px">
+          <div style="font-size:12px;font-weight:700;color:var(--heading);margin-bottom:4px">📊 Revenue 12 Bulan Terakhir</div>
+          <div style="font-size:10px;color:var(--text-3);margin-bottom:4px">Total YTD 12 bulan: <strong style="color:#10b981">${fmtRp(ytdRev)}</strong></div>
+          ${barChart}
+        </div>
+
+        <!-- Recent invoices -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+          <div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700">📋 Invoice Terbaru (${recentInv.length} dari ${c.invoiceCount})</span>
+            <span style="font-size:10px;color:var(--text-3)">Klik baris untuk lihat detail invoice</span>
+          </div>
+          <div style="overflow-x:auto;max-height:280px;overflow-y:auto">
+            <table class="table" style="font-size:11px">
+              <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
+                <tr>
+                  <th style="width:90px">Tanggal</th>
+                  <th>No. Invoice</th>
+                  <th class="num" style="width:110px">Total</th>
+                  <th class="num" style="width:100px">Sisa</th>
+                  <th style="width:75px">Status</th>
+                  <th style="width:30px"></th>
+                </tr>
+              </thead>
+              <tbody>${recentInvHtml}</tbody>
+            </table>
+          </div>
+        </div>
+      `,
+      footer: `
+        ${master?.noHp ? `<button class="btn btn-ghost btn-sm" onclick="Utils.waShare('${master.noHp}','Halo ${master.pic||''} - ${customerName},')" title="Buka WhatsApp ke PIC">📱 WA PIC</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="Modal.close('${mid}');App.navigate('invoice')">Lihat semua invoice →</button>
+        <button class="btn btn-primary btn-sm" onclick="Modal.close('${mid}')">Tutup</button>
+      `,
+    });
   }
 
   // Public: print Profitability tab to PDF (new window)
@@ -886,6 +1024,6 @@ const ReportModule = (() => {
     w.document.close();
   }
 
-  return { init, switchTab, _sortProfit, printProfitability };
+  return { init, switchTab, _sortProfit, printProfitability, openCustomerDetail };
 })();
 window.ReportModule = ReportModule;
