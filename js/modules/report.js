@@ -2,6 +2,10 @@
    BECCA V2.0 — Report Module
 ============================================ */
 const ReportModule = (() => {
+  // Module-level state for Profitability tab (sort + cached data)
+  let _profitData = null;
+  let _profitSort = { key: 'ltv', dir: 'desc' };
+
   async function init() {
     const page = document.getElementById('page-report');
     page.innerHTML = `
@@ -606,8 +610,11 @@ const ReportModule = (() => {
     const avgLtv        = activeCount > 0 ? totalLtv / list.length : 0;
     const totalInvoices = list.reduce((s,c)=>s+c.invoiceCount, 0);
 
-    // Sort customers by LTV desc for table
-    const sortedList = [...list].sort((a,b) => b.ltv - a.ltv);
+    // Cache full data (untuk sort & PDF export tanpa fetch ulang)
+    _profitData = { list, totalLtv, totalAR, segCount, avgLtv, totalInvoices, ltvVipThreshold };
+
+    // Sort customers by current sort state
+    const sortedList = _sortProfitList(list, _profitSort.key, _profitSort.dir);
 
     // === RENDER ===
     container.innerHTML = `
@@ -675,49 +682,18 @@ const ReportModule = (() => {
 
       <!-- Customer Detail Table -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
-        <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:14px;font-weight:700;color:var(--heading)">📋 Detail Per Customer</div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:2px">Sortir LTV ↓. Klik header (segera tersedia di v2).</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:2px">Klik header kolom untuk sort. Hover row untuk highlight.</div>
           </div>
+          <button class="btn btn-ghost btn-sm" onclick="ReportModule.printProfitability()" title="Cetak laporan profitability">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
+            Print PDF
+          </button>
         </div>
-        <div style="overflow-x:auto;max-height:600px;overflow-y:auto">
-          <table class="table" style="font-size:12px">
-            <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
-              <tr>
-                <th style="width:36px">#</th>
-                <th>Customer</th>
-                <th style="width:90px">Segment</th>
-                <th class="num" style="width:80px">Invoice</th>
-                <th class="num" style="width:120px">LTV</th>
-                <th class="num" style="width:110px">Avg Order</th>
-                <th class="num" style="width:120px">AR Outstanding</th>
-                <th class="num" style="width:90px">Last Order</th>
-                <th class="num" style="width:90px">Avg Bayar</th>
-                <th class="num" style="width:70px">Tempo</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${sortedList.map((c, i) => {
-                const lastDaysStr = c.lastOrder ? `${c.lastDays}d lalu` : '—';
-                const lastColor = c.lastDays <= 30 ? '#10b981' : c.lastDays <= 60 ? '#f59e0b' : '#ef4444';
-                const payDaysStr = c.avgPayDays !== null ? `${c.avgPayDays}d` : '—';
-                const payColor = c.avgPayDays === null ? 'var(--text-3)' : (c.tempo && c.avgPayDays > c.tempo ? '#ef4444' : '#10b981');
-                return `<tr>
-                  <td style="color:var(--text-3)">${i+1}</td>
-                  <td style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px" title="${c.name}">${c.name}</td>
-                  <td>${_segmentBadge(c.segment)}</td>
-                  <td class="num" style="font-family:var(--font-mono)">${c.invoiceCount}<div style="font-size:9px;color:var(--text-3)">(${c.paidCount} paid)</div></td>
-                  <td class="num" style="font-family:var(--font-mono);font-weight:700;color:#10b981">${Utils.formatRupiah(c.ltv, true)}</td>
-                  <td class="num" style="font-family:var(--font-mono);color:var(--text-2)">${Utils.formatRupiah(c.aov, true)}</td>
-                  <td class="num" style="font-family:var(--font-mono);color:${c.arOutstanding > 0 ? '#ef4444' : 'var(--text-3)'}">${c.arOutstanding > 0 ? Utils.formatRupiah(c.arOutstanding, true) : '—'}</td>
-                  <td class="num" style="color:${lastColor};font-family:var(--font-mono)">${lastDaysStr}</td>
-                  <td class="num" style="color:${payColor};font-family:var(--font-mono)">${payDaysStr}</td>
-                  <td class="num" style="color:var(--text-3);font-family:var(--font-mono)">${c.tempo ? c.tempo+'d' : '—'}</td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
+        <div id="rpt-profit-table-wrap" style="overflow-x:auto;max-height:600px;overflow-y:auto">
+          ${_renderProfitTable(sortedList)}
         </div>
         <div style="padding:8px 18px;font-size:11px;color:var(--text-3);background:var(--surface2);border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <span><strong>${list.length}</strong> customer · <strong>${totalInvoices}</strong> invoice all-time</span>
@@ -727,6 +703,189 @@ const ReportModule = (() => {
     `;
   }
 
-  return { init, switchTab };
+  // Sort customer list by key + dir (returns new sorted array, doesn't mutate)
+  function _sortProfitList(list, key, dir) {
+    const mult = dir === 'asc' ? 1 : -1;
+    return [...list].sort((a, b) => {
+      let va, vb;
+      switch (key) {
+        case 'name':         va = (a.name||'').toLowerCase(); vb = (b.name||'').toLowerCase(); break;
+        case 'segment':      { const order = {vip:0,regular:1,atrisk:2,churned:3}; va = order[a.segment]; vb = order[b.segment]; break; }
+        case 'invoiceCount': va = a.invoiceCount; vb = b.invoiceCount; break;
+        case 'ltv':          va = a.ltv;          vb = b.ltv;          break;
+        case 'aov':          va = a.aov;          vb = b.aov;          break;
+        case 'arOutstanding':va = a.arOutstanding;vb = b.arOutstanding;break;
+        case 'lastDays':     va = a.lastDays;     vb = b.lastDays;     break;
+        case 'avgPayDays':   va = a.avgPayDays==null?9999:a.avgPayDays; vb = b.avgPayDays==null?9999:b.avgPayDays; break;
+        case 'tempo':        va = a.tempo||9999;  vb = b.tempo||9999;  break;
+        default: return 0;
+      }
+      if (va < vb) return -1 * mult;
+      if (va > vb) return  1 * mult;
+      return 0;
+    });
+  }
+
+  // SVG icon for sort indicator
+  function _sortIcon(active, dir) {
+    if (!active) return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10" style="opacity:.3;margin-left:3px;vertical-align:-1px"><path d="M7 10l5-5 5 5M7 14l5 5 5-5"/></svg>`;
+    if (dir === 'asc')  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11" style="margin-left:3px;vertical-align:-1px;color:var(--primary)"><path d="M7 14l5-5 5 5"/></svg>`;
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11" style="margin-left:3px;vertical-align:-1px;color:var(--primary)"><path d="M7 10l5 5 5-5"/></svg>`;
+  }
+
+  // Render <thead><tr> + <tbody> for sorted profit list
+  function _renderProfitTable(sortedList) {
+    const cols = [
+      { key: '',             label: '#',              width: '36px',  align: 'left',  sortable: false },
+      { key: 'name',         label: 'Customer',       width: '',      align: 'left',  sortable: true  },
+      { key: 'segment',      label: 'Segment',        width: '90px',  align: 'left',  sortable: true  },
+      { key: 'invoiceCount', label: 'Invoice',        width: '80px',  align: 'right', sortable: true  },
+      { key: 'ltv',          label: 'LTV',            width: '120px', align: 'right', sortable: true  },
+      { key: 'aov',          label: 'Avg Order',      width: '110px', align: 'right', sortable: true  },
+      { key: 'arOutstanding',label: 'AR Outstanding', width: '120px', align: 'right', sortable: true  },
+      { key: 'lastDays',     label: 'Last Order',     width: '90px',  align: 'right', sortable: true  },
+      { key: 'avgPayDays',   label: 'Avg Bayar',      width: '90px',  align: 'right', sortable: true  },
+      { key: 'tempo',        label: 'Tempo',          width: '70px',  align: 'right', sortable: true  },
+    ];
+    const headers = cols.map(c => {
+      const active = _profitSort.key === c.key;
+      const numCls = c.align === 'right' ? ' class="num"' : '';
+      const widthStyle = c.width ? `width:${c.width};` : '';
+      const sortStyle = c.sortable ? 'cursor:pointer;user-select:none' : '';
+      const onclick = c.sortable ? `onclick="ReportModule._sortProfit('${c.key}')"` : '';
+      const icon = c.sortable ? _sortIcon(active, _profitSort.dir) : '';
+      return `<th${numCls} style="${widthStyle}${sortStyle}" ${onclick} title="${c.sortable?'Klik untuk sort':''}">${c.label}${icon}</th>`;
+    }).join('');
+
+    const rows = sortedList.map((c, i) => {
+      const lastDaysStr = c.lastOrder ? `${c.lastDays}d lalu` : '—';
+      const lastColor = c.lastDays <= 30 ? '#10b981' : c.lastDays <= 60 ? '#f59e0b' : '#ef4444';
+      const payDaysStr = c.avgPayDays !== null ? `${c.avgPayDays}d` : '—';
+      const payColor = c.avgPayDays === null ? 'var(--text-3)' : (c.tempo && c.avgPayDays > c.tempo ? '#ef4444' : '#10b981');
+      return `<tr style="cursor:default" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <td style="color:var(--text-3)">${i+1}</td>
+        <td style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px" title="${c.name}">${c.name}</td>
+        <td>${_segmentBadge(c.segment)}</td>
+        <td class="num" style="font-family:var(--font-mono)">${c.invoiceCount}<div style="font-size:9px;color:var(--text-3)">(${c.paidCount} paid)</div></td>
+        <td class="num" style="font-family:var(--font-mono);font-weight:700;color:#10b981">${Utils.formatRupiah(c.ltv, true)}</td>
+        <td class="num" style="font-family:var(--font-mono);color:var(--text-2)">${Utils.formatRupiah(c.aov, true)}</td>
+        <td class="num" style="font-family:var(--font-mono);color:${c.arOutstanding > 0 ? '#ef4444' : 'var(--text-3)'}">${c.arOutstanding > 0 ? Utils.formatRupiah(c.arOutstanding, true) : '—'}</td>
+        <td class="num" style="color:${lastColor};font-family:var(--font-mono)">${lastDaysStr}</td>
+        <td class="num" style="color:${payColor};font-family:var(--font-mono)">${payDaysStr}</td>
+        <td class="num" style="color:var(--text-3);font-family:var(--font-mono)">${c.tempo ? c.tempo+'d' : '—'}</td>
+      </tr>`;
+    }).join('');
+
+    return `<table class="table" style="font-size:12px">
+      <thead style="position:sticky;top:0;background:var(--surface2);z-index:1"><tr>${headers}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  // Public: handler when user clicks sortable column header
+  function _sortProfit(key) {
+    if (!_profitData) return;
+    if (_profitSort.key === key) {
+      // Toggle direction
+      _profitSort.dir = _profitSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      _profitSort.key = key;
+      // Default direction: numeric/date → desc, name → asc
+      _profitSort.dir = (key === 'name') ? 'asc' : 'desc';
+    }
+    const sortedList = _sortProfitList(_profitData.list, _profitSort.key, _profitSort.dir);
+    const wrap = document.getElementById('rpt-profit-table-wrap');
+    if (wrap) wrap.innerHTML = _renderProfitTable(sortedList);
+  }
+
+  // Public: print Profitability tab to PDF (new window)
+  function printProfitability() {
+    if (!_profitData) { Notify.warning('Buka tab Profitability dulu'); return; }
+    const { list, totalLtv, totalAR, segCount, avgLtv, totalInvoices } = _profitData;
+    const sortedList = _sortProfitList(list, _profitSort.key, _profitSort.dir);
+    const printDate = new Date().toLocaleString('id-ID',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const fmtRp = (n, c=true) => Utils.formatRupiah(n, c);
+
+    const rowsHtml = sortedList.map((c, i) => {
+      const sel = c.lastOrder ? `${c.lastDays}d lalu` : '—';
+      const segLabel = { vip:'VIP', regular:'Regular', atrisk:'At Risk', churned:'Churned' }[c.segment] || '-';
+      const segColor = { vip:'#10b981', regular:'#6366f1', atrisk:'#f59e0b', churned:'#dc2626' }[c.segment] || '#666';
+      return `<tr>
+        <td style="text-align:right">${i+1}</td>
+        <td>${c.name}</td>
+        <td><span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${segColor}20;color:${segColor};font-size:9px;font-weight:700">${segLabel}</span></td>
+        <td style="text-align:right">${c.invoiceCount} (${c.paidCount} paid)</td>
+        <td style="text-align:right;font-weight:700;color:#16a34a">${fmtRp(c.ltv, true)}</td>
+        <td style="text-align:right">${fmtRp(c.aov, true)}</td>
+        <td style="text-align:right;color:${c.arOutstanding>0?'#dc2626':'#999'}">${c.arOutstanding>0?fmtRp(c.arOutstanding, true):'—'}</td>
+        <td style="text-align:right">${sel}</td>
+        <td style="text-align:right">${c.avgPayDays!==null?c.avgPayDays+'d':'—'}</td>
+        <td style="text-align:right">${c.tempo?c.tempo+'d':'—'}</td>
+      </tr>`;
+    }).join('');
+
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><title>Laporan Profitability — Customer LTV</title>
+      <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',Arial,sans-serif;padding:18px;color:#1e293b;font-size:11px}
+        h1{font-size:18px;margin-bottom:4px}
+        h2{font-size:12px;color:#64748b;font-weight:500;margin-bottom:14px}
+        .summary{display:flex;gap:14px;margin:12px 0;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;flex-wrap:wrap}
+        .summary span{font-size:11px}
+        .summary strong{font-size:13px;display:block;margin-top:2px}
+        .seg{display:flex;gap:10px;margin:10px 0;flex-wrap:wrap}
+        .seg .seg-card{flex:1;min-width:120px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:4px;border-left-width:3px}
+        .seg .vip{border-left-color:#16a34a}
+        .seg .reg{border-left-color:#6366f1}
+        .seg .atr{border-left-color:#f59e0b}
+        .seg .chu{border-left-color:#dc2626}
+        table{width:100%;border-collapse:collapse;margin-top:8px}
+        th,td{padding:5px 7px;border:1px solid #e2e8f0;font-size:10px;vertical-align:top}
+        th{background:#1e293b;color:#fff;text-transform:uppercase;letter-spacing:.04em;font-size:9px;text-align:left}
+        .footer{margin-top:14px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+        @page{size:landscape;margin:10mm}
+        @media print{body{padding:0}}
+      </style></head><body>
+      <h1>Laporan Profitability — Customer LTV</h1>
+      <h2>BECCA Catering · Method: Historical (LTV = Σ revenue all-time per customer)</h2>
+      <div class="summary">
+        <span>Total Customers: <strong>${list.length}</strong></span>
+        <span>Total LTV: <strong style="color:#16a34a">${fmtRp(totalLtv)}</strong></span>
+        <span>Avg LTV/customer: <strong>${fmtRp(avgLtv)}</strong></span>
+        <span>AR Outstanding: <strong style="color:#dc2626">${fmtRp(totalAR)}</strong></span>
+        <span>Total Invoice: <strong>${totalInvoices}</strong></span>
+      </div>
+      <div class="seg">
+        <div class="seg-card vip"><div style="font-size:9px;color:#666">💎 VIP</div><strong style="font-size:14px">${segCount.vip}</strong></div>
+        <div class="seg-card reg"><div style="font-size:9px;color:#666">✅ Regular</div><strong style="font-size:14px">${segCount.regular}</strong></div>
+        <div class="seg-card atr"><div style="font-size:9px;color:#666">⚠ At Risk</div><strong style="font-size:14px">${segCount.atrisk}</strong></div>
+        <div class="seg-card chu"><div style="font-size:9px;color:#666">💀 Churned</div><strong style="font-size:14px">${segCount.churned}</strong></div>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="width:30px">#</th>
+          <th>Customer</th>
+          <th style="width:65px">Segment</th>
+          <th style="width:90px;text-align:right">Invoice</th>
+          <th style="width:100px;text-align:right">LTV</th>
+          <th style="width:90px;text-align:right">Avg Order</th>
+          <th style="width:100px;text-align:right">AR Outstanding</th>
+          <th style="width:75px;text-align:right">Last Order</th>
+          <th style="width:65px;text-align:right">Avg Bayar</th>
+          <th style="width:55px;text-align:right">Tempo</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div class="footer">
+        <span>Dicetak: ${printDate}</span>
+        <span>Sortir: ${_profitSort.key} ${_profitSort.dir.toUpperCase()} · BECCA V2.0</span>
+      </div>
+      <script>setTimeout(()=>window.print(),300)<\/script>
+      </body></html>`);
+    w.document.close();
+  }
+
+  return { init, switchTab, _sortProfit, printProfitability };
 })();
 window.ReportModule = ReportModule;
