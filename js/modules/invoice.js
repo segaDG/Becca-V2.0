@@ -1226,10 +1226,10 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     const yr  = tgl1 ? tgl1.getFullYear() : '';
     const periodeStr = tgl1 && tgl2 ? `${sd} – ${ed} ${mth} ${yr}` : '--';
 
-    // Kolom aktif — semua kolom termasuk spare (agar subtotal cocok dengan item rows)
-    const ALL_COLS_KEYS = _ORDER_COLS.map(c => c.key);
+    // Kolom aktif — spare TIDAK ditampilkan di rekap/invoice (sesuai _PRINT_COLS)
+    const ALL_COLS_KEYS = _PRINT_COLS.map(c => c.key);
     const ALL_COLS_LABEL = {};
-    _ORDER_COLS.forEach(c => { ALL_COLS_LABEL[c.key] = c.full; });
+    _PRINT_COLS.forEach(c => { ALL_COLS_LABEL[c.key] = c.full; });
 
     let activeCols = [];
     if (orderRec?.totals) {
@@ -1366,15 +1366,12 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
         const descMap = {
           breakfast:'Food Catering Service — Breakfast',
           shift1:'Food Catering Service — Shift 1',
-          spare1:'Food Catering Service — Spare 1',
           ot1:'Food Catering Service — OT 1',
           snack1:'Food Catering Service — Snack 1',
           shift2:'Food Catering Service — Shift 2',
-          spare2:'Food Catering Service — Spare 2',
           ot2:'Food Catering Service — OT 2',
           snack2:'Food Catering Service — Snack 2',
           shift3:'Food Catering Service — Shift 3',
-          spare3:'Food Catering Service — Spare 3',
           ot3:'Food Catering Service — OT 3',
           snack3:'Food Catering Service — Snack 3',
           snackBerat:'Food Catering Service — Snack Berat',
