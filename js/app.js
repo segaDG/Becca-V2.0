@@ -227,34 +227,39 @@ const App = {
     if (!handle) return;
     const THRESHOLD = 5;
     const clamp = (v, min, max) => Math.max(min, Math.min(v, max));
-    const applyPos = (left, top) => {
-      const r = fab.getBoundingClientRect();
+    // Anchor pakai right/bottom — supaya menu items tumbuh ke kiri (tidak overflow ke kanan).
+    // Clamp pakai dimensi handle (main button) bukan container (yang membesar saat menu terbuka).
+    const applyPos = (right, bottom) => {
       const w = window.innerWidth, h = window.innerHeight;
-      const cl = clamp(left, 4, Math.max(4, w - r.width - 4));
-      const ct = clamp(top, 4, Math.max(4, h - r.height - 4));
-      fab.style.left = cl + 'px';
-      fab.style.top = ct + 'px';
-      fab.style.right = 'auto';
-      fab.style.bottom = 'auto';
+      const m = handle.getBoundingClientRect();
+      const cw = m.width || 43, ch = m.height || 43;
+      const cr = clamp(right, 4, Math.max(4, w - cw - 4));
+      const cb = clamp(bottom, 4, Math.max(4, h - ch - 4));
+      fab.style.right = cr + 'px';
+      fab.style.bottom = cb + 'px';
+      fab.style.left = 'auto';
+      fab.style.top = 'auto';
     };
     // Restore saved position
     try {
       const saved = JSON.parse(localStorage.getItem(persistKey) || 'null');
-      if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
-        applyPos(saved.left, saved.top);
+      if (saved && Number.isFinite(saved.right) && Number.isFinite(saved.bottom)) {
+        applyPos(saved.right, saved.bottom);
       }
     } catch {}
     // Re-clamp on resize
     window.addEventListener('resize', () => {
-      if (fab.style.left) {
-        applyPos(parseFloat(fab.style.left)||0, parseFloat(fab.style.top)||0);
+      if (fab.style.right) {
+        applyPos(parseFloat(fab.style.right)||0, parseFloat(fab.style.bottom)||0);
       }
     });
 
     let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false, moved = false;
     const onStart = (cx, cy) => {
-      const r = fab.getBoundingClientRect();
-      ox = r.left; oy = r.top;
+      const r = handle.getBoundingClientRect();
+      // Track offset dari right & bottom edge viewport
+      ox = window.innerWidth - r.right;
+      oy = window.innerHeight - r.bottom;
       sx = cx; sy = cy;
       dragging = true; moved = false;
     };
@@ -263,7 +268,8 @@ const App = {
       const dx = cx - sx, dy = cy - sy;
       if (!moved && Math.hypot(dx, dy) < THRESHOLD) return;
       if (!moved) { fab.classList.add('dragging'); moved = true; }
-      applyPos(ox + dx, oy + dy);
+      // Geser ke kanan (dx>0) → right offset berkurang
+      applyPos(ox - dx, oy - dy);
     };
     const onEnd = () => {
       if (!dragging) return;
@@ -272,8 +278,8 @@ const App = {
       if (moved) {
         try {
           localStorage.setItem(persistKey, JSON.stringify({
-            left: parseFloat(fab.style.left)||0,
-            top: parseFloat(fab.style.top)||0,
+            right: parseFloat(fab.style.right)||0,
+            bottom: parseFloat(fab.style.bottom)||0,
           }));
         } catch {}
       }
