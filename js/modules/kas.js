@@ -322,6 +322,31 @@ const KasModule = (() => {
     }
     // Update belanja pasar badge on init (without switching tab)
     _updateBPBadge();
+    // One-time fix: rekonsiliasi jumlah = qty × harga untuk data lama
+    _autoRecomputeJumlahsOnce();
+  }
+
+  /* ── Rekonsiliasi total: pastikan jumlah = qty × harga (one-time) ── */
+  function _autoRecomputeJumlahsOnce() {
+    const FLAG = 'becca_kas_jumlah_recompute_v1';
+    if (localStorage.getItem(FLAG) === '1') return;
+    if (!_kas || !_kas.length) return;
+    const fixes = [];
+    for (const r of _kas) {
+      const q = Number(r.qty)||0, h = Number(r.hargaSatuan)||0;
+      if (q <= 0 || h <= 0) continue; // skip baris dengan qty/harga 0 (kasus manual)
+      const expected = Math.round(q * h);
+      if ((Number(r.jumlah)||0) !== expected) {
+        r.jumlah = expected;
+        fixes.push({...r});
+      }
+    }
+    localStorage.setItem(FLAG, '1');
+    if (!fixes.length) return;
+    Promise.allSettled(fixes.map(r => DB.saveKas(r))).then(() => {
+      Notify.info(`${fixes.length} baris Total dikoreksi sesuai formula qty × harga`);
+      if (_activeTab === 'transaksi') renderTransaksi();
+    });
   }
 
   async function _updateBPBadge() {
@@ -663,9 +688,8 @@ const KasModule = (() => {
       <td class="ks-num"><input class="ks-inp" type="number" min="0" value="${r.hargaSatuan||0}"
             id="ks-harga-${r.id}" oninput="KasModule._calcTotal('${r.id}')" style="text-align:right"
             onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
-      <td class="ks-num"><input class="ks-inp" type="number" min="0" value="${r.jumlah||0}"
-            id="ks-jumlah-${r.id}" style="text-align:right;font-weight:700"
-            onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
+      <td class="ks-num" title="Otomatis: qty × harga">
+            <div class="ks-cell" id="ks-jumlah-${r.id}" style="justify-content:flex-end;font-weight:700;color:var(--text-2)">${Utils.formatRupiah(((r.qty||0)*(r.hargaSatuan||0))||r.jumlah||0)}</div></td>
       <td><input class="ks-inp" type="text" value="${(r.penerima||'').replace(/"/g,'&quot;')}" placeholder="Penerima"
             id="ks-penerima-${r.id}"
             onkeydown="KasModule._rowKeyDown(event,'${r.id}')"></td>
@@ -770,7 +794,11 @@ const KasModule = (() => {
     const qty   = parseFloat(document.getElementById('ks-qty-'+id)?.value)   || 0;
     const harga = parseFloat(document.getElementById('ks-harga-'+id)?.value) || 0;
     const el    = document.getElementById('ks-jumlah-'+id);
-    if (el && qty > 0 && harga > 0) el.value = Math.round(qty * harga);
+    if (!el) return;
+    const total = Math.round(qty * harga);
+    // Display element (div.ks-cell) — pakai textContent + format Rupiah
+    if (el.tagName === 'DIV') el.textContent = Utils.formatRupiah(total);
+    else if (qty > 0 && harga > 0) el.value = total;
   }
 
   /* ===================== EDIT LOGIC ===================== */
@@ -824,7 +852,8 @@ const KasModule = (() => {
     const rowNum  = allRows.indexOf(trEl) + 1 + (_page-1)*_perPage;
     trEl.outerHTML = _rowEdit(row, rowNum, true);
 
-    // Focus first text input
+    // Focus first text input (jumlah read-only → redirect ke harga)
+    if (focusField && focusField.startsWith('ks-jumlah-')) focusField = 'ks-harga-' + id;
     setTimeout(() => {
       document.getElementById(focusField || 'ks-nama-'+id)?.focus();
       // Attach outside click AFTER render
@@ -842,7 +871,8 @@ const KasModule = (() => {
       qty:         parseFloat(get('qty')?.value)    || 0,
       satuan:      get('sat')?.value         || '',
       hargaSatuan: parseFloat(get('harga')?.value)  || 0,
-      jumlah:      parseFloat(get('jumlah')?.value) || 0,
+      // jumlah selalu computed — qty × harga, tidak baca dari DOM (field read-only)
+      jumlah:      Math.round((parseFloat(get('qty')?.value)||0) * (parseFloat(get('harga')?.value)||0)),
       penerima:    get('penerima')?.value    || '',
       status:      get('status')?.value      || '',
     };
@@ -2548,7 +2578,8 @@ const KasModule = (() => {
     const rows = Array.from(tbody.children);
     const key = _KAS_COL_MAP[colIdx];
     if (!key) return;
-    const isNum = key==='qty'||key==='hargaSatuan'||key==='jumlah';
+    if (key === 'jumlah') { Notify.info('Total dihitung otomatis dari qty × harga'); return; }
+    const isNum = key==='qty'||key==='hargaSatuan';
     let parsed = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
     // Konversi tanggal display (DD-MM-YYYY) → DB format (YYYY-MM-DD)
     if (key==='tgl' && /^\d{2}-\d{2}-\d{4}$/.test(parsed)) {
@@ -2583,12 +2614,13 @@ const KasModule = (() => {
       cols.forEach((val, ci) => {
         const key = _KAS_COL_MAP[startCol + ci];
         if (!key) return;
-        const isNum = key==='qty'||key==='hargaSatuan'||key==='jumlah';
+        if (key === 'jumlah') return; // skip \u2014 computed from qty \u00d7 harga
+        const isNum = key==='qty'||key==='hargaSatuan';
         let v = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
         if (key==='tgl' && /^\d{2}-\d{2}-\d{4}$/.test(v)) { const p=v.split('-'); v=p[2]+'-'+p[1]+'-'+p[0]; }
         row[key] = v;
       });
-      row.jumlah = (row.qty||0)*(row.hargaSatuan||0);
+      row.jumlah = Math.round((row.qty||0)*(row.hargaSatuan||0));
       DB.saveKas({...row}).catch(()=>{});
       saved++;
     });
