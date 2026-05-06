@@ -1196,6 +1196,7 @@ const DailyOrderModule = (() => {
           <input type="hidden" id="di-stok" value="${stok0}">
           <input id="di-item" class="form-control" style="${inp('min-width:120px')}"
             placeholder="Nama bahan..." value="${it?.item||''}" autocomplete="off"
+            enterkeyhint="next"
             onchange="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
             oninput="DailyOrderModule._showItemSuggest()"
             onkeydown="DailyOrderModule._itemKeyDown(event)"
@@ -1206,7 +1207,7 @@ const DailyOrderModule = (() => {
         <td style="padding:4px 3px">
           <input id="di-estqty" class="form-control" style="${inp('text-align:right;width:60px')}"
             type="number" step="1" min="0" placeholder="0" value="${estQ0||''}"
-            inputmode="numeric" enterkeyhint="done"
+            inputmode="numeric" enterkeyhint="next"
             oninput="DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._estQtyKeyDown(event)"
             onblur="DailyOrderModule._estQtyBlur()">
@@ -1300,6 +1301,7 @@ const DailyOrderModule = (() => {
     if (e.key === 'Escape') { e.preventDefault(); _cancelEdit(); return; }
     if (e.key === 'Enter') {
       e.preventDefault();
+      _cancelEstBlur(); // cegah blur timer interfere dengan keydown save
       const item = document.getElementById('di-item')?.value.trim();
       if (item) _saveEditRow('di-estqty');
       else      document.getElementById('di-item')?.focus();
@@ -2135,6 +2137,7 @@ const DailyOrderModule = (() => {
   }
 
   function startEditItem(itemId, focusField) {
+    _cancelEstBlur(); // cegah blur timer dari edit row sebelumnya
     _editingItemId = itemId;
     _renderContent();
     setTimeout(() => {
