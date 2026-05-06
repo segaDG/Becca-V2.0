@@ -31,9 +31,12 @@ const UndoRedo = (() => {
     if (!s.undo.length) return;
     const entry = s.undo.pop();
     s.redo.push(entry);
-    // Render first (instant), DB save in background
+    // Save dulu — bagian sync (Object.assign / push / filter) rollback state in-memory.
+    // Render setelahnya → DOM mencerminkan state yang sudah di-rollback.
+    // DB.save tetap async di background.
+    if (entry.save && entry.before !== undefined) entry.save(entry.before).catch(() => {});
     if (entry.render) entry.render();
-    if (entry.save && entry.before) entry.save(entry.before).catch(() => {});
+    if (typeof Notify !== 'undefined' && Notify.info) Notify.info('Undo ✓');
   }
 
   function redo(mod) {
@@ -41,8 +44,9 @@ const UndoRedo = (() => {
     if (!s.redo.length) return;
     const entry = s.redo.pop();
     s.undo.push(entry);
+    if (entry.save && entry.after !== undefined) entry.save(entry.after).catch(() => {});
     if (entry.render) entry.render();
-    if (entry.save && entry.after) entry.save(entry.after).catch(() => {});
+    if (typeof Notify !== 'undefined' && Notify.info) Notify.info('Redo ✓');
   }
 
   function clear(mod) {
