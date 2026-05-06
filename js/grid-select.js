@@ -186,14 +186,32 @@ const GridSelect = (() => {
     document.removeEventListener('mouseup', _fillEnd);
     if (!_fill || !_fill.targets.length) { _fill = null; return; }
     const cb = _fillCbs[_fill.tbl.id];
+    const tbl = _fill.tbl;
+    const srcCol = _fill.srcCol, srcRow = _fill.srcRow;
+    const targets = _fill.targets.map(t => t.rowIdx);
     // Auto-convert displayed date DD-MM-YYYY → YYYY-MM-DD for DB
     let fillVal = _fill.value;
     if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(fillVal)) {
       const p = fillVal.split(/[-/]/); fillVal = p[2]+'-'+p[1]+'-'+p[0];
     }
-    if (cb) cb(_fill.tbl.id, _fill.srcCol, _fill.srcRow, _fill.targets.map(t => t.rowIdx), fillVal);
-    _fill.tbl.querySelectorAll('.gs-fill,.gs-sel').forEach(el => { el.classList.remove('gs-fill','gs-sel'); el.querySelector('.gs-handle')?.remove(); });
+    // Clear fill highlight UI immediately
+    tbl.querySelectorAll('.gs-fill,.gs-sel').forEach(el => { el.classList.remove('gs-fill','gs-sel'); el.querySelector('.gs-handle')?.remove(); });
     _fill = null;
+    if (!cb) return;
+    // Konfirmasi sebelum apply — supaya tidak salah klik/drag
+    const direction = targets[0] > srcRow ? 'di bawah' : 'di atas';
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const valDisplay = fillVal === '' || fillVal == null
+      ? '<em style="color:var(--text-3)">(kosong)</em>'
+      : `<strong>${esc(String(fillVal).slice(0, 60))}</strong>`;
+    const msg = `Copy ${valDisplay} ke <strong>${targets.length}</strong> baris ${direction}?`;
+    const apply = () => cb(tbl.id, srcCol, srcRow, targets, fillVal);
+    if (typeof Modal !== 'undefined' && Modal.confirm) {
+      Modal.confirm({ title: 'Konfirmasi Copy', message: msg, confirmText: 'Ya, Copy' })
+        .then(ok => { if (ok) apply(); });
+    } else {
+      apply();
+    }
   }
 
   // ── COPY (Ctrl+C) ──
