@@ -18,8 +18,11 @@ const GridSelect = (() => {
     s.textContent = `
       .gs-sel{background:rgba(99,102,241,.12)!important;outline:1px solid rgba(99,102,241,.5);outline-offset:-1px}
       .gs-copied{outline:2px dashed rgba(99,102,241,.6)!important;outline-offset:-2px}
-      .gs-handle{position:absolute;right:-4px;bottom:-4px;width:8px;height:8px;background:var(--primary,#6366f1);
-        border:1px solid #fff;cursor:crosshair;z-index:5;border-radius:1px}
+      .gs-handle{position:absolute;right:-5px;bottom:-5px;width:11px;height:11px;background:var(--primary,#6366f1);
+        border:1.5px solid #fff;cursor:crosshair;z-index:5;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.25);
+        transition:transform .12s ease,box-shadow .12s ease}
+      .gs-handle::before{content:"";position:absolute;inset:-6px;cursor:crosshair}
+      .gs-handle:hover{transform:scale(1.35);box-shadow:0 2px 6px rgba(99,102,241,.45)}
       .gs-fill{background:rgba(99,102,241,.12)!important}
       .gs-bar{position:fixed;bottom:16px;right:16px;background:var(--surface,#fff);border:1px solid var(--border,#ddd);
         border-radius:10px;padding:8px 14px;box-shadow:0 4px 20px rgba(0,0,0,.15);z-index:999;
@@ -113,6 +116,7 @@ const GridSelect = (() => {
     _clear();
     td.classList.add('gs-sel'); td.style.position = 'relative';
     const h = document.createElement('div'); h.className = 'gs-handle';
+    h.title = 'Geser ke atas/bawah untuk copy nilai ke baris lain';
     h.addEventListener('mousedown', _fillStart); td.appendChild(h);
     _sel = { tbl, startRow: pos.row, startCol: pos.col, endRow: pos.row, endCol: pos.col, cells: [td] };
     document.addEventListener('mousemove', _onMoveThrottled);
