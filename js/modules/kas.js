@@ -549,10 +549,7 @@ const KasModule = (() => {
             style="flex:1;border:none;background:transparent;outline:none;font-size:13px;padding:4px 0;box-shadow:none"
             oninput="KasModule.setFilter('search',this.value)"
             onkeydown="if(event.key==='Escape'){KasModule.toggleSearch()}">
-          ${_filter.search?`<button onclick="KasModule.setFilter('search','');document.getElementById('kas-search-input').value=''" title="Hapus pencarian"
-            style="width:24px;height:24px;border-radius:50%;border:none;background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:12px;flex-shrink:0;transition:all .15s"
-            onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='var(--surface2)';this.style.color='var(--text-3)'">✕</button>`:''}
-          <button onclick="KasModule.toggleSearch()" title="Tutup pencarian"
+          <button onclick="KasModule.toggleSearch()" title="Tutup pencarian (Esc)"
             style="width:24px;height:24px;border-radius:50%;border:none;background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);flex-shrink:0;transition:all .15s"
             onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='var(--surface2)';this.style.color='var(--text-3)'">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><path d="M18 6L6 18M6 6l12 12"/></svg>
