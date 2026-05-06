@@ -1295,13 +1295,13 @@ const DailyOrderModule = (() => {
     _liveCompute();
   }
 
-  /* Enter on EST QTY: if ITEM filled → save; else move to HARGA */
+  /* Enter on EST QTY: save row + skip ke baris bawah (Sat/Harga auto-filled) */
   function _estQtyKeyDown(e) {
     if (e.key === 'Escape') { e.preventDefault(); _cancelEdit(); return; }
     if (e.key === 'Enter') {
       e.preventDefault();
       const item = document.getElementById('di-item')?.value.trim();
-      if (item) _saveEditRow();
+      if (item) _saveEditRow('di-estqty');
       else      document.getElementById('di-item')?.focus();
     }
   }
