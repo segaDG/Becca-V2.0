@@ -1393,7 +1393,8 @@ const APModule = (() => {
     document.removeEventListener('click', _apOutsideClick);
     document.getElementById('_val-popup')?.remove();
     const row = _ap.find(r=>r.id===id);
-    if (row && row._isNew && !(row.keterangan||row.item||'').trim()) {
+    // Baris baru: Esc selalu cancel (hapus dari local + DB), terlepas dari apa yg sudah diketik
+    if (row && row._isNew) {
       _apEditId = null;
       _ap = _ap.filter(r => r.id !== id);
       DB.deleteAP(id).catch(() => {});

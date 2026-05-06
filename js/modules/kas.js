@@ -960,9 +960,8 @@ const KasModule = (() => {
     document.removeEventListener('click', _handleOutsideClick);
     document.getElementById('_val-popup')?.remove();
     const row = _kas.find(r => r.id === id);
-    // Check DOM value too (row.nama may be stale)
-    const domNama = document.getElementById('ks-nama-'+id)?.value || '';
-    if (row && row._isNew && !domNama.trim() && !(row.nama||'').trim()) {
+    // Baris baru: Esc selalu cancel (hapus dari local + DB), terlepas dari apa yg sudah diketik
+    if (row && row._isNew) {
       _editingId = null;
       _kas = _kas.filter(r => r.id !== id);
       DB.deleteKas(id).catch(() => {});

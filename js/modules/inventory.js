@@ -1949,9 +1949,8 @@ const InventoryModule = (() => {
     // Dismiss any validation popup
     document.getElementById('_val-popup')?.remove();
     const row = _logs.find(r => r.id === id);
-    // If new empty row, delete it (check DOM value too, row data may be stale)
-    const domItem = document.getElementById('ivf-item-'+id)?.value || '';
-    if (row && row._isNew && !domItem && !(row.itemNama||'').trim()) {
+    // Baris baru: Esc selalu cancel (hapus dari local + DB), terlepas dari apa yg sudah diketik
+    if (row && row._isNew) {
       _invEditId = null;
       _logs = _logs.filter(r => r.id !== id);
       DB.deleteInventoryLog(id).catch(() => {});
