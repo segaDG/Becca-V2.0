@@ -28,7 +28,10 @@ const UndoRedo = (() => {
 
   function undo(mod) {
     const s = _ensure(mod);
-    if (!s.undo.length) return;
+    if (!s.undo.length) {
+      if (typeof Notify !== 'undefined' && Notify.info) Notify.info('Tidak ada yang bisa di-undo');
+      return;
+    }
     const entry = s.undo.pop();
     s.redo.push(entry);
     // Save dulu — bagian sync (Object.assign / push / filter) rollback state in-memory.
@@ -41,7 +44,10 @@ const UndoRedo = (() => {
 
   function redo(mod) {
     const s = _ensure(mod);
-    if (!s.redo.length) return;
+    if (!s.redo.length) {
+      if (typeof Notify !== 'undefined' && Notify.info) Notify.info('Tidak ada yang bisa di-redo');
+      return;
+    }
     const entry = s.redo.pop();
     s.undo.push(entry);
     if (entry.save && entry.after !== undefined) entry.save(entry.after).catch(() => {});

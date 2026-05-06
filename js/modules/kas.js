@@ -524,10 +524,10 @@ const KasModule = (() => {
             <button class="ks-act-btn${_filter.search?' active':''}" onclick="KasModule.toggleSearch()" title="Cari data (Ctrl+F)" style="${_filter.search?'color:var(--primary);background:rgba(99,102,241,.12)':''}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             </button>
-            <button class="ks-act-btn" onclick="UndoRedo.undo('kas')" title="Undo (Ctrl+Z)" ${UndoRedo.canUndo('kas')?'':'disabled'}>
+            <button class="ks-act-btn" onclick="UndoRedo.undo('kas')" title="Undo (Ctrl+Z)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 10h13a4 4 0 010 8H7"/><path d="M7 6l-4 4 4 4"/></svg>
             </button>
-            <button class="ks-act-btn" onclick="UndoRedo.redo('kas')" title="Redo (Ctrl+Shift+Z)" ${UndoRedo.canRedo('kas')?'':'disabled'}>
+            <button class="ks-act-btn" onclick="UndoRedo.redo('kas')" title="Redo (Ctrl+Shift+Z)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10H8a4 4 0 000 8h9"/><path d="M17 6l4 4-4 4"/></svg>
             </button>
             <button class="ks-act-btn" onclick="KasModule.reArrange()" title="Urutkan berdasarkan tanggal">
