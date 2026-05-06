@@ -1954,7 +1954,7 @@ const InventoryModule = (() => {
       _invEditId = null;
       _logs = _logs.filter(r => r.id !== id);
       DB.deleteInventoryLog(id).catch(() => {});
-      _renderActivityLog();
+      renderTransaksi();
       Notify.info('Baris baru dibatalkan');
       return;
     }
