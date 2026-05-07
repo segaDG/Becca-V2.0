@@ -282,6 +282,15 @@ const KasModule = (() => {
   async function init() {
     const page = document.getElementById('page-kas');
     page.innerHTML = _renderShell();
+    // Pull-to-refresh mobile (auto-no-op desktop)
+    if (Utils.pullToRefresh && !page._ptrAttached) {
+      page._ptrAttached = true;
+      Utils.pullToRefresh(page, async () => {
+        try { _kas = await DB.getKas(); _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); } catch {}
+        try { _masuk = await DB.getKasMasuk(); } catch {}
+        if (_activeTab === 'transaksi') renderTransaksi();
+      });
+    }
     _saldoAwal = await _loadSaldoAwal();
     try { _kasLocked = new Set(JSON.parse(localStorage.getItem(_KAS_LOCK_KEY)||'[]')); } catch { _kasLocked = new Set(); }
     _editingId = null;

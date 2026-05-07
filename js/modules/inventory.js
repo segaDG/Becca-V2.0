@@ -125,6 +125,17 @@ const InventoryModule = (() => {
   /* ===================== INIT ===================== */
   async function init() {
     const page = document.getElementById('page-inventory');
+    // Pull-to-refresh mobile (auto-no-op desktop)
+    if (Utils.pullToRefresh && !page._ptrAttached) {
+      page._ptrAttached = true;
+      Utils.pullToRefresh(page, async () => {
+        try { _logs  = await DB.getInventory();      _logs.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); } catch {}
+        try { _items = await DB.getInventoryItems(); } catch {}
+        _recalcStok();
+        if (_activeTab === 'transaksi') renderTransaksi();
+        else if (_activeTab === 'stok') renderStok();
+      });
+    }
     page.innerHTML = `
       <div class="page-header">
         <div class="page-header-left">

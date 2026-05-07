@@ -263,6 +263,124 @@ const Utils = {
   },
 
   /**
+   * Pull-to-refresh gesture untuk mobile.
+   * Aktif hanya di mobile (<768px). Trigger saat user swipe down dari posisi scroll-top
+   * dengan jarak ≥80px.
+   *
+   * @param {HTMLElement} container  Element yg di-listen (biasanya page atau scroll wrapper)
+   * @param {Function} onRefresh     Async function yg dipanggil saat refresh ter-trigger
+   * @returns {Function} cleanup function (panggil saat modul un-mount)
+   *
+   * Usage:
+   *   const stop = Utils.pullToRefresh(document.getElementById('page-kas'), async () => {
+   *     await KasModule.init();
+   *   });
+   */
+  pullToRefresh(container, onRefresh) {
+    if (!container || typeof onRefresh !== 'function') return () => {};
+    if (window.innerWidth >= 768) return () => {}; // mobile only
+    Utils._injectPtrCss();
+
+    const indicator = document.createElement('div');
+    indicator.className = 'ptr-indicator';
+    indicator.innerHTML = '<div class="ptr-spinner"></div><span class="ptr-label">Tarik untuk refresh</span>';
+    container.style.position = container.style.position || 'relative';
+    container.insertBefore(indicator, container.firstChild);
+
+    let startY = 0, currentY = 0, dragging = false, refreshing = false;
+    const THRESHOLD = 80;
+    const MAX_PULL  = 140;
+
+    const onTouchStart = (e) => {
+      if (refreshing) return;
+      // Hanya aktif kalau scroll di posisi paling atas
+      if (window.scrollY > 0) return;
+      const sc = container.querySelector('[data-ptr-scroll]') || container;
+      if (sc.scrollTop > 0) return;
+      startY = e.touches[0].clientY;
+      dragging = true;
+    };
+
+    const onTouchMove = (e) => {
+      if (!dragging || refreshing) return;
+      currentY = e.touches[0].clientY;
+      const dy = currentY - startY;
+      if (dy <= 0) { dragging = false; indicator.style.height = '0'; return; }
+      // Resistance: makin jauh, makin berat
+      const pull = Math.min(MAX_PULL, dy * 0.55);
+      indicator.style.height = pull + 'px';
+      const lbl = indicator.querySelector('.ptr-label');
+      if (lbl) lbl.textContent = pull >= THRESHOLD ? 'Lepas untuk refresh' : 'Tarik untuk refresh';
+      const sp = indicator.querySelector('.ptr-spinner');
+      if (sp) sp.style.transform = `rotate(${pull * 3}deg)`;
+      // Prevent default scroll bounce
+      if (dy > 10) e.preventDefault();
+    };
+
+    const onTouchEnd = async () => {
+      if (!dragging || refreshing) { dragging = false; return; }
+      dragging = false;
+      const h = parseFloat(indicator.style.height) || 0;
+      if (h >= THRESHOLD) {
+        refreshing = true;
+        indicator.classList.add('ptr-loading');
+        indicator.style.height = '60px';
+        const lbl = indicator.querySelector('.ptr-label');
+        if (lbl) lbl.textContent = 'Memuat...';
+        try { await onRefresh(); }
+        catch (e) { console.warn('[ptr] refresh failed:', e); }
+        if (typeof Notify !== 'undefined' && Notify.success) Notify.success('Data ter-refresh');
+        // Animate close
+        indicator.style.transition = 'height .25s ease';
+        indicator.style.height = '0';
+        setTimeout(() => {
+          indicator.classList.remove('ptr-loading');
+          indicator.style.transition = '';
+          refreshing = false;
+        }, 280);
+      } else {
+        // Spring back
+        indicator.style.transition = 'height .2s ease';
+        indicator.style.height = '0';
+        setTimeout(() => { indicator.style.transition = ''; }, 220);
+      }
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove',  onTouchMove,  { passive: false });
+    container.addEventListener('touchend',   onTouchEnd);
+    container.addEventListener('touchcancel', onTouchEnd);
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove',  onTouchMove);
+      container.removeEventListener('touchend',   onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+      indicator.remove();
+    };
+  },
+
+  _ptrCssInjected: false,
+  _injectPtrCss() {
+    if (Utils._ptrCssInjected || !document.head) return;
+    Utils._ptrCssInjected = true;
+    if (document.getElementById('ptr-css')) return;
+    const s = document.createElement('style');
+    s.id = 'ptr-css';
+    s.textContent = `
+      .ptr-indicator{display:flex;align-items:center;justify-content:center;gap:10px;
+        height:0;overflow:hidden;background:linear-gradient(180deg,rgba(99,102,241,.06),transparent);
+        color:var(--text-3);font-size:12px;font-weight:500;will-change:height}
+      .ptr-spinner{width:18px;height:18px;border:2px solid rgba(99,102,241,.2);
+        border-top-color:#6366f1;border-radius:50%;transition:transform .05s linear}
+      .ptr-indicator.ptr-loading .ptr-spinner{animation:ptr-spin .8s linear infinite;transform:none!important}
+      @keyframes ptr-spin{to{transform:rotate(360deg)}}
+      .ptr-label{user-select:none}
+    `;
+    document.head.appendChild(s);
+  },
+
+  /**
    * Inline help tooltip — icon "ⓘ" yg tampilkan teks penjelasan saat hover/focus.
    * @param {string} text     Teks tooltip (boleh multi-line, akan single-line di tooltip)
    * @param {string} [pos]    'top' (default) atau 'bottom' — arah tooltip

@@ -78,6 +78,14 @@ const OrderModule = (() => {
   async function init() {
     const page = document.getElementById('page-order');
     if (!page) return;
+    // Pull-to-refresh mobile (auto-no-op desktop)
+    if (Utils.pullToRefresh && !page._ptrAttached) {
+      page._ptrAttached = true;
+      Utils.pullToRefresh(page, async () => {
+        try { _data = await DB.getOrders(); } catch {}
+        _render(page);
+      });
+    }
     try {
       // Columns & invoice-refs are UI config — always from localStorage (device-specific)
       const sc = localStorage.getItem('becca_order_columns');

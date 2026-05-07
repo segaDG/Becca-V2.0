@@ -11,6 +11,14 @@ const APModule = (() => {
 
   async function init() {
     const page = document.getElementById('page-ap');
+    // Pull-to-refresh mobile (auto-no-op desktop)
+    if (Utils.pullToRefresh && !page._ptrAttached) {
+      page._ptrAttached = true;
+      Utils.pullToRefresh(page, async () => {
+        try { _ap = await DB.getAP(); _ap.sort((a,b)=>((b.tgl_transaksi||b.tgl||'')).localeCompare((a.tgl_transaksi||a.tgl||''))); } catch {}
+        if (_activeTab === 'list') applyFilter();
+      });
+    }
     // Inject hover CSS
     if (!document.getElementById('ap-hover-style')) {
       const st = document.createElement('style');
