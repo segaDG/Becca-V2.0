@@ -381,18 +381,21 @@ const Utils = {
   },
 
   /**
-   * Inline help tooltip — icon "ⓘ" yg tampilkan teks penjelasan saat hover/focus.
+   * Inline help tooltip — icon "i" yg tampilkan teks penjelasan saat hover/focus.
+   * Pakai global popup di document.body supaya tidak terclip oleh overflow:hidden parent.
+   *
    * @param {string} text     Teks tooltip (boleh multi-line, akan single-line di tooltip)
-   * @param {string} [pos]    'top' (default) atau 'bottom' — arah tooltip
+   * @param {string} [pos]    'top' (default) atau 'bottom' — arah preferensi tooltip
    * @returns HTML string siap di-inject ke template
    *
    * Usage: `<th>HPP ${Utils.helpTip('Harga Pokok Penjualan...')}</th>`
    */
   helpTip(text, pos) {
     Utils._injectHelpTipCss();
-    const safe = String(text).replace(/"/g, '&quot;').replace(/\n/g, ' ');
+    Utils._initHelpTipHandler();
+    const safe = String(text).replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/\n/g, ' ');
     const posAttr = pos === 'bottom' ? ' data-pos="bottom"' : '';
-    return `<span class="help-tip" tabindex="0" data-tip="${safe}" aria-label="${safe}" role="tooltip"${posAttr}>i</span>`;
+    return `<span class="help-tip" tabindex="0" data-tip="${safe}" aria-label="${safe}" role="button"${posAttr}>i</span>`;
   },
 
   _helpTipCssInjected: false,
@@ -403,32 +406,118 @@ const Utils = {
     const s = document.createElement('style');
     s.id = 'help-tip-css';
     s.textContent = `
-      .help-tip{position:relative;display:inline-flex;align-items:center;justify-content:center;
+      .help-tip{display:inline-flex;align-items:center;justify-content:center;
         width:15px;height:15px;margin-left:5px;border-radius:50%;
-        background:rgba(99,102,241,.15);color:#6366f1;
+        background:rgba(99,102,241,.18);color:#6366f1;
         font:italic 700 10px/1 'Times New Roman',serif;
         cursor:help;vertical-align:middle;user-select:none;
-        transition:background .15s,transform .15s;outline:none}
-      .help-tip:hover,.help-tip:focus{background:rgba(99,102,241,.35);transform:scale(1.15)}
-      .help-tip::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;
-        transform:translateX(-50%);background:#1f2937;color:#fff;padding:7px 11px;border-radius:7px;
-        font:500 11px/1.45 system-ui,-apple-system,sans-serif;font-style:normal;text-transform:none;
-        letter-spacing:normal;white-space:normal;width:max-content;max-width:260px;text-align:left;
-        box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:0;visibility:hidden;pointer-events:none;
-        transition:opacity .15s,visibility .15s;z-index:1000}
-      .help-tip::before{content:'';position:absolute;bottom:calc(100% + 2px);left:50%;
-        transform:translateX(-50%);border:5px solid transparent;border-top-color:#1f2937;
-        opacity:0;visibility:hidden;transition:opacity .15s,visibility .15s;z-index:1001}
-      .help-tip:hover::after,.help-tip:hover::before,
-      .help-tip:focus::after,.help-tip:focus::before{opacity:1;visibility:visible}
-      .help-tip[data-pos="bottom"]::after{bottom:auto;top:calc(100% + 8px)}
-      .help-tip[data-pos="bottom"]::before{bottom:auto;top:calc(100% + 2px);
-        border-top-color:transparent;border-bottom-color:#1f2937}
+        transition:background .15s,transform .15s;outline:none;flex-shrink:0}
+      .help-tip:hover,.help-tip:focus{background:rgba(99,102,241,.4);transform:scale(1.15)}
+      #help-tip-popup{position:fixed;background:#1f2937;color:#fff;
+        padding:8px 12px;border-radius:7px;
+        font:500 11.5px/1.45 system-ui,-apple-system,sans-serif;
+        max-width:280px;box-shadow:0 6px 18px rgba(0,0,0,.32);
+        z-index:99999;pointer-events:none;
+        opacity:0;visibility:hidden;
+        transition:opacity .15s,visibility .15s;
+        text-align:left;white-space:normal;word-break:break-word}
+      #help-tip-popup.show{opacity:1;visibility:visible}
+      #help-tip-popup::before{content:'';position:absolute;left:var(--arrow-x,50%);
+        margin-left:-5px;border:5px solid transparent}
+      #help-tip-popup[data-arrow="below"]::before{top:100%;border-top-color:#1f2937}
+      #help-tip-popup[data-arrow="above"]::before{bottom:100%;border-bottom-color:#1f2937}
       @media (max-width:768px){
-        .help-tip::after{max-width:min(260px,calc(100vw - 32px))}
+        #help-tip-popup{max-width:min(280px,calc(100vw - 24px))}
       }
     `;
     document.head.appendChild(s);
+  },
+
+  _helpTipHandlerInited: false,
+  _initHelpTipHandler() {
+    if (Utils._helpTipHandlerInited || !document.body) return;
+    Utils._helpTipHandlerInited = true;
+
+    let popup = document.getElementById('help-tip-popup');
+    if (!popup) {
+      popup = document.createElement('div');
+      popup.id = 'help-tip-popup';
+      popup.setAttribute('role', 'tooltip');
+      document.body.appendChild(popup);
+    }
+
+    let activeEl = null;
+    let hideTimer = null;
+
+    const positionPopup = (el) => {
+      const text = el.dataset.tip || '';
+      if (!text) return;
+      popup.textContent = text;
+      popup.classList.add('show');
+      popup.style.maxWidth = '280px';
+      // Force layout to measure
+      const tr = popup.getBoundingClientRect();
+      const r  = el.getBoundingClientRect();
+      const padding = 10;
+      const preferAbove = el.dataset.pos !== 'bottom';
+      const fitAbove = r.top - tr.height - padding >= 4;
+      const fitBelow = r.bottom + tr.height + padding <= window.innerHeight - 4;
+      const showAbove = preferAbove ? fitAbove : !fitBelow && fitAbove;
+
+      let top  = showAbove ? r.top - tr.height - padding : r.bottom + padding;
+      let left = r.left + r.width / 2 - tr.width / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - tr.width - 8));
+
+      popup.style.top  = Math.max(4, top) + 'px';
+      popup.style.left = left + 'px';
+      popup.dataset.arrow = showAbove ? 'below' : 'above';
+      const arrowX = (r.left + r.width / 2) - left;
+      popup.style.setProperty('--arrow-x', Math.max(10, Math.min(arrowX, tr.width - 10)) + 'px');
+    };
+
+    const show = (el) => {
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      activeEl = el;
+      // requestAnimationFrame supaya popup sudah punya dimensi saat positioning
+      popup.classList.remove('show');
+      popup.textContent = el.dataset.tip || '';
+      requestAnimationFrame(() => positionPopup(el));
+    };
+
+    const hide = () => {
+      activeEl = null;
+      hideTimer = setTimeout(() => {
+        if (!activeEl) popup.classList.remove('show');
+      }, 80);
+    };
+
+    const isHelpTip = (t) => t && t.classList && t.classList.contains('help-tip');
+
+    // Capture phase supaya event tetap kena walau parent stopPropagation
+    document.addEventListener('mouseover', (e) => {
+      if (isHelpTip(e.target)) show(e.target);
+    }, true);
+    document.addEventListener('mouseout', (e) => {
+      if (isHelpTip(e.target)) hide();
+    }, true);
+    document.addEventListener('focusin', (e) => {
+      if (isHelpTip(e.target)) show(e.target);
+    });
+    document.addEventListener('focusout', (e) => {
+      if (isHelpTip(e.target)) hide();
+    });
+    // Mobile tap toggle
+    document.addEventListener('click', (e) => {
+      if (isHelpTip(e.target)) {
+        if (activeEl === e.target) hide();
+        else show(e.target);
+      } else if (activeEl) {
+        hide();
+      }
+    });
+    // Reposition saat scroll/resize
+    window.addEventListener('scroll', () => activeEl && positionPopup(activeEl), true);
+    window.addEventListener('resize', () => activeEl && positionPopup(activeEl));
   },
 
   /**
