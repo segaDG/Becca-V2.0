@@ -634,6 +634,8 @@ const DailyOrderModule = (() => {
             ${form ? `
               <button onclick="DailyOrderModule.startAddItem()"
                 style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;font-weight:600">+ Tambah Bahan</button>
+              <button onclick="DailyOrderModule.openBasicItemsModal()" title="Tambah bahan yg sering dipakai (≥80% form 30 hari)"
+                style="padding:6px 12px;border:1px solid rgba(99,102,241,.4);border-radius:7px;background:rgba(99,102,241,.08);color:#6366f1;font-size:12px;cursor:pointer;font-weight:600">+ Bahan Dasar</button>
               <button onclick="DailyOrderModule.toggleStatus()"
                 style="padding:6px 12px;border:1px solid ${form.status==='final'?'rgba(245,158,11,.4)':'rgba(16,185,129,.4)'};border-radius:7px;
                 background:${form.status==='final'?'rgba(245,158,11,.08)':'rgba(16,185,129,.08)'};
@@ -1703,6 +1705,195 @@ const DailyOrderModule = (() => {
     } catch(e) { Notify.error('Gagal copy form'); }
   }
 
+  /* =====================================================================
+     BAHAN DASAR — auto-detect item yg muncul di ≥80% form 30 hari terakhir
+     ===================================================================== */
+  const _BASIC_THRESHOLD = 0.80;   // 80% kemunculan
+  const _BASIC_WINDOW_DAYS = 30;
+  const _BASIC_MIN_FORMS = 5;      // minimal 5 form untuk analisis bermakna
+
+  function _detectBasicItems() {
+    const cutoffMs = Date.now() - _BASIC_WINDOW_DAYS * 86400000;
+    const recent = _forms.filter(f => {
+      if (!f.tanggal || !Array.isArray(f.items)) return false;
+      const t = new Date(f.tanggal + 'T00:00:00').getTime();
+      return Number.isFinite(t) && t >= cutoffMs;
+    });
+    if (recent.length < _BASIC_MIN_FORMS) return { items: [], totalForms: recent.length, sufficient: false };
+
+    // Hitung frekuensi nama (case-insensitive, dedup per form)
+    const freq = {}; // {namaLower: {nama:displayName, count:N}}
+    recent.forEach(f => {
+      const seen = new Set();
+      (f.items || []).forEach(it => {
+        const nama = (it.item || '').trim();
+        if (!nama) return;
+        const key = nama.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        if (!freq[key]) freq[key] = { nama, count: 0 };
+        freq[key].count++;
+      });
+    });
+
+    const items = Object.values(freq)
+      .filter(x => x.count / recent.length >= _BASIC_THRESHOLD)
+      .sort((a, b) => b.count - a.count || a.nama.localeCompare(b.nama))
+      .map(x => ({
+        nama: x.nama,
+        count: x.count,
+        total: recent.length,
+        percent: Math.round((x.count / recent.length) * 100),
+      }));
+
+    return { items, totalForms: recent.length, sufficient: true };
+  }
+
+  function openBasicItemsModal() {
+    const form = _currentForm();
+    if (!form) { Notify.warning('Buat form produksi dulu'); return; }
+    if (form.status === 'final') { Notify.warning('Form sudah final, tidak bisa ditambah bahan'); return; }
+
+    const { items, totalForms, sufficient } = _detectBasicItems();
+    const mid = 'basic-items-' + Utils.uid();
+    window._basicItemsMid = mid;
+
+    // Map nama existing di form → exclude dari list (sudah ada)
+    const existingNames = new Set((form.items || []).map(it => (it.item || '').toLowerCase()));
+    const candidates = items.filter(x => !existingNames.has(x.nama.toLowerCase()));
+    const dupCount = items.length - candidates.length;
+
+    let body;
+    if (!sufficient) {
+      body = `
+        <div style="text-align:center;padding:24px;color:var(--text-3)">
+          <div style="font-size:32px;margin-bottom:10px">📊</div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px">Data belum cukup untuk analisis</div>
+          <div style="font-size:12px">Butuh minimal ${_BASIC_MIN_FORMS} form dalam ${_BASIC_WINDOW_DAYS} hari terakhir.<br>
+          Saat ini hanya ${totalForms} form.</div>
+        </div>`;
+    } else if (!items.length) {
+      body = `
+        <div style="text-align:center;padding:24px;color:var(--text-3)">
+          <div style="font-size:32px;margin-bottom:10px">🔍</div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px">Belum ada bahan rutin</div>
+          <div style="font-size:12px">Tidak ada item yang muncul di ≥${Math.round(_BASIC_THRESHOLD*100)}% form 30 hari terakhir.</div>
+        </div>`;
+    } else if (!candidates.length) {
+      body = `
+        <div style="text-align:center;padding:24px;color:var(--text-3)">
+          <div style="font-size:32px;margin-bottom:10px">✅</div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px">Semua bahan dasar sudah ada</div>
+          <div style="font-size:12px">${items.length} bahan dasar dari analisis sudah ada di form ini.</div>
+        </div>`;
+    } else {
+      const rows = candidates.map((x, i) => `
+        <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;
+                      background:${i%2?'var(--surface)':'var(--surface2)'};font-size:13px"
+               onmouseover="this.style.background='rgba(99,102,241,.08)'"
+               onmouseout="this.style.background='${i%2?'var(--surface)':'var(--surface2)'}'">
+          <input type="checkbox" class="basic-chk" data-nama="${x.nama.replace(/"/g,'&quot;')}" checked
+                 style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer">
+          <span style="flex:1;font-weight:500;color:var(--text)">${x.nama}</span>
+          <span style="font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums">${x.count}/${x.total}</span>
+          <span style="font-size:11px;font-weight:700;color:${x.percent>=95?'#10b981':x.percent>=85?'#6366f1':'#f59e0b'};
+                       min-width:36px;text-align:right;font-variant-numeric:tabular-nums">${x.percent}%</span>
+        </label>`).join('');
+
+      body = `
+        <div style="margin-bottom:12px;padding:10px 12px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.18);border-radius:8px;font-size:11px;color:var(--text-2)">
+          📊 Bahan yang muncul di <strong style="color:var(--primary)">≥${Math.round(_BASIC_THRESHOLD*100)}%</strong>
+          dari <strong style="color:var(--primary)">${totalForms}</strong> form ${_BASIC_WINDOW_DAYS} hari terakhir.
+          ${dupCount ? `<br><span style="color:var(--text-3)">(${dupCount} item sudah ada di form ini, di-skip)</span>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <button type="button" onclick="DailyOrderModule._basicCheckAll(true)"
+                  style="padding:5px 12px;font-size:11px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);cursor:pointer;color:var(--text-2)">Pilih Semua</button>
+          <button type="button" onclick="DailyOrderModule._basicCheckAll(false)"
+                  style="padding:5px 12px;font-size:11px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);cursor:pointer;color:var(--text-2)">Reset</button>
+          <span id="basic-selected-count" style="margin-left:auto;font-size:11px;color:var(--text-3);align-self:center">${candidates.length} terpilih</span>
+        </div>
+        <div id="basic-items-list" style="display:flex;flex-direction:column;gap:2px;max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px">
+          ${rows}
+        </div>`;
+    }
+
+    const hasCandidates = sufficient && candidates.length > 0;
+    Modal.open({
+      id: mid,
+      title: '📋 Bahan Dasar',
+      body,
+      footer: hasCandidates
+        ? `<button class="btn btn-ghost" onclick="Modal.close(window._basicItemsMid)">Batal</button>
+           <button class="btn btn-primary" onclick="DailyOrderModule.addSelectedBasicItems()">+ Tambahkan ke Form</button>`
+        : `<button class="btn btn-ghost" onclick="Modal.close(window._basicItemsMid)">Tutup</button>`,
+    });
+
+    // Wire checkbox change → update counter
+    setTimeout(() => {
+      document.querySelectorAll('.basic-chk').forEach(c => {
+        c.addEventListener('change', _basicUpdateCount);
+      });
+    }, 50);
+  }
+
+  function _basicCheckAll(checked) {
+    document.querySelectorAll('.basic-chk').forEach(c => { c.checked = checked; });
+    _basicUpdateCount();
+  }
+
+  function _basicUpdateCount() {
+    const total = document.querySelectorAll('.basic-chk').length;
+    const checked = document.querySelectorAll('.basic-chk:checked').length;
+    const el = document.getElementById('basic-selected-count');
+    if (el) el.textContent = `${checked} dari ${total} terpilih`;
+  }
+
+  async function addSelectedBasicItems() {
+    const form = _currentForm();
+    if (!form) return;
+    const checked = Array.from(document.querySelectorAll('.basic-chk:checked'))
+      .map(c => c.dataset.nama)
+      .filter(Boolean);
+    if (!checked.length) { Notify.warning('Pilih minimal 1 bahan'); return; }
+
+    let added = 0;
+    checked.forEach(nama => {
+      // Lookup inventory untuk auto-fill harga & satuan
+      const namaLower = nama.toLowerCase();
+      let inv = _inventory.find(i => (i.nama || '').toLowerCase() === namaLower);
+      if (!inv) inv = _inventory.find(i => (i.nama || '').toLowerCase().includes(namaLower) || namaLower.includes((i.nama || '').toLowerCase()));
+      const satuan = inv?.satuan || '';
+      const harga  = _n(inv?.hargaSatuan);
+      const stok   = _n(inv?._stok);
+
+      form.items.push({
+        id: 'item_' + Utils.uid(),
+        item: nama,
+        satuan,
+        hargaSatuan: harga,
+        estQty: 0, estTotal: 0,
+        aktQty: 0, aktTotal: 0,
+        stokGudang: stok,
+        sumber: _calcSumber(stok, 0),
+        catatan: '',
+      });
+      added++;
+    });
+
+    form.updatedAt = new Date().toISOString();
+    if (window._basicItemsMid) Modal.close(window._basicItemsMid);
+
+    // Optimistic render + background save
+    _renderContent();
+    try {
+      await DB.saveDailyOrderForm(form);
+      Notify.success(`${added} bahan dasar ditambahkan — isi Est Qty untuk masing-masing`);
+    } catch (e) {
+      Notify.error('Gagal menyimpan ke server, coba refresh');
+    }
+  }
+
   function printForm() {
     const form = _currentForm();
     if (!form || !form.items?.length) { Notify.warning('Tidak ada data untuk di-print'); return; }
@@ -2256,6 +2447,7 @@ const DailyOrderModule = (() => {
     startAddItem, startEditItem, deleteItem, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, goToDate,
     _saveEditRow, _cancelEdit, _itemKeyDown, _showItemSuggest, _pickSuggest, _onItemBlur, _editKeyDown, _estQtyKeyDown, _estQtyBlur, _cancelEstBlur, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
+    openBasicItemsModal, addSelectedBasicItems, _basicCheckAll,
   };
 })();
 
