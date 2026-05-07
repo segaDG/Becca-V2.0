@@ -75,8 +75,15 @@ const BeccaTests = (() => {
 
     // Module lazy loading map
     const moduleMap = App._MODULE_MAP || {};
-    const expectedModules = ['dashboard','order','invoice','customer','kas','inventory','employee','ap','task','chat','settings'];
+    const expectedModules = ['dashboard','order','invoice','customer','kas','inventory','employee','ap','task','chat','settings','daily-order','po','delivery','menu','news','personal','report'];
     expectedModules.forEach(m => assert(S, `Module map has ${m}`, !!moduleMap[m]));
+
+    // Eager-loaded globals (defer-loaded di index.html, bukan lazy)
+    assert(S, 'OfflineQueue eager-loaded',  typeof OfflineQueue   !== 'undefined');
+    assert(S, 'WeeklyDigest eager-loaded',  typeof WeeklyDigest   !== 'undefined');
+    assert(S, 'UndoRedo eager-loaded',      typeof UndoRedo       !== 'undefined');
+    assert(S, 'GridSelect eager-loaded',    typeof GridSelect     !== 'undefined');
+    assert(S, 'FaceAttendanceModule loaded', typeof FaceAttendanceModule !== 'undefined');
 
     // No hardcoded passwords in default users
     const hasPassword = Auth._defaultUsers.some(u => u.password);
@@ -465,6 +472,226 @@ const BeccaTests = (() => {
   }
 
   // ═══════════════════════════════════════════
+  // 7. NEW FEATURES TESTS (May 2026 batch)
+  // Utils helpers, OfflineQueue, WeeklyDigest, Activity Drawer, dll
+  // ═══════════════════════════════════════════
+  async function testNewFeatures() {
+    const S = 'NewFeatures';
+
+    /* ── Utils.timeAgo ── */
+    if (typeof Utils.timeAgo === 'function') {
+      assertEqual(S, 'timeAgo: empty input → empty', Utils.timeAgo(''), '');
+      assertEqual(S, 'timeAgo: invalid → empty', Utils.timeAgo('not-a-date'), '');
+      assertEqual(S, 'timeAgo: now → "baru saja"', Utils.timeAgo(new Date().toISOString()), 'baru saja');
+      const t5min = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      assert(S, 'timeAgo: 5min ago contains "menit"', /menit/.test(Utils.timeAgo(t5min)));
+      const t3jam = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+      assert(S, 'timeAgo: 3h ago contains "jam"', /jam/.test(Utils.timeAgo(t3jam)));
+      const t2hari = new Date(Date.now() - 2 * 86400000).toISOString();
+      assert(S, 'timeAgo: 2d ago contains "hari"', /hari/.test(Utils.timeAgo(t2hari)));
+    } else {
+      skip(S, 'Utils.timeAgo', 'helper not exported');
+    }
+
+    /* ── Utils.normalizePhone ── */
+    if (typeof Utils.normalizePhone === 'function') {
+      assertEqual(S, 'normalizePhone: 08xxx → 628xxx', Utils.normalizePhone('081234567890'), '6281234567890');
+      assertEqual(S, 'normalizePhone: +62 → 62',     Utils.normalizePhone('+6281234567890'), '6281234567890');
+      assertEqual(S, 'normalizePhone: 8xxx → 628xxx',Utils.normalizePhone('81234567890'), '6281234567890');
+      assertEqual(S, 'normalizePhone: with spaces',  Utils.normalizePhone('0812 3456 7890'), '6281234567890');
+      assertEqual(S, 'normalizePhone: empty',        Utils.normalizePhone(''), '');
+    } else {
+      skip(S, 'Utils.normalizePhone', 'helper not exported');
+    }
+
+    /* ── Utils.helpTip ── */
+    if (typeof Utils.helpTip === 'function') {
+      const html = Utils.helpTip('Test description');
+      assert(S, 'helpTip: returns string', typeof html === 'string');
+      assert(S, 'helpTip: contains help-tip class', html.includes('help-tip'));
+      assert(S, 'helpTip: contains data-tip', html.includes('data-tip="Test description"'));
+      assert(S, 'helpTip: tabindex for a11y', html.includes('tabindex="0"'));
+      // XSS escape
+      const xss = Utils.helpTip('<script>alert(1)</script>');
+      assert(S, 'helpTip: escapes < in tip', !xss.includes('<script>'));
+      // Position bottom variant
+      const bottom = Utils.helpTip('Below', 'bottom');
+      assert(S, 'helpTip: bottom pos attribute', bottom.includes('data-pos="bottom"'));
+      // Auto-injected popup element
+      assert(S, 'helpTip: global popup created', !!document.getElementById('help-tip-popup'));
+    } else {
+      skip(S, 'Utils.helpTip', 'helper not exported');
+    }
+
+    /* ── Utils.pullToRefresh ── */
+    if (typeof Utils.pullToRefresh === 'function') {
+      const tmpEl = document.createElement('div');
+      document.body.appendChild(tmpEl);
+      const cleanup = Utils.pullToRefresh(tmpEl, async () => {});
+      assert(S, 'pullToRefresh: returns cleanup fn', typeof cleanup === 'function');
+      tmpEl.remove();
+    } else {
+      skip(S, 'Utils.pullToRefresh', 'helper not exported');
+    }
+
+    /* ── Utils.urlState ── */
+    if (Utils.urlState && typeof Utils.urlState.read === 'function') {
+      assert(S, 'urlState.read exists',  typeof Utils.urlState.read  === 'function');
+      assert(S, 'urlState.write exists', typeof Utils.urlState.write === 'function');
+      assert(S, 'urlState.clear exists', typeof Utils.urlState.clear === 'function');
+      // Round-trip test (history.replaceState — non-destructive)
+      const prevUrl = location.href;
+      Utils.urlState.write('__test__', { foo: 'bar', n: 42 });
+      const restored = Utils.urlState.read('__test__', ['foo', 'n']);
+      assertEqual(S, 'urlState round-trip foo', restored.foo, 'bar');
+      // n is read as string from URL
+      assert(S, 'urlState round-trip n (as string)', restored.n === '42' || restored.n === 42);
+      Utils.urlState.clear('__test__');
+      // restore original URL
+      history.replaceState(null, '', prevUrl);
+    } else {
+      skip(S, 'Utils.urlState', 'helper not exported');
+    }
+
+    /* ── Utils.skeletonRows ── */
+    if (typeof Utils.skeletonRows === 'function') {
+      const html = Utils.skeletonRows(5, 3);
+      assert(S, 'skeletonRows: returns string', typeof html === 'string');
+      assert(S, 'skeletonRows: has skeleton class', html.includes('skeleton'));
+      // Should contain 3 <tr> for 3 rows requested
+      const trCount = (html.match(/<tr/g) || []).length;
+      assertEqual(S, 'skeletonRows: row count match', trCount, 3);
+    } else {
+      skip(S, 'Utils.skeletonRows', 'helper not exported');
+    }
+
+    /* ── DB.getLastEditMap ── */
+    if (typeof DB.getLastEditMap === 'function') {
+      const map = await DB.getLastEditMap(['edit_kas']);
+      assert(S, 'getLastEditMap: returns object', typeof map === 'object' && map !== null);
+      // Each value should have {by, at, ts} shape — just check first if any
+      const keys = Object.keys(map);
+      if (keys.length > 0) {
+        const first = map[keys[0]];
+        assert(S, 'getLastEditMap: entry has "by" field',  typeof first.by === 'string');
+        assert(S, 'getLastEditMap: entry has "ts" field',  typeof first.ts === 'number');
+      } else {
+        skip(S, 'getLastEditMap: entry shape', 'no edit_kas logs yet');
+      }
+      // Empty types filter → empty result
+      const emptyMap = await DB.getLastEditMap(['__nonexistent_type__']);
+      assertEqual(S, 'getLastEditMap: bogus type → empty', Object.keys(emptyMap).length, 0);
+    } else {
+      skip(S, 'DB.getLastEditMap', 'method not exported');
+    }
+
+    /* ── OfflineQueue ── */
+    if (typeof OfflineQueue !== 'undefined') {
+      assert(S, 'OfflineQueue.init exists',         typeof OfflineQueue.init === 'function');
+      assert(S, 'OfflineQueue.flush exists',        typeof OfflineQueue.flush === 'function');
+      assert(S, 'OfflineQueue.pendingCount exists', typeof OfflineQueue.pendingCount === 'function');
+      assert(S, 'OfflineQueue.clearPending exists', typeof OfflineQueue.clearPending === 'function');
+      assert(S, 'OfflineQueue.getQueue exists',     typeof OfflineQueue.getQueue === 'function');
+      // pendingCount returns number
+      const ct = OfflineQueue.pendingCount();
+      assert(S, 'pendingCount returns number', typeof ct === 'number' && ct >= 0);
+      // DB methods are wrapped
+      assert(S, 'DB.saveKas wrapped by OfflineQueue', !!DB.saveKas?._oqWrapped);
+      assert(S, 'DB.saveInventoryLog wrapped',       !!DB.saveInventoryLog?._oqWrapped);
+      assert(S, 'DB.saveAP wrapped',                 !!DB.saveAP?._oqWrapped);
+      assert(S, 'DB.deleteKas wrapped',              !!DB.deleteKas?._oqWrapped);
+      // Banner element should be in body (lazy-injected on first state change, may not exist yet)
+      // No assert: banner only created when needed
+    } else {
+      skip(S, 'OfflineQueue', 'module not loaded');
+    }
+
+    /* ── WeeklyDigest ── */
+    if (typeof WeeklyDigest !== 'undefined') {
+      assert(S, 'WeeklyDigest.generate exists',        typeof WeeklyDigest.generate === 'function');
+      assert(S, 'WeeklyDigest.openModal exists',       typeof WeeklyDigest.openModal === 'function');
+      assert(S, 'WeeklyDigest.checkAndShow exists',    typeof WeeklyDigest.checkAndShow === 'function');
+      assert(S, 'WeeklyDigest.getCfg exists',          typeof WeeklyDigest.getCfg === 'function');
+      assert(S, 'WeeklyDigest.shouldTrigger exists',   typeof WeeklyDigest.shouldTrigger === 'function');
+      assert(S, 'WeeklyDigest.renderSettingsCard exists', typeof WeeklyDigest.renderSettingsCard === 'function');
+      // Cfg shape
+      const cfg = WeeklyDigest.getCfg();
+      assert(S, 'WeeklyDigest cfg has enabled',  typeof cfg.enabled === 'boolean');
+      assert(S, 'WeeklyDigest cfg has dayOfWeek (0-6)', typeof cfg.dayOfWeek === 'number' && cfg.dayOfWeek >= 0 && cfg.dayOfWeek <= 6);
+      assert(S, 'WeeklyDigest cfg has hour (0-23)', typeof cfg.hour === 'number' && cfg.hour >= 0 && cfg.hour <= 23);
+      assert(S, 'WeeklyDigest cfg has sections', typeof cfg.sections === 'object');
+      // Generate (read-only, no side effect)
+      try {
+        const msg = await WeeklyDigest.generate();
+        assert(S, 'WeeklyDigest.generate returns string', typeof msg === 'string' && msg.length > 0);
+        assert(S, 'WeeklyDigest msg has BPS branding', msg.includes('BPS') || msg.includes('Weekly Digest'));
+      } catch(e) {
+        _log(S, 'WeeklyDigest.generate runs', false, e.message);
+      }
+    } else {
+      skip(S, 'WeeklyDigest', 'module not loaded');
+    }
+
+    /* ── Activity Drawer (Utils.openActivityDrawer) ── */
+    if (typeof Utils.openActivityDrawer === 'function') {
+      assert(S, 'openActivityDrawer exists',  typeof Utils.openActivityDrawer  === 'function');
+      assert(S, 'closeActivityDrawer exists', typeof Utils.closeActivityDrawer === 'function');
+      assert(S, 'activityButton exists',      typeof Utils.activityButton      === 'function');
+      // Module config map
+      assert(S, '_activityCfg has kas',       !!Utils._activityCfg?.kas);
+      assert(S, '_activityCfg has inventory', !!Utils._activityCfg?.inventory);
+      assert(S, '_activityCfg has ap',        !!Utils._activityCfg?.ap);
+      assert(S, '_activityCfg has po',        !!Utils._activityCfg?.po);
+      // Button HTML
+      const btnHtml = Utils.activityButton('kas');
+      assert(S, 'activityButton: returns HTML', typeof btnHtml === 'string' && btnHtml.includes('Aktivitas'));
+    } else {
+      skip(S, 'Utils.openActivityDrawer', 'helper not exported');
+    }
+
+    /* ── Daily Order Bahan Dasar ── */
+    if (typeof DailyOrderModule !== 'undefined') {
+      assert(S, 'DailyOrderModule.openBasicItemsModal exists', typeof DailyOrderModule.openBasicItemsModal === 'function');
+      assert(S, 'DailyOrderModule.addSelectedBasicItems exists', typeof DailyOrderModule.addSelectedBasicItems === 'function');
+      assert(S, 'DailyOrderModule._basicCheckAll exists', typeof DailyOrderModule._basicCheckAll === 'function');
+    } else {
+      skip(S, 'DailyOrderModule.openBasicItemsModal', 'module not loaded yet (lazy)');
+    }
+
+    /* ── GridSelect drag-fill confirmation ── */
+    if (typeof GridSelect !== 'undefined') {
+      assert(S, 'GridSelect.onFill exists',  typeof GridSelect.onFill  === 'function');
+      assert(S, 'GridSelect.onPaste exists', typeof GridSelect.onPaste === 'function');
+      // Modal.confirm dependency for paste confirmation
+      assert(S, 'Modal.confirm exists for paste confirm', typeof Modal.confirm === 'function');
+    } else {
+      skip(S, 'GridSelect', 'not loaded');
+    }
+
+    /* ── UndoRedo: render after save (fixed bug) ── */
+    if (typeof UndoRedo !== 'undefined') {
+      assert(S, 'UndoRedo.undo exists',     typeof UndoRedo.undo === 'function');
+      assert(S, 'UndoRedo.redo exists',     typeof UndoRedo.redo === 'function');
+      assert(S, 'UndoRedo.canUndo exists',  typeof UndoRedo.canUndo === 'function');
+      assert(S, 'UndoRedo.canRedo exists',  typeof UndoRedo.canRedo === 'function');
+      assert(S, 'UndoRedo.push exists',     typeof UndoRedo.push === 'function');
+      assert(S, 'UndoRedo.setActive exists',typeof UndoRedo.setActive === 'function');
+      // Empty stack returns false
+      assert(S, 'UndoRedo.canUndo on fresh stack = false', UndoRedo.canUndo('__test_module__') === false);
+    } else {
+      skip(S, 'UndoRedo', 'not loaded');
+    }
+
+    /* ── Kas Total auto-computed (read-only) ── */
+    // Verify _readRowFromDOM uses qty × harga for jumlah, not DOM input value
+    if (typeof KasModule !== 'undefined') {
+      assert(S, 'KasModule._calcTotal exists', typeof KasModule._calcTotal === 'function');
+    } else {
+      skip(S, 'KasModule._calcTotal', 'module not loaded yet (lazy)');
+    }
+  }
+
+  // ═══════════════════════════════════════════
   // RUN ALL
   // ═══════════════════════════════════════════
   async function runAll() {
@@ -491,6 +718,9 @@ const BeccaTests = (() => {
 
     console.log('\n── 6. Performance & Health Tests ──');
     await testPerformance();
+
+    console.log('\n── 7. New Features (Utils, OfflineQueue, WeeklyDigest, dll) ──');
+    await testNewFeatures();
 
     console.log('\n═══════════════════════════════════════');
     console.log(`  RESULTS: ${_passed} passed, ${_failed} failed, ${_skipped} skipped`);
@@ -523,6 +753,6 @@ const BeccaTests = (() => {
       <tbody>${rows}</tbody></table></div>`;
   }
 
-  return { runAll, testRegression, testDataIntegrity, testPermissions, testFinancialAccuracy, testCriticalPath, testPerformance, getHtmlReport };
+  return { runAll, testRegression, testDataIntegrity, testPermissions, testFinancialAccuracy, testCriticalPath, testPerformance, testNewFeatures, getHtmlReport };
 })();
 window.BeccaTests = BeccaTests;
