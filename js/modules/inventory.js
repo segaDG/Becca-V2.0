@@ -2111,6 +2111,132 @@ const InventoryModule = (() => {
 
 
   /* ===================== MODAL: BARANG ===================== */
+  /* ============================================================
+     HPP TREND CHART — line chart 30 hari harga MASUK per item
+     Render di dalam openItemModal saat editId.
+     ============================================================ */
+  function _renderHppTrendSection(itemId) {
+    if (!itemId) return '';
+    const cutoff = Date.now() - 30 * 86400000;
+    const purchases = (_logs || [])
+      .filter(l => String(l.itemId) === String(itemId) && l.jenis === 'MASUK' && +l.harga > 0)
+      .filter(l => {
+        const t = new Date((l.tgl || '') + 'T00:00:00').getTime();
+        return Number.isFinite(t) && t >= cutoff;
+      })
+      .sort((a, b) => (a.tgl || '').localeCompare(b.tgl || ''));
+
+    if (!purchases.length) {
+      return `
+        <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--border)">
+          <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px">📈 Trend HPP 30 Hari</div>
+          <div style="padding:18px;text-align:center;color:var(--text-3);font-size:11px;background:var(--surface2);border-radius:6px">
+            Belum ada riwayat pembelian dalam 30 hari terakhir
+          </div>
+        </div>`;
+    }
+
+    // Group per tanggal — ambil rata-rata harga per hari
+    const byDay = {};
+    purchases.forEach(p => {
+      const k = p.tgl;
+      if (!byDay[k]) byDay[k] = { total: 0, count: 0 };
+      byDay[k].total += +p.harga;
+      byDay[k].count++;
+    });
+    const points = Object.keys(byDay).sort().map(tgl => ({
+      tgl,
+      harga: Math.round(byDay[tgl].total / byDay[tgl].count),
+    }));
+
+    const firstPrice = points[0].harga;
+    const lastPrice  = points[points.length - 1].harga;
+    const minPrice   = Math.min(...points.map(p => p.harga));
+    const maxPrice   = Math.max(...points.map(p => p.harga));
+    const avgPrice   = Math.round(points.reduce((s, p) => s + p.harga, 0) / points.length);
+    const delta      = lastPrice - firstPrice;
+    const deltaPct   = firstPrice > 0 ? Math.round((delta / firstPrice) * 100) : 0;
+
+    // SVG mini chart
+    const W = 480, H = 140, padL = 8, padR = 8, padT = 18, padB = 22;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+    const range  = (maxPrice - minPrice) || 1;
+    const xStep  = innerW / Math.max(points.length - 1, 1);
+    const xPos   = (i) => padL + i * xStep;
+    const yPos   = (v) => padT + innerH - ((v - minPrice) / range) * innerH;
+
+    const polyline = points.map((p, i) => `${xPos(i)},${yPos(p.harga)}`).join(' ');
+    // Area fill polygon (close to bottom)
+    const areaPoly = `${padL},${padT + innerH} ${polyline} ${padL + innerW},${padT + innerH}`;
+
+    const dots = points.map((p, i) => {
+      const cx = xPos(i), cy = yPos(p.harga);
+      const dateStr = p.tgl.split('-').reverse().join('-');
+      return `<circle cx="${cx}" cy="${cy}" r="3.5" fill="#6366f1" stroke="#fff" stroke-width="1.5">
+        <title>${dateStr}: ${Utils.formatRupiah(p.harga)}</title>
+      </circle>`;
+    }).join('');
+
+    // X-axis: tanggal pertama, tengah, terakhir
+    const fmtTgl = (t) => t.split('-').reverse().slice(0,2).join('/');
+    const xLabels = [
+      { i: 0, label: fmtTgl(points[0].tgl) },
+      { i: Math.floor(points.length / 2), label: fmtTgl(points[Math.floor(points.length / 2)].tgl) },
+      { i: points.length - 1, label: fmtTgl(points[points.length - 1].tgl) },
+    ].filter((l, i, arr) => arr.findIndex(x => x.i === l.i) === i)
+     .map(l => `<text x="${xPos(l.i)}" y="${H - 6}" text-anchor="middle" fill="var(--text-3)" font-size="9">${l.label}</text>`).join('');
+
+    const deltaColor = delta > 0 ? '#ef4444' : delta < 0 ? '#10b981' : '#6b7280';
+    const deltaIcon  = delta > 0 ? '▲' : delta < 0 ? '▼' : '─';
+    const deltaWarn  = Math.abs(deltaPct) >= 5;
+
+    return `
+      <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-2)">📈 Trend HPP 30 Hari</div>
+          <div style="font-size:11px;color:var(--text-3)">${points.length} data point dari ${purchases.length} transaksi MASUK</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:10px">
+          <div style="padding:8px 10px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.18);border-radius:6px">
+            <div style="font-size:9px;color:var(--text-3);font-weight:600;text-transform:uppercase">Terakhir</div>
+            <div style="font-size:14px;font-weight:700;color:var(--primary);font-family:var(--font-mono)">${Utils.formatRupiah(lastPrice)}</div>
+          </div>
+          <div style="padding:8px 10px;background:rgba(0,0,0,.03);border:1px solid var(--border);border-radius:6px">
+            <div style="font-size:9px;color:var(--text-3);font-weight:600;text-transform:uppercase">Rata-rata</div>
+            <div style="font-size:14px;font-weight:700;color:var(--text-2);font-family:var(--font-mono)">${Utils.formatRupiah(avgPrice)}</div>
+          </div>
+          <div style="padding:8px 10px;background:rgba(0,0,0,.03);border:1px solid var(--border);border-radius:6px">
+            <div style="font-size:9px;color:var(--text-3);font-weight:600;text-transform:uppercase">Min — Max</div>
+            <div style="font-size:11px;font-weight:600;color:var(--text-2);font-family:var(--font-mono)">${Utils.formatRupiah(minPrice, true)} — ${Utils.formatRupiah(maxPrice, true)}</div>
+          </div>
+          <div style="padding:8px 10px;background:${deltaWarn ? (delta>0?'rgba(239,68,68,.06)':'rgba(16,185,129,.06)') : 'rgba(0,0,0,.03)'};border:1px solid ${deltaWarn ? (delta>0?'rgba(239,68,68,.3)':'rgba(16,185,129,.3)') : 'var(--border)'};border-radius:6px">
+            <div style="font-size:9px;color:var(--text-3);font-weight:600;text-transform:uppercase">vs 30 Hari Lalu</div>
+            <div style="font-size:14px;font-weight:700;color:${deltaColor};font-family:var(--font-mono)">${deltaIcon} ${deltaPct >= 0 ? '+' : ''}${deltaPct}%</div>
+          </div>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--surface)">
+          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block" role="img" aria-label="HPP trend chart">
+            <defs>
+              <linearGradient id="hpp-grad-${itemId}" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%"   stop-color="#6366f1" stop-opacity="0.25"/>
+                <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <polygon points="${areaPoly}" fill="url(#hpp-grad-${itemId})"/>
+            <polyline fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" points="${polyline}"/>
+            ${dots}
+            ${xLabels}
+            <text x="${padL}" y="${padT - 4}" fill="var(--text-3)" font-size="9">${Utils.formatRupiah(maxPrice, true)}</text>
+            <text x="${padL}" y="${padT + innerH + 14}" fill="var(--text-3)" font-size="9">${Utils.formatRupiah(minPrice, true)}</text>
+          </svg>
+        </div>
+        ${deltaWarn ? `<div style="margin-top:8px;padding:8px 10px;border-radius:6px;background:${delta>0?'rgba(239,68,68,.06)':'rgba(16,185,129,.06)'};border:1px solid ${delta>0?'rgba(239,68,68,.2)':'rgba(16,185,129,.2)'};font-size:11px;color:var(--text-2)">
+          ${delta>0 ? `⚠ <strong>Harga naik ${deltaPct}%</strong> dalam 30 hari. Cek vendor & negosiasi ulang kalau perlu.` : `✓ <strong>Harga turun ${Math.abs(deltaPct)}%</strong> dalam 30 hari. Bagus!`}
+        </div>` : ''}
+      </div>`;
+  }
+
   async function openItemModal(editId = null) {
     // Use lookup map (String keys) to handle any numeric/string type mismatch
     let existing = editId ? (_itemLookup.get(String(editId)) || null) : null;
@@ -2130,7 +2256,7 @@ const InventoryModule = (() => {
     const mid = Utils.uid();
     Modal.open({ id: mid,
       title: isEdit ? 'Edit Barang' : 'Tambah Barang Baru',
-      size:  'modal-md',
+      size:  isEdit ? 'modal-lg' : 'modal-md',
       body: `
         <form id="inv-item-form">
           <div class="form-row">
@@ -2164,7 +2290,8 @@ const InventoryModule = (() => {
             <label class="form-label">Keterangan</label>
             <input name="keterangan" class="form-control" value="${d.keterangan||d.ket||''}" placeholder="Opsional">
           </div>
-        </form>`,
+        </form>
+        ${isEdit ? _renderHppTrendSection(editId) : ''}`,
       footer: `
         <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
         <button class="btn btn-primary" onclick="InventoryModule._submitItem('${mid}','${editId||''}')">
