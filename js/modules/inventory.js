@@ -1410,11 +1410,11 @@ const InventoryModule = (() => {
             <th style="width:90px">Jenis</th>
             <th style="width:75px" class="iv-num">Jumlah</th>
             <th style="width:100px" class="iv-num">Harga (Rp)</th>
-            <th style="width:110px">Kode Aktivitas</th>
+            <th style="width:110px">Kode Aktivitas${Utils.helpTip('Tag tujuan pemakaian item: SHIFT 1, SHIFT 2, EVENT, dll. Auto-fill saat sync dari Form Produksi.')}</th>
             <th style="width:80px;text-align:center" id="hpp-ai-header">HPP <span
               style="font-size:9px;background:rgba(99,102,241,.2);color:var(--primary-h);border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;font-weight:700;cursor:pointer"
               onclick="InventoryModule._showHPPAIInfo()"
-              title="Klik untuk lihat statistik AI HPP">AI</span></th>
+              title="Klik untuk lihat statistik AI HPP">AI</span>${Utils.helpTip('HPP = Harga Pokok Penjualan. Ditandai HPP berarti dipakai untuk produksi/jual. Non-HPP = pemakaian internal (stok pribadi, dll). AI auto-suggest berdasarkan history.')}</th>
             <th style="width:110px">Pengambil</th>
             <th style="width:130px">Penanggung Jawab</th>
             <th style="min-width:140px">Catatan</th>

@@ -667,11 +667,11 @@ const DailyOrderModule = (() => {
                   <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600;width:30px">#</th>
                     <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600;min-width:140px">ITEM / BAHAN</th>
-                    <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">EST QTY</th>
+                    <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600">EST QTY${Utils.helpTip('Estimasi qty saat planning awal. Pakai untuk menghitung kebutuhan + budget.')}</th>
                     <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600">SAT</th>
                     <th style="padding:7px 5px;text-align:right;color:var(--text-3);font-weight:600;white-space:nowrap">HARGA @</th>
                     <th style="padding:7px 5px;text-align:right;color:#6366f1;font-weight:600;white-space:nowrap">EST TOTAL</th>
-                    <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600;white-space:nowrap">AKT QTY
+                    <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600;white-space:nowrap">AKT QTY${Utils.helpTip('Qty riil terpakai (di-isi setelah produksi selesai). Inilah yang akan di-sync ke Inventory sebagai KELUAR. Bisa beda dari EST kalau ada perubahan/sisa.')}
                       ${items.length > 0 && (Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'admin')
                         ? `<button onclick="DailyOrderModule.copyEstToAkt()" title="Copy semua Est QTY ke Akt QTY (Admin only)"
                         style="margin-left:3px;padding:1px 5px;border:1px solid rgba(16,185,129,.4);border-radius:4px;background:rgba(16,185,129,.1);
@@ -680,7 +680,7 @@ const DailyOrderModule = (() => {
                         onmouseout="this.style.background='rgba(16,185,129,.1)';this.style.color='#10b981'">COPY EST</button>` : ''}
                     </th>
                     <th style="padding:7px 5px;text-align:right;color:#10b981;font-weight:600;white-space:nowrap">AKT TOTAL</th>
-                    <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600">SUMBER</th>
+                    <th style="padding:7px 5px;text-align:center;color:var(--text-3);font-weight:600">SUMBER${Utils.helpTip('STOK = bahan cukup di gudang. PARTIAL = sebagian di gudang, sebagian beli ke pasar. PASAR = harus beli semua. Otomatis dihitung dari stok gudang vs AKT QTY.')}</th>
                     <th style="padding:7px 5px;text-align:left;color:var(--text-3);font-weight:600">CATATAN</th>
                     <th style="padding:7px 5px;width:50px"></th>
                     <th style="padding:4px 2px;text-align:center;width:20px"><input type="checkbox" title="Pilih semua" onchange="DailyOrderModule._bulkToggleAll(this.checked)" style="cursor:pointer"></th>

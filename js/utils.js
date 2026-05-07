@@ -263,6 +263,57 @@ const Utils = {
   },
 
   /**
+   * Inline help tooltip — icon "ⓘ" yg tampilkan teks penjelasan saat hover/focus.
+   * @param {string} text     Teks tooltip (boleh multi-line, akan single-line di tooltip)
+   * @param {string} [pos]    'top' (default) atau 'bottom' — arah tooltip
+   * @returns HTML string siap di-inject ke template
+   *
+   * Usage: `<th>HPP ${Utils.helpTip('Harga Pokok Penjualan...')}</th>`
+   */
+  helpTip(text, pos) {
+    Utils._injectHelpTipCss();
+    const safe = String(text).replace(/"/g, '&quot;').replace(/\n/g, ' ');
+    const posAttr = pos === 'bottom' ? ' data-pos="bottom"' : '';
+    return `<span class="help-tip" tabindex="0" data-tip="${safe}" aria-label="${safe}" role="tooltip"${posAttr}>i</span>`;
+  },
+
+  _helpTipCssInjected: false,
+  _injectHelpTipCss() {
+    if (Utils._helpTipCssInjected || !document.head) return;
+    Utils._helpTipCssInjected = true;
+    if (document.getElementById('help-tip-css')) return;
+    const s = document.createElement('style');
+    s.id = 'help-tip-css';
+    s.textContent = `
+      .help-tip{position:relative;display:inline-flex;align-items:center;justify-content:center;
+        width:15px;height:15px;margin-left:5px;border-radius:50%;
+        background:rgba(99,102,241,.15);color:#6366f1;
+        font:italic 700 10px/1 'Times New Roman',serif;
+        cursor:help;vertical-align:middle;user-select:none;
+        transition:background .15s,transform .15s;outline:none}
+      .help-tip:hover,.help-tip:focus{background:rgba(99,102,241,.35);transform:scale(1.15)}
+      .help-tip::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;
+        transform:translateX(-50%);background:#1f2937;color:#fff;padding:7px 11px;border-radius:7px;
+        font:500 11px/1.45 system-ui,-apple-system,sans-serif;font-style:normal;text-transform:none;
+        letter-spacing:normal;white-space:normal;width:max-content;max-width:260px;text-align:left;
+        box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:0;visibility:hidden;pointer-events:none;
+        transition:opacity .15s,visibility .15s;z-index:1000}
+      .help-tip::before{content:'';position:absolute;bottom:calc(100% + 2px);left:50%;
+        transform:translateX(-50%);border:5px solid transparent;border-top-color:#1f2937;
+        opacity:0;visibility:hidden;transition:opacity .15s,visibility .15s;z-index:1001}
+      .help-tip:hover::after,.help-tip:hover::before,
+      .help-tip:focus::after,.help-tip:focus::before{opacity:1;visibility:visible}
+      .help-tip[data-pos="bottom"]::after{bottom:auto;top:calc(100% + 8px)}
+      .help-tip[data-pos="bottom"]::before{bottom:auto;top:calc(100% + 2px);
+        border-top-color:transparent;border-bottom-color:#1f2937}
+      @media (max-width:768px){
+        .help-tip::after{max-width:min(260px,calc(100vw - 32px))}
+      }
+    `;
+    document.head.appendChild(s);
+  },
+
+  /**
    * Relative time string in Indonesian.
    * timeAgo('2026-05-07T08:00:00Z') → "5 menit lalu" / "2 jam lalu" / dst
    */

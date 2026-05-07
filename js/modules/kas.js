@@ -586,14 +586,14 @@ const KasModule = (() => {
             </th>
             <th style="width:108px">Tanggal</th>
             <th style="min-width:180px">Nama / Keterangan</th>
-            <th style="width:130px">Type <span class="ks-ai-badge" title="Otomatis terisi berdasarkan nama barang">AI</span></th>
+            <th style="width:130px">Type <span class="ks-ai-badge">AI</span>${Utils.helpTip('Klasifikasi pengeluaran (Raw Food, Gaji, Maintenance, dll). AI auto-suggest berdasarkan nama, bisa override manual.')}</th>
             <th style="width:110px">Vendor</th>
             <th style="width:55px" class="ks-num">Qty</th>
             <th style="width:55px">Sat</th>
             <th style="width:105px" class="ks-num">Harga/Sat</th>
-            <th style="width:115px" class="ks-num">Total (Rp)</th>
+            <th style="width:115px" class="ks-num">Total (Rp)${Utils.helpTip('Otomatis = qty × harga/sat. Tidak bisa diedit manual — ubah qty atau harga.')}</th>
             <th style="width:100px">Penerima</th>
-            <th style="width:75px">Status</th>
+            <th style="width:75px">Status${Utils.helpTip('DONE = pengeluaran dikonfirmasi/sudah cair. TBC = pending verifikasi/belum jelas. Kosong = belum diisi.')}</th>
             ${canEdit ? '<th style="width:58px"></th>' : ''}
             ${canEdit ? `<th style="width:28px;padding:0;text-align:center"><input type="checkbox" title="Pilih semua" onchange="KasModule._bulkToggleAll(this.checked)" style="cursor:pointer"></th>` : ''}
           </tr></thead>

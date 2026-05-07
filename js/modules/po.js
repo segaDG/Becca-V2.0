@@ -325,12 +325,12 @@ else { window.POModule = (() => {
               ${_ak}</tr>
             <tr id="po-f-sisa-row"><td colspan="6"></td>
               <td></td>
-              <td style="padding:6px;${_rBg};text-align:right;font-size:11px;font-weight:700;color:#7c3aed">SISA (Real) <span id="po-f-sisa-real" style="font-family:var(--font-mono);font-size:13px;color:${sisaReal>=0?'#10b981':'#ef4444'}">${sisaReal<0?'- ':''}${rpA(Math.abs(sisaReal))}</span></td>
+              <td style="padding:6px;${_rBg};text-align:right;font-size:11px;font-weight:700;color:#7c3aed">SISA (Real)${Utils.helpTip('Sisa anggaran = Total Kebutuhan − Total Alokasi. Positif = belanja lebih murah dari estimasi (untung). Negatif = belanja melebihi anggaran.', 'bottom')} <span id="po-f-sisa-real" style="font-family:var(--font-mono);font-size:13px;color:${sisaReal>=0?'#10b981':'#ef4444'}">${sisaReal<0?'- ':''}${rpA(Math.abs(sisaReal))}</span></td>
               ${_ak}</tr>
 
             <tr style="${selisih===0?'background:rgba(16,185,129,.08)':selisih>0?'background:rgba(245,158,11,.08)':'background:rgba(239,68,68,.08)'}"><td colspan="6"></td>
               <td></td>
-              <td style="padding:6px;text-align:right;font-size:11px;font-weight:700">SELISIH <span id="po-f-selisih" style="font-family:var(--font-mono);font-size:13px;color:${selisih===0?'#10b981':selisih>0?'#f59e0b':'#ef4444'}">${selisih===0?'Rp 0 ✓':(selisih>0?'+':'-')+rpA(Math.abs(selisih))}</span></td>
+              <td style="padding:6px;text-align:right;font-size:11px;font-weight:700">SELISIH${Utils.helpTip('Cash reconciliation = SISA − (Cash + ATM). Idealnya 0 = pencatatan match dengan kas riil. Tidak nol = ada gap (lupa catat, salah input, atau uang fisik tidak match).', 'bottom')} <span id="po-f-selisih" style="font-family:var(--font-mono);font-size:13px;color:${selisih===0?'#10b981':selisih>0?'#f59e0b':'#ef4444'}">${selisih===0?'Rp 0 ✓':(selisih>0?'+':'-')+rpA(Math.abs(selisih))}</span></td>
               ${_ak}</tr>
             `;
             })()}
