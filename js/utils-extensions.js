@@ -314,3 +314,237 @@ Utils.printReport = function({ title, subtitle, headers, rows, footer, orientati
   </body></html>`);
   win.document.close();
 };
+
+/* ============================================================================
+   Activity Drawer — slide-in panel showing activity_logs per module
+   ============================================================================
+   Usage: Utils.openActivityDrawer('kas')   — typeFilter prefix-based
+   Module configs map module → types prefix + table row ID prefix for highlight.
+*/
+Utils._activityCfg = {
+  kas: {
+    title: 'Aktivitas Kas Kecil',
+    typePrefix: ['edit_kas','add_kas','delete_kas','bulk_delete_kas','import_kas','reclassify_kas','confirm_belanja_pasar'],
+    rowPrefix: 'ks-row-',
+  },
+  inventory: {
+    title: 'Aktivitas Inventory',
+    typePrefix: ['edit_inventory','add_inventory','delete_inventory','sync_inventory','sync_belanja_pasar','delete_bp_sync','opname'],
+    rowPrefix: 'iv-row-',
+  },
+  ap: {
+    title: 'Aktivitas Account Payable',
+    typePrefix: ['edit_ap','add_ap','delete_ap','supplier','add_supplier','edit_supplier'],
+    rowPrefix: 'ap-row-',
+  },
+  po: {
+    title: 'Aktivitas Purchase Order',
+    typePrefix: ['edit_po','add_po','delete_po','po_anggaran','belanja_pasar','confirm_belanja_pasar'],
+    rowPrefix: 'po-row-',
+  },
+};
+
+Utils._activityIcon = (type) => {
+  if (!type) return '•';
+  if (type.startsWith('add'))         return '➕';
+  if (type.startsWith('edit'))        return '📝';
+  if (type.startsWith('delete'))      return '🗑️';
+  if (type.startsWith('bulk_delete')) return '🧹';
+  if (type.startsWith('sync'))        return '🔄';
+  if (type.startsWith('import'))      return '📥';
+  if (type.startsWith('reclassify'))  return '🏷️';
+  if (type.startsWith('confirm'))     return '✓';
+  if (type.startsWith('supplier'))    return '🏢';
+  if (type.startsWith('opname'))      return '📋';
+  return '•';
+};
+
+Utils._activityColor = (type) => {
+  if (!type) return '#6b7280';
+  if (type.startsWith('add'))    return '#10b981';
+  if (type.startsWith('edit'))   return '#6366f1';
+  if (type.startsWith('delete')) return '#ef4444';
+  if (type.startsWith('sync'))   return '#8b5cf6';
+  return '#6b7280';
+};
+
+Utils._injectActivityDrawerCss = function() {
+  if (document.getElementById('act-drawer-css')) return;
+  const s = document.createElement('style');
+  s.id = 'act-drawer-css';
+  s.textContent = `
+    #act-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9000;
+      opacity:0;transition:opacity .2s;backdrop-filter:blur(2px)}
+    #act-drawer-overlay.show{opacity:1}
+    #act-drawer{position:fixed;top:0;right:0;height:100vh;width:min(420px,100vw);
+      background:var(--surface);border-left:1px solid var(--border);
+      box-shadow:-8px 0 32px rgba(0,0,0,.15);z-index:9001;
+      display:flex;flex-direction:column;
+      transform:translateX(100%);transition:transform .25s ease}
+    #act-drawer.show{transform:translateX(0)}
+    #act-drawer header{display:flex;align-items:center;gap:10px;padding:14px 16px;
+      border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface2)}
+    #act-drawer header h3{margin:0;font-size:14px;font-weight:700;flex:1;color:var(--text)}
+    #act-drawer header button{width:30px;height:30px;border:none;background:transparent;
+      border-radius:6px;cursor:pointer;color:var(--text-3);font-size:16px;
+      display:flex;align-items:center;justify-content:center;transition:background .15s}
+    #act-drawer header button:hover{background:rgba(0,0,0,.06)}
+    #act-drawer .ad-body{flex:1;overflow-y:auto;padding:8px 0}
+    #act-drawer .ad-day-hdr{padding:10px 16px 4px;font-size:11px;font-weight:700;
+      text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);
+      background:var(--surface);position:sticky;top:0;z-index:1}
+    #act-drawer .ad-item{display:flex;gap:10px;padding:10px 16px;cursor:pointer;
+      border-bottom:1px solid var(--border);transition:background .15s}
+    #act-drawer .ad-item:hover{background:rgba(99,102,241,.06)}
+    #act-drawer .ad-icon{width:30px;height:30px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;flex-shrink:0;
+      background:var(--surface2);font-size:14px}
+    #act-drawer .ad-content{flex:1;min-width:0}
+    #act-drawer .ad-title{font-size:12.5px;font-weight:600;color:var(--text);line-height:1.3}
+    #act-drawer .ad-actor{font-weight:700;color:var(--primary)}
+    #act-drawer .ad-meta{font-size:10.5px;color:var(--text-3);margin-top:2px;display:flex;align-items:center;gap:6px}
+    #act-drawer .ad-detail{font-size:11px;color:var(--text-2);margin-top:4px;
+      background:var(--surface2);padding:5px 8px;border-radius:5px;border-left:2px solid var(--border)}
+    #act-drawer .ad-empty{padding:48px 24px;text-align:center;color:var(--text-3)}
+    #act-drawer .ad-empty .ad-emoji{font-size:36px;margin-bottom:10px}
+    #act-drawer .ad-loading{padding:24px;text-align:center;color:var(--text-3);font-size:12px}
+    @keyframes act-flash{0%,100%{background:transparent}25%,75%{background:rgba(245,158,11,.35)}}
+    .act-flash{animation:act-flash 1.6s ease}
+    @media (max-width:480px){
+      #act-drawer{width:100vw}
+    }
+  `;
+  document.head.appendChild(s);
+};
+
+Utils.openActivityDrawer = async function(moduleKey) {
+  const cfg = Utils._activityCfg[moduleKey];
+  if (!cfg) { console.warn('Unknown module:', moduleKey); return; }
+  Utils._injectActivityDrawerCss();
+
+  // Cleanup existing
+  document.getElementById('act-drawer')?.remove();
+  document.getElementById('act-drawer-overlay')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'act-drawer-overlay';
+  const drawer = document.createElement('div');
+  drawer.id = 'act-drawer';
+  drawer.innerHTML = `
+    <header>
+      <h3>📜 ${cfg.title}</h3>
+      <button onclick="Utils.closeActivityDrawer()" aria-label="Tutup">✕</button>
+    </header>
+    <div class="ad-body" id="ad-body">
+      <div class="ad-loading">Memuat aktivitas...</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.appendChild(drawer);
+
+  overlay.addEventListener('click', () => Utils.closeActivityDrawer());
+  setTimeout(() => { overlay.classList.add('show'); drawer.classList.add('show'); }, 10);
+
+  // Load data
+  let logs = [];
+  try { logs = await DB.getActivityLogs(); } catch {}
+  const filtered = (logs || [])
+    .filter(l => cfg.typePrefix.some(p => (l.type || '').startsWith(p)))
+    .sort((a, b) => new Date(b.timestamp || b.created_at || 0) - new Date(a.timestamp || a.created_at || 0))
+    .slice(0, 100);
+
+  const body = document.getElementById('ad-body');
+  if (!body) return;
+  if (!filtered.length) {
+    body.innerHTML = `<div class="ad-empty">
+      <div class="ad-emoji">📭</div>
+      <div style="font-size:13px;font-weight:600">Belum ada aktivitas</div>
+      <div style="font-size:11px;margin-top:4px">Aksi edit/tambah/hapus akan tampil di sini</div>
+    </div>`;
+    return;
+  }
+
+  // Group by day
+  const today = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  const groups = {};
+  filtered.forEach(l => {
+    const d = new Date(l.timestamp || l.created_at || 0);
+    const ds = d.toDateString();
+    let label;
+    if (ds === today) label = 'Hari ini';
+    else if (ds === yesterday) label = 'Kemarin';
+    else label = d.toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric' });
+    (groups[label] = groups[label] || []).push(l);
+  });
+
+  body.innerHTML = Object.entries(groups).map(([day, items]) => `
+    <div class="ad-day-hdr">${day}</div>
+    ${items.map(l => Utils._renderActivityItem(l, cfg.rowPrefix)).join('')}
+  `).join('');
+};
+
+Utils._renderActivityItem = function(l, rowPrefix) {
+  const icon  = Utils._activityIcon(l.type);
+  const color = Utils._activityColor(l.type);
+  const actor = l.username || 'Unknown';
+  const time  = Utils.timeAgo(l.timestamp || l.created_at);
+  const detail = l.detail || '';
+  const rowId = l.rowId || '';
+
+  // Build before/after diff if available
+  let diff = '';
+  if (l.snapshot && l.snapshot.before && l.snapshot.after) {
+    const b = l.snapshot.before, a = l.snapshot.after;
+    const fields = ['nama','keterangan','itemNama','jumlah','qty','harga','hargaSatuan','total','status','vendor','supplier'];
+    const changed = [];
+    fields.forEach(f => {
+      if (b[f] !== undefined && a[f] !== undefined && String(b[f]) !== String(a[f])) {
+        const fmt = (v) => (typeof v === 'number' ? v.toLocaleString('id-ID') : (v || '∅'));
+        changed.push(`<strong>${f}</strong>: ${fmt(b[f])} → ${fmt(a[f])}`);
+      }
+    });
+    if (changed.length) diff = changed.slice(0, 3).join(' · ');
+  }
+
+  const clickAttr = rowId ? `onclick="Utils._gotoActivityRow('${rowPrefix}${rowId}')"` : 'style="cursor:default"';
+  return `
+    <div class="ad-item" ${clickAttr}>
+      <div class="ad-icon" style="background:${color}22;color:${color}">${icon}</div>
+      <div class="ad-content">
+        <div class="ad-title"><span class="ad-actor">${Utils.esc?Utils.esc(actor):actor}</span> ${detail || l.type}</div>
+        <div class="ad-meta">${time}${l.role?' · '+l.role:''}</div>
+        ${diff ? `<div class="ad-detail">${diff}</div>` : ''}
+      </div>
+    </div>`;
+};
+
+Utils._gotoActivityRow = function(elId) {
+  const el = document.getElementById(elId);
+  if (!el) {
+    if (typeof Notify !== 'undefined' && Notify.info) Notify.info('Baris tidak ditemukan di halaman ini (mungkin di-filter atau halaman lain)');
+    return;
+  }
+  Utils.closeActivityDrawer();
+  setTimeout(() => {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('act-flash');
+    setTimeout(() => el.classList.remove('act-flash'), 1700);
+  }, 280);
+};
+
+Utils.closeActivityDrawer = function() {
+  const overlay = document.getElementById('act-drawer-overlay');
+  const drawer  = document.getElementById('act-drawer');
+  if (overlay) overlay.classList.remove('show');
+  if (drawer)  drawer.classList.remove('show');
+  setTimeout(() => { overlay?.remove(); drawer?.remove(); }, 280);
+};
+
+/** Returns HTML button `🕐` yg buka activity drawer untuk module-nya */
+Utils.activityButton = function(moduleKey, opts = {}) {
+  const style = opts.style || `padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text-2);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px`;
+  return `<button title="Lihat aktivitas terbaru" onclick="Utils.openActivityDrawer('${moduleKey}')" style="${style}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    Aktivitas
+  </button>`;
+};

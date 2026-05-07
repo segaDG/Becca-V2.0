@@ -166,6 +166,9 @@ const APModule = (() => {
           <option value="BELUM">⏳ Belum Bayar</option>
         </select>
         <button onclick="APModule.resetFilter()" class="filter-reset-btn" id="ap-reset-btn">↺</button>
+        <button title="Lihat aktivitas terbaru" onclick="Utils.openActivityDrawer('ap')" style="height:30px;padding:0 12px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:inline-flex;align-items:center;gap:5px;color:var(--text-2);font-size:11px;font-weight:500;white-space:nowrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aktivitas
+        </button>
         <button onclick="APModule.reArrangeAP()" title="Urutkan" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-3);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 6h18M3 12h12M3 18h6"/></svg>Re-arrange</button>
         <button onclick="UndoRedo.undo('ap')" title="Undo (Ctrl+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px">↩</button>
         <button onclick="UndoRedo.redo('ap')" title="Redo (Ctrl+Shift+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px">↪</button>

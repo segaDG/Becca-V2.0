@@ -73,9 +73,12 @@ else { window.POModule = (() => {
           <h2>Purchase Order</h2>
           <p>Estimasi Anggaran Belanja Mingguan</p>
         </div>
-        ${canEdit ? `<div class="page-header-right">
-          <button class="btn btn-primary" onclick="POModule.addAnggaran()">+ Buat Anggaran</button>
-        </div>` : ''}
+        <div class="page-header-right" style="display:flex;gap:8px;align-items:center">
+          <button title="Lihat aktivitas terbaru" onclick="Utils.openActivityDrawer('po')" style="padding:7px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text-2);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aktivitas
+          </button>
+          ${canEdit ? `<button class="btn btn-primary" onclick="POModule.addAnggaran()">+ Buat Anggaran</button>` : ''}
+        </div>
       </div>
       <div class="tabs" style="margin-bottom:var(--s4)">
         <button class="tab-btn active" onclick="POModule.switchTab('active')">Anggaran</button>

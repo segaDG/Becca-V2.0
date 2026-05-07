@@ -1361,6 +1361,11 @@ const InventoryModule = (() => {
         <button onclick="UndoRedo.redo('inv')" title="Redo (Ctrl+Shift+Z)" style="height:30px;width:30px;min-width:30px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px">↪</button>
         <button onclick="InventoryModule.reArrangeInv()" title="Urutkan berdasarkan tanggal" style="height:30px;padding:0 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;gap:4px;color:var(--text-2);font-size:11px;font-weight:600;white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 6h18M3 12h12M3 18h6"/></svg>Re-arrange</button>
         <button id="inv-log-reset" class="filter-reset-btn" onclick="InventoryModule.clearLogFilter()">↺</button>
+        <button title="Lihat aktivitas terbaru" onclick="Utils.openActivityDrawer('inventory')"
+          style="height:30px;padding:0 12px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:inline-flex;align-items:center;gap:5px;color:var(--text-2);font-size:12px;font-weight:500;white-space:nowrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Aktivitas
+        </button>
         <span id="inv-log-count" style="font-size:11px;color:var(--text-3);margin-left:auto"></span>
       `;
       tab.insertBefore(bar, tab.firstChild);

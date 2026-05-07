@@ -535,6 +535,10 @@ const KasModule = (() => {
         </select>
 
         <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+          <button title="Lihat aktivitas terbaru" onclick="Utils.openActivityDrawer('kas')" class="ks-act-btn" style="display:inline-flex;align-items:center;gap:5px;padding:6px 10px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Aktivitas
+          </button>
           <div class="ks-action-group">
             <button class="ks-act-btn${_filter.search?' active':''}" onclick="KasModule.toggleSearch()" title="Cari data (Ctrl+F)" style="${_filter.search?'color:var(--primary);background:rgba(99,102,241,.12)':''}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
