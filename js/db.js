@@ -890,6 +890,33 @@ const DB = (() => {
 
   const getActivityLogs = () => _get('activity_logs');
 
+  /**
+   * Returns Map<rowId, {by, at, ts, type}> — last edit info per row.
+   * @param types  Array of activity types to include (e.g. ['edit_kas','add_kas','delete_kas'])
+   */
+  const getLastEditMap = async (types) => {
+    let logs = [];
+    try { logs = await getActivityLogs(); } catch { logs = []; }
+    const filter = Array.isArray(types) && types.length ? new Set(types) : null;
+    const map = {};
+    (logs || []).forEach(l => {
+      if (!l || !l.rowId) return;
+      if (filter && !filter.has(l.type)) return;
+      const ts = new Date(l.timestamp || l.created_at || 0).getTime();
+      if (!Number.isFinite(ts)) return;
+      const cur = map[l.rowId];
+      if (!cur || ts > cur.ts) {
+        map[l.rowId] = {
+          by:   l.username || l.role || 'unknown',
+          at:   l.timestamp || l.created_at,
+          ts,
+          type: l.type,
+        };
+      }
+    });
+    return map;
+  };
+
   // ── PRESENCE (user online) ────────────────────────────────
   const updatePresence = async (userId, userData) => {
     // Gunakan username sebagai ID agar tidak duplikat per session
@@ -1338,7 +1365,7 @@ const DB = (() => {
     // Settings
     getSettings, saveSettings,
     // Logs
-    logActivity, getActivityLogs,
+    logActivity, getActivityLogs, getLastEditMap,
     // Presence
     updatePresence, getOnlineUsers,
     // Aggregation RPC (Level 3)

@@ -4,6 +4,7 @@
 ============================================ */
 const APModule = (() => {
   let _ap = [];
+  let _lastEditMap = {}; // {rowId: {by, at, ts, type}} — for "Terakhir diedit" tooltip
   let _suppliers = [];
   let _apPage = 1;
   let _apPerPage = parseInt(localStorage.getItem('becca_ap_perPage')||'50');
@@ -41,6 +42,11 @@ const APModule = (() => {
       _ap.sort((a,b)=>((b.tgl_transaksi||b.tgl||'')).localeCompare((a.tgl_transaksi||a.tgl||'')));
       _suppliers = sup;
       switchTab('list');
+      // Load last-edit map untuk tooltip "Terakhir diedit"
+      DB.getLastEditMap?.(['edit_ap','add_ap','delete_ap']).then(m => {
+        _lastEditMap = m || {};
+        if (_activeTab === 'list') applyFilter();
+      }).catch(()=>{});
     });
   }
 
@@ -277,7 +283,9 @@ const APModule = (() => {
     +'</div></td>'
   : '<td></td>';
 
-      return '<tr id="ap-row-'+r.id+'" style="border-bottom:.5px solid var(--border)">'
+      const _le = _lastEditMap[r.id];
+      const _leTip = _le ? ' title="Terakhir diedit: '+_le.by+' · '+Utils.timeAgo(_le.at)+'"' : '';
+      return '<tr id="ap-row-'+r.id+'"'+_leTip+' style="border-bottom:.5px solid var(--border)">'
         +'<td style="'+tdR+';width:36px">'+( i+1)+'</td>'
         +'<td style="'+tdL+';white-space:nowrap">'+fmtDate(r.tgl_transaksi||r.tgl)+'</td>'
         +'<td style="'+tdL+'">'+(r.vendor||r.supplier||r.supplier_nama||'-')+'</td>'
@@ -1384,6 +1392,9 @@ const APModule = (() => {
       const logType = row._wasNew ? 'add_ap' : 'edit_ap';
       DB.logActivity({type:logType, detail:(row._wasNew?'AP baru: ':'Edit AP: ')+(row.keterangan||id), rowId:id,
         snapshot:{before:origData, after:{id,tgl:row.tgl,supplier:row.supplier,keterangan:row.keterangan,qty:row.qty,satuan:row.satuan,hargaSatuan:row.hargaSatuan,total:row.total,status:row.status}}});
+      // Update tooltip cache supaya fresh tanpa reload
+      const _cu = (typeof Auth !== 'undefined' && Auth.currentUser()) ? (Auth.currentUser().username || Auth.currentUser().nama) : 'me';
+      _lastEditMap[id] = { by: _cu, at: new Date().toISOString(), ts: Date.now(), type: logType };
       if (!_apEditId) applyFilter();
       Notify.success('AP disimpan!');
     } catch(e) { Notify.error('Gagal', e.message); }

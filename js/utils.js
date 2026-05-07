@@ -261,6 +261,24 @@ const Utils = {
       return !!w;
     } catch { return false; }
   },
+
+  /**
+   * Relative time string in Indonesian.
+   * timeAgo('2026-05-07T08:00:00Z') → "5 menit lalu" / "2 jam lalu" / dst
+   */
+  timeAgo(ts) {
+    if (!ts) return '';
+    const t = new Date(ts).getTime();
+    if (!Number.isFinite(t)) return '';
+    const diff = Math.max(0, (Date.now() - t) / 1000);
+    if (diff < 30)      return 'baru saja';
+    if (diff < 60)      return Math.floor(diff) + ' detik lalu';
+    if (diff < 3600)    return Math.floor(diff / 60) + ' menit lalu';
+    if (diff < 86400)   return Math.floor(diff / 3600) + ' jam lalu';
+    if (diff < 604800)  return Math.floor(diff / 86400) + ' hari lalu';
+    if (diff < 2592000) return Math.floor(diff / 604800) + ' minggu lalu';
+    return new Date(ts).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'});
+  },
 };
 
 window.Utils = Utils;

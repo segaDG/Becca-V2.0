@@ -81,6 +81,7 @@ const KasModule = (() => {
     } catch {}
   }
   let _activeTab = 'transaksi';
+  let _lastEditMap = {}; // {rowId: {by, at, ts, type}} — for "Terakhir diedit" tooltip
   let _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'', search:'' };
   let _page    = 1;
   let _perPage = parseInt(localStorage.getItem('becca_kas_perPage') || '50');
@@ -324,6 +325,11 @@ const KasModule = (() => {
     _updateBPBadge();
     // One-time fix: rekonsiliasi jumlah = qty × harga untuk data lama
     _autoRecomputeJumlahsOnce();
+    // Load last-edit map untuk tooltip "Terakhir diedit"
+    DB.getLastEditMap?.(['edit_kas','add_kas','delete_kas']).then(m => {
+      _lastEditMap = m || {};
+      if (_activeTab === 'transaksi') renderTransaksi();
+    }).catch(()=>{});
   }
 
   /* ── Rekonsiliasi total: pastikan jumlah = qty × harga (one-time) ── */
@@ -620,7 +626,9 @@ const KasModule = (() => {
     const isBP = !!r.bpDocId;
     const rowColorClass = isBP ? 'ks-row-bp' : r.type==='Kas' ? 'ks-row-kas' : r.status==='DONE' ? 'ks-row-done' : r.status==='TBC' ? 'ks-row-tbc' : '';
     const ksOnDbl = !_kasLocked.has(r.id) ? `KasModule.startEdit('${r.id}',event.target.closest('td')?.dataset?.field)` : '';
-    return `<tr class="ks-view ${rowColorClass}" id="ks-row-${r.id}" data-id="${r.id}" style="${_kasLocked.has(r.id)?'opacity:.75':''};cursor:pointer" ondblclick="${ksOnDbl}">
+    const _le = _lastEditMap[r.id];
+    const _leTip = _le ? `Terakhir diedit: ${_le.by} · ${Utils.timeAgo(_le.at)}` : '';
+    return `<tr class="ks-view ${rowColorClass}" id="ks-row-${r.id}" data-id="${r.id}" ${_leTip ? `title="${_leTip}"` : ''} style="${_kasLocked.has(r.id)?'opacity:.75':''};cursor:pointer" ondblclick="${ksOnDbl}">
       <td style="width:28px">
         <div class="ks-cell" style="justify-content:center;font-size:11px;color:var(--text-3)">
           ${_kasLocked.has(r.id)?'<span style="opacity:.4">'+rowNum+'</span>':rowNum}
@@ -929,6 +937,9 @@ const KasModule = (() => {
       const _after = {id,nama:row.nama,type:row.type,jumlah:row.jumlah,vendor:row.vendor,tgl:row.tgl,status:row.status,qty:row.qty,satuan:row.satuan,hargaSatuan:row.hargaSatuan,penerima:row.penerima};
       const _before = wasNew ? null : (()=>{ try{return JSON.parse(origStr)}catch{return null} })();
       DB.logActivity({type:logType, detail:logDetail, rowId:id, snapshot:{before:_before, after:_after}});
+      // Update last-edit tooltip cache supaya fresh tanpa reload
+      const _cu = (typeof Auth !== 'undefined' && Auth.currentUser()) ? (Auth.currentUser().username || Auth.currentUser().nama) : 'me';
+      _lastEditMap[id] = { by: _cu, at: new Date().toISOString(), ts: Date.now(), type: logType };
       const newTr = document.getElementById('ks-row-'+id);
       if (newTr) { newTr.classList.add('ks-saved'); setTimeout(()=>newTr.classList.remove('ks-saved'),500); }
     } catch(e) { Notify.error('Gagal simpan', e.message); }

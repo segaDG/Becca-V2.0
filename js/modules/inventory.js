@@ -13,6 +13,7 @@
 if(window.BECCA_DEBUG) console.log('[BECCA] InventoryModule v20260327k loaded');
 const InventoryModule = (() => {
 
+  let _lastEditMap = {};  // {rowId: {by, at, ts, type}} — for "Terakhir diedit" tooltip
   let _items      = [];   // master barang
   let _itemLookup = new Map(); // id→item (String keys), always in sync with _items
   let _logs       = [];   // activity line (MASUK/KELUAR only)
@@ -233,6 +234,11 @@ const InventoryModule = (() => {
           item._savedHarga = item._hargaTerbaru;
         }
       });
+      // Load last-edit map untuk tooltip "Terakhir diedit"
+      DB.getLastEditMap?.(['edit_inventory','add_inventory','delete_inventory']).then(m => {
+        _lastEditMap = m || {};
+        if (_activeTab === 'transaksi') renderTransaksi();
+      }).catch(()=>{});
       // Re-render current tab without switching away
       if (_activeTab === 'stok') renderStok();
       else if (_activeTab === 'transaksi') renderTransaksi();
@@ -1482,7 +1488,10 @@ const InventoryModule = (() => {
     const isSync = !!r.syncTag;
     const isBPSync = isSync && (r.syncTag||'').startsWith('bp_');
     const syncClass = isBPSync ? ' iv-bp-synced' : isSync ? ' iv-synced' : '';
+    const _le = _lastEditMap[r.id];
+    const _leTip = _le ? `Terakhir diedit: ${_le.by} · ${Utils.timeAgo(_le.at)}` : '';
     return `<tr class="iv-view${syncClass}" id="iv-row-${r.id}" data-id="${r.id}"
+              ${_leTip ? `title="${_leTip}"` : ''}
               ${canEdit && !_invLocked.has(r.id) ? `ondblclick="InventoryModule.startLogEdit('${r.id}',event.target.closest('td')?.dataset?.field)"` : ''}>
       <td onclick="event.stopPropagation();${_invLocked.has(r.id)?`InventoryModule.unlockInvRow('${r.id}')`:'void(0)'}"
           title="${_invLocked.has(r.id)?'Klik untuk buka kunci':''}"
@@ -1920,6 +1929,9 @@ const InventoryModule = (() => {
       }
       const _ivBefore = (()=>{ try{return JSON.parse(origStr)}catch{return null} })();
       DB.logActivity({type:'edit_inventory', detail:'Edit: '+(row.itemNama||id), rowId:id, snapshot:{before:_ivBefore, after:{id:row.id,tgl:row.tgl,itemId:row.itemId,itemNama:row.itemNama,jenis:row.jenis,jumlah:row.jumlah,harga:row.harga,kodeAktivitas:row.kodeAktivitas,pengambil:row.pengambil,penanggungJawab:row.penanggungJawab,catatan:row.catatan}}});
+      // Update tooltip cache
+      const _cu = (typeof Auth !== 'undefined' && Auth.currentUser()) ? (Auth.currentUser().username || Auth.currentUser().nama) : 'me';
+      _lastEditMap[id] = { by: _cu, at: new Date().toISOString(), ts: Date.now(), type: 'edit_inventory' };
       const newTr = document.getElementById('iv-row-'+id);
       if (newTr) { newTr.classList.add('iv-saved'); setTimeout(()=>newTr.classList.remove('iv-saved'),500); }
     } catch(e) { Notify.error('Gagal simpan', e.message); }
