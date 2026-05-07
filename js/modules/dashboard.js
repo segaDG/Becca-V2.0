@@ -222,8 +222,137 @@ const DashboardModule = (() => {
         ${canInventory ? _renderLowStockCard(lowStock) : ''}
       </div>
 
+      ${canInvoice && invoices?.length ? _renderCustomerGrowth(invoices) : ''}
+
       ${canEmpFinance && topHutang.length ? _renderHutangTable(topHutang) : ''}
     `;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     CUSTOMER GROWTH — bandingkan customer aktif bulan ini vs lalu
+     Aktif = punya invoice ≤60 hari. New = first invoice bulan ini.
+     Churn = aktif di periode 60-120 hari lalu tapi tidak di 60 hari terakhir.
+     ───────────────────────────────────────────────────────────── */
+  function _renderCustomerGrowth(invoices) {
+    const _invDate = (i) => i.tglInvoice || i.tgl_invoice || i.periodeAkhir || i.tgl || i.created_at || '';
+    const today = new Date(); today.setHours(0,0,0,0);
+    const ms60  = 60 * 86400000;
+    const refNow  = today.getTime();
+    const refLast = refNow - 30 * 86400000; // titik referensi "1 bulan lalu"
+
+    // Group by customer
+    const map = {}; // {nama: {first, last, count}}
+    invoices.forEach(inv => {
+      const nama = (inv.customer || inv.customerNama || '').trim();
+      if (!nama) return;
+      const t = new Date(_invDate(inv)).getTime();
+      if (!Number.isFinite(t)) return;
+      if (!map[nama]) map[nama] = { nama, first: t, last: t, count: 1 };
+      else {
+        if (t < map[nama].first) map[nama].first = t;
+        if (t > map[nama].last)  map[nama].last  = t;
+        map[nama].count++;
+      }
+    });
+    const all = Object.values(map);
+    if (!all.length) return '';
+
+    // Active now: last invoice within last 60 days
+    const activeNow  = all.filter(c => refNow  - c.last <= ms60);
+    const activeLast = all.filter(c => refLast - c.last <= ms60 && c.first <= refLast);
+    const delta = activeNow.length - activeLast.length;
+
+    // New this month: first invoice in current month
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
+    const newThisMonth = all
+      .filter(c => c.first >= startOfMonth)
+      .sort((a, b) => b.first - a.first)
+      .slice(0, 5);
+
+    // Churn: was active in 60-120d window, but not in last 60d
+    const churned = all
+      .filter(c => refNow - c.last > ms60 && refNow - c.last <= 2 * ms60)
+      .sort((a, b) => a.last - b.last) // most recently churned first (smallest last → longer ago, switch?)
+      .slice(0, 5);
+
+    const topByLtv = all
+      .map(c => ({ ...c, ltv: invoices.filter(i => (i.customer||'').trim() === c.nama).reduce((s,i) => s + (+i.total||0), 0) }))
+      .sort((a, b) => b.ltv - a.ltv)
+      .slice(0, 3);
+
+    const deltaColor = delta > 0 ? '#10b981' : delta < 0 ? '#ef4444' : '#6b7280';
+    const deltaIcon  = delta > 0 ? '▲' : delta < 0 ? '▼' : '•';
+    const deltaText  = delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : '0';
+
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5);margin-top:var(--s4);box-shadow:0 1px 4px rgba(0,0,0,.06)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(99,102,241,.12);display:flex;align-items:center;justify-content:center;font-size:18px">👥</div>
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--text)">Customer Growth</div>
+              <div style="font-size:11px;color:var(--text-3)">Aktif = punya invoice ≤60 hari</div>
+            </div>
+          </div>
+          <button onclick="App.navigate('customer')" style="padding:5px 10px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text-3);cursor:pointer">Lihat semua →</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px">
+          <div style="padding:12px;border-radius:8px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.18)">
+            <div style="font-size:10px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Aktif Bulan Ini</div>
+            <div style="font-size:24px;font-weight:800;color:var(--primary);font-family:var(--font-mono)">${activeNow.length}</div>
+          </div>
+          <div style="padding:12px;border-radius:8px;background:${delta>=0?'rgba(16,185,129,.06)':'rgba(239,68,68,.06)'};border:1px solid ${delta>=0?'rgba(16,185,129,.18)':'rgba(239,68,68,.18)'}">
+            <div style="font-size:10px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em">vs Bulan Lalu</div>
+            <div style="font-size:24px;font-weight:800;color:${deltaColor};font-family:var(--font-mono)">${deltaIcon} ${deltaText}</div>
+          </div>
+          <div style="padding:12px;border-radius:8px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.18)">
+            <div style="font-size:10px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Customer Baru</div>
+            <div style="font-size:24px;font-weight:800;color:#16a34a;font-family:var(--font-mono)">${newThisMonth.length}</div>
+            <div style="font-size:10px;color:var(--text-3);margin-top:2px">bulan ini</div>
+          </div>
+          <div style="padding:12px;border-radius:8px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.18)">
+            <div style="font-size:10px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Churn Risk</div>
+            <div style="font-size:24px;font-weight:800;color:#d97706;font-family:var(--font-mono)">${churned.length}</div>
+            <div style="font-size:10px;color:var(--text-3);margin-top:2px">>60 hari no order</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:6px;display:flex;align-items:center;gap:5px">▲ Customer Baru</div>
+            ${newThisMonth.length ? newThisMonth.map(c => `
+              <div style="padding:6px 10px;background:rgba(34,197,94,.05);border-left:2px solid #22c55e;border-radius:4px;margin-bottom:4px;font-size:12px">
+                <div style="font-weight:600;color:var(--text)">${Utils.esc?Utils.esc(c.nama):c.nama}</div>
+                <div style="font-size:10px;color:var(--text-3)">${new Date(c.first).toLocaleDateString('id-ID',{day:'2-digit',month:'short'})} · ${c.count} invoice</div>
+              </div>`).join('') : `<div style="font-size:11px;color:var(--text-3);padding:8px;text-align:center;background:var(--surface2);border-radius:5px">Belum ada customer baru bulan ini</div>`}
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:6px;display:flex;align-items:center;gap:5px">▼ Churn Risk</div>
+            ${churned.length ? churned.map(c => {
+              const days = Math.floor((refNow - c.last) / 86400000);
+              return `<div style="padding:6px 10px;background:rgba(245,158,11,.05);border-left:2px solid #f59e0b;border-radius:4px;margin-bottom:4px;font-size:12px">
+                <div style="font-weight:600;color:var(--text)">${Utils.esc?Utils.esc(c.nama):c.nama}</div>
+                <div style="font-size:10px;color:var(--text-3)">Terakhir order ${days} hari lalu · ${c.count} invoice all-time</div>
+              </div>`;
+            }).join('') : `<div style="font-size:11px;color:var(--text-3);padding:8px;text-align:center;background:var(--surface2);border-radius:5px">Tidak ada customer berisiko churn</div>`}
+          </div>
+        </div>
+
+        ${topByLtv.length ? `
+          <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
+            <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">🏆 Top by Revenue (LTV)</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              ${topByLtv.map((c, i) => `
+                <div style="padding:6px 10px;background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(139,92,246,.08));border:1px solid rgba(99,102,241,.2);border-radius:6px;font-size:11px">
+                  <span style="font-weight:700;color:var(--primary)">#${i+1}</span>
+                  <span style="font-weight:600;color:var(--text);margin:0 6px">${Utils.esc?Utils.esc(c.nama):c.nama}</span>
+                  <span style="color:var(--text-3);font-family:var(--font-mono)">${Utils.formatRupiah(c.ltv, true)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>` : ''}
+      </div>`;
   }
 
   /* ===================== WIDGET EDITOR ===================== */
