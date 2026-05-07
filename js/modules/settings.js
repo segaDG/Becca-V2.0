@@ -1124,6 +1124,7 @@ else { window.SettingsModule = (() => {
     });
 
     document.getElementById('set-tab-data').innerHTML = `
+      ${typeof WeeklyDigest !== 'undefined' ? WeeklyDigest.renderSettingsCard() : ''}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s5)">
         <div class="card">
           <div class="card-header"><div class="card-title">💾 Penggunaan Storage</div></div>

@@ -24,7 +24,7 @@ const App = {
     chat      : 'js/modules/chat.js?v=20260428a',
     personal  : 'js/modules/personal.js?v=20260428a',
     report    : 'js/modules/report.js?v=20260505d',
-    settings  : 'js/modules/settings.js?v=20260429b',
+    settings  : 'js/modules/settings.js?v=20260507a',
   },
 
   _loadScript(src) {
@@ -351,6 +351,10 @@ const App = {
     try { localStorage.removeItem('becca_backups'); } catch {}
     // Auto-backup: daily, superadmin only, runs in background
     if (Auth.isSuperAdmin()) this._autoBackup();
+    // Weekly digest auto-trigger (Monday 8am default — user-configurable)
+    if (typeof WeeklyDigest !== 'undefined' && Auth.isSuperAdmin()) {
+      try { WeeklyDigest.checkAndShow(); } catch {}
+    }
     // Low stock push notification check (once per session)
     if (!sessionStorage.getItem('becca_stock_checked')) {
       setTimeout(() => this._checkLowStock(), 5000);
