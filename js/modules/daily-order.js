@@ -1208,8 +1208,8 @@ const DailyOrderModule = (() => {
         </td>
         <td style="padding:4px 3px">
           <input id="di-estqty" class="form-control" style="${inp('text-align:right;width:60px')}"
-            type="number" step="1" min="0" placeholder="0" value="${estQ0||''}"
-            inputmode="numeric" enterkeyhint="enter"
+            type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" value="${estQ0||''}"
+            enterkeyhint="next"
             oninput="DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._estQtyKeyDown(event)"
             onblur="DailyOrderModule._estQtyBlur()">
@@ -1312,7 +1312,9 @@ const DailyOrderModule = (() => {
     }
   }
 
-  /** Mobile: EST QTY blur → save row + open new row (same as Enter on desktop) */
+  /** Mobile: EST QTY blur → save row + jump ke ITEM baris berikutnya (continuous entry).
+      Safety net untuk Android Chrome yang kadang tidak fire keydown 'Enter' di input numeric.
+      Pass jumpToField='di-item' supaya saveEditRow auto-spawn next row sama seperti Enter desktop. */
   let _estBlurTimer = null;
   function _estQtyBlur() {
     if (_saving) return;
@@ -1322,9 +1324,9 @@ const DailyOrderModule = (() => {
     if (!item || !qty || qty <= 0) return;
     _estBlurTimer = setTimeout(() => {
       if (_saving) return;
-      if(window.BECCA_DEBUG) console.log('[DO] estQtyBlur → saving');
-      _saveEditRow();
-    }, 400);
+      if(window.BECCA_DEBUG) console.log('[DO] estQtyBlur → saving + jump next row');
+      _saveEditRow('di-item');
+    }, 250);
   }
   function _cancelEstBlur() { clearTimeout(_estBlurTimer); }
 
