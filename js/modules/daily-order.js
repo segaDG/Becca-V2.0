@@ -1298,11 +1298,12 @@ const DailyOrderModule = (() => {
     _liveCompute();
   }
 
-  /* Enter on EST QTY: save row + jump ke ITEM field baris bawah (continuous entry).
-     Kalau tidak ada baris berikutnya → otomatis spawn new row. */
+  /* Enter/Tab on EST QTY: save row + jump ke ITEM field baris bawah (continuous entry).
+     Kalau tidak ada baris berikutnya → otomatis spawn new row.
+     Handle Tab juga karena Android keyboard "→I" button kadang fire 'Tab', bukan 'Enter'. */
   function _estQtyKeyDown(e) {
     if (e.key === 'Escape') { e.preventDefault(); _cancelEdit(); return; }
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       _cancelEstBlur();
       const item = document.getElementById('di-item')?.value.trim();

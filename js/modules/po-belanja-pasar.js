@@ -351,14 +351,12 @@ window.POBelanjaPasarModule = (() => {
   }
 
   function _onCikopoKey(e, idx) {
-    if (e.key === 'Enter') {
+    // Handle Enter, Tab, atau "→I" key di Android (kadang fire keydown 'Tab')
+    if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
-      // Trigger save first
       _onCikopoChange(idx, +e.target.value);
-      // Move to next input
       const inputs = document.querySelectorAll('.bp-cikopo-input');
-      const nextIdx = idx + 1;
-      const next = [...inputs].find(el => +el.dataset.idx === nextIdx);
+      const next = [...inputs].find(el => +el.dataset.idx === idx + 1);
       if (next) { next.focus(); next.select(); }
     }
   }
@@ -370,11 +368,14 @@ window.POBelanjaPasarModule = (() => {
     // Cikopo + Supplier ≤ totalQty
     it.qtyCikopo = Math.min(Math.max(val, 0), Math.max(0, it.totalQty - supplier));
     it.qtyKarawang = Math.round((it.totalQty - it.qtyCikopo - supplier) * 100) / 100;
+    // Write clamped value back to input DOM supaya user lihat nilai aktual
+    const inp = document.querySelector(`.bp-cikopo-input[data-idx="${idx}"]`);
+    if (inp && +inp.value !== it.qtyCikopo) inp.value = it.qtyCikopo || '';
     _updateBpRow(idx);
   }
 
   function _onSupplierKey(e, idx) {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       _onSupplierChange(idx, +e.target.value);
       const inputs = document.querySelectorAll('.bp-supplier-input');
@@ -392,6 +393,9 @@ window.POBelanjaPasarModule = (() => {
     it.qtyKarawang = Math.round((it.totalQty - cikopo - it.qtySupplier) * 100) / 100;
     // Reset import status kalau qty supplier berubah (item belum di-import lagi)
     if (it.supplierImportedTo) it.supplierImportedTo = null;
+    // Write clamped value back to input DOM supaya user lihat nilai aktual
+    const inp = document.querySelector(`.bp-supplier-input[data-idx="${idx}"]`);
+    if (inp && +inp.value !== it.qtySupplier) inp.value = it.qtySupplier || '';
     _updateBpRow(idx);
   }
 
