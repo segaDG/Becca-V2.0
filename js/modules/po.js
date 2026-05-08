@@ -105,7 +105,7 @@ else { window.POModule = (() => {
     el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)">Memuat...</div>';
     await new Promise((resolve, reject) => {
       const base = 'js/modules/po-belanja-pasar.js';
-      const ver = '?v=20260410b';
+      const ver = '?v=20260508a';
       // Remove old script tag if exists (force reload fresh version)
       const old = document.querySelector(`script[src^="${base}"]`);
       if (old) old.remove();
@@ -123,11 +123,14 @@ else { window.POModule = (() => {
     if (!el) return;
     const sorted = _sortedChain();
     const list = sorted.filter(d => tab==='arsip' ? d.status==='arsip' : d.status!=='arsip');
+    // Supplier cards container — di-populate async setelah fetch BP docs
+    const supplierCardsHtml = tab === 'active' ? `<div id="po-supplier-cards" style="margin-bottom:14px"></div>` : '';
     if (!list.length) {
-      el.innerHTML = `<div style="text-align:center;padding:48px;color:var(--text-3)"><div style="font-size:32px;margin-bottom:8px">📋</div>${tab==='arsip'?'Belum ada arsip':'Belum ada anggaran'}</div>`;
+      el.innerHTML = `${supplierCardsHtml}<div style="text-align:center;padding:48px;color:var(--text-3)"><div style="font-size:32px;margin-bottom:8px">📋</div>${tab==='arsip'?'Belum ada arsip':'Belum ada anggaran'}</div>`;
+      if (tab === 'active') _renderSupplierCards();
       return;
     }
-    el.innerHTML = `<div style="display:grid;gap:10px">
+    el.innerHTML = supplierCardsHtml + `<div style="display:grid;gap:10px">
       ${list.map(d => {
         const chainIdx = sorted.findIndex(s => s.id === d.id);
         const kebutuhan = (d.items||[]).reduce((s,it) => s + (Number(it.totalHarga)||0), 0);
@@ -170,6 +173,160 @@ else { window.POModule = (() => {
         </div>`;
       }).join('')}
     </div>`;
+    if (tab === 'active') _renderSupplierCards();
+  }
+
+  /* ─── SUPPLIER MINI-CARDS — items dari Belanja Pasar yg dialokasikan ke Supplier ─── */
+  async function _renderSupplierCards() {
+    const wrap = document.getElementById('po-supplier-cards');
+    if (!wrap) return;
+    let bpDocs = [];
+    try { bpDocs = await DB.getBelanjaPasar(); } catch { bpDocs = []; }
+    // Cari BP docs dengan items yg punya qtySupplier > 0 dan belum di-import
+    const cards = (bpDocs || []).map(bp => {
+      const supplierItems = (bp.items || []).filter(it => (it.qtySupplier || 0) > 0 && !it.supplierImportedTo);
+      if (!supplierItems.length) return null;
+      const totalQty = supplierItems.reduce((s, it) => s + (it.qtySupplier || 0), 0);
+      const totalNilai = supplierItems.reduce((s, it) => s + (it.qtySupplier || 0) * (it.harga || 0), 0);
+      return { bp, supplierItems, totalQty, totalNilai };
+    }).filter(Boolean);
+
+    if (!cards.length) { wrap.innerHTML = ''; return; }
+
+    wrap.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:var(--text)">📦 Supplier dari Belanja Pasar</span>
+        <span style="font-size:11px;color:var(--text-3)">${cards.length} dokumen siap di-import ke Anggaran</span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${cards.map(c => `
+          <div onclick="POModule._openSupplierImport('${c.bp.id}')"
+               style="cursor:pointer;background:linear-gradient(135deg,rgba(245,158,11,.08),rgba(245,158,11,.04));border:1px solid rgba(245,158,11,.35);border-radius:10px;padding:10px 14px;min-width:180px;transition:transform .15s,box-shadow .15s"
+               onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(245,158,11,.2)'"
+               onmouseout="this.style.transform='';this.style.boxShadow=''">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span style="font-size:14px">🏷️</span>
+              <span style="font-size:11px;font-weight:700;color:#d97706">SUPPLIER</span>
+            </div>
+            <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px">${c.bp.periode || '-'}</div>
+            <div style="font-size:11px;color:var(--text-3)">${c.supplierItems.length} item · ${Utils.formatRupiah(c.totalNilai, true)}</div>
+            <div style="font-size:10px;color:var(--text-3);margin-top:4px;font-style:italic">Klik untuk import →</div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  /* ─── MODAL: Import Supplier items ke Anggaran ─── */
+  async function _openSupplierImport(bpDocId) {
+    let bpDocs = [];
+    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
+    const bp = (bpDocs || []).find(d => d.id === bpDocId);
+    if (!bp) { Notify.warning('Dokumen Belanja Pasar tidak ditemukan'); return; }
+    const items = (bp.items || []).filter(it => (it.qtySupplier || 0) > 0 && !it.supplierImportedTo);
+    if (!items.length) { Notify.info('Tidak ada item supplier yang belum di-import'); return; }
+
+    // Pilihan anggaran target — yg masih draft (status≠selesai/arsip)
+    const targets = _data.filter(d => d.status !== 'selesai' && d.status !== 'arsip').sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    if (!targets.length) {
+      Modal.confirm({
+        title: 'Belum Ada Anggaran',
+        message: '<p>Belum ada anggaran draft yg bisa di-target. Buat anggaran baru dulu?</p>',
+        confirmText: 'Buat Anggaran Baru',
+      }).then(ok => { if (ok) addAnggaran(); });
+      return;
+    }
+
+    const mid = 'sup-imp-' + Utils.uid();
+    window._supImpMid = mid;
+    Modal.open({
+      id: mid,
+      title: '📦 Import Supplier ke Anggaran',
+      size: 'modal-md',
+      body: `
+        <div style="margin-bottom:10px;font-size:11px;color:var(--text-3)">
+          Belanja Pasar: <strong style="color:var(--text)">${bp.periode || '-'}</strong> · ${items.length} item supplier
+        </div>
+        <div class="form-group">
+          <label class="form-label">Pilih Anggaran Tujuan</label>
+          <select id="sup-imp-target" class="form-control">
+            ${targets.map(t => `<option value="${t.id}">#${(t.nomorEstimasi||'?')} · ${t.periode||'-'} (${(t.items||[]).filter(i=>i.namaBarang).length} item)</option>`).join('')}
+          </select>
+        </div>
+        <div style="margin:12px 0 6px;display:flex;align-items:center;gap:8px">
+          <label style="font-size:12px;font-weight:600">Item yg di-import:</label>
+          <button type="button" onclick="POModule._supImpToggleAll(true)" style="margin-left:auto;font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);cursor:pointer">Pilih Semua</button>
+          <button type="button" onclick="POModule._supImpToggleAll(false)" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);cursor:pointer">Reset</button>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:8px;max-height:320px;overflow-y:auto">
+          ${items.map((it, i) => {
+            const total = (it.qtySupplier || 0) * (it.harga || 0);
+            return `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;${i%2?'background:rgba(0,0,0,.012)':''}">
+              <input type="checkbox" class="sup-imp-chk" data-idx="${i}" data-key="${(it.item||'').toLowerCase().trim()}" checked
+                style="width:16px;height:16px;accent-color:#f59e0b;cursor:pointer">
+              <span style="flex:1;font-weight:500">${it.item}</span>
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);min-width:80px;text-align:right">${it.qtySupplier} ${it.satuan || ''}</span>
+              <span style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:#d97706;min-width:90px;text-align:right">${Utils.formatRupiah(total, true)}</span>
+            </label>`;
+          }).join('')}
+        </div>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close(window._supImpMid)">Batal</button>
+        <button class="btn btn-primary" onclick="POModule._supImpConfirm('${bpDocId}')" style="background:#f59e0b;border-color:#f59e0b">+ Import ke Anggaran</button>`,
+    });
+  }
+
+  function _supImpToggleAll(checked) {
+    document.querySelectorAll('.sup-imp-chk').forEach(c => { c.checked = checked; });
+  }
+
+  async function _supImpConfirm(bpDocId) {
+    const targetId = document.getElementById('sup-imp-target')?.value;
+    const target = _data.find(d => d.id === targetId);
+    if (!target) { Notify.error('Anggaran tujuan tidak valid'); return; }
+    const checked = Array.from(document.querySelectorAll('.sup-imp-chk:checked')).map(c => c.dataset.key);
+    if (!checked.length) { Notify.warning('Pilih minimal 1 item'); return; }
+
+    let bpDocs = [];
+    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
+    const bp = (bpDocs || []).find(d => d.id === bpDocId);
+    if (!bp) { Notify.error('Dokumen Belanja Pasar tidak ditemukan'); return; }
+
+    const checkedSet = new Set(checked);
+    let added = 0;
+    target.items = target.items || [];
+    bp.items.forEach(it => {
+      const key = (it.item || '').toLowerCase().trim();
+      if (!checkedSet.has(key)) return;
+      if ((it.qtySupplier || 0) <= 0) return;
+      if (it.supplierImportedTo) return;
+      const qty   = it.qtySupplier;
+      const harga = it.harga || 0;
+      target.items.push({
+        id: 'item_' + Utils.uid(),
+        namaBarang: it.item,
+        qty,
+        satuan: it.satuan || '',
+        keterangan: 'Supplier · BP ' + (bp.periode || ''),
+        harga,
+        totalHarga: qty * harga,
+        alokasiDanaReal: 0,
+      });
+      it.supplierImportedTo = target.id;
+      added++;
+    });
+
+    if (!added) { Notify.warning('Tidak ada item yg diimport'); return; }
+
+    target.updatedAt = new Date().toISOString();
+    try {
+      await DB.savePO(target);
+      await DB.saveBelanjaPasar(bp);
+      DB.logActivity?.({ type: 'import_supplier_to_po', detail: `${added} item supplier dari BP ${bp.periode||''} → ${target.nomorEstimasi||''}`, rowId: target.id });
+      if (window._supImpMid) Modal.close(window._supImpMid);
+      Notify.success(`${added} item supplier diimport ke ${target.nomorEstimasi || 'anggaran'}`);
+      _renderList('active');
+    } catch (e) {
+      Notify.error('Gagal import: ' + (e.message || ''));
+    }
   }
 
   /* ── Add new ───────────────────────────────── */
@@ -1023,5 +1180,6 @@ else { window.POModule = (() => {
     selesaikan, reopenAnggaran, confirmAnggaran, ajukanFinance, importBelanjaPasar, _doImportBP,
     duplikatAnggaran, deleteAnggaran,
     printAnggaran, kirimWA, _startEdit, _onEditKey, _liveCalc, _saveMeta, _addRows, _copyRow, _pasteRow, _deleteRow, _updateFooter,
-    flushPendingEdit };
+    flushPendingEdit,
+    _openSupplierImport, _supImpToggleAll, _supImpConfirm };
 })(); }

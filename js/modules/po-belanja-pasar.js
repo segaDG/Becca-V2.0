@@ -239,16 +239,21 @@ window.POBelanjaPasarModule = (() => {
       else if (stok < demand) pasarQty = demand - stok; // PARTIAL: buy the shortage
       // else: STOK — don't add to belanja pasar
       if (pasarQty <= 0) return;
-      map[key] = { item: d.item, satuan: d.satuan, totalQty: Math.round(pasarQty*100)/100, harga: d.harga, qtyCikopo: 0, qtyKarawang: 0, stokGudang: Math.max(0,stok), totalDemand: demand };
+      map[key] = { item: d.item, satuan: d.satuan, totalQty: Math.round(pasarQty*100)/100, harga: d.harga, qtyCikopo: 0, qtySupplier: 0, qtyKarawang: 0, stokGudang: Math.max(0,stok), totalDemand: demand };
     });
 
-    // 4. Preserve existing Cikopo assignments
+    // 4. Preserve existing Cikopo + Supplier assignments
     const oldItems = _doc.items || [];
     const merged = Object.values(map).sort((a,b) => a.item.localeCompare(b.item));
     merged.forEach(m => {
       const old = oldItems.find(o => o.item.toLowerCase().trim() === m.item.toLowerCase().trim());
-      if (old) m.qtyCikopo = Math.min(old.qtyCikopo||0, m.totalQty);
-      m.qtyKarawang = Math.round((m.totalQty - (m.qtyCikopo||0)) * 100) / 100;
+      if (old) {
+        m.qtyCikopo   = Math.min(old.qtyCikopo   || 0, m.totalQty);
+        m.qtySupplier = Math.min(old.qtySupplier || 0, m.totalQty - m.qtyCikopo);
+        // preserve import status supaya tidak duplikat saat re-compute
+        m.supplierImportedTo = old.supplierImportedTo || null;
+      }
+      m.qtyKarawang = Math.round((m.totalQty - (m.qtyCikopo||0) - (m.qtySupplier||0)) * 100) / 100;
     });
     _doc.items = merged;
   }
@@ -278,7 +283,7 @@ window.POBelanjaPasarModule = (() => {
       <div style="font-size:14px;font-weight:700;margin-bottom:8px;color:var(--text)">Form Belanja Pasar — Pembagian Lokasi</div>
 
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">
-        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:1100px" id="bp-table">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:1200px" id="bp-table">
           <thead><tr style="background:var(--thead-bg);color:var(--thead-text)">
             <th style="padding:10px 6px;font-size:9px;font-weight:700;width:28px">#</th>
             <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:left;min-width:150px">ITEM</th>
@@ -288,11 +293,12 @@ window.POBelanjaPasarModule = (() => {
             <th style="padding:10px 6px;font-size:9px;font-weight:700;width:50px">SATUAN</th>
             <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:85px">HARGA</th>
             <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:95px">TOTAL</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:80px;background:rgba(0,0,0,.15)">CIKOPO</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:90px;background:rgba(255,255,255,.12)">PS. KARAWANG</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:80px;background:rgba(5,150,105,.15)">CIKOPO</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:80px;background:rgba(245,158,11,.15)">SUPPLIER</th>
+            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;width:90px;background:rgba(99,102,241,.12)">PS. KARAWANG</th>
           </tr></thead>
           <tbody>${items.map((it,i) => {
-            const sisa = Math.round((it.totalQty - (it.qtyCikopo||0)) * 100) / 100;
+            const sisa = Math.round((it.totalQty - (it.qtyCikopo||0) - (it.qtySupplier||0)) * 100) / 100;
             const total = it.totalQty * (it.harga||0);
             const bg = i%2 ? 'background:rgba(0,0,0,.012)' : '';
             return `<tr style="border-bottom:1px solid var(--border);${bg}">
@@ -311,7 +317,17 @@ window.POBelanjaPasarModule = (() => {
                       class="bp-cikopo-input"
                       onchange="POBelanjaPasarModule._onCikopoChange(${i},+this.value)"
                       onkeydown="POBelanjaPasarModule._onCikopoKey(event,${i})"
-                      style="width:80px;border:1px solid var(--border);border-radius:4px;padding:6px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)"
+                      style="width:70px;border:1px solid var(--border);border-radius:4px;padding:6px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)"
+                      onfocus="this.select()">`}
+              </td>
+              <td style="padding:8px 4px;text-align:right;background:rgba(245,158,11,.04)">
+                ${locked
+                  ? `<span style="font-family:var(--font-mono);font-weight:600">${_n2(it.qtySupplier)}</span>`
+                  : `<input type="number" min="0" step="0.5" value="${it.qtySupplier||''}" data-idx="${i}" placeholder="0"
+                      class="bp-supplier-input"
+                      onchange="POBelanjaPasarModule._onSupplierChange(${i},+this.value)"
+                      onkeydown="POBelanjaPasarModule._onSupplierKey(event,${i})"
+                      style="width:70px;border:1px solid var(--border);border-radius:4px;padding:6px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--surface)"
                       onfocus="this.select()">`}
               </td>
               <td style="padding:12px 8px;text-align:right;font-family:var(--font-mono);font-weight:600;background:rgba(99,102,241,.04);color:${sisa>0?'#6366f1':'var(--text-3)'}" id="bp-sisa-${i}">${_n2(sisa)}</td>
@@ -325,12 +341,13 @@ window.POBelanjaPasarModule = (() => {
               <td></td>
               <td style="padding:10px 8px;text-align:right;font-family:var(--font-mono);font-weight:700;color:#dc2626">${rp(grandTotal)}</td>
               <td style="padding:10px 8px;text-align:right;font-family:var(--font-mono);font-weight:700;background:rgba(5,150,105,.04)" id="bp-total-cikopo">${_n2(items.reduce((s,it) => s + (it.qtyCikopo||0), 0))}</td>
-              <td style="padding:10px 8px;text-align:right;font-family:var(--font-mono);font-weight:700;background:rgba(99,102,241,.04)" id="bp-total-krw">${_n2(items.reduce((s,it) => s + (it.totalQty - (it.qtyCikopo||0)), 0))}</td>
+              <td style="padding:10px 8px;text-align:right;font-family:var(--font-mono);font-weight:700;background:rgba(245,158,11,.04)" id="bp-total-supp">${_n2(items.reduce((s,it) => s + (it.qtySupplier||0), 0))}</td>
+              <td style="padding:10px 8px;text-align:right;font-family:var(--font-mono);font-weight:700;background:rgba(99,102,241,.04)" id="bp-total-krw">${_n2(items.reduce((s,it) => s + (it.totalQty - (it.qtyCikopo||0) - (it.qtySupplier||0)), 0))}</td>
             </tr>
           </tfoot>
         </table>
       </div>
-      ${!locked ? `<div style="margin-top:8px;font-size:11px;color:var(--text-3);font-style:italic">Isi jumlah Cikopo, sisanya otomatis ke PS. Karawang. Hanya item sumber PASAR & PARTIAL yang masuk.</div>` : ''}`;
+      ${!locked ? `<div style="margin-top:8px;font-size:11px;color:var(--text-3);font-style:italic">Cikopo (hijau) → pasar Cikopo · Supplier (kuning) → diteruskan ke Anggaran sebagai mini-card · Sisanya otomatis ke PS. Karawang. Hanya PASAR & PARTIAL yang masuk.</div>` : ''}`;
   }
 
   function _onCikopoKey(e, idx) {
@@ -349,15 +366,46 @@ window.POBelanjaPasarModule = (() => {
   function _onCikopoChange(idx, val) {
     if (!_doc || !_doc.items[idx]) return;
     const it = _doc.items[idx];
-    it.qtyCikopo = Math.min(Math.max(val, 0), it.totalQty);
-    it.qtyKarawang = Math.round((it.totalQty - it.qtyCikopo) * 100) / 100;
+    const supplier = it.qtySupplier || 0;
+    // Cikopo + Supplier ≤ totalQty
+    it.qtyCikopo = Math.min(Math.max(val, 0), Math.max(0, it.totalQty - supplier));
+    it.qtyKarawang = Math.round((it.totalQty - it.qtyCikopo - supplier) * 100) / 100;
+    _updateBpRow(idx);
+  }
+
+  function _onSupplierKey(e, idx) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      _onSupplierChange(idx, +e.target.value);
+      const inputs = document.querySelectorAll('.bp-supplier-input');
+      const next = [...inputs].find(el => +el.dataset.idx === idx + 1);
+      if (next) { next.focus(); next.select(); }
+    }
+  }
+
+  function _onSupplierChange(idx, val) {
+    if (!_doc || !_doc.items[idx]) return;
+    const it = _doc.items[idx];
+    const cikopo = it.qtyCikopo || 0;
+    // Supplier + Cikopo ≤ totalQty
+    it.qtySupplier = Math.min(Math.max(val, 0), Math.max(0, it.totalQty - cikopo));
+    it.qtyKarawang = Math.round((it.totalQty - cikopo - it.qtySupplier) * 100) / 100;
+    // Reset import status kalau qty supplier berubah (item belum di-import lagi)
+    if (it.supplierImportedTo) it.supplierImportedTo = null;
+    _updateBpRow(idx);
+  }
+
+  function _updateBpRow(idx) {
+    const items = _doc.items;
+    const it = items[idx];
     const sisaEl = document.getElementById('bp-sisa-'+idx);
     if (sisaEl) { sisaEl.textContent = _n2(it.qtyKarawang); sisaEl.style.color = it.qtyKarawang > 0 ? '#6366f1' : 'var(--text-3)'; }
-    const items = _doc.items;
-    const tcEl = document.getElementById('bp-total-cikopo');
-    const tkEl = document.getElementById('bp-total-krw');
+    const tcEl  = document.getElementById('bp-total-cikopo');
+    const tsEl  = document.getElementById('bp-total-supp');
+    const tkEl  = document.getElementById('bp-total-krw');
     if (tcEl) tcEl.textContent = _n2(items.reduce((s,i) => s + (i.qtyCikopo||0), 0));
-    if (tkEl) tkEl.textContent = _n2(items.reduce((s,i) => s + (i.totalQty - (i.qtyCikopo||0)), 0));
+    if (tsEl) tsEl.textContent = _n2(items.reduce((s,i) => s + (i.qtySupplier||0), 0));
+    if (tkEl) tkEl.textContent = _n2(items.reduce((s,i) => s + (i.totalQty - (i.qtyCikopo||0) - (i.qtySupplier||0)), 0));
   }
 
   /* ── Step 4: Breakdown — Cikopo merged, PS.Karawang per-shift ── */
@@ -379,6 +427,16 @@ window.POBelanjaPasarModule = (() => {
       cikopoMap[key].qty += it.qtyCikopo;
     });
     _doc.cikopo = Object.values(cikopoMap).sort((a,b) => a.item.localeCompare(b.item));
+
+    // Supplier: merge items dengan qtySupplier > 0 (untuk diteruskan ke Anggaran via mini-card)
+    const supplierMap = {};
+    _doc.items.forEach(it => {
+      if ((it.qtySupplier||0) <= 0) return;
+      const key = it.item.toLowerCase().trim();
+      if (!supplierMap[key]) supplierMap[key] = { item: it.item, qty: 0, satuan: it.satuan, harga: it.harga||0 };
+      supplierMap[key].qty += it.qtySupplier;
+    });
+    _doc.supplier = Object.values(supplierMap).sort((a,b) => a.item.localeCompare(b.item));
 
     // PS Karawang: per date per shift — proportional from merged items
     const ps = {};
@@ -625,6 +683,7 @@ window.POBelanjaPasarModule = (() => {
   function _n2(n) { const v = Number(n)||0; return v === Math.floor(v) ? String(v) : v.toFixed(1); }
 
   return { init, newDoc, openDoc, backToList, autoSave,
-    _onDateToggle, _toggleAll, _updateCount, _onPickDone, _onCikopoChange, _onCikopoKey,
+    _onDateToggle, _toggleAll, _updateCount, _onPickDone,
+    _onCikopoChange, _onCikopoKey, _onSupplierChange, _onSupplierKey,
     _goStep, _printCikopo, _printKarawang, _saveDoc, _deleteDoc, _selesaikan, _reopen };
 })();
