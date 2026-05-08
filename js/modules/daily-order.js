@@ -1198,7 +1198,7 @@ const DailyOrderModule = (() => {
           <input type="hidden" id="di-stok" value="${stok0}">
           <input id="di-item" class="form-control" style="${inp('min-width:120px')}"
             placeholder="Nama bahan..." value="${it?.item||''}" autocomplete="off"
-            enterkeyhint="next"
+            enterkeyhint="enter"
             onchange="DailyOrderModule._autoFillFromInventory();DailyOrderModule._liveCompute()"
             oninput="DailyOrderModule._showItemSuggest()"
             onkeydown="DailyOrderModule._itemKeyDown(event)"
@@ -1209,7 +1209,7 @@ const DailyOrderModule = (() => {
         <td style="padding:4px 3px">
           <input id="di-estqty" class="form-control" style="${inp('text-align:right;width:60px')}"
             type="number" step="1" min="0" placeholder="0" value="${estQ0||''}"
-            inputmode="numeric" enterkeyhint="next"
+            inputmode="numeric" enterkeyhint="enter"
             oninput="DailyOrderModule._liveCompute()"
             onkeydown="DailyOrderModule._estQtyKeyDown(event)"
             onblur="DailyOrderModule._estQtyBlur()">
@@ -1298,14 +1298,15 @@ const DailyOrderModule = (() => {
     _liveCompute();
   }
 
-  /* Enter on EST QTY: save row + skip ke baris bawah (Sat/Harga auto-filled) */
+  /* Enter on EST QTY: save row + jump ke ITEM field baris bawah (continuous entry).
+     Kalau tidak ada baris berikutnya → otomatis spawn new row. */
   function _estQtyKeyDown(e) {
     if (e.key === 'Escape') { e.preventDefault(); _cancelEdit(); return; }
     if (e.key === 'Enter') {
       e.preventDefault();
-      _cancelEstBlur(); // cegah blur timer interfere dengan keydown save
+      _cancelEstBlur();
       const item = document.getElementById('di-item')?.value.trim();
-      if (item) _saveEditRow('di-estqty');
+      if (item) _saveEditRow('di-item');
       else      document.getElementById('di-item')?.focus();
     }
   }
@@ -1433,7 +1434,12 @@ const DailyOrderModule = (() => {
       if (jumpToField && editingId) {
         const _ni = form.items.findIndex(i => i.id === editingId);
         const _nxt = form.items[_ni + 1];
-        if (_nxt) setTimeout(() => startEditItem(_nxt.id, jumpToField), 60);
+        if (_nxt) {
+          setTimeout(() => startEditItem(_nxt.id, jumpToField), 60);
+        } else {
+          // Last row → otomatis spawn new empty row untuk continuous entry
+          setTimeout(() => startAddItem(), 60);
+        }
       }
     }
     if (wasNew) setTimeout(() => { _initItemCombo(); document.getElementById('di-item')?.focus(); }, 60);

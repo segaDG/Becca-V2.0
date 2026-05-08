@@ -11,6 +11,7 @@ const GridSelect = (() => {
   let _copied = null; // {rows:[[text,...]], startCol, numCols, numRows}
   const _fillCbs = {};  // tableId → fn(tblId, col, srcRow, targetRows[], val)
   const _pasteCbs = {}; // tableId → fn(tblId, startRow, startCol, rows[][])
+  const _clearCbs = {}; // tableId → fn(tblId, rowIdx, colIdx) — Delete/Backspace handler
 
   function _css() {
     if (document.getElementById('gs-css')) return;
@@ -282,13 +283,55 @@ const GridSelect = (() => {
 
   // ── KEYBOARD & EVENTS ──
   document.addEventListener('keydown', e => {
-    if ((e.target.tagName||'').toLowerCase() === 'textarea') return;
+    const tag = (e.target.tagName||'').toLowerCase();
+    if (tag === 'textarea') return;
     if (e.key === 'Escape') { _clear(); return; }
+    // Delete/Backspace: clear isi cell yg ter-select (cell mode, bukan saat edit input)
+    if ((e.key === 'Delete' || e.key === 'Backspace') && _sel && _sel.cells.length) {
+      // Skip kalau target adalah input/select/textarea/contenteditable (browser default)
+      if (tag === 'input' || tag === 'select' || tag === 'button' || e.target.isContentEditable) return;
+      e.preventDefault();
+      _doClear();
+      return;
+    }
     const meta = e.metaKey || e.ctrlKey;
     if (!meta || !_sel) return;
     if (e.key === 'c') { e.preventDefault(); _doCopy(); }
     if (e.key === 'v') { e.preventDefault(); _doPaste(); }
   });
+
+  function _doClear() {
+    if (!_sel || !_sel.cells.length) return;
+    const cb = _clearCbs[_sel.tbl.id];
+    if (!cb) return;
+    const r1 = Math.min(_sel.startRow, _sel.endRow);
+    const r2 = Math.max(_sel.startRow, _sel.endRow);
+    const c1 = Math.min(_sel.startCol, _sel.endCol);
+    const c2 = Math.max(_sel.startCol, _sel.endCol);
+    const cellCount = (r2 - r1 + 1) * (c2 - c1 + 1);
+
+    const apply = () => {
+      const tblId = _sel.tbl.id;
+      const cells = [];
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) cells.push({ row: r, col: c });
+      }
+      _clear();
+      cells.forEach(({ row, col }) => { try { cb(tblId, row, col); } catch (e) { console.warn('[gs] clear cb err:', e); } });
+    };
+
+    // Konfirmasi kalau >1 cell, supaya tidak salah hapus banyak
+    if (cellCount > 1 && typeof Modal !== 'undefined' && Modal.confirm) {
+      Modal.confirm({
+        title: 'Hapus Isi Cell',
+        message: `Hapus isi <strong>${cellCount}</strong> cell terpilih?`,
+        confirmText: 'Ya, Hapus',
+        danger: true,
+      }).then(ok => { if (ok) apply(); });
+    } else {
+      apply();
+    }
+  }
 
   document.addEventListener('contextmenu', e => {
     if (!_sel || !_sel.cells.length) return;
@@ -305,8 +348,9 @@ const GridSelect = (() => {
   _css();
   document.addEventListener('mousedown', _onDown);
 
-  function onFill(id, fn) { _fillCbs[id] = fn; }
+  function onFill(id, fn)  { _fillCbs[id]  = fn; }
   function onPaste(id, fn) { _pasteCbs[id] = fn; }
-  return { onFill, onPaste, clear: _clear };
+  function onClear(id, fn) { _clearCbs[id] = fn; }
+  return { onFill, onPaste, onClear, clear: _clear };
 })();
 window.GridSelect = GridSelect;

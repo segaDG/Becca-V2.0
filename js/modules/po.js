@@ -350,6 +350,7 @@ else { window.POModule = (() => {
     if (window.GridSelect) {
       GridSelect.onFill('po-table', _onFill);
       GridSelect.onPaste('po-table', _onPaste);
+      if (typeof GridSelect.onClear === 'function') GridSelect.onClear('po-table', _onClear);
     }
   }
 
@@ -529,6 +530,39 @@ else { window.POModule = (() => {
       _updateFooter(docId);
       Notify.success(changed+' baris diperbarui');
     }
+  }
+
+  /* Delete/Backspace clear cell — kosongkan value (skip kolom computed) */
+  let _onClearBatch = { docId: null, changed: 0, timer: null };
+  function _onClear(tblId, rowIdx, colIdx) {
+    const tbl = document.getElementById('po-table');
+    if (!tbl) return;
+    const docId = tbl.dataset.doc;
+    const doc = _data.find(d => d.id === docId);
+    if (!doc || doc.status === 'selesai' || doc.status === 'arsip') return;
+    const key = _COL[colIdx];
+    if (!key || key === 'totalHarga') return; // skip computed column
+    const item = doc.items[rowIdx];
+    if (!item) return;
+
+    const isNum = key === 'qty' || key === 'harga' || key === 'alokasiDanaReal';
+    item[key] = isNum ? 0 : '';
+    if (key === 'qty' || key === 'harga') {
+      item.totalHarga = (Number(item.qty) || 0) * (Number(item.harga) || 0);
+    }
+    _onClearBatch.docId = docId;
+    _onClearBatch.changed++;
+    // Debounce: batch multiple cell clears jadi 1 save + 1 render
+    clearTimeout(_onClearBatch.timer);
+    _onClearBatch.timer = setTimeout(() => {
+      DB.savePO(doc).catch(() => {});
+      const tbody = tbl.querySelector('tbody');
+      const locked = doc.status === 'selesai' || doc.status === 'arsip';
+      if (tbody) tbody.innerHTML = doc.items.map((it, i) => _viewRow(docId, it, i, locked)).join('');
+      _updateFooter(docId);
+      Notify.success(_onClearBatch.changed + ' cell dikosongkan');
+      _onClearBatch = { docId: null, changed: 0, timer: null };
+    }, 100);
   }
 
   function _onPaste(tblId, startRow, startCol, pasteRows) {
