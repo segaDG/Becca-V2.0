@@ -413,17 +413,26 @@ const BeccaTests = (() => {
     const S = 'Performance';
 
     // ── localStorage usage ──
-    let totalLS = 0, bigKeys = [];
+    // Whitelist: keys yang memang seharusnya bisa besar (full snapshot backup data).
+    // Threshold biasa 500KB untuk catch unintended bloat; backup di-allow sampai 2MB.
+    const LARGE_KEY_WHITELIST = new Set(['becca_backup_latest']);
+    const BACKUP_LIMIT_KB = 2048;
+    let totalLS = 0, bigKeys = [], oversizedBackup = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       const size = (localStorage.getItem(k) || '').length * 2; // UTF-16 bytes
       totalLS += size;
+      if (LARGE_KEY_WHITELIST.has(k)) {
+        if (size > BACKUP_LIMIT_KB * 1024) oversizedBackup.push({ k, size: Math.round(size/1024) + 'KB' });
+        continue;
+      }
       if (size > 500 * 1024) bigKeys.push({ k, size: Math.round(size/1024) + 'KB' });
     }
     const totalMB = (totalLS / 1024 / 1024).toFixed(2);
     const quotaMB = 5; // localStorage typically 5MB
     assert(S, `localStorage usage: ${totalMB}MB / ${quotaMB}MB`, totalLS < quotaMB * 1024 * 1024, `${totalMB}MB used`);
-    assert(S, 'No single key > 500KB', bigKeys.length === 0, bigKeys.length ? bigKeys.map(b => `${b.k}: ${b.size}`).join(', ') : 'all OK');
+    assert(S, 'No single key > 500KB (excl. backup)', bigKeys.length === 0, bigKeys.length ? bigKeys.map(b => `${b.k}: ${b.size}`).join(', ') : 'all OK');
+    assert(S, `Backup size < ${BACKUP_LIMIT_KB}KB`, oversizedBackup.length === 0, oversizedBackup.length ? oversizedBackup.map(b => `${b.k}: ${b.size}`).join(', ') : 'OK');
 
     // ── Module load time ──
     const modules = ['employees', 'customers', 'orders', 'kas', 'inv_products', 'inv_activities', 'invoices', 'ap', 'suppliers', 'tasks'];
@@ -539,16 +548,22 @@ const BeccaTests = (() => {
       assert(S, 'urlState.read exists',  typeof Utils.urlState.read  === 'function');
       assert(S, 'urlState.write exists', typeof Utils.urlState.write === 'function');
       assert(S, 'urlState.clear exists', typeof Utils.urlState.clear === 'function');
-      // Round-trip test (history.replaceState — non-destructive)
-      const prevUrl = location.href;
-      Utils.urlState.write('__test__', { foo: 'bar', n: 42 });
-      const restored = Utils.urlState.read('__test__', ['foo', 'n']);
-      assertEqual(S, 'urlState round-trip foo', restored.foo, 'bar');
-      // n is read as string from URL
-      assert(S, 'urlState round-trip n (as string)', restored.n === '42' || restored.n === 42);
-      Utils.urlState.clear('__test__');
-      // restore original URL
-      history.replaceState(null, '', prevUrl);
+      // Round-trip test — write() has anti-clobber guard yang skip kalau App._currentPage !== namespace.
+      // Override _currentPage sementara supaya write tidak di-block, restore setelah test.
+      const prevUrl  = location.href;
+      const prevPage = (typeof App !== 'undefined') ? App._currentPage : null;
+      try {
+        if (typeof App !== 'undefined') App._currentPage = '__test__';
+        Utils.urlState.write('__test__', { foo: 'bar', n: 42 });
+        const restored = Utils.urlState.read('__test__', ['foo', 'n']);
+        assertEqual(S, 'urlState round-trip foo', restored.foo, 'bar');
+        // n is read as string from URL
+        assert(S, 'urlState round-trip n (as string)', restored.n === '42' || restored.n === 42);
+        Utils.urlState.clear('__test__');
+      } finally {
+        if (typeof App !== 'undefined') App._currentPage = prevPage;
+        history.replaceState(null, '', prevUrl);
+      }
     } else {
       skip(S, 'Utils.urlState', 'helper not exported');
     }
@@ -691,6 +706,14 @@ const BeccaTests = (() => {
     }
 
     /* ── PO Belanja Pasar SUPPLIER column (commit 1a557d1) ── */
+    // Force lazy-load PO module bundle (po.js + po-belanja-pasar.js loaded on demand).
+    if (typeof POBelanjaPasarModule === 'undefined' && typeof App?._loadModule === 'function') {
+      try { await App._loadModule('po'); } catch {}
+      // po.js dynamically loads po-belanja-pasar.js — wait briefly for it
+      for (let i = 0; i < 20 && typeof POBelanjaPasarModule === 'undefined'; i++) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+    }
     if (typeof POBelanjaPasarModule !== 'undefined') {
       assert(S, 'POBelanjaPasarModule._onSupplierChange exists', typeof POBelanjaPasarModule._onSupplierChange === 'function');
       assert(S, 'POBelanjaPasarModule._onSupplierKey exists',    typeof POBelanjaPasarModule._onSupplierKey === 'function');

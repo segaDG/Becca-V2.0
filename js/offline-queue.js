@@ -1,6 +1,6 @@
 /* ============================================
    BECCA V2.0 — Offline Queue
-   Wraps DB.save*/delete* methods so offline writes are queued in
+   Wraps DB.saveXxx and deleteXxx methods so offline writes are queued in
    localStorage and auto-flushed when network returns.
    - Optimistic: caller gets immediate response (data with id)
    - Dedup: same (fn, rowId) → keep last write only (last-write-wins)
