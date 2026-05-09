@@ -706,13 +706,23 @@ const BeccaTests = (() => {
     }
 
     /* ── PO Belanja Pasar SUPPLIER column (commit 1a557d1) ── */
-    // Force lazy-load PO module bundle (po.js + po-belanja-pasar.js loaded on demand).
-    if (typeof POBelanjaPasarModule === 'undefined' && typeof App?._loadModule === 'function') {
-      try { await App._loadModule('po'); } catch {}
-      // po.js dynamically loads po-belanja-pasar.js — wait briefly for it
-      for (let i = 0; i < 20 && typeof POBelanjaPasarModule === 'undefined'; i++) {
-        await new Promise(r => setTimeout(r, 50));
-      }
+    // po-belanja-pasar.js loaded oleh POModule._loadBelanjaPasar() (private) — hanya
+    // kalau user navigate ke tab Belanja Pasar. Untuk test, inject script tag manual.
+    if (typeof POBelanjaPasarModule === 'undefined') {
+      try {
+        if (typeof App?._loadModule === 'function') await App._loadModule('po');
+        await new Promise((resolve) => {
+          if (document.querySelector('script[src^="js/modules/po-belanja-pasar.js"]')) { resolve(); return; }
+          const s = document.createElement('script');
+          s.src = 'js/modules/po-belanja-pasar.js?v=20260508b';
+          s.onload  = resolve;
+          s.onerror = resolve; // gracefully skip kalau gagal load (jangan block)
+          document.head.appendChild(s);
+        });
+        for (let i = 0; i < 20 && typeof POBelanjaPasarModule === 'undefined'; i++) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+      } catch {}
     }
     if (typeof POBelanjaPasarModule !== 'undefined') {
       assert(S, 'POBelanjaPasarModule._onSupplierChange exists', typeof POBelanjaPasarModule._onSupplierChange === 'function');
