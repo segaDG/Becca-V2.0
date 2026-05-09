@@ -689,6 +689,52 @@ const BeccaTests = (() => {
     } else {
       skip(S, 'KasModule._calcTotal', 'module not loaded yet (lazy)');
     }
+
+    /* ── PO Belanja Pasar SUPPLIER column (commit 1a557d1) ── */
+    if (typeof POBelanjaPasarModule !== 'undefined') {
+      assert(S, 'POBelanjaPasarModule._onSupplierChange exists', typeof POBelanjaPasarModule._onSupplierChange === 'function');
+      assert(S, 'POBelanjaPasarModule._onSupplierKey exists',    typeof POBelanjaPasarModule._onSupplierKey === 'function');
+      assert(S, 'POBelanjaPasarModule._onCikopoChange exists',   typeof POBelanjaPasarModule._onCikopoChange === 'function');
+      assert(S, 'POBelanjaPasarModule._onCikopoKey exists',      typeof POBelanjaPasarModule._onCikopoKey === 'function');
+      // Tab key handling fix (commit 79de326) — verifies handler source has Tab branch
+      const ckSrc = POBelanjaPasarModule._onCikopoKey.toString();
+      assert(S, '_onCikopoKey: handles Tab (Android Chrome quirk)', /Tab/.test(ckSrc) && /Enter/.test(ckSrc));
+      const skSrc = POBelanjaPasarModule._onSupplierKey.toString();
+      assert(S, '_onSupplierKey: handles Tab + Enter',             /Tab/.test(skSrc) && /Enter/.test(skSrc));
+      // Clamp value writeback (commit 79de326) — verifies handler writes clamped value back to input DOM
+      const ccSrc = POBelanjaPasarModule._onCikopoChange.toString();
+      assert(S, '_onCikopoChange: writes clamped value back to DOM',
+        /querySelector\(.*bp-cikopo-input/.test(ccSrc) || /\.value\s*=/.test(ccSrc));
+      const scSrc = POBelanjaPasarModule._onSupplierChange.toString();
+      assert(S, '_onSupplierChange: writes clamped value back to DOM',
+        /querySelector\(.*bp-supplier-input/.test(scSrc) || /\.value\s*=/.test(scSrc));
+    } else {
+      skip(S, 'POBelanjaPasarModule SUPPLIER', 'module not loaded yet (lazy)');
+    }
+
+    /* ── PO supplier mini-card import (commit 1a557d1) ── */
+    if (typeof POModule !== 'undefined') {
+      assert(S, 'POModule._openSupplierImport exists', typeof POModule._openSupplierImport === 'function');
+      assert(S, 'POModule._supImpToggleAll exists',    typeof POModule._supImpToggleAll === 'function');
+      assert(S, 'POModule._supImpConfirm exists',      typeof POModule._supImpConfirm === 'function');
+    } else {
+      skip(S, 'POModule supplier import', 'module not loaded yet (lazy)');
+    }
+
+    /* ── Daily Order Form Produksi mobile Enter fix (commit 2eda98a) ── */
+    if (typeof DailyOrderModule !== 'undefined') {
+      assert(S, 'DailyOrderModule._estQtyKeyDown exists',  typeof DailyOrderModule._estQtyKeyDown === 'function');
+      assert(S, 'DailyOrderModule._estQtyBlur exists',     typeof DailyOrderModule._estQtyBlur === 'function');
+      assert(S, 'DailyOrderModule._cancelEstBlur exists',  typeof DailyOrderModule._cancelEstBlur === 'function');
+      // Tab key handling — Android Chrome "→I" sometimes fires keydown 'Tab' instead of 'Enter'
+      const eqSrc = DailyOrderModule._estQtyKeyDown.toString();
+      assert(S, '_estQtyKeyDown: handles Tab + Enter (Android compat)', /Tab/.test(eqSrc) && /Enter/.test(eqSrc));
+      // Blur fallback passes jumpToField for auto-spawn next row
+      const ebSrc = DailyOrderModule._estQtyBlur.toString();
+      assert(S, '_estQtyBlur: passes jumpToField for next-row spawn', /['"]di-item['"]/.test(ebSrc));
+    } else {
+      skip(S, 'DailyOrderModule Form Produksi', 'module not loaded yet (lazy)');
+    }
   }
 
   // ═══════════════════════════════════════════

@@ -146,7 +146,9 @@ InventoryModule?.init?.();
 - **Modal closable** — gunakan `closable: false` untuk modal wajib. `hideClose: true` TIDAK dikenali
 - **Double-click edit** — `<td>` perlu `data-field="id-input"`, handler via `event.target.closest('td')?.dataset?.field`
 - **Daily Order Enter** — Enter di AKT QTY → save + auto-edit baris berikutnya
+- **Daily Order EST QTY mobile (Form Produksi)** — pakai `type="text" inputmode="numeric"`, **JANGAN** `type="number"`. Android Chrome tidak fire `keydown` event di `<input type="number">` — handler Enter/Tab tidak akan jalan. Selain itu `_estQtyBlur` pass `jumpToField='di-item'` sebagai fallback supaya tap "→I" tetap auto-spawn baris berikutnya kalau keyboard tidak fire keydown.
 - **Daily Order Sync** — matching nama item ke inventory pakai exact match lalu partial match (contains)
+- **PO Belanja Pasar 3 kolom QTY** — formula wajib: `qtyKarawang = totalQty − qtyCikopo − qtySupplier`. Saat `_onCikopoChange`/`_onSupplierChange`: clamp value ke max yg masih sisa, lalu **tulis kembali ke input DOM** (`inp.value = clampedValue`) supaya tampilan match nilai internal (kalau user ketik 12000 di field qty kecil, internal terklamp tapi visual masih 12000 → user kira formula salah). Item dgn `qtySupplier > 0` & `!supplierImportedTo` muncul sebagai mini-card di PO list dan bisa di-import ke Anggaran via `POModule._openSupplierImport(bpDocId)`.
 - **Deep link** — `?task=ID` → `sessionStorage('becca_deep_task')` → auto-open task modal setelah login
 - **Employee gaji** — field `gajiPokok` + `tunjangan` = `gaji` (total). Display harus fallback: `emp.gajiPokok || emp.gaji` untuk data lama
 - **Chat privacy** — rooms hanya visible ke members. `_isMember()` cek `Array.isArray(members)` — guard against string
@@ -159,12 +161,14 @@ InventoryModule?.init?.();
 
 ### Test Suite (`js/tests.js`)
 
-5 test suites, dijalankan di browser:
+7 test suites, dijalankan di browser:
 1. **Regression** — globals, DB methods, module map, no hardcoded passwords
 2. **Data Integrity** — save/load/merge preserves all fields
 3. **Permission** — role-based access (superadmin/viewer/operator)
 4. **Financial Accuracy** — formatRupiah, gaji calculation, kas saldo
 5. **Critical Path** — DB connection, load all tables, CRUD cycle
+6. **Performance & Health** — load time, render speed, query latency
+7. **New Features** — Utils helpers (timeAgo/normalizePhone/helpTip/pullToRefresh/urlState/skeletonRows), DB.getLastEditMap, OfflineQueue, WeeklyDigest, Activity Drawer, GridSelect, UndoRedo, PO Belanja Pasar SUPPLIER column + Tab handling, Daily Order Form Produksi mobile Enter fix
 
 ### Cara Run
 - **Browser:** Settings → Data → Run Tests (superadmin only)
