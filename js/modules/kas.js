@@ -1121,7 +1121,9 @@ const KasModule = (() => {
 
     let list = [];
     try { list = await DB.getPO(); } catch { list = []; }
-    list = (list || []).filter(d => d.status !== 'arsip');
+    // Anggaran berstatus 'selesai' atau 'arsip' tidak bisa berubah lagi → exclude dari picker
+    // (kas yg sudah terlanjur link ke selesai tetap bisa di-Lepas via tombol di footer)
+    list = (list || []).filter(d => d.status !== 'arsip' && d.status !== 'selesai');
     list.sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
 
     const optionsHtml = list.length === 0
