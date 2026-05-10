@@ -501,7 +501,21 @@ else { window.POModule = (() => {
       ${!locked ? `<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:11px;color:var(--text-3);font-style:italic">Double-click baris untuk edit · Enter simpan & lanjut · Esc batal · Drag handle untuk copy</span>
         <button onclick="POModule._addRows('${id}')" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text-3);font-size:11px;cursor:pointer">+ Tambah 10 Baris</button>
-      </div>` : ''}`;
+      </div>` : ''}
+
+      <div id="po-realisasi-kas" style="margin-top:16px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.04)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <span style="font-size:14px">💰</span>
+            <strong style="font-size:13px;color:var(--text)">Realisasi Kas Kecil</strong>
+            <span style="font-size:10px;color:var(--text-3);font-style:italic">— pengeluaran kas yg dikaitkan ke anggaran ini</span>
+            <span id="po-realisasi-summary" style="margin-left:auto;font-size:11px;color:var(--text-3)">Memuat...</span>
+          </div>
+          <div id="po-realisasi-content">
+            <div style="text-align:center;padding:20px;color:var(--text-3);font-size:11px">Memuat data kas...</div>
+          </div>
+        </div>
+      </div>`;
 
     // Register GridSelect callbacks
     if (window.GridSelect) {
@@ -509,6 +523,84 @@ else { window.POModule = (() => {
       GridSelect.onPaste('po-table', _onPaste);
       if (typeof GridSelect.onClear === 'function') GridSelect.onClear('po-table', _onClear);
     }
+
+    // Load Realisasi Kas async (after main render, non-blocking)
+    _loadRealisasiKas(id, itemsTotal);
+  }
+
+  /* ── Realisasi Kas: pull kas yg punya anggaranId === docId, render table + variance ── */
+  async function _loadRealisasiKas(docId, planTotal) {
+    const wrap = document.getElementById('po-realisasi-content');
+    const summaryEl = document.getElementById('po-realisasi-summary');
+    if (!wrap) return;
+    let kasList = [];
+    try { kasList = await DB.getKas(); } catch { kasList = []; }
+    const linked = (kasList || [])
+      .filter(r => r && r.anggaranId === docId)
+      .sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+
+    const totalRealisasi = linked.reduce((s,r) => s + (Number(r.jumlah)||0), 0);
+    const variance = (Number(planTotal)||0) - totalRealisasi;
+    const variancePct = planTotal > 0 ? Math.round((totalRealisasi/planTotal) * 100) : 0;
+    const varColor = variance > 0 ? '#f59e0b' : variance < 0 ? '#ef4444' : '#10b981';
+    const varLabel = variance > 0 ? 'Sisa Anggaran' : variance < 0 ? 'Over Budget' : 'Tepat';
+
+    if (summaryEl) {
+      summaryEl.innerHTML = linked.length === 0
+        ? `<span style="color:var(--text-3)">Belum ada kas yg dikaitkan</span>`
+        : `<span style="color:var(--text-3)">${linked.length} entry · </span><strong style="color:var(--text);font-family:var(--font-mono)">${rp(totalRealisasi)}</strong><span style="color:var(--text-3)"> dari </span><strong style="color:var(--text);font-family:var(--font-mono)">${rp(planTotal||0)}</strong><span style="margin-left:6px;font-size:10px;font-weight:700;background:${varColor}1a;color:${varColor};padding:2px 7px;border-radius:10px">${variancePct}% · ${varLabel}</span>`;
+    }
+
+    if (linked.length === 0) {
+      wrap.innerHTML = `
+        <div style="text-align:center;padding:24px 16px;color:var(--text-3)">
+          <div style="font-size:12px;margin-bottom:6px">Belum ada transaksi kas kecil yg dikaitkan ke anggaran ini.</div>
+          <div style="font-size:11px;font-style:italic">Buka modul Kas → klik tombol <strong style="color:var(--primary-h)">+ link</strong> di samping nama transaksi → pilih anggaran ini.</div>
+        </div>`;
+      return;
+    }
+
+    const rows = linked.map((r, i) => {
+      const date = r.tgl ? r.tgl.split('-').reverse().join('-') : '-';
+      const status = r.status === 'DONE' ? '<span style="font-size:9px;background:rgba(16,185,129,.15);color:#10b981;padding:1px 5px;border-radius:3px;font-weight:600">DONE</span>'
+        : r.status === 'TBC' ? '<span style="font-size:9px;background:rgba(245,158,11,.15);color:#f59e0b;padding:1px 5px;border-radius:3px;font-weight:600">TBC</span>'
+        : '';
+      return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.012)':''}">
+        <td style="padding:7px 8px;font-size:11px;color:var(--text-3);text-align:center">${i+1}</td>
+        <td style="padding:7px 8px;font-size:11px;font-family:var(--font-mono);white-space:nowrap">${date}</td>
+        <td style="padding:7px 8px;font-size:11px;font-weight:500">${Utils.esc(r.nama||'-')}</td>
+        <td style="padding:7px 8px;font-size:11px;color:var(--text-3)">${Utils.esc(r.vendor||'-')}</td>
+        <td style="padding:7px 8px;font-size:11px;color:var(--text-3)">${Utils.esc(r.penerima||'-')}</td>
+        <td style="padding:7px 8px;text-align:center">${status}</td>
+        <td style="padding:7px 8px;text-align:right;font-family:var(--font-mono);font-weight:600;font-size:11px">${rp(r.jumlah||0)}</td>
+      </tr>`;
+    }).join('');
+
+    wrap.innerHTML = `
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:640px">
+          <thead><tr style="background:var(--thead-bg);color:var(--thead-text)">
+            <th style="padding:7px 6px;font-size:9px;font-weight:700;width:28px">#</th>
+            <th style="padding:7px 6px;font-size:9px;font-weight:700;text-align:left;width:90px">TGL</th>
+            <th style="padding:7px 6px;font-size:9px;font-weight:700;text-align:left">NAMA / KETERANGAN</th>
+            <th style="padding:7px 6px;font-size:9px;font-weight:700;text-align:left;width:120px">VENDOR</th>
+            <th style="padding:7px 6px;font-size:9px;font-weight:700;text-align:left;width:120px">PENERIMA</th>
+            <th style="padding:7px 6px;font-size:9px;font-weight:700;width:60px">STATUS</th>
+            <th style="padding:7px 6px;font-size:9px;font-weight:700;text-align:right;width:110px">JUMLAH</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr style="background:var(--surface2);font-weight:700">
+              <td colspan="6" style="padding:8px;font-size:11px;text-align:right;color:var(--text-2)">TOTAL REALISASI</td>
+              <td style="padding:8px;text-align:right;font-family:var(--font-mono);font-size:12px;color:var(--text)">${rp(totalRealisasi)}</td>
+            </tr>
+            <tr style="background:${varColor}0d">
+              <td colspan="6" style="padding:8px;font-size:11px;text-align:right;color:var(--text-2)">SELISIH (Plan − Realisasi)</td>
+              <td style="padding:8px;text-align:right;font-family:var(--font-mono);font-size:12px;font-weight:700;color:${varColor}">${variance>0?'+':variance<0?'-':''}${rp(Math.abs(variance))} <span style="font-size:9px;font-weight:600">· ${varLabel}</span></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
   }
 
   /* ── View row (display mode, GridSelect works) ── */

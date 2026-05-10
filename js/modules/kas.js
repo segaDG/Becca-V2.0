@@ -648,7 +648,7 @@ const KasModule = (() => {
         </div>
       </td>
       <td data-field="ks-tgl-${r.id}" style="white-space:nowrap"><div class="ks-cell">${r.tgl ? r.tgl.split('-').reverse().join('-') : ''}</div></td>
-      <td data-field="ks-nama-${r.id}"><div class="ks-cell" ${r.nama?`title="${(r.nama||'').replace(/"/g,'&quot;')}${r.penerima?' → '+r.penerima:''}"`:''}>${r.nama||''}${isBP?'<span style="font-size:8px;background:rgba(8,145,178,.15);color:#0891b2;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">PASAR</span>':''}</div></td>
+      <td data-field="ks-nama-${r.id}"><div class="ks-cell" ${r.nama?`title="${(r.nama||'').replace(/"/g,'&quot;')}${r.penerima?' → '+r.penerima:''}"`:''}>${r.nama||''}${isBP?'<span style="font-size:8px;background:rgba(8,145,178,.15);color:#0891b2;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">PASAR</span>':''}${canEdit?_renderAnggaranBadge(r):''}</div></td>
       <td data-field="ks-type-${r.id}"><div class="ks-cell"><span class="badge badge-neutral" style="font-size:10px">${r.type||''}</span></div></td>
       <td data-field="ks-vendor-${r.id}"><div class="ks-cell" ${r.vendor?`title="${(r.vendor||'').replace(/"/g,'&quot;')}"`:''}>${r.vendor||''}</div></td>
       <td data-field="ks-qty-${r.id}" class="ks-num"><div class="ks-cell">${(r.qty||0)%1===0?(r.qty||0):parseFloat((r.qty||0).toFixed(2))}</div></td>
@@ -1066,6 +1066,135 @@ const KasModule = (() => {
       renderTransaksi();
       setTimeout(()=>startEdit(saved.id), 80);
     } catch(e) { Notify.error('Gagal', e.message); }
+  }
+
+  /* ── Anggaran Linking (Opsi 4: tracking kas → anggaran) ─────────
+     Kas record dapat punya field nullable `anggaranId` yang link ke
+     PO Anggaran (po_anggaran table). Disimpan di JSONB data column,
+     no schema migration needed. Reconcile via realisasi card di PO detail. */
+  const _anggaranCache = {};
+  let _anggaranCacheLoaded = false;
+  async function _ensureAnggaranCache(force) {
+    if (_anggaranCacheLoaded && !force) return;
+    try {
+      const list = await DB.getPO();
+      Object.keys(_anggaranCache).forEach(k => delete _anggaranCache[k]);
+      (list || []).forEach(d => {
+        const date = d.createdAt ? new Date(d.createdAt).toLocaleDateString('id', {day:'2-digit',month:'short'}) : '';
+        _anggaranCache[d.id] = {
+          label: (d.nomorEstimasi || d.id.slice(-6).toUpperCase()),
+          date,
+          status: d.status || '',
+          petugas: d.namaPetugas || '',
+        };
+      });
+      _anggaranCacheLoaded = true;
+    } catch(e) { /* ignore — fallback to ID slice */ }
+  }
+  // Eager-load di background saat module init load
+  setTimeout(() => _ensureAnggaranCache(), 100);
+
+  function _renderAnggaranBadge(r) {
+    if (!r) return '';
+    const id = r.anggaranId;
+    if (id) {
+      const meta = _anggaranCache[id];
+      const label = meta?.label || id.slice(-6).toUpperCase();
+      const tip = `Anggaran: ${label}${meta?.date?' · '+meta.date:''}. Klik untuk ubah.`;
+      return `<span class="ks-anggaran-tag"
+        style="display:inline-block;font-size:9px;background:rgba(99,102,241,.15);color:var(--primary-h);padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600;cursor:pointer;vertical-align:middle"
+        onclick="event.stopPropagation();KasModule._openAnggaranPicker('${r.id}')"
+        title="${Utils.esc(tip)}">🔗 ${Utils.esc(label)}</span>`;
+    }
+    return `<button class="ks-anggaran-link-btn"
+      onclick="event.stopPropagation();KasModule._openAnggaranPicker('${r.id}')"
+      title="Kaitkan ke anggaran"
+      style="font-size:9px;background:transparent;border:1px dashed var(--border);color:var(--text-3);padding:1px 5px;border-radius:3px;margin-left:4px;cursor:pointer;opacity:.45;font-weight:500;vertical-align:middle"
+      onmouseover="this.style.opacity='.85'"
+      onmouseout="this.style.opacity='.45'">+ link</button>`;
+  }
+
+  async function _openAnggaranPicker(rowId) {
+    const row = _kas.find(r => r.id === rowId);
+    if (!row) { Notify.warning('Baris kas tidak ditemukan'); return; }
+    await _ensureAnggaranCache(true);
+
+    let list = [];
+    try { list = await DB.getPO(); } catch { list = []; }
+    list = (list || []).filter(d => d.status !== 'arsip');
+    list.sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+
+    const optionsHtml = list.length === 0
+      ? `<div style="padding:24px;text-align:center;color:var(--text-3)">Belum ada anggaran. Buat di modul PO dulu.</div>`
+      : list.map(d => {
+          const isSelected = row.anggaranId === d.id;
+          const itemsTotal = (d.items||[]).reduce((s,it) => s+(Number(it.totalHarga)||0), 0);
+          const date = d.createdAt ? new Date(d.createdAt).toLocaleDateString('id', {day:'2-digit',month:'short',year:'2-digit'}) : '';
+          const itemCount = (d.items||[]).filter(it => (it.namaBarang||'').trim()).length;
+          const stColors = {
+            'draft':           {bg:'rgba(245,158,11,.15)', fg:'#f59e0b', label:'DRAFT'},
+            'finance_request': {bg:'rgba(59,130,246,.15)', fg:'#3b82f6', label:'REQUEST'},
+            'finance_done':    {bg:'rgba(16,185,129,.15)', fg:'#10b981', label:'DISETUJUI'},
+            'selesai':         {bg:'rgba(99,102,241,.15)', fg:'#6366f1', label:'SELESAI'},
+          };
+          const sc = stColors[d.status] || {bg:'var(--surface2)', fg:'var(--text-3)', label:(d.status||'-').toUpperCase()};
+          const statusBadge = `<span style="font-size:9px;background:${sc.bg};color:${sc.fg};padding:1px 5px;border-radius:3px;font-weight:600">${sc.label}</span>`;
+          return `<div onclick="KasModule._selectAnggaran('${rowId}','${d.id}')"
+            style="padding:10px 12px;border:1px solid ${isSelected?'var(--primary)':'var(--border)'};border-radius:8px;cursor:pointer;background:${isSelected?'rgba(99,102,241,.08)':'transparent'};margin-bottom:6px;transition:background .15s"
+            onmouseover="if(this.dataset.sel!=='1')this.style.background='var(--surface2)'"
+            onmouseout="if(this.dataset.sel!=='1')this.style.background='transparent'"
+            data-sel="${isSelected?'1':'0'}">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <strong style="color:var(--text);font-size:13px">${Utils.esc(d.nomorEstimasi || d.id.slice(-6))}</strong>
+              ${statusBadge}
+              <span style="margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--text-3);font-weight:600">${Utils.formatRupiah(itemsTotal)}</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:3px">${date} · ${Utils.esc(d.namaPetugas||'—')} · ${itemCount} item</div>
+          </div>`;
+        }).join('');
+
+    Modal.open({
+      id: 'kas-anggaran-picker',
+      title: '🔗 Kaitkan ke Anggaran',
+      body: `
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:12px">Pilih anggaran terkait dengan transaksi <strong style="color:var(--text)">${Utils.esc(row.nama||'(belum diisi)')}</strong> · ${Utils.formatRupiah(row.jumlah||0)}.</div>
+        <div style="max-height:420px;overflow-y:auto;padding-right:4px">${optionsHtml}</div>
+      `,
+      footer: row.anggaranId
+        ? `<button class="btn btn-ghost" style="color:var(--danger)" onclick="KasModule._unlinkAnggaran('${rowId}')">✕ Lepas Kaitan</button><button class="btn btn-ghost" onclick="Modal.close('kas-anggaran-picker')">Tutup</button>`
+        : `<button class="btn btn-ghost" onclick="Modal.close('kas-anggaran-picker')">Tutup</button>`
+    });
+  }
+
+  async function _selectAnggaran(rowId, anggaranId) {
+    const row = _kas.find(r => r.id === rowId);
+    if (!row) return;
+    if (row.anggaranId === anggaranId) { Modal.close('kas-anggaran-picker'); return; }
+    row.anggaranId = anggaranId;
+    try {
+      await DB.saveKas({...row});
+      DB.logActivity?.({type:'edit_kas', detail:'Link ke anggaran: '+(row.nama||row.id), rowId:row.id});
+      Notify.success('Dikaitkan ke anggaran');
+      Modal.close('kas-anggaran-picker');
+      renderTransaksi();
+    } catch(e) {
+      Notify.error('Gagal menyimpan', e.message);
+    }
+  }
+
+  async function _unlinkAnggaran(rowId) {
+    const row = _kas.find(r => r.id === rowId);
+    if (!row) return;
+    delete row.anggaranId;
+    try {
+      await DB.saveKas({...row});
+      DB.logActivity?.({type:'edit_kas', detail:'Unlink anggaran: '+(row.nama||row.id), rowId:row.id});
+      Notify.info('Kaitan anggaran dilepas');
+      Modal.close('kas-anggaran-picker');
+      renderTransaksi();
+    } catch(e) {
+      Notify.error('Gagal menyimpan', e.message);
+    }
   }
 
   /* ── Bulk Delete ── */
@@ -2883,6 +3012,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas };
+  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran };
 })();
 window.KasModule = KasModule;
