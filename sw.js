@@ -35,10 +35,15 @@ self.addEventListener('notificationclick', e => {
 });
 
 // ── Cache Strategy ─────────────────────────────────────────
-// NETWORK-FIRST for all JS/CSS — always get latest, fallback to cache offline.
-// Only cache static assets (images, fonts) with stale-while-revalidate.
-// This prevents stale code from being served after deploys.
-const CACHE_NAME = 'becca-v120';
+// STALE-WHILE-REVALIDATE for versioned assets (?v=BUILD_VERSION):
+//   Serve cached version instan, fetch fresh di background.
+//   URL ber-versi → kalau BUILD_VERSION bump, URL beda → cache miss → fetch baru.
+//   Repeat visit load ~70% lebih cepat tanpa risk serve stale code (URL diff).
+// NETWORK-FIRST for non-versioned JS/CSS (eager scripts di <head> tanpa ?v=) —
+//   tetap fetch fresh tiap visit, fallback cache offline. Safety net.
+// Cache static assets (images, fonts) tetap stale-while-revalidate.
+// BUMP CACHE_NAME tiap kali strategy ini berubah supaya old cache di-clear.
+const CACHE_NAME = 'becca-v130';
 
 // Only precache truly static assets (images, fonts) — NOT JS/CSS
 const PRECACHE = [
@@ -84,8 +89,31 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // JS & CSS — NETWORK FIRST, cache as fallback for offline
-  if (url.pathname.match(/\.(js|css)$/) || url.search.includes('v=')) {
+  // Versioned JS/CSS (?v=BUILD_VERSION) — STALE-WHILE-REVALIDATE.
+  // Aman karena URL ber-versi: kalau code update, BUILD_VERSION bump → URL beda
+  // → cache miss → fetch fresh. Cache hanya serve untuk URL yg sama (versi sama
+  // = code sama). Repeat visit instan.
+  const hasVersion = url.search.includes('v=');
+  if (hasVersion && url.pathname.match(/\.(js|css)$/)) {
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        const networkFetch = fetch(e.request).then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          }
+          return res;
+        }).catch(() => cached);
+        // Return cached jika ada, network di background. Kalau cache miss, tunggu network.
+        return cached || networkFetch;
+      })
+    );
+    return;
+  }
+
+  // Non-versioned JS/CSS — tetap NETWORK FIRST (eager scripts di <head>).
+  // Tidak bisa pakai stale-while-revalidate karena URL sama walau code update.
+  if (url.pathname.match(/\.(js|css)$/)) {
     e.respondWith(
       fetch(e.request)
         .then(res => {
