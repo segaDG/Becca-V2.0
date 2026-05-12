@@ -18,6 +18,15 @@
   <!-- Preconnect ke domain eksternal untuk mempercepat DNS + TLS -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin/>
   <link rel="preconnect" href="https://pevwkyrsfpmzhwxkoask.supabase.co" crossorigin/>
+  <!-- DNS prefetch untuk Firebase (lazy-load saat user enable push), tidak blocking -->
+  <link rel="dns-prefetch" href="https://www.gstatic.com"/>
+  <link rel="dns-prefetch" href="https://fcm.googleapis.com"/>
+  <!-- Preload modul yg most-common dibuka per role.
+       BUILD harus match App.BUILD_VERSION. Kalau mismatch, no harm — browser
+       cuma warning di console + fallback fetch normal (_loadModule). -->
+  <link rel="preload" as="script" href="js/modules/dashboard.js?v=20260513d"/>
+  <link rel="preload" as="script" href="js/modules/kas.js?v=20260513d"/>
+  <link rel="preload" as="script" href="js/modules/daily-order.js?v=20260513d"/>
   <link rel="stylesheet" href="css/base.css?v=20260404x"/>
   <link rel="stylesheet" href="css/layout.css?v=20260504a"/>
   <link rel="stylesheet" href="css/components.css?v=20260404x"/>
