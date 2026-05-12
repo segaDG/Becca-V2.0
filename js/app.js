@@ -822,40 +822,42 @@ const App = {
     const today = new Date().toISOString().split('T')[0];
     const lastBackup = localStorage.getItem('becca_last_backup_date');
     if (lastBackup === today) return;
+    // CLEANUP: hapus dead-weight key becca_backup_latest (~600KB write-only,
+    // duplikat dari becca_<table> keys individu, tidak ada reader). Migration
+    // one-shot: aman dijalankan tiap hari karena removeItem idempotent.
+    try { localStorage.removeItem('becca_backup_latest'); } catch {}
     try {
-      // Strip heavy fields (photos, data URLs) to keep backup small
-      const strip = (arr) => arr.map(r => {
-        const clean = {...r};
-        delete clean.fotoUrl; delete clean.ktpUrl; delete clean.mediaUrl;
-        delete clean.faceDescriptors; delete clean.logoUrl;
-        return clean;
-      });
-      const [employees, logs, customers, orders] = await Promise.all([
-        DB.getEmployees().catch(()=>[]),
-        DB.getEmployeeLogs().catch(()=>[]),
-        DB.getCustomers().catch(()=>[]),
-        DB.getOrders().catch(()=>[]),
-      ]);
-      const backup = {
-        _backupDate: today, _version: '2.0',
-        employees: strip(employees),
-        emp_logs: logs,
-        customers: strip(customers),
-        orders: orders,
-      };
-      // Save only today (no multi-day — saves space)
-      localStorage.setItem('becca_backup_latest', JSON.stringify(backup));
-      localStorage.setItem('becca_last_backup_date', today);
-      // Also download as file once per week
+      // Weekly file download only — recoverFromLocalStorage sudah handle restore
+      // dari becca_<table> keys yang otomatis di-save tiap saveXxx call.
       const lastFile = localStorage.getItem('becca_last_file_backup') || '';
       const daysSince = lastFile ? Math.floor((Date.now() - new Date(lastFile)) / 86400000) : 999;
       if (daysSince >= 7) {
+        const strip = (arr) => arr.map(r => {
+          const clean = {...r};
+          delete clean.fotoUrl; delete clean.ktpUrl; delete clean.mediaUrl;
+          delete clean.faceDescriptors; delete clean.logoUrl;
+          return clean;
+        });
+        const [employees, logs, customers, orders] = await Promise.all([
+          DB.getEmployees().catch(()=>[]),
+          DB.getEmployeeLogs().catch(()=>[]),
+          DB.getCustomers().catch(()=>[]),
+          DB.getOrders().catch(()=>[]),
+        ]);
+        const backup = {
+          _backupDate: today, _version: '2.0',
+          employees: strip(employees),
+          emp_logs: logs,
+          customers: strip(customers),
+          orders: orders,
+        };
         const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
         const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `becca-backup-${today}.json` });
         a.click(); URL.revokeObjectURL(a.href);
         localStorage.setItem('becca_last_file_backup', today);
+        console.log(`[Backup] Weekly file backup downloaded: ${today}`);
       }
-      console.log(`[Backup] Auto-backup completed: ${today}`);
+      localStorage.setItem('becca_last_backup_date', today);
     } catch(e) { console.warn('[Backup] Auto-backup failed:', e.message); }
   },
 
