@@ -164,10 +164,21 @@ const GridSelect = (() => {
   }
 
   function _pendingUp() {
-    // No drag — biarkan click event normal fire ke row's onclick. Tidak ada selection.
+    // No drag terdeteksi → ini click murni. Tetap aktifkan single-cell selection
+    // supaya arrow nav, Enter (edit mode), Delete (clear) bisa langsung jalan.
+    // Browser event order: mouseup → handler ini → click event. Jadi onclick row
+    // tetap fire setelah ini (modal detail tetap muncul, dll).
     document.removeEventListener('mousemove', _pendingMove);
     document.removeEventListener('mouseup', _pendingUp);
+    if (!_pending) return;
+    const { td, tbl, pos } = _pending;
     _pending = null;
+    _clear();
+    td.classList.add('gs-sel'); td.style.position = 'relative';
+    const h = document.createElement('div'); h.className = 'gs-handle';
+    h.title = 'Geser ke atas/bawah untuk copy nilai ke baris lain';
+    h.addEventListener('mousedown', _fillStart); td.appendChild(h);
+    _sel = { tbl, startRow: pos.row, startCol: pos.col, endRow: pos.row, endCol: pos.col, cells: [td] };
   }
   let _selRaf = 0;
   function _onMoveThrottled(e) {

@@ -791,7 +791,42 @@ else { window.SettingsModule = (() => {
 
   /* ===================== TAB: ACTIVITY LOG ===================== */
   // Activity Log state (pagination + filter)
-  let _actState = { page: 1, perPage: 50, type: '', search: '' };
+  let _actState = { page: 1, perPage: 50, type: '', cat: '', search: '' };
+
+  // Derive kategori dari type — group teknis types ke kategori yang scanable
+  function _actCategoryOf(type) {
+    if (!type) return '-';
+    const t = String(type).toLowerCase();
+    if (t.includes('kas_masuk')) return 'Kas Masuk';
+    if (t.includes('kas')) return 'Kas Kecil';
+    if (t.includes('opname')) return 'Opname';
+    if (t.includes('inventory') || t.startsWith('inv_') || t.startsWith('audit_inv')) return 'Inventory';
+    if (t.includes('payroll') || t.includes('absensi') || t.startsWith('emp_') || t.includes('employee') || t.includes('jadwal')) return 'Karyawan';
+    if (t.includes('customer')) return 'Customer';
+    if (t.includes('invoice')) return 'Invoice';
+    if (t.includes('order')) return 'Order';
+    if (t.includes('belanja_pasar') || t.includes('anggaran') || t.includes('po_anggaran') || t === 'audit_po') return 'PO';
+    if (t === 'add_ap' || t === 'edit_ap' || t === 'delete_ap' || t === 'audit_ap') return 'AP';
+    if (t.includes('task')) return 'Task';
+    if (t.includes('delivery')) return 'Delivery';
+    if (t.includes('news')) return 'News';
+    if (t.includes('menu')) return 'Menu';
+    if (t.includes('chat') || t.includes('message')) return 'Chat';
+    if (t.includes('login') || t.includes('logout') || t.includes('password')) return 'Auth';
+    if (t.includes('user') || t.includes('role') || t.includes('privilege')) return 'User';
+    if (t.includes('export') || t.includes('import') || t.includes('settings') || t.includes('backup')) return 'System';
+    return 'Lainnya';
+  }
+  // Warna konsisten per kategori
+  const _actCatColors = {
+    'Kas Kecil':'#10b981', 'Kas Masuk':'#059669', 'Opname':'#0891b2',
+    'Inventory':'#6366f1', 'Karyawan':'#8b5cf6', 'Customer':'#ec4899',
+    'Invoice':'#f59e0b',   'Order':'#ef4444',    'PO':'#dc2626',
+    'AP':'#d97706',        'Task':'#3b82f6',     'Delivery':'#06b6d4',
+    'News':'#a855f7',      'Menu':'#84cc16',     'Chat':'#14b8a6',
+    'Auth':'#64748b',      'User':'#0ea5e9',     'System':'#475569',
+    'Lainnya':'#94a3b8',   '-':'#94a3b8',
+  };
 
   async function renderActivity() {
     const logs   = await DB.getActivityLogs().catch(()=>[]);
@@ -799,14 +834,24 @@ else { window.SettingsModule = (() => {
 
     // Store logs for detail modal + refresh
     window._activityLogs = sorted;
-    _actState = { page: 1, perPage: 50, type: '', search: '' };
+    _actState = { page: 1, perPage: 50, type: '', cat: '', search: '' };
 
     // Build type filter options dari unique types yg ada di logs
     const typeCounts = {};
-    sorted.forEach(l => { const t = l.type || '-'; typeCounts[t] = (typeCounts[t]||0)+1; });
+    const catCounts = {};
+    sorted.forEach(l => {
+      const t = l.type || '-';
+      typeCounts[t] = (typeCounts[t]||0)+1;
+      const c = _actCategoryOf(t);
+      catCounts[c] = (catCounts[c]||0)+1;
+    });
     const typeOpts = Object.entries(typeCounts)
       .sort((a,b) => b[1] - a[1])
       .map(([t,c]) => `<option value="${Utils.esc(t)}">${Utils.esc(t)} (${c})</option>`)
+      .join('');
+    const catOpts = Object.entries(catCounts)
+      .sort((a,b) => b[1] - a[1])
+      .map(([c,n]) => `<option value="${Utils.esc(c)}">${Utils.esc(c)} (${n})</option>`)
       .join('');
 
     document.getElementById('set-tab-activity').innerHTML = `
@@ -816,13 +861,18 @@ else { window.SettingsModule = (() => {
           <span class="text-muted text-small" style="margin-left:8px">· Klik baris untuk detail</span>
         </div>
         <div style="display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap">
+          <select class="form-control" id="act-filter-cat" style="width:150px;font-size:12px"
+            onchange="SettingsModule._setActCat(this.value)" title="Filter berdasarkan kategori">
+            <option value="">Semua kategori</option>
+            ${catOpts}
+          </select>
           <select class="form-control" id="act-filter-type" style="width:170px;font-size:12px"
-            onchange="SettingsModule._setActType(this.value)">
-            <option value="">Semua tipe (${sorted.length})</option>
+            onchange="SettingsModule._setActType(this.value)" title="Filter berdasarkan tipe spesifik">
+            <option value="">Semua tipe</option>
             ${typeOpts}
           </select>
-          <input type="text" class="form-control" id="act-filter-search" style="width:200px;font-size:12px"
-            placeholder="Cari user / aktivitas..."
+          <input type="text" class="form-control" id="act-filter-search" style="width:180px;font-size:12px"
+            placeholder="Cari user / detail..."
             oninput="SettingsModule._filterActivityLog(this.value)">
           <select class="form-control" style="width:90px;font-size:12px"
             onchange="SettingsModule._setActPerPage(+this.value)">
@@ -839,10 +889,11 @@ else { window.SettingsModule = (() => {
         <table class="table" id="activity-table">
           <thead><tr>
             <th style="width:32px">#</th>
-            <th style="width:140px">Waktu</th>
-            <th>User</th>
-            <th style="width:80px">Role</th>
-            <th>Aktivitas</th>
+            <th style="width:130px">Waktu</th>
+            <th style="width:110px">User</th>
+            <th style="width:70px">Role</th>
+            <th style="width:110px">Kategori</th>
+            <th style="width:140px">Tipe</th>
             <th>Detail</th>
           </tr></thead>
           <tbody id="activity-tbody"></tbody>
@@ -857,8 +908,10 @@ else { window.SettingsModule = (() => {
     const logs = window._activityLogs || [];
     const lower = (_actState.search||'').toLowerCase();
     const t = _actState.type || '';
+    const cat = _actState.cat || '';
     return logs.filter(l => {
       if (t && (l.type||'') !== t) return false;
+      if (cat && _actCategoryOf(l.type) !== cat) return false;
       if (!lower) return true;
       const u = (l.username || l.user || '').toLowerCase();
       const ty = (l.type||'').toLowerCase();
@@ -935,7 +988,7 @@ else { window.SettingsModule = (() => {
       update_privileges:'var(--warning)',
     };
 
-    if (!rows.length) return `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada aktivitas yang cocok</td></tr>`;
+    if (!rows.length) return `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada aktivitas yang cocok</td></tr>`;
 
     return rows.map((log,i) => {
       const timeStr = log.timestamp
@@ -946,7 +999,10 @@ else { window.SettingsModule = (() => {
       const detail = (log.detail||'').length > 40 ? (log.detail||'').substring(0,40)+'…' : (log.detail||'-');
       const userName = log.username || log.user || '-';
 
+      const cat = _actCategoryOf(log.type);
+      const catColor = _actCatColors[cat] || 'var(--text-2)';
       const typeSafe = (log.type||'').replace(/'/g, "\\'");
+      const catSafe  = cat.replace(/'/g, "\\'");
       return `<tr style="cursor:pointer;transition:background .1s"
                 onmouseover="this.style.background='var(--surface2)'"
                 onmouseout="this.style.background=''"
@@ -956,9 +1012,16 @@ else { window.SettingsModule = (() => {
         <td style="font-weight:600;font-size:13px">${Utils.esc(userName)}</td>
         <td><span class="badge badge-neutral" style="font-size:10px">${Utils.esc(log.role||'-')}</span></td>
         <td>
+          <span class="badge act-cat-pill" title="Klik untuk filter kategori '${Utils.esc(cat)}'"
+            onclick="event.stopPropagation();SettingsModule._setActCat('${catSafe}');var s=document.getElementById('act-filter-cat');if(s)s.value='${catSafe}'"
+            style="font-size:10px;background:${catColor}1f;color:${catColor};border:1px solid ${catColor}40;cursor:pointer;font-weight:700;transition:transform .1s,box-shadow .1s"
+            onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 2px 6px '+'${catColor}40'"
+            onmouseout="this.style.transform='';this.style.boxShadow=''">${Utils.esc(cat)}</span>
+        </td>
+        <td>
           <span style="display:inline-flex;align-items:center;gap:5px">
             <span>${icon}</span>
-            <span class="badge act-type-pill" title="Klik untuk filter tipe ini"
+            <span class="badge act-type-pill" title="Klik untuk filter tipe '${Utils.esc(log.type||'-')}'"
               onclick="event.stopPropagation();SettingsModule._setActType('${typeSafe}');var s=document.getElementById('act-filter-type');if(s)s.value='${typeSafe}'"
               style="font-size:10px;background:${color}18;color:${color};border:1px solid ${color}30;cursor:pointer;transition:transform .1s,box-shadow .1s"
               onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 2px 6px '+'${color}40'"
@@ -976,6 +1039,7 @@ else { window.SettingsModule = (() => {
     _refreshActivityTable();
   }
   function _setActType(t) { _actState.type = t || ''; _actState.page = 1; _refreshActivityTable(); }
+  function _setActCat(c) { _actState.cat = c || ''; _actState.page = 1; _refreshActivityTable(); }
   function _setActPage(p) { _actState.page = Math.max(1, p|0); _refreshActivityTable(); }
   function _setActPerPage(n) { _actState.perPage = Math.max(1, n|0); _actState.page = 1; _refreshActivityTable(); }
 
@@ -2632,7 +2696,7 @@ else { window.SettingsModule = (() => {
     saveGeneralSettings, _handleLogoUpload, _removeLogo, openChangePasswordModal, _changePassword,
     renderUsers, openUserModal, _submitUser, toggleUser, deleteUser, bulkCreateFromEmployees, _doBulkCreate,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
-    renderActivity, _renderActivityRows, _filterActivityLog, _setActType, _setActPage, _setActPerPage, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
+    renderActivity, _renderActivityRows, _filterActivityLog, _setActType, _setActCat, _setActPage, _setActPerPage, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData, recoverData, runTests,
     clearInventoryData, clearOpnameData, clearOrdersData, clearInvoicesData,
     importOrdersExcel, _doImportOrdersExcel, importInvoicesExcel, _doImportInvoicesExcel,
