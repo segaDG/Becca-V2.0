@@ -874,6 +874,9 @@ else { window.SettingsModule = (() => {
           <input type="text" class="form-control" id="act-filter-search" style="width:180px;font-size:12px"
             placeholder="Cari user / detail..."
             oninput="SettingsModule._filterActivityLog(this.value)">
+          <button id="act-filter-reset" class="filter-reset-btn"
+            onclick="SettingsModule._resetActFilters()"
+            title="Reset semua filter" aria-label="Reset filter">↺</button>
           <select class="form-control" style="width:90px;font-size:12px"
             onchange="SettingsModule._setActPerPage(+this.value)">
             <option value="25">25/hal</option>
@@ -939,6 +942,13 @@ else { window.SettingsModule = (() => {
       cnt.textContent = total === allTotal
         ? `${allTotal} aktivitas`
         : `${total} dari ${allTotal} aktivitas (filtered)`;
+    }
+
+    // Toggle reset button active state (merah pulse kalau ada filter aktif)
+    const resetBtn = document.getElementById('act-filter-reset');
+    if (resetBtn) {
+      const hasFilter = !!(_actState.type || _actState.cat || _actState.search);
+      resetBtn.classList.toggle('active', hasFilter);
     }
 
     const pag = document.getElementById('act-pagination');
@@ -1042,6 +1052,15 @@ else { window.SettingsModule = (() => {
   function _setActCat(c) { _actState.cat = c || ''; _actState.page = 1; _refreshActivityTable(); }
   function _setActPage(p) { _actState.page = Math.max(1, p|0); _refreshActivityTable(); }
   function _setActPerPage(n) { _actState.perPage = Math.max(1, n|0); _actState.page = 1; _refreshActivityTable(); }
+  function _resetActFilters() {
+    _actState.type = ''; _actState.cat = ''; _actState.search = ''; _actState.page = 1;
+    const cat = document.getElementById('act-filter-cat');     if (cat) cat.value = '';
+    const typ = document.getElementById('act-filter-type');    if (typ) typ.value = '';
+    const src = document.getElementById('act-filter-search');  if (src) src.value = '';
+    const btn = document.getElementById('act-filter-reset');
+    if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
+    _refreshActivityTable();
+  }
 
   function showActivityDetail(idOrIdx) {
     const logs = window._activityLogs || [];
@@ -2696,7 +2715,7 @@ else { window.SettingsModule = (() => {
     saveGeneralSettings, _handleLogoUpload, _removeLogo, openChangePasswordModal, _changePassword,
     renderUsers, openUserModal, _submitUser, toggleUser, deleteUser, bulkCreateFromEmployees, _doBulkCreate,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
-    renderActivity, _renderActivityRows, _filterActivityLog, _setActType, _setActCat, _setActPage, _setActPerPage, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
+    renderActivity, _renderActivityRows, _filterActivityLog, _setActType, _setActCat, _setActPage, _setActPerPage, _resetActFilters, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData, recoverData, runTests,
     clearInventoryData, clearOpnameData, clearOrdersData, clearInvoicesData,
     importOrdersExcel, _doImportOrdersExcel, importInvoicesExcel, _doImportInvoicesExcel,
