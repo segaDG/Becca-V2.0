@@ -91,9 +91,8 @@
   <script src="js/ui/sidebar.js?v=20260404x"          defer></script>
   <script src="js/ui/bottom-nav.js?v=20260504a"       defer></script>
 
-  <!-- Firebase SDK (untuk push notification) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" defer></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js" defer></script>
+  <!-- Firebase SDK: di-load dinamis oleh push.js saat user enable notifikasi.
+       Menghindari ~200KB eager-fetch ke gstatic.com tiap boot. -->
 
   <!-- Utility modules — always loaded -->
   <script src="js/push.js?v=20260404x"                    defer></script>
