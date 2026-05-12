@@ -112,8 +112,8 @@ const DBExtensions = (() => {
       },
 
       users: ({ eventType }) => {
-        // User baru ditambah — refresh auth list
-        console.log('[RT] Users changed:', eventType);
+        // User baru ditambah — refresh auth list (silent in prod, log di debug mode)
+        if (window.BECCA_DEBUG) console.log('[RT] Users changed:', eventType);
       },
 
       settings: ({ eventType }) => {
