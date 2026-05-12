@@ -89,6 +89,16 @@ const BeccaTests = (() => {
     const hasPassword = Auth._defaultUsers.some(u => u.password);
     assert(S, 'No hardcoded passwords in _defaultUsers', !hasPassword);
 
+    // BUILD_VERSION mechanism (single source of truth untuk cache busting)
+    assert(S, 'App.BUILD_VERSION exists', typeof App.BUILD_VERSION === 'string' && App.BUILD_VERSION.length > 0);
+    assert(S, 'App.BUILD_VERSION format YYYYMMDDx',
+      /^\d{8}[a-z]$/.test(App.BUILD_VERSION || ''));
+    // _MODULE_MAP getter compose URL pakai BUILD_VERSION
+    const mmap = App._MODULE_MAP;
+    assert(S, '_MODULE_MAP returns object', typeof mmap === 'object' && mmap !== null);
+    assert(S, '_MODULE_MAP URLs include BUILD_VERSION',
+      Object.values(mmap).every(url => url.includes('?v=' + App.BUILD_VERSION)));
+
     // Module load verification — catch syntax errors in lazy-loaded modules
     const moduleChecks = [
       ['DashboardModule','dashboard'], ['OrderModule','order'], ['InvoiceModule','invoice'],
