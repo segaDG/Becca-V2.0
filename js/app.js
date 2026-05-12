@@ -3,35 +3,43 @@
    Router, boot, notifications, logout
 ============================================ */
 const App = {
+  // Global cache buster — bump SEKALI saat deploy, applies ke semua modul lazy-load.
+  // index.html eager scripts (utils, db, ui/*, dll) tetap per-file karena
+  // HTML loads dulu sebelum JS constant ini bisa diakses.
+  BUILD_VERSION: '20260513a',
   _currentPage: 'dashboard',
   _loadedModules: new Set(),
 
-  _MODULE_MAP: {
-    dashboard : 'js/modules/dashboard.js?v=20260507a',
-    order     : 'js/modules/order.js?v=20260507a',
-    invoice   : 'js/modules/invoice.js?v=20260505c',
-    customer  : 'js/modules/customer.js?v=20260512a',
-    news      : 'js/modules/news.js?v=20260512a',
-    kas       : 'js/modules/kas.js?v=20260510b',
-    'daily-order': 'js/modules/daily-order.js?v=20260512b',
-    inventory : 'js/modules/inventory.js?v=20260507e',
-    employee  : 'js/modules/employee.js?v=20260512a',
-    ap        : 'js/modules/ap.js?v=20260507c',
-    po        : 'js/modules/po.js?v=20260510a',
-    task      : 'js/modules/task.js?v=20260512a',
-    delivery  : 'js/modules/delivery.js?v=20260505a',
-    menu      : 'js/modules/menu.js?v=20260512a',
-    chat      : 'js/modules/chat.js?v=20260428a',
-    personal  : 'js/modules/personal.js?v=20260428a',
-    report    : 'js/modules/report.js?v=20260505d',
-    settings  : 'js/modules/settings.js?v=20260512e',
+  get _MODULE_MAP() {
+    const v = this.BUILD_VERSION;
+    return {
+      dashboard : `js/modules/dashboard.js?v=${v}`,
+      order     : `js/modules/order.js?v=${v}`,
+      invoice   : `js/modules/invoice.js?v=${v}`,
+      customer  : `js/modules/customer.js?v=${v}`,
+      news      : `js/modules/news.js?v=${v}`,
+      kas       : `js/modules/kas.js?v=${v}`,
+      'daily-order': `js/modules/daily-order.js?v=${v}`,
+      inventory : `js/modules/inventory.js?v=${v}`,
+      employee  : `js/modules/employee.js?v=${v}`,
+      ap        : `js/modules/ap.js?v=${v}`,
+      po        : `js/modules/po.js?v=${v}`,
+      task      : `js/modules/task.js?v=${v}`,
+      delivery  : `js/modules/delivery.js?v=${v}`,
+      menu      : `js/modules/menu.js?v=${v}`,
+      chat      : `js/modules/chat.js?v=${v}`,
+      personal  : `js/modules/personal.js?v=${v}`,
+      report    : `js/modules/report.js?v=${v}`,
+      settings  : `js/modules/settings.js?v=${v}`,
+    };
   },
 
   _loadScript(src) {
     return new Promise((resolve, reject) => {
-      // Prevent duplicate: check if script with same base path (ignoring ?v=) already loaded
-      const basePath = src.split('?')[0];
-      const existing = document.querySelector(`script[src^="${basePath}"]`);
+      // EXACT match dedup (include ?v=). Sebelumnya cuma cek base path → kalau
+      // prefetch fetch versi lama, manual nav setelah deploy bump TIDAK reload
+      // versi baru. Sekarang harus exact match, beda versi = re-load.
+      const existing = document.querySelector(`script[src="${src}"]`);
       if (existing) { resolve(); return; }
       const s = document.createElement('script');
       s.src = src;
