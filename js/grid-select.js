@@ -368,6 +368,17 @@ const GridSelect = (() => {
       _doClear();
       return;
     }
+    // Enter atau F2: masuk edit mode di cell ter-select (Excel-like).
+    // Dispatch synthetic dblclick — modul yang punya ondblclick (kas, inventory, po,
+    // daily-order) akan auto-trigger edit. Modul tanpa ondblclick → no-op.
+    if (_sel && _sel.cells.length === 1 && (e.key === 'Enter' || e.key === 'F2')) {
+      if (tag === 'input' || tag === 'select' || tag === 'textarea' || e.target.isContentEditable) return;
+      e.preventDefault();
+      const td = _sel.cells[0];
+      _clear(); // release selection — user akan langsung masuk input editor
+      td.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window }));
+      return;
+    }
     // Arrow navigation (Excel-like): pindah cell pakai panah, Shift+Arrow extend selection
     if (_sel && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
       if (tag === 'input' || tag === 'select' || tag === 'button' || e.target.isContentEditable) return;
