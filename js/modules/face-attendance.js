@@ -693,7 +693,7 @@ const FaceAttendanceModule = (() => {
       <!-- Header -->
       <div id="ks-header">
         <div style="display:flex;align-items:center;gap:12px">
-          <img src="/img/logo-bps.png" style="height:34px;object-fit:contain"
+          <img loading="lazy" decoding="async" src="/img/logo-bps.png" style="height:34px;object-fit:contain"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div style="display:none;width:34px;height:34px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;flex-shrink:0">B</div>
           <div>

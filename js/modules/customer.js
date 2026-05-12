@@ -1014,7 +1014,7 @@ const CustomerModule = (() => {
     }
     el.innerHTML = `<div style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-top:var(--s2)">
       <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" style="display:block">
-        <img src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=600x200&markers=color:red%7C${lat},${lng}&key=AIzaSyBhL-Y4jUxQzmHiCbSR6WWwjMcMtQK6ZmQ" style="width:100%;height:120px;object-fit:cover;display:block" onerror="this.style.display='none'">
+        <img loading="lazy" decoding="async" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=600x200&markers=color:red%7C${lat},${lng}&key=AIzaSyBhL-Y4jUxQzmHiCbSR6WWwjMcMtQK6ZmQ" style="width:100%;height:120px;object-fit:cover;display:block" onerror="this.style.display='none'">
       </a>
       <div style="padding:6px var(--s3);background:var(--surface2);display:flex;align-items:center;justify-content:space-between">
         <span style="font-size:11px;color:var(--success);font-weight:600">\u2713 ${lat.toFixed(5)}, ${lng.toFixed(5)}</span>

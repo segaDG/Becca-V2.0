@@ -984,7 +984,7 @@ const NewsModule = (() => {
       return `
         <div style="position:relative;width:80px;height:80px;flex-shrink:0">
           ${thumb
-            ? `<img src="${thumb}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`
+            ? `<img loading="lazy" decoding="async" src="${thumb}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`
             : `<div style="width:80px;height:80px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px">🎬</div>`}
           ${label}
           <button onclick="NewsModule._ncRemoveMedia(${i})"

@@ -56,7 +56,7 @@ const EmployeeModule = (() => {
     const photoUrl = (_rawFoto && _rawFoto.startsWith('data:')) ? _rawFoto : '';
     if (photoUrl) {
       const eid = (emp.id||'').replace(/'/g,'');
-      return '<img src="'+photoUrl+'" style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;object-fit:cover;cursor:zoom-in"'
+      return '<img loading="lazy" decoding="async" src="'+photoUrl+'" style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;object-fit:cover;cursor:zoom-in"'
         +' onclick="event.stopPropagation();EmployeeModule._viewPhoto(this.src)" title="Klik untuk perbesar">';
     }
     return '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+color+';color:white;display:flex;align-items:center;justify-content:center;font-size:'+(sz*0.35)+'px;font-weight:700;flex-shrink:0">'+initials+'</div>';
@@ -600,7 +600,7 @@ const EmployeeModule = (() => {
           </div>
           <div style="padding:16px;text-align:center;min-height:80px;display:flex;align-items:center;justify-content:center">
             ${emp.ktpUrl
-              ? `<img src="${emp.ktpUrl}" style="max-width:100%;max-height:260px;border-radius:var(--r);object-fit:contain;cursor:zoom-in;box-shadow:var(--shadow)"
+              ? `<img loading="lazy" decoding="async" src="${emp.ktpUrl}" style="max-width:100%;max-height:260px;border-radius:var(--r);object-fit:contain;cursor:zoom-in;box-shadow:var(--shadow)"
                       onclick="EmployeeModule._viewPhoto(this.src)" title="Klik untuk perbesar">`
               : `<div style="color:var(--text-3);font-size:13px">Belum ada foto KTP${canEdit ? ' · Klik "Edit / Upload KTP" untuk menambahkan' : ''}</div>`}
           </div>
@@ -894,7 +894,7 @@ const EmployeeModule = (() => {
           <div class="form-group" style="display:flex;align-items:center;gap:12px;margin-bottom:0">
             <div id="emp-foto-preview" style="width:60px;height:60px;border-radius:50%;overflow:hidden;flex-shrink:0;
                  background:var(--surface2);border:2px dashed var(--border2);display:flex;align-items:center;justify-content:center">
-              ${d.fotoUrl ? '<img src="'+d.fotoUrl+'" style="width:100%;height:100%;object-fit:cover">' : '<span style="font-size:24px">👤</span>'}
+              ${d.fotoUrl ? '<img loading="lazy" decoding="async" src="'+d.fotoUrl+'" style="width:100%;height:100%;object-fit:cover">' : '<span style="font-size:24px">👤</span>'}
             </div>
             <div>
               <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;font-weight:600">Foto Diri</div>
@@ -909,7 +909,7 @@ const EmployeeModule = (() => {
           <div class="form-group" style="display:flex;align-items:center;gap:12px;margin-bottom:0">
             <div id="emp-ktp-preview" style="width:100px;height:62px;border-radius:6px;overflow:hidden;flex-shrink:0;
                  background:var(--surface2);border:2px dashed var(--border2);display:flex;align-items:center;justify-content:center">
-              ${d.ktpUrl ? '<img src="'+d.ktpUrl+'" style="width:100%;height:100%;object-fit:contain">' : '<span style="font-size:20px">🪪</span>'}
+              ${d.ktpUrl ? '<img loading="lazy" decoding="async" src="'+d.ktpUrl+'" style="width:100%;height:100%;object-fit:contain">' : '<span style="font-size:20px">🪪</span>'}
             </div>
             <div>
               <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;font-weight:600">Foto KTP</div>
@@ -1121,7 +1121,7 @@ const EmployeeModule = (() => {
       title: 'Foto Karyawan',
       size: 'modal-sm',
       body: `<div style="text-align:center;padding:var(--s4)">
-        <img src="${src}" style="max-width:100%;max-height:70vh;border-radius:var(--r-lg);box-shadow:var(--shadow-lg)">
+        <img loading="lazy" decoding="async" src="${src}" style="max-width:100%;max-height:70vh;border-radius:var(--r-lg);box-shadow:var(--shadow-lg)">
         </div>`,
       footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
     });
@@ -1167,7 +1167,7 @@ const EmployeeModule = (() => {
       if (!compressed) return;
       _tempFotoUrl = compressed;
       const prev = document.getElementById('emp-foto-preview');
-      if (prev) prev.innerHTML = '<img src="'+compressed+'" style="width:100%;height:100%;object-fit:cover">';
+      if (prev) prev.innerHTML = '<img loading="lazy" decoding="async" src="'+compressed+'" style="width:100%;height:100%;object-fit:cover">';
     };
     reader.onerror = function() { Notify.error('Gagal membaca file'); };
     reader.readAsDataURL(file);
@@ -1189,7 +1189,7 @@ const EmployeeModule = (() => {
       if (!compressed) return;
       _tempKtpUrl = compressed;
       const prev = document.getElementById('emp-ktp-preview');
-      if (prev) prev.innerHTML = '<img src="'+compressed+'" style="width:100%;height:100%;object-fit:contain">';
+      if (prev) prev.innerHTML = '<img loading="lazy" decoding="async" src="'+compressed+'" style="width:100%;height:100%;object-fit:contain">';
     };
     reader.onerror = function() { Notify.error('Gagal membaca file KTP'); };
     reader.readAsDataURL(file);
@@ -2886,7 +2886,7 @@ const EmployeeModule = (() => {
     if (!dataUrl) return;
     _tempFotoUrl = dataUrl;
     const prev = document.getElementById('emp-foto-preview');
-    if (prev) prev.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover">';
+    if (prev) prev.innerHTML = '<img loading="lazy" decoding="async" src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover">';
   }
 
   async function _pickKtp() {
@@ -2897,7 +2897,7 @@ const EmployeeModule = (() => {
     if (!dataUrl) return;
     _tempKtpUrl = dataUrl;
     const prev = document.getElementById('emp-ktp-preview');
-    if (prev) prev.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:80px;object-fit:cover;border-radius:4px">';
+    if (prev) prev.innerHTML = '<img loading="lazy" decoding="async" src="'+dataUrl+'" style="width:100%;height:80px;object-fit:cover;border-radius:4px">';
   }
 
   function reArrangeLb() { _logs.sort((a,b)=>((b.tanggal||b.tgl||'')).localeCompare((a.tanggal||a.tgl||''))); renderLogbook(); Notify.success('Data diurutkan berdasarkan tanggal'); }

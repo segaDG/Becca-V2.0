@@ -618,7 +618,7 @@ Key hari: 0=Senin, 1=Selasa, ..., 6=Minggu.`;
     const mid = 'ai-resep-'+Date.now();
     Modal.open({id:mid, title:'<span style="display:inline-flex;align-items:center;gap:6px">AI Resep: '+_esc(m.nama)+' <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:var(--r-full);background:var(--primary-bg);color:var(--primary-h)">AI</span></span>', size:'modal-lg',
       body:`<div id="ai-resep-body" style="text-align:center;padding:var(--s8);color:var(--text-3)">
-        <img src="/img/logo-bps.png" style="width:48px;height:48px;margin-bottom:var(--s3);animation:pulse 1.5s ease-in-out infinite" onerror="this.style.display='none'">
+        <img loading="lazy" decoding="async" src="/img/logo-bps.png" style="width:48px;height:48px;margin-bottom:var(--s3);animation:pulse 1.5s ease-in-out infinite" onerror="this.style.display='none'">
         <div>Generating resep untuk <strong>${_esc(m.nama)}</strong>...</div>
         <div style="font-size:11px;margin-top:var(--s2);color:var(--primary-h)">Menggunakan Google Gemini AI</div>
       </div><style>@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.05)}}</style>`,

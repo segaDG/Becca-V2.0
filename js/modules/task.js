@@ -54,7 +54,7 @@ const TaskModule = (() => {
     if (!el) return;
     el.innerHTML = _tMedia.map((m, i) => `
       <div style="position:relative;width:64px;height:64px;flex-shrink:0">
-        <img src="${m.thumb}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">
+        <img loading="lazy" decoding="async" src="${m.thumb}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">
         <button onclick="TaskModule._tRemoveImg(${i})"
           style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;
                  background:#ef4444;color:#fff;border:none;font-size:11px;line-height:1;cursor:pointer;
@@ -666,7 +666,7 @@ const TaskModule = (() => {
         return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px" onclick="event.stopPropagation()">
           ${shown.map((m, mi)=>{
             const src = _imgLoad(m.ownerId, m.id) || m.full || m.thumb || '';
-            return src ? `<img src="${src}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;cursor:zoom-in;border:1px solid var(--border)"
+            return src ? `<img loading="lazy" decoding="async" src="${src}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;cursor:zoom-in;border:1px solid var(--border)"
               onclick="TaskModule._openTaskImg('${t.id}',${mi})">` : '';
           }).join('')}
           ${rest > 0 ? `<div style="width:48px;height:48px;background:var(--surface2);border-radius:4px;
@@ -899,7 +899,7 @@ const TaskModule = (() => {
                 <div style="display:flex;flex-wrap:wrap;gap:6px">
                   ${imgs.map((m, idx) => {
                     const src = _imgLoad(m.ownerId, m.id) || m.full || m.thumb || '';
-                    return src ? `<img src="${src}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:zoom-in;border:1px solid var(--border)"
+                    return src ? `<img loading="lazy" decoding="async" src="${src}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:zoom-in;border:1px solid var(--border)"
                       onclick="TaskModule._openTaskImg('${editId}',${idx})">` : '';
                   }).join('')}
                 </div>
@@ -989,7 +989,7 @@ const TaskModule = (() => {
             <div id="task-media-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
               ${_tMedia.map((m,i) => `
                 <div style="position:relative;width:64px;height:64px;flex-shrink:0">
-                  <img src="${m.thumb}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">
+                  <img loading="lazy" decoding="async" src="${m.thumb}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">
                   <button onclick="TaskModule._tRemoveImg(${i})"
                     style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;
                            background:#ef4444;color:#fff;border:none;font-size:11px;cursor:pointer;
