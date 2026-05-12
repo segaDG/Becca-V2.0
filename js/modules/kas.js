@@ -566,7 +566,7 @@ const KasModule = (() => {
             value="${_filter.search||''}"
             placeholder="Cari nama, vendor, penerima, type..."
             style="flex:1;border:none;background:transparent;outline:none;font-size:13px;padding:4px 0;box-shadow:none"
-            oninput="KasModule.setFilter('search',this.value)"
+            oninput="KasModule._setSearchDebounced(this.value)"
             onkeydown="if(event.key==='Escape'){KasModule.toggleSearch()}">
           <button onclick="KasModule.toggleSearch()" title="Tutup pencarian (Esc)"
             style="width:24px;height:24px;border-radius:50%;border:none;background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);flex-shrink:0;transition:all .15s"
@@ -1315,6 +1315,9 @@ const KasModule = (() => {
     // Keep search bar open & refocus after re-render
     if (k==='search') { const sb=document.getElementById('kas-search-bar'); if(sb){sb.classList.remove('closed');sb.classList.add('open');} const inp=document.getElementById('kas-search-input'); if(inp){inp.focus();inp.selectionStart=inp.selectionEnd=inp.value.length;} }
   }
+  // Debounced search handler — render hanya 200ms setelah user stop typing.
+  // Cegah render full table tiap keystroke (lag di low-end + dataset >5000 row).
+  const _setSearchDebounced = Utils.debounce(v => setFilter('search', v), 200);
   function resetFilter() {
     const btn = document.getElementById('kas-reset-btn');
     if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
@@ -3033,6 +3036,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran };
+  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced };
 })();
 window.KasModule = KasModule;

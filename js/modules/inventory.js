@@ -492,7 +492,7 @@ const InventoryModule = (() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-3)"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           <input id="inv-stok-search" placeholder="Cari nama / kategori..." value="${_search}"
             style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);outline:none;box-sizing:border-box"
-            oninput="InventoryModule.setSearch(this.value)">
+            oninput="InventoryModule._setSearchDebounced(this.value)">
         </div>
         <span style="font-size:11px;color:var(--text-3)" id="inv-stok-count">${filtered.length} barang</span>
         <select onchange="InventoryModule.setStokPerPage(+this.value)"
@@ -3319,6 +3319,8 @@ const InventoryModule = (() => {
       if(el){ el.focus(); try{el.setSelectionRange(pos,pos);}catch(e){} }
     });
   }
+  // Debounce search input — render hanya 200ms setelah stop typing.
+  const _setSearchDebounced = Utils.debounce(v => setSearch(v), 200);
 
   /* ===================== TAB: LAPORAN BULANAN ===================== */
   function setLaporanBulan(bulan) {
@@ -3901,6 +3903,7 @@ const InventoryModule = (() => {
     switchTab,
     setKatFilter,
     setSearch,
+    _setSearchDebounced,
     setLaporanBulan,
     openItemModal,
     _submitItem,

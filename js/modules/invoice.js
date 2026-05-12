@@ -361,7 +361,7 @@ const InvoiceModule = (() => {
         </svg>
         <input id="inv-search" placeholder="Cari customer / invoice # / ID..." value="${_search}"
           style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);outline:none;box-sizing:border-box"
-          oninput="InvoiceModule.setSearch(this.value)">
+          oninput="InvoiceModule._setSearchDebounced(this.value)">
       </div>
       <select onchange="InvoiceModule.setFilter(this.value)"
         style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);cursor:pointer">
@@ -2053,13 +2053,15 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     const el = document.getElementById('inv-content');
     if (el) el.innerHTML = _renderTabContent();
   }
+  // Debounce search — render hanya 200ms setelah stop typing
+  const _setSearchDebounced = Utils.debounce(v => setSearch(v), 200);
   function setFilter(val) {
     _filterStatus = val;
     const el = document.getElementById('inv-content');
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, setFilter, reArrangeAR, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _sendWA, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _showConfirmPreview, _createInvoice, _toggleAdditional, _addAdditionalRow, _calcAddRowTotal };
+  return { init, switchTab, setSearch, _setSearchDebounced, setFilter, reArrangeAR, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _sendWA, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _showConfirmPreview, _createInvoice, _toggleAdditional, _addAdditionalRow, _calcAddRowTotal };
 })();
 
 window.InvoiceModule = InvoiceModule;

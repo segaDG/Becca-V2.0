@@ -306,7 +306,7 @@ const CustomerModule = (() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-3)"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           <input placeholder="Cari nama / jenis / kota..." value="${_search}"
             style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);outline:none;box-sizing:border-box"
-            oninput="CustomerModule.setSearch(this.value)">
+            oninput="CustomerModule._setSearchDebounced(this.value)">
         </div>
         <span style="font-size:12px;color:var(--text-3);margin-left:auto">${list.length} customer ditampilkan</span>
       </div>
@@ -628,6 +628,7 @@ const CustomerModule = (() => {
     _search = (val||'').toLowerCase();
     _render();
   }
+  const _setSearchDebounced = Utils.debounce(v => setSearch(v), 200);
   function sortBy(col) {
     if (_sortCol === col) _sortDir *= -1; else { _sortCol = col; _sortDir = 1; }
     _render();
@@ -1076,7 +1077,7 @@ const CustomerModule = (() => {
     Notify.success(`Koordinat berhasil diambil: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
   }
 
-  return { init, switchTab, setSearch, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, openTrash, _restoreFromTrash, _permanentDelete, _previewLoc, _useMyLocation, _parseMapLink };
+  return { init, switchTab, setSearch, _setSearchDebounced, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, openTrash, _restoreFromTrash, _permanentDelete, _previewLoc, _useMyLocation, _parseMapLink };
 })();
 
 window.CustomerModule = CustomerModule;
