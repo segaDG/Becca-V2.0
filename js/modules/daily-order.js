@@ -443,17 +443,19 @@ const DailyOrderModule = (() => {
         </div>
         <style>
           #do-date-scroll::-webkit-scrollbar{display:none}
+          /* Budget cards: always flex (desktop + mobile). Force wrap ke baris baru
+             dengan flex:1 1 100% supaya tidak terjepit di samping SHIFT/FOOD COST. */
+          .do-budget-cards{display:flex;gap:12px;flex:1 1 100%;flex-wrap:wrap;min-width:0;padding-bottom:4px}
+          .do-budget-cards>div{flex:1 1 320px;min-width:0}
           @media(max-width:768px){
             .do-legend{display:none !important}
             .do-shift-meta{flex-direction:column;align-items:stretch !important}
             .do-shift-meta>div{width:100%}
-            .do-budget-cards{display:flex;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;flex-wrap:wrap}
-            .do-budget-cards::-webkit-scrollbar{display:none}
-            .do-budget-cards>div{flex-shrink:0}
-            @media (max-width:640px){
-              .do-budget-cards{flex-wrap:nowrap}
-              .do-budget-cards>div{min-width:88vw;max-width:88vw}
-            }
+          }
+          @media (max-width:640px){
+            /* Mobile: 1 card per row, full width */
+            .do-budget-cards{gap:10px}
+            .do-budget-cards>div{flex:1 1 100%}
           }
         </style>
       </div>
@@ -523,7 +525,7 @@ const DailyOrderModule = (() => {
               ${pct > 100 ? `<div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#ef4444;animation:pulse 1.2s ease-in-out infinite"></div>` : ''}
             </div>`;
           return `
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;min-width:300px;flex:1;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px">
             <div style="display:flex;align-items:center;gap:6px">
               <span style="font-size:14px">💰</span>
@@ -571,7 +573,7 @@ const DailyOrderModule = (() => {
           const _bc = totSelisih>=0 ? '#10b981' : '#ef4444';
           const _bl = totSelisih>=0 ? '▲ Surplus' : '▼ Defisit';
           return `
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;min-width:240px;flex:1;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px">
             <div style="display:flex;align-items:center;gap:6px">
               <span style="font-size:14px">📅</span>
