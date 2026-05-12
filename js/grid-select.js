@@ -1,7 +1,8 @@
 /**
  * BECCA Grid Select + Fill Drag + Copy/Paste
- * Google Sheets-like: block select, SUM bar, fill drag, Ctrl+C/V, right-click menu.
- * Attaches to tables with [data-grid-select] attribute.
+ * Google Sheets-like: block select, SUM bar, fill drag, Ctrl+C/V, arrow nav, right-click menu.
+ * Auto-attaches to any <table> inside #content area (opt-out via data-no-grid-select).
+ * Explicit data-grid-select attribute juga didukung (backward compat untuk modal).
  */
 const GridSelect = (() => {
   let _sel = null;   // {tbl, startRow, startCol, endRow, endCol, cells:[]}
@@ -64,6 +65,21 @@ const GridSelect = (() => {
     if (!tr || !tbody) return null;
     return { row: Array.from(tbody.children).indexOf(tr), col: Array.from(tr.children).indexOf(td) };
   }
+
+  // Tentukan apakah suatu table eligible untuk grid-select.
+  // Auto-attach: tabel di dalam #content yang BUKAN di modal/sidebar/popup.
+  // Opt-out: tabel dengan attribute data-no-grid-select.
+  // Backward compat: data-grid-select tetap force-enable (untuk modal/popup yg seharusnya pakai).
+  function _eligibleTable(tbl) {
+    if (!tbl) return false;
+    if (tbl.hasAttribute('data-no-grid-select')) return false;
+    if (tbl.hasAttribute('data-grid-select')) return true;
+    if (!tbl.closest('#content, .content')) return false;
+    if (tbl.closest('.modal-overlay, #modal-root, .sidebar, .gs-bar, .gs-ctx, .notify-popup, header')) return false;
+    // Skip kalau bukan data table (no tbody or 0 rows)
+    if (!tbl.querySelector('tbody tr')) return false;
+    return true;
+  }
   function _range(tbl, r1, c1, r2, c2) {
     const tbody = tbl?.querySelector('tbody'); if (!tbody) return [];
     const rows = Array.from(tbody.children), out = [];
@@ -110,9 +126,9 @@ const GridSelect = (() => {
     if (e.target.closest('.gs-handle')) return;
     const td = e.target.closest('td');
     if (!td) return;
-    const tbl = td.closest('table[data-grid-select]');
-    if (!tbl) return;
-    if (td.closest('.ks-editing,.iv-editing,.po-editing') || e.target.closest('input,select,button')) return;
+    const tbl = td.closest('table');
+    if (!_eligibleTable(tbl)) return;
+    if (td.closest('.ks-editing,.iv-editing,.po-editing,.di-editing,.ap-editing') || e.target.closest('input,select,button,textarea,a[href],[contenteditable]')) return;
     const pos = _rc(td); if (!pos) return;
     _clear();
     td.classList.add('gs-sel'); td.style.position = 'relative';
@@ -149,8 +165,8 @@ const GridSelect = (() => {
   let _fillRaf = 0;
   function _fillStart(e) {
     e.preventDefault(); e.stopPropagation();
-    const td = e.target.closest('td'), tbl = td?.closest('table[data-grid-select]'), pos = _rc(td);
-    if (!td || !tbl || !pos) return;
+    const td = e.target.closest('td'), tbl = td?.closest('table'), pos = _rc(td);
+    if (!td || !tbl || !pos || !_eligibleTable(tbl)) return;
     _fill = { tbl, srcRow: pos.row, srcCol: pos.col, value: (td.textContent||'').trim(), targets: [] };
     document.addEventListener('mousemove', _fillMoveThrottled);
     document.addEventListener('mouseup', _fillEnd);
@@ -282,6 +298,35 @@ const GridSelect = (() => {
   }
 
   // ── KEYBOARD & EVENTS ──
+  // Helper untuk re-render selection (dipakai arrow nav)
+  function _redrawSelection() {
+    if (!_sel) return;
+    const tbl = _sel.tbl;
+    tbl.querySelectorAll('.gs-sel').forEach(el => {
+      el.classList.remove('gs-sel');
+      el.querySelector('.gs-handle')?.remove();
+    });
+    const cells = _range(tbl, _sel.startRow, _sel.startCol, _sel.endRow, _sel.endCol);
+    cells.forEach(c => c.classList.add('gs-sel'));
+    _sel.cells = cells;
+    // Re-add fill handle untuk anchor cell (kalau single cell)
+    if (cells.length === 1) {
+      const td = cells[0];
+      td.style.position = 'relative';
+      const h = document.createElement('div');
+      h.className = 'gs-handle';
+      h.title = 'Geser ke atas/bawah untuk copy nilai ke baris lain';
+      h.addEventListener('mousedown', _fillStart);
+      td.appendChild(h);
+    }
+    // Update sum bar
+    if (cells.length > 1) _showBar(cells);
+    else if (_bar) { _bar.remove(); _bar = null; }
+    // Scroll anchor cell into view
+    const anchor = cells[cells.length - 1] || cells[0];
+    anchor?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
   document.addEventListener('keydown', e => {
     const tag = (e.target.tagName||'').toLowerCase();
     if (tag === 'textarea') return;
@@ -294,10 +339,47 @@ const GridSelect = (() => {
       _doClear();
       return;
     }
+    // Arrow navigation (Excel-like): pindah cell pakai panah, Shift+Arrow extend selection
+    if (_sel && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      if (tag === 'input' || tag === 'select' || tag === 'button' || e.target.isContentEditable) return;
+      e.preventDefault();
+      const tbody = _sel.tbl.querySelector('tbody');
+      if (!tbody) return;
+      const rowCount = tbody.children.length;
+      const dr = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+      const dc = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (e.shiftKey) {
+        // Extend: update endRow/endCol only
+        const newR = Math.max(0, Math.min(rowCount - 1, _sel.endRow + dr));
+        const colCount = tbody.children[newR]?.children.length || 1;
+        const newC = Math.max(0, Math.min(colCount - 1, _sel.endCol + dc));
+        _sel.endRow = newR; _sel.endCol = newC;
+      } else {
+        // Move single cell: update both start+end
+        const newR = Math.max(0, Math.min(rowCount - 1, _sel.startRow + dr));
+        const colCount = tbody.children[newR]?.children.length || 1;
+        const newC = Math.max(0, Math.min(colCount - 1, _sel.startCol + dc));
+        _sel.startRow = newR; _sel.startCol = newC;
+        _sel.endRow   = newR; _sel.endCol   = newC;
+      }
+      _redrawSelection();
+      return;
+    }
     const meta = e.metaKey || e.ctrlKey;
     if (!meta || !_sel) return;
     if (e.key === 'c') { e.preventDefault(); _doCopy(); }
     if (e.key === 'v') { e.preventDefault(); _doPaste(); }
+    // Ctrl+A: select all cells dalam tbody (handy untuk total seluruh kolom)
+    if (e.key === 'a') {
+      e.preventDefault();
+      const tbody = _sel.tbl.querySelector('tbody');
+      if (!tbody) return;
+      const rowCount = tbody.children.length;
+      const colCount = tbody.children[0]?.children.length || 1;
+      _sel.startRow = 0; _sel.startCol = 0;
+      _sel.endRow   = rowCount - 1; _sel.endCol = colCount - 1;
+      _redrawSelection();
+    }
   });
 
   function _doClear() {
@@ -343,7 +425,7 @@ const GridSelect = (() => {
 
   document.addEventListener('click', e => {
     _hideCtx();
-    if (_sel && !e.target.closest('table[data-grid-select],.gs-bar,.gs-ctx')) _clear();
+    if (_sel && !e.target.closest('table,.gs-bar,.gs-ctx')) _clear();
   });
   _css();
   document.addEventListener('mousedown', _onDown);
