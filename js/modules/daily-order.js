@@ -447,9 +447,13 @@ const DailyOrderModule = (() => {
             .do-legend{display:none !important}
             .do-shift-meta{flex-direction:column;align-items:stretch !important}
             .do-shift-meta>div{width:100%}
-            .do-budget-cards{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px}
+            .do-budget-cards{display:flex;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;flex-wrap:wrap}
             .do-budget-cards::-webkit-scrollbar{display:none}
-            .do-budget-cards>div{min-width:260px;flex-shrink:0}
+            .do-budget-cards>div{flex-shrink:0}
+            @media (max-width:640px){
+              .do-budget-cards{flex-wrap:nowrap}
+              .do-budget-cards>div{min-width:88vw;max-width:88vw}
+            }
           }
         </style>
       </div>
@@ -505,54 +509,91 @@ const DailyOrderModule = (() => {
         ` : ''}
 
         <div class="do-budget-cards">
-        ${hasDayData ? (() => {
-          const _bc = totSelisih>=0 ? '#10b981' : '#ef4444';
-          const _bl = totSelisih>=0 ? '▲ Surplus' : '▼ Defisit';
+        ${form && budgetVal > 0 ? (() => {
+          // Card BUDGET SHIFT: tampilkan Est & Akt side-by-side vs Budget Produksi.
+          // Format readable: angka besar, bar 2-track, %, sisa.
+          const _estPct = budgetVal > 0 ? Math.min(999, totalEst / budgetVal * 100) : 0;
+          const _aktPct = budgetVal > 0 ? Math.min(999, totalAkt / budgetVal * 100) : 0;
+          const _sisaEst = budgetVal - totalEst;
+          const _sisaAkt = shiftSisaAkt;
+          const _estColor = _sisaEst >= 0 ? '#6366f1' : '#ef4444';
+          const _aktColor = _sisaAkt >= 0 ? '#10b981' : '#ef4444';
+          const _bar = (pct, color) => `<div style="position:relative;background:var(--surface2);height:8px;border-radius:6px;overflow:hidden;margin-top:4px">
+              <div style="position:absolute;inset:0 auto 0 0;width:${Math.min(100,pct).toFixed(1)}%;background:${color};border-radius:6px;transition:width .3s"></div>
+              ${pct > 100 ? `<div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#ef4444;animation:pulse 1.2s ease-in-out infinite"></div>` : ''}
+            </div>`;
           return `
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;min-width:220px;flex:1">
-          <div style="font-size:9px;font-weight:700;color:var(--text-3);letter-spacing:.05em;margin-bottom:5px">TOTAL BUDGET HARI INI</div>
-          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:5px">
-            <div>
-              <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">TERPAKAI</div>
-              <div style="font-size:12px;font-weight:700;color:var(--text)">${_fmtRp(totAktOnly)}</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;min-width:300px;flex:1;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:14px">💰</span>
+              <span style="font-size:11px;font-weight:700;color:var(--primary);letter-spacing:.04em">BUDGET ${_shiftLabel(_shift).toUpperCase()}</span>
             </div>
-            <div style="text-align:right">
-              <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">SELISIH</div>
-              <div style="font-size:14px;font-weight:700;color:${_bc}">${totSelisih>=0?'+':'-'}${_fmtRp(Math.abs(totSelisih))}</div>
-            </div>
+            <div style="font-size:15px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${_fmtRp(budgetVal)}</div>
           </div>
-          <div style="position:relative;background:var(--surface2);height:18px;border-radius:4px;overflow:hidden">
-            <div style="position:absolute;inset:0 auto 0 0;width:${Math.min(100,totPct).toFixed(1)}%;background:${_bc};border-radius:4px;transition:width .3s"></div>
-            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 7px;pointer-events:none">
-              <span style="font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)">${_bl}</span>
-              <span style="font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)">${totPct.toFixed(1)}%</span>
+
+          <!-- ESTIMASI row -->
+          <div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+              <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:var(--text-2);letter-spacing:.03em">
+                <span style="background:rgba(99,102,241,.15);color:#6366f1;padding:2px 6px;border-radius:8px;font-size:9px;font-weight:800">📋 EST</span>
+                <span>Planning</span>
+              </div>
+              <div style="font-size:11px;font-weight:700;color:${_estColor}">${_estPct.toFixed(1)}%</div>
             </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:3px">
+              <div style="font-size:13px;font-weight:700;font-family:var(--font-mono);color:var(--text)">${_fmtRp(totalEst)}</div>
+              <div style="font-size:10px;color:var(--text-3)">sisa <span style="color:${_estColor};font-weight:700;font-family:var(--font-mono)">${_sisaEst>=0?'+':'-'}${_fmtRp(Math.abs(_sisaEst))}</span></div>
+            </div>
+            ${_bar(_estPct, _estColor)}
+          </div>
+
+          <!-- AKTUAL row -->
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+              <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:var(--text-2);letter-spacing:.03em">
+                <span style="background:rgba(16,185,129,.15);color:#10b981;padding:2px 6px;border-radius:8px;font-size:9px;font-weight:800">✅ AKT</span>
+                <span>Terpakai</span>
+              </div>
+              <div style="font-size:11px;font-weight:700;color:${_aktColor}">${_aktPct.toFixed(1)}%</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:3px">
+              <div style="font-size:13px;font-weight:700;font-family:var(--font-mono);color:var(--text)">${_fmtRp(totalAkt)}</div>
+              <div style="font-size:10px;color:var(--text-3)">sisa <span style="color:${_aktColor};font-weight:700;font-family:var(--font-mono)">${_sisaAkt>=0?'+':'-'}${_fmtRp(Math.abs(_sisaAkt))}</span></div>
+            </div>
+            ${_bar(_aktPct, _aktColor)}
           </div>
         </div>`;
         })() : ''}
 
-        ${form ? (() => {
-          const _sbc = shiftSisaAkt>=0 ? '#10b981' : '#ef4444';
-          const _sbl = shiftSisaAkt>=0 ? '▲ Surplus' : '▼ Defisit';
-          const _spct = budgetVal > 0 ? totalAkt / budgetVal * 100 : 0;
+        ${hasDayData ? (() => {
+          // Card TOTAL HARI INI: aggregate semua shift, hanya pakai aktTotal.
+          const _bc = totSelisih>=0 ? '#10b981' : '#ef4444';
+          const _bl = totSelisih>=0 ? '▲ Surplus' : '▼ Defisit';
           return `
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;min-width:220px">
-          <div style="font-size:9px;font-weight:700;color:var(--primary);letter-spacing:.05em;margin-bottom:5px">BUDGET ${_shiftLabel(_shift).toUpperCase()}</div>
-          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:5px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;min-width:240px;flex:1;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:14px">📅</span>
+              <span style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.04em">TOTAL HARI INI</span>
+            </div>
+            <div style="font-size:15px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${_fmtRp(totBudget)}</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
             <div>
-              <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">TERPAKAI</div>
-              <div style="font-size:12px;font-weight:700;color:var(--text)">${_fmtRp(totalAkt)}</div>
+              <div style="font-size:9px;color:var(--text-3);margin-bottom:2px;letter-spacing:.03em">AKTUAL TERPAKAI</div>
+              <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${_fmtRp(totAktOnly)}</div>
             </div>
             <div style="text-align:right">
-              <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">SISA</div>
-              <div style="font-size:14px;font-weight:700;color:${_sbc}">${shiftSisaAkt>=0?'+':'-'}${_fmtRp(Math.abs(shiftSisaAkt))}</div>
+              <div style="font-size:9px;color:var(--text-3);margin-bottom:2px;letter-spacing:.03em">${totSelisih>=0?'SURPLUS':'DEFISIT'}</div>
+              <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:${_bc}">${totSelisih>=0?'+':'-'}${_fmtRp(Math.abs(totSelisih))}</div>
             </div>
           </div>
-          <div style="position:relative;background:var(--surface2);height:18px;border-radius:4px;overflow:hidden">
-            <div style="position:absolute;inset:0 auto 0 0;width:${Math.min(100,_spct).toFixed(1)}%;background:${_sbc};border-radius:4px;transition:width .3s"></div>
-            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 7px;pointer-events:none">
-              <span style="font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)">${_sbl}</span>
-              <span style="font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)">${_spct.toFixed(1)}%</span>
+          <div style="position:relative;background:var(--surface2);height:20px;border-radius:6px;overflow:hidden;margin-top:6px">
+            <div style="position:absolute;inset:0 auto 0 0;width:${Math.min(100,totPct).toFixed(1)}%;background:${_bc};border-radius:6px;transition:width .3s"></div>
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 8px;pointer-events:none">
+              <span style="font-size:10px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)">${_bl}</span>
+              <span style="font-size:10px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)">${totPct.toFixed(1)}%</span>
             </div>
           </div>
         </div>`;
