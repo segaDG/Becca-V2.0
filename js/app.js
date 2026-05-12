@@ -329,7 +329,30 @@ const App = {
 
   async _deferredBoot() {
     this._startPresence();
-    if (typeof DBExtensions !== 'undefined') DBExtensions.init();
+    // Defer realtime setup ke setelah first paint stabil (1.5s) supaya
+    // 17 subscription roundtrips tidak block initial paint user experience.
+    setTimeout(() => {
+      if (typeof DBExtensions !== 'undefined') DBExtensions.init();
+    }, 1500);
+    // Pre-warm modul umum saat browser idle — user merasakan instant nav.
+    // requestIdleCallback fallback ke setTimeout di Safari/iOS.
+    const _idle = window.requestIdleCallback || (cb => setTimeout(cb, 3000));
+    _idle(() => {
+      const currentRole = Auth.currentUser()?.role || '';
+      const warmList = (currentRole === 'finance' || currentRole === 'admin')
+        ? ['kas', 'ap', 'po', 'invoice']
+        : (currentRole === 'operator')
+          ? ['daily-order', 'order', 'inventory']
+          : (currentRole === 'viewer')
+            ? ['order', 'customer']
+            : ['kas', 'daily-order', 'inventory', 'order']; // superadmin/default
+      warmList.forEach((mod, i) => {
+        if (mod === this._currentPage) return;
+        if (this._loadedModules.has(mod)) return;
+        // Stagger by 200ms supaya tidak burst network sekaligus
+        setTimeout(() => this._loadModule(mod).catch(()=>{}), i * 200);
+      });
+    }, { timeout: 5000 });
     // Refresh user role (light — 1 cached call)
     if (DB.isReady()) {
       DB.getUsers().then(users => {
