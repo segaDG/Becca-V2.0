@@ -790,34 +790,47 @@ else { window.SettingsModule = (() => {
   }
 
   /* ===================== TAB: ACTIVITY LOG ===================== */
+  // Activity Log state (pagination + filter)
+  let _actState = { page: 1, perPage: 50, type: '', search: '' };
+
   async function renderActivity() {
     const logs   = await DB.getActivityLogs().catch(()=>[]);
     const sorted = [...logs].sort((a,b)=>(b.timestamp||'').localeCompare(a.timestamp||''));
-    const icons  = {
-      login:'🔑', logout:'🚪', add_user:'➕', edit_user:'✏️',
-      change_password:'🔒', update_privileges:'🔐', export_data:'📥', import_data:'📤',
-      add_kas:'💰', edit_kas:'💰', delete_kas:'💰',
-      add_inventory:'📦', edit_inventory:'📦', delete_inventory:'📦',
-      add_item:'📦', edit_item:'📦', opname:'📦',
-      add_customer:'👥', edit_customer:'👥', delete_customer:'👥',
-      add_invoice:'🧾', edit_invoice:'🧾', delete_invoice:'🧾',
-      add_task:'✅', edit_task:'✅', delete_task:'✅', complete_task:'✅',
-      add_ap:'💳', edit_ap:'💳', employee:'👷',
-    };
 
-    // Store logs for detail modal
+    // Store logs for detail modal + refresh
     window._activityLogs = sorted;
+    _actState = { page: 1, perPage: 50, type: '', search: '' };
+
+    // Build type filter options dari unique types yg ada di logs
+    const typeCounts = {};
+    sorted.forEach(l => { const t = l.type || '-'; typeCounts[t] = (typeCounts[t]||0)+1; });
+    const typeOpts = Object.entries(typeCounts)
+      .sort((a,b) => b[1] - a[1])
+      .map(([t,c]) => `<option value="${Utils.esc(t)}">${Utils.esc(t)} (${c})</option>`)
+      .join('');
 
     document.getElementById('set-tab-activity').innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4);flex-wrap:wrap;gap:var(--s3)">
         <div>
-          <span class="text-muted text-small">${sorted.length} aktivitas</span>
+          <span class="text-muted text-small" id="act-count">${sorted.length} aktivitas</span>
           <span class="text-muted text-small" style="margin-left:8px">· Klik baris untuk detail</span>
         </div>
-        <div style="display:flex;gap:var(--s2)">
-          <input type="text" class="form-control" style="width:200px;font-size:12px"
+        <div style="display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap">
+          <select class="form-control" id="act-filter-type" style="width:170px;font-size:12px"
+            onchange="SettingsModule._setActType(this.value)">
+            <option value="">Semua tipe (${sorted.length})</option>
+            ${typeOpts}
+          </select>
+          <input type="text" class="form-control" id="act-filter-search" style="width:200px;font-size:12px"
             placeholder="Cari user / aktivitas..."
             oninput="SettingsModule._filterActivityLog(this.value)">
+          <select class="form-control" style="width:90px;font-size:12px"
+            onchange="SettingsModule._setActPerPage(+this.value)">
+            <option value="25">25/hal</option>
+            <option value="50" selected>50/hal</option>
+            <option value="100">100/hal</option>
+            <option value="200">200/hal</option>
+          </select>
           ${Auth.isSuperAdmin()?`<button class="btn btn-ghost btn-sm" style="color:var(--danger)"
             onclick="SettingsModule.clearActivityLog()">🗑️ Hapus Log</button>`:''}
         </div>
@@ -832,15 +845,82 @@ else { window.SettingsModule = (() => {
             <th>Aktivitas</th>
             <th>Detail</th>
           </tr></thead>
-          <tbody id="activity-tbody">
-            ${SettingsModule._renderActivityRows(sorted)}
-          </tbody>
+          <tbody id="activity-tbody"></tbody>
         </table>
       </div>
+      <div id="act-pagination" style="margin-top:var(--s3);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--s2)"></div>
     `;
+    _refreshActivityTable();
   }
 
-  function _renderActivityRows(rows) {
+  function _applyActFilter() {
+    const logs = window._activityLogs || [];
+    const lower = (_actState.search||'').toLowerCase();
+    const t = _actState.type || '';
+    return logs.filter(l => {
+      if (t && (l.type||'') !== t) return false;
+      if (!lower) return true;
+      const u = (l.username || l.user || '').toLowerCase();
+      const ty = (l.type||'').toLowerCase();
+      const d = (l.detail||'').toLowerCase();
+      return u.includes(lower) || ty.includes(lower) || d.includes(lower);
+    });
+  }
+
+  function _refreshActivityTable() {
+    const filtered = _applyActFilter();
+    const total = filtered.length;
+    const perPage = Math.max(1, _actState.perPage|0);
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    if (_actState.page > totalPages) _actState.page = totalPages;
+    if (_actState.page < 1) _actState.page = 1;
+    const start = (_actState.page - 1) * perPage;
+    const pageRows = filtered.slice(start, start + perPage);
+
+    const tbody = document.getElementById('activity-tbody');
+    if (tbody) tbody.innerHTML = SettingsModule._renderActivityRows(pageRows, start);
+
+    const cnt = document.getElementById('act-count');
+    if (cnt) {
+      const allTotal = (window._activityLogs || []).length;
+      cnt.textContent = total === allTotal
+        ? `${allTotal} aktivitas`
+        : `${total} dari ${allTotal} aktivitas (filtered)`;
+    }
+
+    const pag = document.getElementById('act-pagination');
+    if (pag) {
+      const showFrom = total === 0 ? 0 : start + 1;
+      const showTo   = Math.min(start + perPage, total);
+      const btn = (label, page, disabled, primary) => `<button class="btn ${primary?'btn-primary':'btn-ghost'} btn-sm"
+        style="min-width:32px;font-size:11px;padding:4px 10px${disabled?';opacity:.4;cursor:not-allowed':''}"
+        ${disabled?'disabled':''} onclick="SettingsModule._setActPage(${page})">${label}</button>`;
+      const numBtns = [];
+      const range = 2;
+      const lo = Math.max(1, _actState.page - range);
+      const hi = Math.min(totalPages, _actState.page + range);
+      if (lo > 1) numBtns.push(btn('1', 1, false, false));
+      if (lo > 2) numBtns.push(`<span style="color:var(--text-3);font-size:11px;padding:0 4px">…</span>`);
+      for (let p = lo; p <= hi; p++) numBtns.push(btn(String(p), p, false, p === _actState.page));
+      if (hi < totalPages - 1) numBtns.push(`<span style="color:var(--text-3);font-size:11px;padding:0 4px">…</span>`);
+      if (hi < totalPages) numBtns.push(btn(String(totalPages), totalPages, false, false));
+
+      pag.innerHTML = `
+        <div class="text-muted text-small" style="font-size:11px">
+          ${total === 0 ? 'Tidak ada hasil' : `Halaman ${_actState.page} dari ${totalPages} · Menampilkan ${showFrom}–${showTo} dari ${total}`}
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+          ${btn('« First', 1, _actState.page === 1, false)}
+          ${btn('‹ Prev', _actState.page - 1, _actState.page === 1, false)}
+          ${numBtns.join('')}
+          ${btn('Next ›', _actState.page + 1, _actState.page === totalPages, false)}
+          ${btn('Last »', totalPages, _actState.page === totalPages, false)}
+        </div>`;
+    }
+  }
+
+  function _renderActivityRows(rows, offset) {
+    offset = offset || 0;
     const icons = {
       login:'🔑', logout:'🚪', add_user:'➕', edit_user:'✏️',
       change_password:'🔒', update_privileges:'🔐', export_data:'📥', import_data:'📤',
@@ -855,50 +935,54 @@ else { window.SettingsModule = (() => {
       update_privileges:'var(--warning)',
     };
 
-    if (!rows.length) return `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada aktivitas</td></tr>`;
+    if (!rows.length) return `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3)">Tidak ada aktivitas yang cocok</td></tr>`;
 
-    return rows.slice(0,300).map((log,i) => {
+    return rows.map((log,i) => {
       const timeStr = log.timestamp
         ? new Date(log.timestamp).toLocaleString('id-ID',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})
         : (log.tgl||'-');
       const color = typeColors[log.type] || 'var(--text-2)';
       const icon  = icons[log.type] || '📝';
       const detail = (log.detail||'').length > 40 ? (log.detail||'').substring(0,40)+'…' : (log.detail||'-');
+      const userName = log.username || log.user || '-';
 
       return `<tr style="cursor:pointer;transition:background .1s"
                 onmouseover="this.style.background='var(--surface2)'"
                 onmouseout="this.style.background=''"
-                onclick="SettingsModule.showActivityDetail(${i})">
-        <td class="text-muted" style="font-size:11px">${i+1}</td>
+                onclick="SettingsModule.showActivityDetail('${log.id||''}')">
+        <td class="text-muted" style="font-size:11px">${offset + i + 1}</td>
         <td style="white-space:nowrap;font-size:11px;color:var(--text-3)">${timeStr}</td>
-        <td style="font-weight:600;font-size:13px">${log.user||'-'}</td>
-        <td><span class="badge badge-neutral" style="font-size:10px">${log.role||'-'}</span></td>
+        <td style="font-weight:600;font-size:13px">${Utils.esc(userName)}</td>
+        <td><span class="badge badge-neutral" style="font-size:10px">${Utils.esc(log.role||'-')}</span></td>
         <td>
           <span style="display:inline-flex;align-items:center;gap:5px">
             <span>${icon}</span>
-            <span class="badge" style="font-size:10px;background:${color}18;color:${color};border:1px solid ${color}30">${log.type||'-'}</span>
+            <span class="badge" style="font-size:10px;background:${color}18;color:${color};border:1px solid ${color}30">${Utils.esc(log.type||'-')}</span>
           </span>
         </td>
-        <td class="text-muted" style="font-size:12px">${detail}</td>
+        <td class="text-muted" style="font-size:12px">${Utils.esc(detail)}</td>
       </tr>`;
     }).join('');
   }
 
   function _filterActivityLog(q) {
-    const logs = window._activityLogs || [];
-    const lower = q.toLowerCase();
-    const filtered = lower
-      ? logs.filter(l => (l.user||'').toLowerCase().includes(lower)
-          || (l.type||'').toLowerCase().includes(lower)
-          || (l.detail||'').toLowerCase().includes(lower))
-      : logs;
-    const tbody = document.getElementById('activity-tbody');
-    if (tbody) tbody.innerHTML = SettingsModule._renderActivityRows(filtered);
+    _actState.search = q || '';
+    _actState.page = 1;
+    _refreshActivityTable();
   }
+  function _setActType(t) { _actState.type = t || ''; _actState.page = 1; _refreshActivityTable(); }
+  function _setActPage(p) { _actState.page = Math.max(1, p|0); _refreshActivityTable(); }
+  function _setActPerPage(n) { _actState.perPage = Math.max(1, n|0); _actState.page = 1; _refreshActivityTable(); }
 
-  function showActivityDetail(idx) {
+  function showActivityDetail(idOrIdx) {
     const logs = window._activityLogs || [];
-    const log  = logs[idx];
+    // Backward compat: idx (number) atau id (string) — sekarang pass log.id
+    let log = null;
+    if (typeof idOrIdx === 'number' || /^\d+$/.test(String(idOrIdx))) {
+      log = logs[+idOrIdx];
+    } else {
+      log = logs.find(l => l.id === idOrIdx);
+    }
     if (!log) return;
 
     const timeStr = log.timestamp
@@ -2543,7 +2627,7 @@ else { window.SettingsModule = (() => {
     saveGeneralSettings, _handleLogoUpload, _removeLogo, openChangePasswordModal, _changePassword,
     renderUsers, openUserModal, _submitUser, toggleUser, deleteUser, bulkCreateFromEmployees, _doBulkCreate,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
-    renderActivity, _renderActivityRows, _filterActivityLog, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
+    renderActivity, _renderActivityRows, _filterActivityLog, _setActType, _setActPage, _setActPerPage, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData, recoverData, runTests,
     clearInventoryData, clearOpnameData, clearOrdersData, clearInvoicesData,
     importOrdersExcel, _doImportOrdersExcel, importInvoicesExcel, _doImportInvoicesExcel,
