@@ -847,16 +847,24 @@ else { window.SettingsModule = (() => {
       const c = _actCategoryOf(t);
       catCounts[c] = (catCounts[c]||0)+1;
     });
+    // Saat extend, _actState.type/cat mungkin sudah ada nilai. Pastikan opsi
+    // current selection muncul di list walaupun count-nya 0 di window terbaru.
+    if (_actState.type && !typeCounts[_actState.type]) typeCounts[_actState.type] = 0;
+    if (_actState.cat && !catCounts[_actState.cat]) catCounts[_actState.cat] = 0;
+
+    const _selTyp = _actState.type || '';
+    const _selCat = _actState.cat || '';
     const typeOpts = Object.entries(typeCounts)
       .sort((a,b) => b[1] - a[1])
-      .map(([t,c]) => `<option value="${Utils.esc(t)}">${Utils.esc(t)} (${c})</option>`)
+      .map(([t,c]) => `<option value="${Utils.esc(t)}"${t===_selTyp?' selected':''}>${Utils.esc(t)} (${c})</option>`)
       .join('');
     const catOpts = Object.entries(catCounts)
       .sort((a,b) => b[1] - a[1])
-      .map(([c,n]) => `<option value="${Utils.esc(c)}">${Utils.esc(c)} (${n})</option>`)
+      .map(([c,n]) => `<option value="${Utils.esc(c)}"${c===_selCat?' selected':''}>${Utils.esc(c)} (${n})</option>`)
       .join('');
 
     const showLoadMore = sorted.length >= _actState.fetchLimit;
+    const _selPerPage = _actState.perPage || 50;
     document.getElementById('set-tab-activity').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4);flex-wrap:wrap;gap:var(--s3)">
         <div>
@@ -868,26 +876,27 @@ else { window.SettingsModule = (() => {
         <div style="display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap">
           <select class="form-control" id="act-filter-cat" style="width:150px;font-size:12px"
             onchange="SettingsModule._setActCat(this.value)" title="Filter berdasarkan kategori">
-            <option value="">Semua kategori</option>
+            <option value=""${_selCat===''?' selected':''}>Semua kategori</option>
             ${catOpts}
           </select>
           <select class="form-control" id="act-filter-type" style="width:170px;font-size:12px"
             onchange="SettingsModule._setActType(this.value)" title="Filter berdasarkan tipe spesifik">
-            <option value="">Semua tipe</option>
+            <option value=""${_selTyp===''?' selected':''}>Semua tipe</option>
             ${typeOpts}
           </select>
           <input type="text" class="form-control" id="act-filter-search" style="width:180px;font-size:12px"
             placeholder="Cari user / detail..."
+            value="${Utils.esc(_actState.search||'')}"
             oninput="SettingsModule._filterActivityLog(this.value)">
           <button id="act-filter-reset" class="filter-reset-btn"
             onclick="SettingsModule._resetActFilters()"
             title="Reset semua filter" aria-label="Reset filter">↺</button>
           <select class="form-control" style="width:90px;font-size:12px"
             onchange="SettingsModule._setActPerPage(+this.value)">
-            <option value="25">25/hal</option>
-            <option value="50" selected>50/hal</option>
-            <option value="100">100/hal</option>
-            <option value="200">200/hal</option>
+            <option value="25"${_selPerPage===25?' selected':''}>25/hal</option>
+            <option value="50"${_selPerPage===50?' selected':''}>50/hal</option>
+            <option value="100"${_selPerPage===100?' selected':''}>100/hal</option>
+            <option value="200"${_selPerPage===200?' selected':''}>200/hal</option>
           </select>
           ${Auth.isSuperAdmin()?`<button class="btn btn-ghost btn-sm" style="color:var(--danger)"
             onclick="SettingsModule.clearActivityLog()">🗑️ Hapus Log</button>`:''}
