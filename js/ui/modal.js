@@ -21,6 +21,10 @@ const Modal = {
     const id = opts.id || Utils.uid();
     const closable = opts.closable !== false;
 
+    // Clear any active GridSelect selection — modal akan cover halaman,
+    // gs-handle & gs-sel outline jadi visual noise di balik backdrop.
+    try { if (typeof GridSelect !== 'undefined') GridSelect.clear?.(); } catch {}
+
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     backdrop.id = `modal-backdrop-${id}`;

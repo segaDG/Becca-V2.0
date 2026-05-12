@@ -1099,12 +1099,24 @@ const KasModule = (() => {
     const id = r.anggaranId;
     if (id) {
       const meta = _anggaranCache[id];
+      // Stale link: cache sudah loaded tapi anggaran tidak ditemukan → kemungkinan
+      // sudah dihapus. Tampilkan badge merah dgn warning, jangan label hash cryptic.
+      if (_anggaranCacheLoaded && !meta) {
+        return `<span class="ks-anggaran-tag ks-anggaran-stale"
+          style="display:inline-block;font-size:9px;background:rgba(239,68,68,.12);color:#ef4444;padding:1px 6px;border-radius:3px;margin-left:4px;font-weight:600;cursor:pointer;vertical-align:middle;border:1px solid rgba(239,68,68,.3)"
+          onclick="event.stopPropagation();KasModule._openAnggaranPicker('${r.id}')"
+          title="Anggaran sudah dihapus. Klik untuk lepas atau pilih anggaran lain.">⚠️ Anggaran dihapus</span>`;
+      }
       const label = meta?.label || id.slice(-6).toUpperCase();
-      const tip = `Anggaran: ${label}${meta?.date?' · '+meta.date:''}. Klik untuk ubah.`;
+      const tip = `Anggaran: ${label}${meta?.date?' · '+meta.date:''}${meta?.status==='selesai'?' (SELESAI)':''}. Klik untuk ubah.`;
+      // Beda warna kalau status selesai — indicator visual bahwa link ke anggaran final
+      const isSelesai = meta?.status === 'selesai';
+      const bgCol = isSelesai ? 'rgba(100,116,139,.15)' : 'rgba(99,102,241,.15)';
+      const fgCol = isSelesai ? 'var(--text-3)' : 'var(--primary-h)';
       return `<span class="ks-anggaran-tag"
-        style="display:inline-block;font-size:9px;background:rgba(99,102,241,.15);color:var(--primary-h);padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600;cursor:pointer;vertical-align:middle"
+        style="display:inline-block;font-size:9px;background:${bgCol};color:${fgCol};padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600;cursor:pointer;vertical-align:middle"
         onclick="event.stopPropagation();KasModule._openAnggaranPicker('${r.id}')"
-        title="${Utils.esc(tip)}">🔗 ${Utils.esc(label)}</span>`;
+        title="${Utils.esc(tip)}">🔗 ${Utils.esc(label)}${isSelesai?' ✓':''}</span>`;
     }
     return `<button class="ks-anggaran-link-btn"
       onclick="event.stopPropagation();KasModule._openAnggaranPicker('${r.id}')"
@@ -1121,10 +1133,17 @@ const KasModule = (() => {
 
     let list = [];
     try { list = await DB.getPO(); } catch { list = []; }
-    // Anggaran berstatus 'selesai' atau 'arsip' tidak bisa berubah lagi → exclude dari picker
-    // (kas yg sudah terlanjur link ke selesai tetap bisa di-Lepas via tombol di footer)
-    list = (list || []).filter(d => d.status !== 'arsip' && d.status !== 'selesai');
-    list.sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    // Filter: hide arsip/selesai DARI pilihan baru, TAPI keep currently-linked
+    // anggaran (walaupun selesai) supaya user tau mau lepas dari mana.
+    list = (list || []).filter(d =>
+      (d.status !== 'arsip' && d.status !== 'selesai') || d.id === row.anggaranId
+    );
+    list.sort((a,b) => {
+      // Currently-linked di paling atas, lainnya by createdAt desc
+      if (a.id === row.anggaranId) return -1;
+      if (b.id === row.anggaranId) return 1;
+      return (b.createdAt||'').localeCompare(a.createdAt||'');
+    });
 
     const optionsHtml = list.length === 0
       ? `<div style="padding:24px;text-align:center;color:var(--text-3)">Belum ada anggaran. Buat di modul PO dulu.</div>`

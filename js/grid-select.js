@@ -160,7 +160,15 @@ const GridSelect = (() => {
     _sel = { tbl, startRow: pos.row, startCol: pos.col, endRow: pos.row, endCol: pos.col, cells: [td] };
     document.addEventListener('mousemove', _onMoveThrottled);
     document.addEventListener('mouseup', _onUp);
-    _onMove(e); // immediately extend to current mouse position
+    // Re-compute target dari current cursor position (elementFromPoint) untuk
+    // hindari stale e.target — saat drag cepat, e.target sering masih cell awal,
+    // bukan cell di posisi cursor sekarang.
+    const realTarget = document.elementFromPoint(e.clientX, e.clientY);
+    if (realTarget) {
+      _onMove({ target: realTarget, clientX: e.clientX, clientY: e.clientY });
+    } else {
+      _onMove(e);
+    }
   }
 
   function _pendingUp() {
