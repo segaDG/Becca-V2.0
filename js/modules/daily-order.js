@@ -518,12 +518,25 @@ const DailyOrderModule = (() => {
           const _aktPct = budgetVal > 0 ? Math.min(999, totalAkt / budgetVal * 100) : 0;
           const _sisaEst = budgetVal - totalEst;
           const _sisaAkt = shiftSisaAkt;
-          const _estColor = _sisaEst >= 0 ? '#6366f1' : '#ef4444';
-          const _aktColor = _sisaAkt >= 0 ? '#10b981' : '#ef4444';
-          const _bar = (pct, color) => `<div style="position:relative;background:var(--surface2);height:8px;border-radius:6px;overflow:hidden;margin-top:4px">
-              <div style="position:absolute;inset:0 auto 0 0;width:${Math.min(100,pct).toFixed(1)}%;background:${color};border-radius:6px;transition:width .3s"></div>
-              ${pct > 100 ? `<div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#ef4444;animation:pulse 1.2s ease-in-out infinite"></div>` : ''}
+          // Color escalation:
+          // - dalam budget (sisa>=0): biru (EST) / hijau (AKT)
+          // - over 0-100%: amber warning
+          // - over >100% (= aktual > 2x budget): merah severe
+          const _esc = (sisa, pct, baseColor) => {
+            if (sisa >= 0) return baseColor;          // dalam budget
+            if (pct <= 200) return '#f59e0b';          // amber (over 1x-2x)
+            return '#dc2626';                          // red severe (over 2x+)
+          };
+          const _estColor = _esc(_sisaEst, _estPct, '#6366f1');
+          const _aktColor = _esc(_sisaAkt, _aktPct, '#10b981');
+          // Severe over chip + gradient bar visual indicator
+          const _bar = (pct, color, isSevere) => `<div style="position:relative;background:var(--surface2);height:8px;border-radius:6px;overflow:hidden;margin-top:4px">
+              <div style="position:absolute;inset:0 auto 0 0;width:${Math.min(100,pct).toFixed(1)}%;background:${isSevere?`linear-gradient(90deg,${color},#7f1d1d)`:color};border-radius:6px;transition:width .3s"></div>
+              ${pct > 100 ? `<div style="position:absolute;top:0;right:0;width:${isSevere?8:4}px;height:100%;background:#dc2626;animation:pulse 1.2s ease-in-out infinite"></div>` : ''}
             </div>`;
+          const _severeChip = (pct) => pct > 200
+            ? `<span style="font-size:8px;background:#dc2626;color:#fff;padding:1px 5px;border-radius:8px;font-weight:800;margin-left:4px;letter-spacing:.03em">🚨 ${Math.round(pct)}%</span>`
+            : '';
           return `
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px">
@@ -541,13 +554,16 @@ const DailyOrderModule = (() => {
                 <span style="background:rgba(99,102,241,.15);color:#6366f1;padding:2px 6px;border-radius:8px;font-size:9px;font-weight:800">📋 EST</span>
                 <span>Planning</span>
               </div>
-              <div style="font-size:11px;font-weight:700;color:${_estColor}">${_estPct.toFixed(1)}%</div>
+              <div style="display:flex;align-items:center;gap:4px">
+                ${_severeChip(_estPct)}
+                <div style="font-size:11px;font-weight:700;color:${_estColor}">${_estPct.toFixed(1)}%</div>
+              </div>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:3px">
               <div style="font-size:13px;font-weight:700;font-family:var(--font-mono);color:var(--text)">${_fmtRp(totalEst)}</div>
               <div style="font-size:10px;color:var(--text-3)">sisa <span style="color:${_estColor};font-weight:700;font-family:var(--font-mono)">${_sisaEst>=0?'+':'-'}${_fmtRp(Math.abs(_sisaEst))}</span></div>
             </div>
-            ${_bar(_estPct, _estColor)}
+            ${_bar(_estPct, _estColor, _estPct > 200)}
           </div>
 
           <!-- AKTUAL row -->
@@ -557,13 +573,16 @@ const DailyOrderModule = (() => {
                 <span style="background:rgba(16,185,129,.15);color:#10b981;padding:2px 6px;border-radius:8px;font-size:9px;font-weight:800">✅ AKT</span>
                 <span>Terpakai</span>
               </div>
-              <div style="font-size:11px;font-weight:700;color:${_aktColor}">${_aktPct.toFixed(1)}%</div>
+              <div style="display:flex;align-items:center;gap:4px">
+                ${_severeChip(_aktPct)}
+                <div style="font-size:11px;font-weight:700;color:${_aktColor}">${_aktPct.toFixed(1)}%</div>
+              </div>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:3px">
               <div style="font-size:13px;font-weight:700;font-family:var(--font-mono);color:var(--text)">${_fmtRp(totalAkt)}</div>
               <div style="font-size:10px;color:var(--text-3)">sisa <span style="color:${_aktColor};font-weight:700;font-family:var(--font-mono)">${_sisaAkt>=0?'+':'-'}${_fmtRp(Math.abs(_sisaAkt))}</span></div>
             </div>
-            ${_bar(_aktPct, _aktColor)}
+            ${_bar(_aktPct, _aktColor, _aktPct > 200)}
           </div>
         </div>`;
         })() : ''}
