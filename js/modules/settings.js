@@ -790,8 +790,8 @@ else { window.SettingsModule = (() => {
   }
 
   /* ===================== TAB: ACTIVITY LOG ===================== */
-  // Activity Log state (pagination + filter)
-  let _actState = { page: 1, perPage: 50, type: '', cat: '', search: '' };
+  // Activity Log state (pagination + filter + lazy fetch limit)
+  let _actState = { page: 1, perPage: 50, type: '', cat: '', search: '', fetchLimit: 5000 };
 
   // Derive kategori dari type — group teknis types ke kategori yang scanable
   function _actCategoryOf(type) {
@@ -828,13 +828,15 @@ else { window.SettingsModule = (() => {
     'Lainnya':'#94a3b8',   '-':'#94a3b8',
   };
 
-  async function renderActivity() {
-    const logs   = await DB.getActivityLogs().catch(()=>[]);
+  async function renderActivity(extendLimit) {
+    // Default initial load: 5000 paling baru (DB-side cap, drop 24k → 5k).
+    // Tombol "Muat lebih lama" extend ke +5000 tiap klik.
+    if (!extendLimit) _actState = { page: 1, perPage: 50, type: '', cat: '', search: '', fetchLimit: 5000 };
+    const logs   = await DB.getActivityLogs({ limit: _actState.fetchLimit }).catch(()=>[]);
     const sorted = [...logs].sort((a,b)=>(b.timestamp||'').localeCompare(a.timestamp||''));
 
     // Store logs for detail modal + refresh
     window._activityLogs = sorted;
-    _actState = { page: 1, perPage: 50, type: '', cat: '', search: '' };
 
     // Build type filter options dari unique types yg ada di logs
     const typeCounts = {};
@@ -854,11 +856,14 @@ else { window.SettingsModule = (() => {
       .map(([c,n]) => `<option value="${Utils.esc(c)}">${Utils.esc(c)} (${n})</option>`)
       .join('');
 
+    const showLoadMore = sorted.length >= _actState.fetchLimit;
     document.getElementById('set-tab-activity').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4);flex-wrap:wrap;gap:var(--s3)">
         <div>
           <span class="text-muted text-small" id="act-count">${sorted.length} aktivitas</span>
           <span class="text-muted text-small" style="margin-left:8px">· Klik baris untuk detail</span>
+          ${showLoadMore ? `<button class="btn btn-ghost btn-sm" style="margin-left:8px;font-size:11px"
+            onclick="SettingsModule._loadMoreActivity()" title="Fetch 5000 entry lebih lama">↓ Muat lebih lama</button>` : ''}
         </div>
         <div style="display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap">
           <select class="form-control" id="act-filter-cat" style="width:150px;font-size:12px"
@@ -1060,6 +1065,11 @@ else { window.SettingsModule = (() => {
     const btn = document.getElementById('act-filter-reset');
     if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
     _refreshActivityTable();
+  }
+  async function _loadMoreActivity() {
+    _actState.fetchLimit = (_actState.fetchLimit || 5000) + 5000;
+    Notify.info('Memuat ' + _actState.fetchLimit + ' entry...');
+    await renderActivity(true);
   }
 
   function showActivityDetail(idOrIdx) {
@@ -2715,7 +2725,7 @@ else { window.SettingsModule = (() => {
     saveGeneralSettings, _handleLogoUpload, _removeLogo, openChangePasswordModal, _changePassword,
     renderUsers, openUserModal, _submitUser, toggleUser, deleteUser, bulkCreateFromEmployees, _doBulkCreate,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
-    renderActivity, _renderActivityRows, _filterActivityLog, _setActType, _setActCat, _setActPage, _setActPerPage, _resetActFilters, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
+    renderActivity, _renderActivityRows, _filterActivityLog, _setActType, _setActCat, _setActPage, _setActPerPage, _resetActFilters, _loadMoreActivity, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
     renderData, exportData, _doImport, clearData, recoverData, runTests,
     clearInventoryData, clearOpnameData, clearOrdersData, clearInvoicesData,
     importOrdersExcel, _doImportOrdersExcel, importInvoicesExcel, _doImportInvoicesExcel,

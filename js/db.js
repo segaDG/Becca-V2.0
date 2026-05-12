@@ -888,7 +888,38 @@ const DB = (() => {
     return _save('activity_logs', log);
   };
 
-  const getActivityLogs = () => _get('activity_logs');
+  // Activity logs di-cap DB-side untuk perf (24k+ entries memberatkan client).
+  // Default fetch last 5000 paling baru, ordered by data->>timestamp DESC.
+  // Tanpa cap, fetchAll loop 25+ network round-trips + render 24k row.
+  // Pass {limit: N} untuk extend. LS fallback otomatis kalau Supabase offline.
+  const getActivityLogs = async (opts) => {
+    const limit = (opts && opts.limit) || 5000;
+    const sb = await _initClient();
+    if (!sb) { const lsAll = _lsGet('activity_logs'); return lsAll.slice(0, limit); }
+
+    // Memory cache hit (kalau cache sudah cukup besar)
+    const cached = _memCache.activity_logs;
+    const ttl = _SHORT_CACHE_TABLES.has('activity_logs') ? _CACHE_TTL_SHORT : _CACHE_TTL;
+    if (cached && (Date.now() - cached.ts) < ttl && cached.data.length >= limit) {
+      return cached.data.slice(0, limit);
+    }
+    try {
+      const { data, error } = await sb.from('activity_logs').select('*')
+        .order('data->>timestamp', { ascending: false })
+        .limit(limit);
+      if (error) {
+        console.warn('[DB] activity_logs fetch:', error.message);
+        return (_lsGet('activity_logs') || []).slice(0, limit);
+      }
+      const result = _fromRows(data || []);
+      _memCache.activity_logs = { ts: Date.now(), data: result };
+      _subscribeRealtime('activity_logs');
+      return result;
+    } catch (e) {
+      console.warn('[DB] activity_logs:', e.message || e);
+      return (_lsGet('activity_logs') || []).slice(0, limit);
+    }
+  };
 
   /**
    * Returns Map<rowId, {by, at, ts, type}> — last edit info per row.
