@@ -848,7 +848,7 @@ else { window.SettingsModule = (() => {
           <tbody id="activity-tbody"></tbody>
         </table>
       </div>
-      <div id="act-pagination" style="margin-top:var(--s3);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--s2)"></div>
+      <div id="act-pagination" style="margin-top:var(--s3);margin-bottom:48px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--s2);padding:var(--s2) 0"></div>
     `;
     _refreshActivityTable();
   }
@@ -946,6 +946,7 @@ else { window.SettingsModule = (() => {
       const detail = (log.detail||'').length > 40 ? (log.detail||'').substring(0,40)+'…' : (log.detail||'-');
       const userName = log.username || log.user || '-';
 
+      const typeSafe = (log.type||'').replace(/'/g, "\\'");
       return `<tr style="cursor:pointer;transition:background .1s"
                 onmouseover="this.style.background='var(--surface2)'"
                 onmouseout="this.style.background=''"
@@ -957,7 +958,11 @@ else { window.SettingsModule = (() => {
         <td>
           <span style="display:inline-flex;align-items:center;gap:5px">
             <span>${icon}</span>
-            <span class="badge" style="font-size:10px;background:${color}18;color:${color};border:1px solid ${color}30">${Utils.esc(log.type||'-')}</span>
+            <span class="badge act-type-pill" title="Klik untuk filter tipe ini"
+              onclick="event.stopPropagation();SettingsModule._setActType('${typeSafe}');var s=document.getElementById('act-filter-type');if(s)s.value='${typeSafe}'"
+              style="font-size:10px;background:${color}18;color:${color};border:1px solid ${color}30;cursor:pointer;transition:transform .1s,box-shadow .1s"
+              onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 2px 6px '+'${color}40'"
+              onmouseout="this.style.transform='';this.style.boxShadow=''">${Utils.esc(log.type||'-')}</span>
           </span>
         </td>
         <td class="text-muted" style="font-size:12px">${Utils.esc(detail)}</td>

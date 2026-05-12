@@ -122,14 +122,36 @@ const GridSelect = (() => {
   }
 
   // ── BLOCK SELECT ──
+  // Defer activation: simpan state pending sampai mouse benar-benar bergerak.
+  // Tanpa ini, e.preventDefault() di mousedown bisa mengganggu click handler
+  // di TR (mis. activity log row → showActivityDetail) — user kehilangan fitur klik baris.
+  let _pending = null;
+  const DRAG_THRESHOLD = 4; // px
+
   function _onDown(e) {
     if (e.target.closest('.gs-handle')) return;
+    if (e.button !== 0) return; // hanya left-click
     const td = e.target.closest('td');
     if (!td) return;
     const tbl = td.closest('table');
     if (!_eligibleTable(tbl)) return;
-    if (td.closest('.ks-editing,.iv-editing,.po-editing,.di-editing,.ap-editing') || e.target.closest('input,select,button,textarea,a[href],[contenteditable]')) return;
+    if (td.closest('.ks-editing,.iv-editing,.po-editing,.di-editing,.ap-editing') || e.target.closest('input,select,button,textarea,a[href],label,[contenteditable]')) return;
     const pos = _rc(td); if (!pos) return;
+    // Set pending — belum activate selection sampai user benar-benar drag
+    _pending = { td, tbl, pos, x: e.clientX, y: e.clientY };
+    document.addEventListener('mousemove', _pendingMove);
+    document.addEventListener('mouseup', _pendingUp);
+  }
+
+  function _pendingMove(e) {
+    if (!_pending) return;
+    const dx = e.clientX - _pending.x, dy = e.clientY - _pending.y;
+    if (dx*dx + dy*dy < DRAG_THRESHOLD*DRAG_THRESHOLD) return;
+    // Drag detected → activate selection
+    const { td, tbl, pos } = _pending;
+    _pending = null;
+    document.removeEventListener('mousemove', _pendingMove);
+    document.removeEventListener('mouseup', _pendingUp);
     _clear();
     td.classList.add('gs-sel'); td.style.position = 'relative';
     const h = document.createElement('div'); h.className = 'gs-handle';
@@ -138,7 +160,14 @@ const GridSelect = (() => {
     _sel = { tbl, startRow: pos.row, startCol: pos.col, endRow: pos.row, endCol: pos.col, cells: [td] };
     document.addEventListener('mousemove', _onMoveThrottled);
     document.addEventListener('mouseup', _onUp);
-    e.preventDefault();
+    _onMove(e); // immediately extend to current mouse position
+  }
+
+  function _pendingUp() {
+    // No drag — biarkan click event normal fire ke row's onclick. Tidak ada selection.
+    document.removeEventListener('mousemove', _pendingMove);
+    document.removeEventListener('mouseup', _pendingUp);
+    _pending = null;
   }
   let _selRaf = 0;
   function _onMoveThrottled(e) {
