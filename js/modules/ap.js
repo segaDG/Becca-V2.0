@@ -1502,22 +1502,40 @@ const APModule = (() => {
     // Flatten data field
     const data = raw.map(r => { const f={...r}; if(r.data&&typeof r.data==='object') Object.assign(f,r.data); return f; });
 
-    // --- Aggregate per vendor ---
+    // --- Aggregate per vendor + per item (no vendor) ---
+    // Separation: entry dengan vendor field jelas → vendor map.
+    // Entry tanpa vendor (utilities, periode, dll) → item map by keterangan.
     const vendorMap = {};
+    const itemMap = {};
     data.forEach(r => {
-      const v = r.vendor || r.supplier_nama || r.keterangan?.split(' | ')[0] || 'Unknown';
-      if (!vendorMap[v]) vendorMap[v] = { vendor:v, count:0, total:0, paid:0, unpaid:0, bulanData:{} };
-      vendorMap[v].count++;
-      vendorMap[v].total += (r.total||0);
-      if (r.status==='LUNAS') vendorMap[v].paid += (r.total||0);
-      else vendorMap[v].unpaid += (r.total||0);
-      // Per bulan
+      const vendorName = String(r.vendor || r.supplier_nama || r.supplier || '').trim();
       const bln = (r.tgl_transaksi||r.tgl||'').substring(0,7);
-      if (bln) {
-        vendorMap[v].bulanData[bln] = (vendorMap[v].bulanData[bln]||0) + (r.total||0);
+      const total = r.total || 0;
+      const paid = r.status === 'LUNAS' ? total : 0;
+      const unpaid = total - paid;
+
+      if (vendorName) {
+        if (!vendorMap[vendorName]) vendorMap[vendorName] = { vendor:vendorName, count:0, total:0, paid:0, unpaid:0, bulanData:{} };
+        vendorMap[vendorName].count++;
+        vendorMap[vendorName].total += total;
+        vendorMap[vendorName].paid += paid;
+        vendorMap[vendorName].unpaid += unpaid;
+        if (bln) vendorMap[vendorName].bulanData[bln] = (vendorMap[vendorName].bulanData[bln]||0) + total;
+      } else {
+        // No vendor — group by item/keterangan (truncate long descriptions)
+        const itemRaw = String(r.keterangan || r.item || 'Tanpa Keterangan').trim();
+        const itemKey = itemRaw.length > 60 ? itemRaw.substring(0, 57) + '…' : itemRaw;
+        if (!itemMap[itemKey]) itemMap[itemKey] = { item:itemKey, count:0, total:0, paid:0, unpaid:0 };
+        itemMap[itemKey].count++;
+        itemMap[itemKey].total += total;
+        itemMap[itemKey].paid += paid;
+        itemMap[itemKey].unpaid += unpaid;
       }
     });
     const vendors = Object.values(vendorMap).sort((a,b) => b.total - a.total);
+    const items = Object.values(itemMap).sort((a,b) => b.total - a.total);
+    const vendorTotal = vendors.reduce((s,v) => s + v.total, 0);
+    const itemTotal = items.reduce((s,i) => s + i.total, 0);
 
     // --- Aggregate per bulan ---
     const bulanMap = {};
@@ -1551,6 +1569,11 @@ const APModule = (() => {
     const VENDOR_COLORS = ['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#ef4444','#8b5cf6'];
 
     page.innerHTML = `
+      <style>
+        @media(max-width:880px){
+          .ap-summary-grid{grid-template-columns:1fr !important}
+        }
+      </style>
       <!-- Summary Header Cards -->
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:24px">
         <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:16px;padding:20px;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08)">
@@ -1576,25 +1599,31 @@ const APModule = (() => {
       </div>
 
       <!-- Main content 2 columns -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px" class="ap-summary-grid">
         <!-- Per Vendor Chart -->
         <div style="background:var(--surface2);border-radius:14px;padding:20px;border:.5px solid var(--border);box-shadow:0 1px 4px rgba(0,0,0,.08)">
-          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px">📊 AP per Vendor</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+            <div style="font-size:13px;font-weight:700;color:var(--text)">📊 AP per Vendor</div>
+            <div style="font-size:10px;color:var(--text-3)">${vendors.length} vendor · ${fmtFull(vendorTotal)}</div>
+          </div>
+          ${vendors.length === 0 ? `<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Belum ada AP dengan vendor</div>` : ''}
+          <div style="max-height:520px;overflow-y:auto;padding-right:4px">
           ${vendors.map((v,i) => `
             <div style="margin-bottom:14px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                <div style="font-size:12px;font-weight:600;color:var(--text)">${v.vendor}</div>
-                <div style="font-size:11px;color:var(--text-3)">${v.count}x · ${fmtRp(v.total)}</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px">
+                <div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${Utils.esc(v.vendor)}">${Utils.esc(v.vendor)}</div>
+                <div style="font-size:11px;color:var(--text-3);white-space:nowrap;flex-shrink:0">${v.count}x · ${fmtRp(v.total)}</div>
               </div>
               <div style="background:var(--surface3);border-radius:6px;height:8px;overflow:hidden">
                 <div style="background:${VENDOR_COLORS[i%VENDOR_COLORS.length]};height:8px;border-radius:6px;width:${pct(v.total,maxV)}%;transition:width .5s"></div>
               </div>
-              <div style="display:flex;gap:8px;margin-top:4px">
+              <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
                 <span style="font-size:10px;color:#10b981">✓ ${fmtRp(v.paid)}</span>
                 ${v.unpaid>0?'<span style="font-size:10px;color:#ef4444">⚠ '+fmtRp(v.unpaid)+'</span>':''}
               </div>
             </div>
           `).join('')}
+          </div>
         </div>
 
         <!-- Per Bulan Table -->
@@ -1633,6 +1662,37 @@ const APModule = (() => {
           </table>
         </div>
       </div>
+
+      <!-- AP per Item / Tanpa Vendor (utilities, periode-based, dsb) -->
+      ${items.length > 0 ? `
+      <div style="background:var(--surface2);border-radius:14px;padding:20px;border:.5px solid var(--border);box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text)">📦 AP Tanpa Vendor (Item / Utilities)</div>
+            <div style="font-size:10px;color:var(--text-3);margin-top:2px;font-style:italic">Entry yg tidak punya vendor jelas — biasanya gas/listrik/air/sewa/dll. Edit AP untuk tambah vendor.</div>
+          </div>
+          <div style="font-size:10px;color:var(--text-3)">${items.length} item · ${fmtFull(itemTotal)}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+          ${items.slice(0, 12).map((it, i) => `
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">
+              <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;line-height:1.3;min-height:32px" title="${Utils.esc(it.item)}">${Utils.esc(it.item)}</div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+                <div style="font-size:11px;color:var(--text-3)">${it.count}× transaksi</div>
+                <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${fmtRp(it.total)}</div>
+              </div>
+              <div style="background:var(--surface3);border-radius:4px;height:5px;overflow:hidden">
+                <div style="background:#10b981;height:5px;border-radius:4px;width:${pct(it.paid,it.total)}%"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:9px">
+                <span style="color:#10b981">✓ ${fmtRp(it.paid)}</span>
+                ${it.unpaid>0?'<span style="color:#ef4444">⚠ '+fmtRp(it.unpaid)+'</span>':'<span style="color:var(--text-3)">lunas</span>'}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        ${items.length > 12 ? `<div style="text-align:center;margin-top:10px;font-size:10px;color:var(--text-3)">+${items.length - 12} item lain di tabel detail bawah</div>` : ''}
+      </div>` : ''}
 
       <!-- Detail tabel per vendor -->
       <div style="background:var(--surface2);border-radius:14px;padding:20px;border:.5px solid var(--border)">

@@ -84,7 +84,13 @@ const KasModule = (() => {
   let _lastEditMap = {}; // {rowId: {by, at, ts, type}} — for "Terakhir diedit" tooltip
   let _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'', search:'' };
   let _page    = 1;
-  let _perPage = parseInt(localStorage.getItem('becca_kas_perPage') || '50');
+  // Default perPage: 25 di mobile (<768px) supaya render 12-cell rows tidak laggy
+  // di HP / low-end laptop. Desktop tetap 50. User bisa override via dropdown
+  // (tersimpan ke LS jadi pilihan user preserve).
+  let _perPage = parseInt(
+    localStorage.getItem('becca_kas_perPage') ||
+    (window.innerWidth < 768 ? '25' : '50')
+  );
   let _editingId  = null;
   let _kasLocked  = new Set();
   const _KAS_LOCK_KEY = 'becca_kas_locked_ids';
@@ -395,6 +401,10 @@ const KasModule = (() => {
     s.id = 'kas-ss-style';
     s.textContent = `
       .ks-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+      /* Performance: tiap row jadi paint-containment unit. Browser skip paint
+         row di luar viewport → scroll lebih smooth di HP/low-end laptop.
+         contain-intrinsic-size cegah layout shift saat scroll. */
+      .ks-tbl tbody tr{content-visibility:auto;contain-intrinsic-size:auto 34px;}
       .ks-tbl th{background:var(--thead-bg);color:var(--thead-text);font-size:10px;text-transform:uppercase;
         letter-spacing:.05em;padding:7px 8px;border:1px solid var(--border);white-space:nowrap;
         position:sticky;top:0;z-index:2;}
