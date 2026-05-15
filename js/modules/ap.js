@@ -1609,9 +1609,13 @@ const APModule = (() => {
           ${vendors.length === 0 ? `<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Belum ada AP dengan vendor</div>` : ''}
           <div style="max-height:520px;overflow-y:auto;padding-right:4px">
           ${vendors.map((v,i) => `
-            <div style="margin-bottom:14px">
+            <div style="margin-bottom:14px;padding:6px;border-radius:8px;cursor:pointer;transition:background .15s"
+              onclick="APModule._openSummaryDetail('vendor', ${JSON.stringify(v.vendor).replace(/"/g,'&quot;')})"
+              onmouseover="this.style.background='var(--surface3)'"
+              onmouseout="this.style.background=''"
+              title="Klik untuk lihat detail transaksi ${Utils.esc(v.vendor)}">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px">
-                <div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${Utils.esc(v.vendor)}">${Utils.esc(v.vendor)}</div>
+                <div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${Utils.esc(v.vendor)}</div>
                 <div style="font-size:11px;color:var(--text-3);white-space:nowrap;flex-shrink:0">${v.count}x · ${fmtRp(v.total)}</div>
               </div>
               <div style="background:var(--surface3);border-radius:6px;height:8px;overflow:hidden">
@@ -1640,7 +1644,11 @@ const APModule = (() => {
             </thead>
             <tbody>
               ${bulans.map(b => `
-                <tr style="border-bottom:.5px solid var(--border-light)">
+                <tr style="border-bottom:.5px solid var(--border-light);cursor:pointer;transition:background .15s"
+                  onclick="APModule._openSummaryDetail('bulan','${b.bulan}')"
+                  onmouseover="this.style.background='var(--surface3)'"
+                  onmouseout="this.style.background=''"
+                  title="Klik untuk lihat detail transaksi bulan ${fmtBln(b.bulan)} ${b.bulan.split('-')[0]}">
                   <td style="padding:8px;font-weight:600">${fmtBln(b.bulan)} ${b.bulan.split('-')[0]}</td>
                   <td style="padding:8px;text-align:right;color:var(--text-3)">${b.count}</td>
                   <td style="padding:8px;text-align:right;font-weight:600">${fmtRp(b.total)}</td>
@@ -1675,8 +1683,12 @@ const APModule = (() => {
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
           ${items.slice(0, 12).map((it, i) => `
-            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">
-              <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;line-height:1.3;min-height:32px" title="${Utils.esc(it.item)}">${Utils.esc(it.item)}</div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:transform .15s,box-shadow .15s"
+              onclick="APModule._openSummaryDetail('item', ${JSON.stringify(it.item).replace(/"/g,'&quot;')})"
+              onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 2px 8px rgba(0,0,0,.06)'"
+              onmouseout="this.style.transform='';this.style.boxShadow=''"
+              title="Klik untuk lihat detail transaksi">
+              <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;line-height:1.3;min-height:32px">${Utils.esc(it.item)}</div>
               <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
                 <div style="font-size:11px;color:var(--text-3)">${it.count}× transaksi</div>
                 <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${fmtRp(it.total)}</div>
@@ -1708,20 +1720,32 @@ const APModule = (() => {
               </tr>
             </thead>
             <tbody>
-              ${vendors.map((v,vi) => `
-                <tr style="border-bottom:.5px solid var(--border-light);cursor:pointer" 
-                    onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background=''">
-                  <td style="padding:10px 12px;font-weight:600">
+              ${vendors.map((v,vi) => {
+                const vEscJson = JSON.stringify(v.vendor).replace(/"/g,'&quot;');
+                return `
+                <tr style="border-bottom:.5px solid var(--border-light)">
+                  <td style="padding:10px 12px;font-weight:600;cursor:pointer"
+                      onclick="APModule._openSummaryDetail('vendor', ${vEscJson})"
+                      onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background=''"
+                      title="Klik untuk detail vendor ${Utils.esc(v.vendor)}">
                     <div style="display:flex;align-items:center;gap:8px">
                       <div style="width:8px;height:8px;border-radius:50%;background:${VENDOR_COLORS[vi%VENDOR_COLORS.length]};flex-shrink:0"></div>
-                      ${v.vendor}
+                      ${Utils.esc(v.vendor)}
                     </div>
                   </td>
                   <td style="padding:10px 12px;text-align:right;color:var(--text-3)">${v.count}</td>
-                  ${bulans.map(b=>'<td style="padding:10px 12px;text-align:right;color:var(--text-3);font-family:var(--font-mono)">'+(v.bulanData[b.bulan]?fmtRp(v.bulanData[b.bulan]):'-')+'</td>').join('')}
+                  ${bulans.map(b=>{
+                    const cellVal = v.bulanData[b.bulan];
+                    if (!cellVal) return '<td style="padding:10px 12px;text-align:right;color:var(--text-3);font-family:var(--font-mono)">-</td>';
+                    return `<td style="padding:10px 12px;text-align:right;color:var(--text-3);font-family:var(--font-mono);cursor:pointer;transition:background .15s"
+                      onclick="APModule._openSummaryDetail('vendor-bulan', ${vEscJson}, '${b.bulan}')"
+                      onmouseover="this.style.background='var(--surface3)';this.style.color='var(--primary)'"
+                      onmouseout="this.style.background='';this.style.color='var(--text-3)'"
+                      title="Klik untuk detail">${fmtRp(cellVal)}</td>`;
+                  }).join('')}
                   <td style="padding:10px 12px;text-align:right;font-weight:700;color:var(--primary)">${fmtRp(v.total)}</td>
                 </tr>
-              `).join('')}
+              `;}).join('')}
               <tr style="border-top:2px solid var(--border);font-weight:700;background:var(--surface3)">
                 <td style="padding:10px 12px">TOTAL</td>
                 <td style="padding:10px 12px;text-align:right">${grandCount}</td>
@@ -1738,7 +1762,112 @@ const APModule = (() => {
 
   function reArrangeAP() { _ap.sort((a,b)=>((b.tgl_transaksi||b.tgl||'')).localeCompare((a.tgl_transaksi||a.tgl||''))); _apPage=1; applyFilter(); Notify.success('Data diurutkan berdasarkan tanggal'); }
 
-  return { init, render, filterBelum, applyFilter, resetFilter, reArrangeAP, goApPage, setApPerPage, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, apAddRow, _apKey,
+  /* ── Summary Detail Popup ── Klik vendor/bulan/item/cell di summary
+     buka modal dengan list transaksi terkait. */
+  function _openSummaryDetail(scope, arg1, arg2) {
+    const data = (_ap||[]).map(r => { const f={...r}; if(r.data&&typeof r.data==='object') Object.assign(f,r.data); return f; });
+    let filtered = [];
+    let title = '';
+    if (scope === 'vendor') {
+      const v = String(arg1||'');
+      filtered = data.filter(r => String(r.vendor||r.supplier_nama||r.supplier||'').trim() === v);
+      title = '🏢 ' + v;
+    } else if (scope === 'bulan') {
+      const b = String(arg1||'');
+      filtered = data.filter(r => (r.tgl_transaksi||r.tgl||'').substring(0,7) === b);
+      const MONTHS = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      const [y,m] = b.split('-');
+      title = '📅 ' + (MONTHS[parseInt(m)]||m) + ' ' + y;
+    } else if (scope === 'item') {
+      const itLabel = String(arg1||'');
+      filtered = data.filter(r => {
+        const vendorName = String(r.vendor||r.supplier_nama||r.supplier||'').trim();
+        if (vendorName) return false; // hanya entries tanpa vendor
+        const itemRaw = String(r.keterangan||r.item||'Tanpa Keterangan').trim();
+        const itemKey = itemRaw.length > 60 ? itemRaw.substring(0,57)+'…' : itemRaw;
+        return itemKey === itLabel;
+      });
+      title = '📦 ' + itLabel;
+    } else if (scope === 'vendor-bulan') {
+      const v = String(arg1||''); const b = String(arg2||'');
+      filtered = data.filter(r =>
+        String(r.vendor||r.supplier_nama||r.supplier||'').trim() === v &&
+        (r.tgl_transaksi||r.tgl||'').substring(0,7) === b
+      );
+      const MONTHS = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+      const [y,m] = b.split('-');
+      title = '🏢 ' + v + ' · ' + (MONTHS[parseInt(m)]||m) + ' ' + y;
+    } else return;
+
+    filtered.sort((a,b)=> (a.tgl_transaksi||a.tgl||'').localeCompare(b.tgl_transaksi||b.tgl||''));
+    const totalAll = filtered.reduce((s,r)=>s+(r.total||0),0);
+    const totalPaid = filtered.filter(r=>r.status==='LUNAS').reduce((s,r)=>s+(r.total||0),0);
+    const totalUnpaid = totalAll - totalPaid;
+    const lunasCnt = filtered.filter(r=>r.status==='LUNAS').length;
+    const fmtRp = (v) => 'Rp ' + Number(v||0).toLocaleString('id-ID');
+    const fmtTgl = (t) => t ? t.split('-').reverse().join('-') : '-';
+
+    const body = filtered.length === 0
+      ? `<div style="text-align:center;padding:32px;color:var(--text-3)">Tidak ada transaksi</div>`
+      : `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:16px">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:var(--text-3);letter-spacing:.04em;font-weight:700">TOTAL</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${fmtRp(totalAll)}</div>
+            <div style="font-size:10px;color:var(--text-3)">${filtered.length} transaksi</div>
+          </div>
+          <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:#10b981;letter-spacing:.04em;font-weight:700">LUNAS</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:#10b981">${fmtRp(totalPaid)}</div>
+            <div style="font-size:10px;color:var(--text-3)">${lunasCnt} transaksi</div>
+          </div>
+          <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:#ef4444;letter-spacing:.04em;font-weight:700">SISA HUTANG</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:#ef4444">${fmtRp(totalUnpaid)}</div>
+            <div style="font-size:10px;color:var(--text-3)">${filtered.length-lunasCnt} belum</div>
+          </div>
+        </div>
+        <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
+              <tr style="border-bottom:1px solid var(--border)">
+                <th style="text-align:left;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Tgl</th>
+                <th style="text-align:left;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">${scope==='vendor'||scope==='vendor-bulan'?'Item / Keterangan':'Vendor'}</th>
+                <th style="text-align:left;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">${scope==='vendor'||scope==='vendor-bulan'?'':'Keterangan'}</th>
+                <th style="text-align:right;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Total</th>
+                <th style="text-align:center;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.map((r,i) => {
+                const isLunas = r.status === 'LUNAS';
+                const statusBadge = isLunas
+                  ? '<span style="background:rgba(16,185,129,.15);color:#10b981;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700">LUNAS</span>'
+                  : '<span style="background:rgba(239,68,68,.12);color:#ef4444;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700">BELUM</span>';
+                const vName = String(r.vendor||r.supplier_nama||r.supplier||'-').trim() || '-';
+                const ket = String(r.keterangan||r.item||'-').trim() || '-';
+                return `<tr style="border-bottom:.5px solid var(--border-light);background:${i%2?'var(--surface)':'transparent'}">
+                  <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;color:var(--text-2)">${fmtTgl(r.tgl_transaksi||r.tgl)}</td>
+                  <td style="padding:7px 10px;color:var(--text)">${Utils.esc(scope==='vendor'||scope==='vendor-bulan' ? ket : vName)}</td>
+                  <td style="padding:7px 10px;color:var(--text-3);font-size:10px">${Utils.esc(scope==='vendor'||scope==='vendor-bulan' ? '' : ket)}</td>
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-weight:600">${fmtRp(r.total||0)}</td>
+                  <td style="padding:7px 10px;text-align:center">${statusBadge}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+
+    Modal.open({
+      id: 'ap-summary-detail',
+      title: title,
+      size: 'modal-lg',
+      body,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('ap-summary-detail')">Tutup</button>`,
+    });
+  }
+
+  return { init, render, filterBelum, applyFilter, resetFilter, reArrangeAP, goApPage, setApPerPage, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _openSummaryDetail, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, apAddRow, _apKey,
     get _apEditId() { return _apEditId; } };
 })();
 window.APModule = APModule;

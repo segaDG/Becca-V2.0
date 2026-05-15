@@ -304,9 +304,10 @@ const CustomerModule = (() => {
       <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div style="position:relative;flex:1;max-width:280px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-3)"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input placeholder="Cari nama / jenis / kota..." value="${_search}"
+          <input placeholder="Cari nama / jenis / kota... (tekan Enter)" value="${_search}"
+            enterkeyhint="search"
             style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);outline:none;box-sizing:border-box"
-            oninput="CustomerModule._setSearchDebounced(this.value)">
+            onkeydown="if(event.key==='Enter'){event.preventDefault();CustomerModule.setSearch(this.value);}">
         </div>
         <span style="font-size:12px;color:var(--text-3);margin-left:auto">${list.length} customer ditampilkan</span>
       </div>

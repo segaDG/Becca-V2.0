@@ -359,9 +359,10 @@ const InvoiceModule = (() => {
           style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-3)">
           <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
         </svg>
-        <input id="inv-search" placeholder="Cari customer / invoice # / ID..." value="${_search}"
+        <input id="inv-search" placeholder="Cari customer / invoice # / ID... (tekan Enter)" value="${_search}"
+          enterkeyhint="search"
           style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);outline:none;box-sizing:border-box"
-          oninput="InvoiceModule._setSearchDebounced(this.value)">
+          onkeydown="if(event.key==='Enter'){event.preventDefault();InvoiceModule.setSearch(this.value);}">
       </div>
       <select onchange="InvoiceModule.setFilter(this.value)"
         style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);cursor:pointer">

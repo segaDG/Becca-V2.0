@@ -490,9 +490,10 @@ const InventoryModule = (() => {
       <div style="padding:8px 0 6px;display:flex;align-items:center;gap:10px">
         <div style="position:relative;flex:1;max-width:300px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-3)"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input id="inv-stok-search" placeholder="Cari nama / kategori..." value="${_search}"
+          <input id="inv-stok-search" placeholder="Cari nama / kategori... (tekan Enter)" value="${_search}"
+            enterkeyhint="search"
             style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:12px;color:var(--text);outline:none;box-sizing:border-box"
-            oninput="InventoryModule._setSearchDebounced(this.value)">
+            onkeydown="if(event.key==='Enter'){event.preventDefault();InventoryModule.setSearch(this.value);}">
         </div>
         <span style="font-size:11px;color:var(--text-3)" id="inv-stok-count">${filtered.length} barang</span>
         <select onchange="InventoryModule.setStokPerPage(+this.value)"
