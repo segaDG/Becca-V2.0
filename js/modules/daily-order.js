@@ -881,14 +881,63 @@ const DailyOrderModule = (() => {
     })).sort((a,b) => Math.abs(b.nilaiSelisih) - Math.abs(a.nilaiSelisih));
     const totalNilai = rows.reduce((s,r) => s + r.nilaiSelisih, 0);
 
+    // ── NEW: Comparison DO Aktual harga (snapshot) vs HPP Inventory (current) ──
+    // Untuk tiap item di forms, lookup harga current di inventory (_weightedAvgPrice
+    // atau hargaSatuan). Hitung variance pengeluaran: aktQty × harga_DO vs
+    // aktQty × HPP_inventory. Reveal price drift / mis-recorded cost.
+    const invByName = {};
+    (_inventory || []).forEach(i => { invByName[(i.nama||'').toLowerCase().trim()] = i; });
+    const hppRows = rows.map(r => {
+      const inv = invByName[(r.item||'').toLowerCase().trim()];
+      const hppInv = inv ? _n(inv._weightedAvgPrice || inv.hargaSatuan || inv._hppLatest || 0) : 0;
+      const aktDOCost  = r.totalAkt * r.harga;
+      const aktHPPCost = r.totalAkt * hppInv;
+      const variance   = aktDOCost - aktHPPCost;
+      const variancePct = hppInv > 0 && aktHPPCost > 0 ? (variance / aktHPPCost * 100) : 0;
+      return {
+        item: r.item,
+        satuan: r.satuan,
+        totalAkt: r.totalAkt,
+        hargaDO: r.harga,
+        hargaInv: hppInv,
+        aktDOCost,
+        aktHPPCost,
+        variance,
+        variancePct,
+        hasInv: !!inv,
+      };
+    }).filter(r => r.totalAkt > 0).sort((a,b) => Math.abs(b.variance) - Math.abs(a.variance));
+    const totalVarHPP = hppRows.reduce((s,r) => s + r.variance, 0);
+    const totalDOExp = hppRows.reduce((s,r) => s + r.aktDOCost, 0);
+    const totalHPPExp = hppRows.reduce((s,r) => s + r.aktHPPCost, 0);
+    const unmatchedCount = hppRows.filter(r => !r.hasInv).length;
+
     return `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4);margin-bottom:var(--s4)">
-        <div style="font-size:11px;font-weight:700;color:var(--text-3)">TOTAL SELISIH NILAI</div>
-        <div style="font-size:26px;font-weight:700;margin-top:4px;color:${totalNilai>=0?'#ef4444':'#10b981'}">
-          ${totalNilai>=0?'+':''}${_fmtRp(Math.abs(totalNilai))}
+      <!-- 2 KPI cards side-by-side -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:var(--s4)" class="do-selisih-cards">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4);box-shadow:0 1px 3px rgba(0,0,0,.04)">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:14px">📊</span>
+            <span style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.04em">SELISIH EST vs AKT</span>
+          </div>
+          <div style="font-size:24px;font-weight:800;margin-top:4px;color:${totalNilai>=0?'#ef4444':'#10b981'};font-family:var(--font-mono)">
+            ${totalNilai>=0?'+':''}${_fmtRp(Math.abs(totalNilai))}
+          </div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:4px">
+            + aktual > estimasi (over) · − aktual < estimasi (hemat)
+          </div>
         </div>
-        <div style="font-size:11px;color:var(--text-3);margin-top:4px">
-          + = aktual melebihi estimasi &nbsp;|&nbsp; − = aktual lebih hemat dari estimasi
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4);box-shadow:0 1px 3px rgba(0,0,0,.04)">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:14px">💰</span>
+            <span style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.04em">SELISIH DO vs HPP INVENTORY</span>
+          </div>
+          <div style="font-size:24px;font-weight:800;margin-top:4px;color:${Math.abs(totalVarHPP)<1000?'var(--text)':totalVarHPP>0?'#ef4444':'#10b981'};font-family:var(--font-mono)">
+            ${totalVarHPP>=0?'+':''}${_fmtRp(Math.abs(totalVarHPP))}
+          </div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:4px">
+            DO ${_fmtRp(totalDOExp)} · HPP ${_fmtRp(totalHPPExp)}${unmatchedCount?' · ⚠️ '+unmatchedCount+' item tidak match':''}
+          </div>
         </div>
       </div>
 
@@ -940,7 +989,84 @@ const DailyOrderModule = (() => {
               </table>
             </div>`
         }
-      </div>`;
+      </div>
+
+      <!-- NEW: DO Aktual vs HPP Inventory comparison table -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:var(--s4)">
+        <div style="padding:var(--s4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:700">💰 Pengeluaran DO Aktual vs HPP Inventory per Bahan</div>
+            <div style="font-size:10px;color:var(--text-3);margin-top:3px;font-style:italic">Bandingkan harga DO (snapshot saat form dibuat) vs HPP terbaru di inventory. Variance besar = price drift atau salah input.</div>
+          </div>
+          <div style="font-size:10px;color:var(--text-3)">${hppRows.length} item${unmatchedCount?' · ⚠️ '+unmatchedCount+' tidak match inventory':''}</div>
+        </div>
+        ${hppRows.length === 0
+          ? `<div style="padding:48px;text-align:center;color:var(--text-3)">Belum ada data form produksi atau inventory belum di-link</div>`
+          : `<div style="overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead>
+                  <tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
+                    <th style="padding:8px;text-align:left;color:var(--text-3)">ITEM</th>
+                    <th style="padding:8px;text-align:right;color:#10b981">AKT QTY</th>
+                    <th style="padding:8px;text-align:right;color:var(--text-3)">HARGA DO</th>
+                    <th style="padding:8px;text-align:right;color:var(--text-3)">HARGA INV</th>
+                    <th style="padding:8px;text-align:right;color:#6366f1">PENGELUARAN DO</th>
+                    <th style="padding:8px;text-align:right;color:#f59e0b">HPP INVENTORY</th>
+                    <th style="padding:8px;text-align:right;color:var(--text-3)">SELISIH</th>
+                    <th style="padding:8px;text-align:center;color:var(--text-3)">STATUS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${hppRows.map((r,i) => {
+                    if (!r.hasInv) {
+                      return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''};opacity:.6">
+                        <td style="padding:8px;font-weight:600">${Utils.esc(r.item)} <span style="font-size:9px;color:#f59e0b;background:rgba(245,158,11,.12);padding:1px 5px;border-radius:8px;margin-left:4px">tidak di inv</span></td>
+                        <td style="padding:8px;text-align:right;color:#10b981">${r.totalAkt.toLocaleString('id-ID',{maximumFractionDigits:2})} ${r.satuan||''}</td>
+                        <td style="padding:8px;text-align:right;font-family:var(--font-mono)">${_fmtRp(r.hargaDO)}</td>
+                        <td style="padding:8px;text-align:right;color:var(--text-3)">—</td>
+                        <td style="padding:8px;text-align:right;font-family:var(--font-mono);font-weight:600;color:#6366f1">${_fmtRp(r.aktDOCost)}</td>
+                        <td style="padding:8px;text-align:right;color:var(--text-3)">—</td>
+                        <td style="padding:8px;text-align:right;color:var(--text-3)">—</td>
+                        <td style="padding:8px;text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(245,158,11,.12);color:#f59e0b;font-weight:700">UNMATCHED</span></td>
+                      </tr>`;
+                    }
+                    const ok   = Math.abs(r.variance) < Math.max(1000, r.aktHPPCost * 0.05); // <5% atau <Rp1000 = OK
+                    const over = r.variance > 0;
+                    const color = ok ? 'var(--text-3)' : over ? '#ef4444' : '#10b981';
+                    const statusLabel = ok ? 'OK' : over ? 'OVER-DO' : 'UNDER-DO';
+                    const statusBg = ok ? 'rgba(16,185,129,.1)' : over ? 'rgba(239,68,68,.1)' : 'rgba(6,182,212,.1)';
+                    const statusFg = ok ? '#10b981' : over ? '#ef4444' : '#06b6d4';
+                    return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''}">
+                      <td style="padding:8px;font-weight:600">${Utils.esc(r.item)}</td>
+                      <td style="padding:8px;text-align:right;color:#10b981">${r.totalAkt.toLocaleString('id-ID',{maximumFractionDigits:2})} ${r.satuan||''}</td>
+                      <td style="padding:8px;text-align:right;font-family:var(--font-mono);color:var(--text-2)">${_fmtRp(r.hargaDO)}</td>
+                      <td style="padding:8px;text-align:right;font-family:var(--font-mono);color:var(--text-2)">${_fmtRp(r.hargaInv)}</td>
+                      <td style="padding:8px;text-align:right;font-family:var(--font-mono);font-weight:600;color:#6366f1">${_fmtRp(r.aktDOCost)}</td>
+                      <td style="padding:8px;text-align:right;font-family:var(--font-mono);font-weight:600;color:#f59e0b">${_fmtRp(r.aktHPPCost)}</td>
+                      <td style="padding:8px;text-align:right;font-family:var(--font-mono);font-weight:600;color:${color}">${ok?'-':(r.variance>0?'+':'')+_fmtRp(Math.abs(r.variance))}<div style="font-size:9px;font-weight:400">${ok?'':(r.variancePct>0?'+':'')+r.variancePct.toFixed(1)+'%'}</div></td>
+                      <td style="padding:8px;text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${statusBg};color:${statusFg};font-weight:700">${statusLabel}</span></td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+                <tfoot>
+                  <tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--border)">
+                    <td colspan="4" style="padding:10px 8px;text-align:right;font-size:11px;color:var(--text-2)">TOTAL</td>
+                    <td style="padding:10px 8px;text-align:right;font-family:var(--font-mono);color:#6366f1">${_fmtRp(totalDOExp)}</td>
+                    <td style="padding:10px 8px;text-align:right;font-family:var(--font-mono);color:#f59e0b">${_fmtRp(totalHPPExp)}</td>
+                    <td style="padding:10px 8px;text-align:right;font-family:var(--font-mono);color:${Math.abs(totalVarHPP)<1000?'var(--text-3)':totalVarHPP>0?'#ef4444':'#10b981'}">${totalVarHPP>=0?'+':''}${_fmtRp(Math.abs(totalVarHPP))}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>`
+        }
+      </div>
+
+      <style>
+        @media(max-width:640px){
+          .do-selisih-cards{grid-template-columns:1fr !important}
+        }
+      </style>`;
   }
 
   /* ─── SUMMARY ─── */
