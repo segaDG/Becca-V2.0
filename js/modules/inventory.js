@@ -3867,12 +3867,18 @@ const InventoryModule = (() => {
                 <th class="num" style="color:var(--danger)">Total HPP</th>
               </tr></thead>
               <tbody>
-                ${topItems.length ? topItems.map((it,i)=>`<tr>
+                ${topItems.length ? topItems.map((it,i)=>{
+                  const nmSafe = String(it.nama||'').replace(/'/g,"\\'");
+                  return `<tr style="cursor:pointer;transition:background .15s"
+                    onclick="InventoryModule._openHPPItemDetail('${nmSafe}', ${JSON.stringify(last3).replace(/"/g,'&quot;')})"
+                    onmouseover="this.style.background='var(--surface2)'"
+                    onmouseout="this.style.background=''"
+                    title="Klik untuk detail transaksi keluar item ini">
                   <td class="text-muted">${i+1}</td>
                   <td style="font-weight:500">${it.nama}</td>
                   ${last3.map(m=>`<td class="num" style="font-family:var(--font-mono);color:var(--text-2)">${it.months[m]?Utils.formatRupiah(it.months[m]):'-'}</td>`).join('')}
                   <td class="num" style="font-family:var(--font-mono);font-weight:700;color:var(--danger)">${Utils.formatRupiah(it.total)}</td>
-                </tr>`).join('')
+                </tr>`;}).join('')
                 : `<tr><td colspan="${3+last3.length}" style="text-align:center;padding:24px;color:var(--text-3)">Belum ada data keluar</td></tr>`}
               </tbody>
             </table>
@@ -3887,6 +3893,80 @@ const InventoryModule = (() => {
         </div>
       </div>
     `;
+  }
+
+  // Modal: detail transaksi KELUAR untuk 1 item dalam 3 bulan terakhir.
+  // Dipanggil dari klik row "Top 15 Produk HPP per Bulan" di tab Laporan.
+  function _openHPPItemDetail(itemName, monthsCsv) {
+    const months = Array.isArray(monthsCsv) ? monthsCsv : (() => {
+      try { return JSON.parse(String(monthsCsv).replace(/&quot;/g,'"')); } catch { return []; }
+    })();
+    const monthSet = new Set(months);
+    const matches = (_logs||[]).filter(l => {
+      if (!l || l.action !== 'KELUAR') return false;
+      const nm = String(l.namaProduk||l.nama||'').trim();
+      if (nm !== itemName) return false;
+      const ym = (l.tanggal||l.tgl||'').substring(0,7);
+      return !months.length || monthSet.has(ym);
+    });
+    matches.sort((a,b) => (b.tanggal||b.tgl||'').localeCompare(a.tanggal||a.tgl||''));
+    const total = matches.reduce((s,l) => s + ((l.qty||0) * (l.hargaSatuan||l._hpp||0)), 0);
+    const totalQty = matches.reduce((s,l) => s + (l.qty||0), 0);
+    const fmtRp = Utils.formatRupiah;
+    const fmtTgl = (t) => t ? t.split('-').reverse().join('-') : '-';
+    const MONTHS = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const _bl = ym => { if(!ym) return ''; const[y,m]=ym.split('-'); return (MONTHS[parseInt(m)]||m)+' '+y; };
+    const periode = months.length ? months.map(_bl).join(' / ') : 'Semua';
+
+    const body = matches.length === 0
+      ? `<div style="text-align:center;padding:32px;color:var(--text-3)">Tidak ada transaksi keluar untuk item ini di periode tersebut</div>`
+      : `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:16px">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:var(--text-3);letter-spacing:.04em;font-weight:700">TOTAL HPP</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--danger)">${fmtRp(total)}</div>
+            <div style="font-size:10px;color:var(--text-3)">${matches.length} transaksi</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:var(--text-3);letter-spacing:.04em;font-weight:700">TOTAL QTY</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${totalQty}</div>
+            <div style="font-size:10px;color:var(--text-3)">${matches[0]?.satuan||'unit'}</div>
+          </div>
+        </div>
+        <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
+              <tr style="border-bottom:1px solid var(--border)">
+                <th style="text-align:left;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Tgl</th>
+                <th style="text-align:left;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Keterangan</th>
+                <th style="text-align:right;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Qty</th>
+                <th style="text-align:right;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Harga</th>
+                <th style="text-align:right;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${matches.map((l,i) => {
+                const harga = l.hargaSatuan || l._hpp || 0;
+                const sub = (l.qty||0) * harga;
+                return `<tr style="border-bottom:.5px solid var(--border-light);background:${i%2?'var(--surface)':'transparent'}">
+                  <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;color:var(--text-2)">${fmtTgl(l.tanggal||l.tgl)}</td>
+                  <td style="padding:7px 10px;color:var(--text);font-size:11px">${Utils.esc(l.keterangan||l.alasan||'-')}</td>
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-size:11px">${l.qty||0}${l.satuan?' '+l.satuan:''}</td>
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--text-3)">${fmtRp(harga)}</td>
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-weight:600;color:var(--danger)">${fmtRp(sub)}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+
+    Modal.open({
+      id: 'inv-hpp-detail',
+      title: `📦 ${Utils.esc(itemName)} · ${periode}`,
+      size: 'modal-lg',
+      body,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('inv-hpp-detail')">Tutup</button>`,
+    });
   }
 
   // Force-save current edit to DB (pre-save to localStorage) without validation.
@@ -3925,6 +4005,7 @@ const InventoryModule = (() => {
     setStokPerPage,
     setInvLogPerPage,
     flushPendingEdit,
+    _openHPPItemDetail,
     renderOpnameTab,
     _onOpnameInput,
     _onOpnameKey,

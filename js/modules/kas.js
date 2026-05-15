@@ -1232,6 +1232,90 @@ const KasModule = (() => {
     }
   }
 
+  /* ── Summary Category Detail Popup ── Klik kategori di tab Summary
+     → modal dengan list transaksi kategori itu di bulan terpilih. */
+  function _openCategoryDetail(type, bulan) {
+    const rows = _kas.filter(r =>
+      (r.type || 'Lain-lain') === type &&
+      r.type !== 'Kas' &&
+      _tglToYM(r.tgl) === bulan
+    );
+    rows.sort((a,b) => (a.tgl||'').localeCompare(b.tgl||''));
+    const total = rows.reduce((s,r) => s + (r.jumlah||0), 0);
+    const doneCount = rows.filter(r => r.status === 'DONE').length;
+    const doneTotal = rows.filter(r => r.status === 'DONE').reduce((s,r) => s + (r.jumlah||0), 0);
+    const tbcCount = rows.filter(r => r.status === 'TBC').length;
+    const tbcTotal = rows.filter(r => r.status === 'TBC').reduce((s,r) => s + (r.jumlah||0), 0);
+    const fmtRp = Utils.formatRupiah;
+    const fmtTgl = (t) => t ? t.split('-').reverse().join('-') : '-';
+    const MONTHS = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const [y,m] = (bulan||'').split('-');
+    const bulanLabel = (MONTHS[parseInt(m)]||m) + ' ' + (y||'');
+
+    const body = rows.length === 0
+      ? `<div style="text-align:center;padding:32px;color:var(--text-3)">Tidak ada transaksi</div>`
+      : `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:16px">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:var(--text-3);letter-spacing:.04em;font-weight:700">TOTAL</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${fmtRp(total)}</div>
+            <div style="font-size:10px;color:var(--text-3)">${rows.length} transaksi</div>
+          </div>
+          <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:#10b981;letter-spacing:.04em;font-weight:700">DONE</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:#10b981">${fmtRp(doneTotal)}</div>
+            <div style="font-size:10px;color:var(--text-3)">${doneCount} confirmed</div>
+          </div>
+          ${tbcCount > 0 ? `<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:#f59e0b;letter-spacing:.04em;font-weight:700">TBC</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:#f59e0b">${fmtRp(tbcTotal)}</div>
+            <div style="font-size:10px;color:var(--text-3)">${tbcCount} pending</div>
+          </div>` : ''}
+        </div>
+        <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
+              <tr style="border-bottom:1px solid var(--border)">
+                <th style="text-align:left;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Tgl</th>
+                <th style="text-align:left;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Nama / Keterangan</th>
+                <th style="text-align:left;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Vendor</th>
+                <th style="text-align:left;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Penerima</th>
+                <th style="text-align:right;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Qty</th>
+                <th style="text-align:right;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Jumlah</th>
+                <th style="text-align:center;padding:8px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r,i) => {
+                const isDone = r.status === 'DONE';
+                const isTBC = r.status === 'TBC';
+                const statusBadge = isDone
+                  ? '<span style="background:rgba(16,185,129,.15);color:#10b981;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700">DONE</span>'
+                  : isTBC ? '<span style="background:rgba(245,158,11,.15);color:#f59e0b;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700">TBC</span>'
+                  : '<span style="color:var(--text-3);font-size:10px">-</span>';
+                return `<tr style="border-bottom:.5px solid var(--border-light);background:${i%2?'var(--surface)':'transparent'}">
+                  <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;color:var(--text-2)">${fmtTgl(r.tgl)}</td>
+                  <td style="padding:7px 10px;color:var(--text);font-weight:500">${Utils.esc(r.nama||'-')}</td>
+                  <td style="padding:7px 10px;color:var(--text-3);font-size:10px">${Utils.esc(r.vendor||'-')}</td>
+                  <td style="padding:7px 10px;color:var(--text-3);font-size:10px">${Utils.esc(r.penerima||'-')}</td>
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-size:10px;color:var(--text-3)">${r.qty||0}${r.satuan?' '+r.satuan:''}</td>
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-weight:600">${fmtRp(r.jumlah||0)}</td>
+                  <td style="padding:7px 10px;text-align:center">${statusBadge}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+
+    Modal.open({
+      id: 'kas-cat-detail',
+      title: `📊 ${Utils.esc(type)} · ${bulanLabel}`,
+      size: 'modal-lg',
+      body,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('kas-cat-detail')">Tutup</button>`,
+    });
+  }
+
   /* ── Bulk Delete ── */
   function _bulkToggle(id, checked) {
     if (checked) _bulkSelected.add(id); else _bulkSelected.delete(id);
@@ -1934,7 +2018,12 @@ const KasModule = (() => {
     const catHtml = typesSorted.map((t,i) => {
       const pct = grand > 0 ? (t.total/grand*100).toFixed(1) : 0;
       const avgPerTx = t.items.length > 0 ? Math.round(t.total/t.items.length) : 0;
-      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      const typeSafe = String(t.type||'').replace(/'/g, "\\'");
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:4px 6px;border-radius:6px;cursor:pointer;transition:background .15s"
+        onclick="KasModule._openCategoryDetail('${typeSafe}', '${bulan}')"
+        onmouseover="this.style.background='var(--surface2)'"
+        onmouseout="this.style.background=''"
+        title="Klik untuk lihat ${t.items.length} transaksi kategori ${t.type}">
         <span style="font-size:11px;font-weight:700;color:var(--text-3);width:18px">${i+1}.</span>
         <span style="font-size:12px;font-weight:600;min-width:110px">${t.type}</span>
         <span style="font-size:10px;color:var(--text-3);min-width:40px">${t.items.length} tx</span>
@@ -3059,6 +3148,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced, _onSearchTyping };
+  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
 })();
 window.KasModule = KasModule;
