@@ -574,10 +574,14 @@ const KasModule = (() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" width="16" height="16" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input type="text" id="kas-search-input" class="form-control"
             value="${_filter.search||''}"
-            placeholder="Cari nama, vendor, penerima, type..."
+            placeholder="Cari nama / vendor / penerima... (tekan Enter)"
+            enterkeyhint="search"
             style="flex:1;border:none;background:transparent;outline:none;font-size:13px;padding:4px 0;box-shadow:none"
-            oninput="KasModule._setSearchDebounced(this.value)"
-            onkeydown="if(event.key==='Escape'){KasModule.toggleSearch()}">
+            oninput="KasModule._onSearchTyping(this.value)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();KasModule.setFilter('search',this.value);}else if(event.key==='Escape'){KasModule.toggleSearch()}">
+          <button id="kas-search-go" onclick="var i=document.getElementById('kas-search-input');KasModule.setFilter('search',i?i.value:'')"
+            title="Cari (Enter)"
+            style="width:26px;height:26px;border-radius:6px;border:none;background:var(--primary);color:#fff;cursor:pointer;display:none;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;font-weight:700;padding:0">↩</button>
           <button onclick="KasModule.toggleSearch()" title="Tutup pencarian (Esc)"
             style="width:24px;height:24px;border-radius:50%;border:none;background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);flex-shrink:0;transition:all .15s"
             onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='var(--surface2)';this.style.color='var(--text-3)'">
@@ -1326,8 +1330,17 @@ const KasModule = (() => {
     if (k==='search') { const sb=document.getElementById('kas-search-bar'); if(sb){sb.classList.remove('closed');sb.classList.add('open');} const inp=document.getElementById('kas-search-input'); if(inp){inp.focus();inp.selectionStart=inp.selectionEnd=inp.value.length;} }
   }
   // Debounced search handler — render hanya 200ms setelah user stop typing.
-  // Cegah render full table tiap keystroke (lag di low-end + dataset >5000 row).
+  // (Saat ini search pakai Enter-trigger; ini disisakan untuk backward compat.)
   const _setSearchDebounced = Utils.debounce(v => setFilter('search', v), 200);
+  // Enter-trigger search: typing TIDAK trigger filter (mencegah lag di HP).
+  // Hanya tampil/hide tombol ↩ indicator kalau ada perubahan dari current filter.
+  function _onSearchTyping(val) {
+    const cur = _filter.search || '';
+    const btn = document.getElementById('kas-search-go');
+    if (!btn) return;
+    const dirty = (val||'') !== cur;
+    btn.style.display = dirty ? 'inline-flex' : 'none';
+  }
   function resetFilter() {
     const btn = document.getElementById('kas-reset-btn');
     if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
@@ -3046,6 +3059,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced };
+  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced, _onSearchTyping };
 })();
 window.KasModule = KasModule;
