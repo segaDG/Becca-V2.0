@@ -150,7 +150,13 @@ const APModule = (() => {
 
       <!-- FILTER BAR -->
       <div style="display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:var(--s4);flex-wrap:wrap">
-        <span style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">🔍 Filter</span>
+        <div style="position:relative;flex:1;min-width:180px;max-width:280px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-3)"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="ap-fil-search" class="form-control" placeholder="Cari vendor / item / no... (tekan Enter)"
+            enterkeyhint="search"
+            style="width:100%;height:28px;padding:0 8px 0 28px;font-size:11px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);outline:none;box-sizing:border-box"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();APModule.applyFilter();}">
+        </div>
         <input type="date" id="ap-fil-from" class="form-control" style="width:128px;height:28px;font-size:11px" title="Dari" onchange="APModule.applyFilter()">
         <span style="font-size:11px;color:var(--text-3)">—</span>
         <input type="date" id="ap-fil-to" class="form-control" style="width:128px;height:28px;font-size:11px" title="Sampai" onchange="APModule.applyFilter()">
@@ -206,12 +212,13 @@ const APModule = (() => {
     // Restore filter state from URL (refresh / shared link), then apply
     setTimeout(() => {
       if (Utils.urlState) {
-        const r = Utils.urlState.read('ap', ['from','to','bulan','sup','status','page']);
+        const r = Utils.urlState.read('ap', ['from','to','bulan','sup','status','search','page']);
         if (r.from)   { const e=document.getElementById('ap-fil-from');   if(e) e.value = r.from;   }
         if (r.to)     { const e=document.getElementById('ap-fil-to');     if(e) e.value = r.to;     }
         if (r.bulan)  { const e=document.getElementById('ap-fil-bulan');  if(e) e.value = r.bulan;  }
         if (r.sup)    { const e=document.getElementById('ap-fil-sup');    if(e) e.value = r.sup;    }
         if (r.status) { const e=document.getElementById('ap-fil-status'); if(e) e.value = r.status; }
+        if (r.search) { const e=document.getElementById('ap-fil-search'); if(e) e.value = r.search; }
         if (r.page)   { const p=parseInt(r.page); if (p>0) _apPage = p; }
       }
       APModule.applyFilter();
@@ -232,8 +239,9 @@ const APModule = (() => {
     const bulan  = document.getElementById('ap-fil-bulan')?.value || '';
     const sup    = document.getElementById('ap-fil-sup')?.value   || '';
     const status = document.getElementById('ap-fil-status')?.value|| '';
+    const search = (document.getElementById('ap-fil-search')?.value || '').trim().toLowerCase();
 
-    Utils.urlState?.write('ap', { from, to, bulan, sup, status, page: _apPage>1?_apPage:'' });
+    Utils.urlState?.write('ap', { from, to, bulan, sup, status, search, page: _apPage>1?_apPage:'' });
 
     let data = [..._ap];
 
@@ -242,6 +250,16 @@ const APModule = (() => {
     if (bulan)  data = data.filter(r => (r.tgl_transaksi||r.tgl||'').substring(0,7) === bulan);
     if (sup)    data = data.filter(r => r.supplier_id === sup || (r.vendor||'').toLowerCase().includes(sup.toLowerCase()));
     if (status) data = data.filter(r => r.status === status);
+    if (search) {
+      // Search across multiple fields: vendor, supplier, keterangan, item, no transaksi, jatuhTempo
+      data = data.filter(r => {
+        const hay = [
+          r.vendor, r.supplier_nama, r.supplier, r.keterangan, r.item, r.ket,
+          r.no_transaksi, r.id, r.tgl_transaksi, r.tgl, r.jatuhTempo, r.penerima
+        ].map(v => String(v||'').toLowerCase()).join(' | ');
+        return hay.includes(search);
+      });
+    }
 
     const total = data.length;
     const totalPg = Math.max(1, Math.ceil(total / _apPerPage));
@@ -251,7 +269,7 @@ const APModule = (() => {
     const countEl = document.getElementById('ap-count');
     if (countEl) countEl.textContent = total + ' transaksi';
     const apReset = document.getElementById('ap-reset-btn');
-    if (apReset) { if (from||to||bulan||sup||status) apReset.classList.add('active'); else apReset.classList.remove('active'); }
+    if (apReset) { if (from||to||bulan||sup||status||search) apReset.classList.add('active'); else apReset.classList.remove('active'); }
 
     // Pagination bar
     let pgEl = document.getElementById('ap-pagination');
@@ -378,7 +396,7 @@ const APModule = (() => {
   function resetFilter() {
     const btn = document.getElementById('ap-reset-btn');
     if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
-    ['ap-fil-from','ap-fil-to','ap-fil-bulan','ap-fil-sup','ap-fil-status'].forEach(id=>{
+    ['ap-fil-from','ap-fil-to','ap-fil-bulan','ap-fil-sup','ap-fil-status','ap-fil-search'].forEach(id=>{
       const el = document.getElementById(id); if(el) el.value='';
     });
     _apPage = 1;
