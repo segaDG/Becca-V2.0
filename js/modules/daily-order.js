@@ -45,7 +45,11 @@ const DailyOrderModule = (() => {
 
   /* Shift display label and type helpers */
   function _shiftLabel(s) {
-    return {S1:'Shift 1', S2:'Shift 2&3', SNK1:'Snack S1', SNK2:'Snack S2', SNK3:'Snack S3', SNK4:'Snack Berat'}[s] || s;
+    const map = {S1:'Shift 1', S2:'Shift 2&3', SNK1:'Snack S1', SNK2:'Snack S2', SNK3:'Snack S3', SNK4:'Snack Berat'};
+    if (map[s]) return map[s];
+    // EVT1/EVT2/dst → 'Event 1', 'Event 2' (catering event khusus / one-off)
+    if ((s||'').startsWith('EVT')) return 'Event ' + (s.replace('EVT','')||'');
+    return s;
   }
   function _isSnack(s) { return s === 'SNK1' || s === 'SNK2' || s === 'SNK3' || s === 'SNK4'; }
   function _defaultFcp(shift) {
@@ -885,9 +889,10 @@ const DailyOrderModule = (() => {
         const showLabel = i % labelEvery === 0 || i === trendDays.length - 1;
         const tglParts = (d.tgl||'').split('-'); // YYYY-MM-DD
         const tglLabel = tglParts.length === 3 ? tglParts[2]+'/'+tglParts[1] : '';
-        return `<g>
-          <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(bw-4).toFixed(1)}" height="${h.toFixed(1)}" fill="${color}" rx="2"><title>${d.tgl}: ${_fmtRp(d.value)} · ${d.formCount} form</title></rect>
-          ${showLabel ? `<text x="${(x+bw/2-2).toFixed(1)}" y="${(H-padB+12).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--text-3)">${tglLabel}</text>` : ''}
+        // Interactive: klik bar → navigate ke tanggal itu di Form Produksi
+        return `<g style="cursor:pointer" onclick="DailyOrderModule.setDate('${d.tgl}');DailyOrderModule.setView('form')">
+          <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(bw-4).toFixed(1)}" height="${h.toFixed(1)}" fill="${color}" rx="2" style="transition:opacity .15s"><title>${d.tgl}: ${_fmtRp(d.value)} · ${d.formCount} form · klik untuk buka tanggal ini</title></rect>
+          ${showLabel ? `<text x="${(x+bw/2-2).toFixed(1)}" y="${(H-padB+12).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--text-3)" style="pointer-events:none">${tglLabel}</text>` : ''}
         </g>`;
       }).join('');
       return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block;max-height:200px">
@@ -946,7 +951,7 @@ const DailyOrderModule = (() => {
       </div>
 
       <!-- Trend Harian + Distribusi Shift side-by-side -->
-      <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--s3);margin-bottom:var(--s4)" class="do-da-row">
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--s3);margin-bottom:var(--s4);align-items:start" class="do-da-row">
         <!-- Trend Harian (proper bar chart) -->
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4)">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
@@ -968,15 +973,19 @@ const DailyOrderModule = (() => {
 
         <!-- Distribusi Shift -->
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4)">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
             <div style="font-size:13px;font-weight:700">🍽️ Distribusi Shift</div>
             <div style="font-size:10px;color:var(--text-3)">${shifts.length} shift</div>
+          </div>
+          <div style="font-size:10px;color:var(--text-3);font-style:italic;margin-bottom:10px;line-height:1.5">
+            Shift 1/2&amp;3 = produksi reguler · Snack = bekal tambahan · <strong>Event (EVT)</strong> = catering khusus / one-off
           </div>
           ${shifts.length === 0
             ? `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:12px">Belum ada data</div>`
             : shifts.map(s => {
                 const pct = grandTotal > 0 ? (s.value / grandTotal * 100).toFixed(0) : 0;
-                const color = _isSnack(s.shift) ? '#ec4899' : s.shift === 'S1' ? '#6366f1' : '#10b981';
+                const isEvt = (s.shift||'').startsWith('EVT');
+                const color = isEvt ? '#f59e0b' : _isSnack(s.shift) ? '#ec4899' : s.shift === 'S1' ? '#6366f1' : '#10b981';
                 return `<div style="margin-bottom:10px">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
                     <span style="font-size:11px;font-weight:600">${_shiftLabel(s.shift)}</span>
@@ -993,7 +1002,7 @@ const DailyOrderModule = (() => {
       </div>
 
       <!-- 2 tables side-by-side: Top Bahan + Top Hari -->
-      <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:var(--s3)" class="do-da-row">
+      <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:var(--s3);align-items:start" class="do-da-row">
         <!-- Top Bahan -->
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
           <div style="padding:var(--s4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
