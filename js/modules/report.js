@@ -56,9 +56,9 @@ const ReportModule = (() => {
     kas.filter(r=>r.type!=='Kas').forEach(r => { byType[r.type||'Lainnya'] = (byType[r.type||'Lainnya']||0) + (r.jumlah||0); });
     const typeRows = Object.entries(byType).sort((a,b) => b[1]-a[1]);
 
-    // MoM comparison: bulan ini vs bulan lalu
+    // MoM comparison: bulan ini vs bulan lalu (local timezone, hindari UTC shift)
     const today = new Date();
-    const ym = (d) => d.toISOString().slice(0,7);
+    const ym = (d) => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
     const thisMonth = ym(today);
     const lastMonth = ym(new Date(today.getFullYear(), today.getMonth()-1, 1));
     const thisMonthKeluar = kas.filter(r => r.type!=='Kas' && (r.tgl||'').startsWith(thisMonth)).reduce((s,r)=>s+(r.jumlah||0),0);
@@ -202,7 +202,7 @@ const ReportModule = (() => {
     const last6 = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
-      const ym = d.toISOString().slice(0,7);
+      const ym = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
       const bulanOrders = orders.filter(o => (o.tglOrder||o.tgl||'').startsWith(ym));
       last6.push({
         ym,

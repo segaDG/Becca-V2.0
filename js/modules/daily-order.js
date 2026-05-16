@@ -7,10 +7,10 @@ const DailyOrderModule = (() => {
   let _view         = 'form';
   let _forms        = [];
   let _orders       = [];
-  let _date         = new Date().toISOString().slice(0,10);
+  let _date         = (() => { const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
   let _shift        = 'S1';
-  let _formMonth    = new Date().toISOString().slice(0,7);
-  let _summaryMonth = new Date().toISOString().slice(0,7);
+  let _formMonth    = (() => { const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); })();
+  let _summaryMonth = (() => { const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); })();
   let _editingItemId= null; // null | 'new' | existing item id
   let _saving       = false; // guard against double-save race condition
   let _inventory    = [];
@@ -28,7 +28,22 @@ const DailyOrderModule = (() => {
   const _ALLOWED_META_FIELDS = new Set(['foodCostPct','budgetBelanja','status']);
 
   /* ─── HELPERS ─── */
-  function _today() { return new Date().toISOString().slice(0,10); }
+  // Local-aware date YYYY-MM-DD. toISOString() pakai UTC — di WIB (+7), midnight
+  // lokal jadi previous-day-17:00 UTC → date salah. Pakai getFullYear/Month/Date.
+  function _ymdLocal(d) {
+    if (!d) d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function _ymLocal(d) {
+    if (!d) d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    return `${y}-${m}`;
+  }
+  function _today() { return _ymdLocal(); }
 
   function _fmtDate(s) {
     if (!s) return '-';
@@ -791,7 +806,7 @@ const DailyOrderModule = (() => {
     // Periode filter — shared state dengan Cek Selisih agar konsisten.
     const periode = _cekSelisihPeriode || '30d';
     const today = new Date();
-    const ymd = (d) => d.toISOString().split('T')[0];
+    const ymd = (d) => _ymdLocal(d);
     let fromDate = '', toDate = ymd(today);
     if (periode === '7d')       fromDate = ymd(new Date(today.getTime() - 7  * 86400000));
     else if (periode === '30d') fromDate = ymd(new Date(today.getTime() - 30 * 86400000));
@@ -1106,7 +1121,7 @@ const DailyOrderModule = (() => {
     // Periode filter — default 30 hari, configurable via _cekSelisihPeriode.
     const periode = _cekSelisihPeriode || '30d';
     const today = new Date();
-    const ymd = (d) => d.toISOString().split('T')[0];
+    const ymd = (d) => _ymdLocal(d);
     let fromDate = '', toDate = ymd(today);
     if (periode === '7d')       fromDate = ymd(new Date(today.getTime() - 7  * 86400000));
     else if (periode === '30d') fromDate = ymd(new Date(today.getTime() - 30 * 86400000));
@@ -2068,7 +2083,7 @@ const DailyOrderModule = (() => {
     // Use same periode filter as Data Analysis
     const periode = _cekSelisihPeriode || '30d';
     const today = new Date();
-    const ymd = (d) => d.toISOString().split('T')[0];
+    const ymd = (d) => _ymdLocal(d);
     let fromDate = '', toDate = ymd(today);
     if (periode === '7d')       fromDate = ymd(new Date(today.getTime() - 7  * 86400000));
     else if (periode === '30d') fromDate = ymd(new Date(today.getTime() - 30 * 86400000));
