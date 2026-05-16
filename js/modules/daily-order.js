@@ -784,85 +784,276 @@ const DailyOrderModule = (() => {
 
   /* ─── DATA ANALYSIS ─── */
   function _htmlDataAnalysis() {
+    // Periode filter — shared state dengan Cek Selisih agar konsisten.
+    const periode = _cekSelisihPeriode || '30d';
+    const today = new Date();
+    const ymd = (d) => d.toISOString().split('T')[0];
+    let fromDate = '', toDate = ymd(today);
+    if (periode === '7d')       fromDate = ymd(new Date(today.getTime() - 7  * 86400000));
+    else if (periode === '30d') fromDate = ymd(new Date(today.getTime() - 30 * 86400000));
+    else if (periode === '90d') fromDate = ymd(new Date(today.getTime() - 90 * 86400000));
+    else if (periode === 'this-month') { fromDate = ymd(new Date(today.getFullYear(), today.getMonth(), 1)); }
+    else if (periode === 'last-month') {
+      fromDate = ymd(new Date(today.getFullYear(), today.getMonth()-1, 1));
+      toDate   = ymd(new Date(today.getFullYear(), today.getMonth(),   0));
+    }
+    const inPeriode = (tgl) => {
+      if (periode === 'all' || !tgl) return periode === 'all' || !fromDate;
+      return tgl >= fromDate && tgl <= toDate;
+    };
+    const formsFiltered = _forms.filter(f => periode === 'all' || inPeriode(f.tanggal));
+
+    // ── Aggregate per item ──
     const itemMap = {};
-    _forms.forEach(f => {
+    formsFiltered.forEach(f => {
       (f.items||[]).forEach(it => {
-        if (!itemMap[it.item]) itemMap[it.item] = {item:it.item, satuan:it.satuan, totalQty:0, totalValue:0, days:0};
-        // Use aktQty if explicitly set (including 0), else fall back to estQty
+        if (!itemMap[it.item]) itemMap[it.item] = {item:it.item, satuan:it.satuan, totalQty:0, totalValue:0, days:new Set()};
         const qty   = (it.aktQty !== null && it.aktQty !== undefined && it.aktQty !== '') ? _n(it.aktQty) : _n(it.estQty);
         const value = (it.aktTotal != null && it.aktTotal !== '') ? _n(it.aktTotal) : _n(it.estTotal);
         itemMap[it.item].totalQty   += qty;
         itemMap[it.item].totalValue += value;
-        itemMap[it.item].days++;
+        if (f.tanggal) itemMap[it.item].days.add(f.tanggal);
       });
     });
-    const items      = Object.values(itemMap).sort((a,b) => b.totalValue - a.totalValue);
+    const items = Object.values(itemMap).map(it => ({...it, days: it.days.size})).sort((a,b) => b.totalValue - a.totalValue);
     const grandTotal = items.reduce((s,it) => s + it.totalValue, 0);
-    const totalForms = _forms.length;
-    const activeDays = new Set(_forms.map(f => f.tanggal)).size;
+
+    // ── Aggregate per shift ──
+    const shiftMap = {};
+    formsFiltered.forEach(f => {
+      const sh = f.shift || '?';
+      if (!shiftMap[sh]) shiftMap[sh] = { shift: sh, count: 0, value: 0, days: new Set() };
+      shiftMap[sh].count++;
+      (f.items||[]).forEach(it => {
+        shiftMap[sh].value += (it.aktTotal != null && it.aktTotal !== '') ? _n(it.aktTotal) : _n(it.estTotal);
+      });
+      if (f.tanggal) shiftMap[sh].days.add(f.tanggal);
+    });
+    const shifts = Object.values(shiftMap).map(s => ({...s, days: s.days.size})).sort((a,b) => b.value - a.value);
+
+    // ── Aggregate per hari (daily spend) ──
+    const dailyMap = {};
+    formsFiltered.forEach(f => {
+      if (!f.tanggal) return;
+      if (!dailyMap[f.tanggal]) dailyMap[f.tanggal] = { tgl: f.tanggal, value: 0, formCount: 0 };
+      dailyMap[f.tanggal].formCount++;
+      (f.items||[]).forEach(it => {
+        dailyMap[f.tanggal].value += (it.aktTotal != null && it.aktTotal !== '') ? _n(it.aktTotal) : _n(it.estTotal);
+      });
+    });
+    const dailySorted = Object.values(dailyMap).sort((a,b) => a.tgl.localeCompare(b.tgl));
+    const dailyByValue = [...dailySorted].sort((a,b) => b.value - a.value);
+
+    // ── KPI metrics ──
+    const totalForms = formsFiltered.length;
+    const activeDays = dailySorted.length;
+    const avgPerDay  = activeDays > 0 ? grandTotal / activeDays : 0;
+    const peakDay    = dailyByValue[0] || null;
+    const lowestDay  = activeDays > 1 ? dailyByValue[dailyByValue.length - 1] : null;
+
+    // ── Daily trend mini sparkline (14 days max) ──
+    const trendDays = dailySorted.slice(-14);
+    const maxTrendVal = Math.max(...trendDays.map(d => d.value), 1);
+    const sparkSvg = trendDays.length === 0 ? '' : (() => {
+      const W = 100, H = 28, bw = W / Math.max(1, trendDays.length);
+      const bars = trendDays.map((d, i) => {
+        const h = (d.value / maxTrendVal) * H;
+        const x = i * bw + 0.5;
+        return `<rect x="${x.toFixed(1)}" y="${(H-h).toFixed(1)}" width="${(bw-1).toFixed(1)}" height="${h.toFixed(1)}" fill="#6366f1" rx="1"><title>${d.tgl}: ${_fmtRp(d.value)}</title></rect>`;
+      }).join('');
+      return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:28px;display:block">${bars}</svg>`;
+    })();
+
+    const periodeLabel = ({
+      '7d':'7 Hari Terakhir', '30d':'30 Hari Terakhir', '90d':'90 Hari Terakhir',
+      'this-month':'Bulan Ini', 'last-month':'Bulan Lalu', 'all':'Semua Data'
+    })[periode] || '30 Hari Terakhir';
+    const fmtTgl = (t) => t ? t.split('-').reverse().join('-') : '-';
 
     return `
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--s3);margin-bottom:var(--s4)">
+      <!-- Periode picker (shared dgn Cek Selisih) -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:var(--s3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em">📆 Periode</span>
+          <select onchange="DailyOrderModule._setCekSelisihPeriode(this.value)"
+            style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;font-weight:600">
+            <option value="7d"          ${periode==='7d'?'selected':''}>7 Hari Terakhir</option>
+            <option value="30d"         ${periode==='30d'?'selected':''}>30 Hari Terakhir</option>
+            <option value="90d"         ${periode==='90d'?'selected':''}>90 Hari Terakhir</option>
+            <option value="this-month"  ${periode==='this-month'?'selected':''}>Bulan Ini</option>
+            <option value="last-month"  ${periode==='last-month'?'selected':''}>Bulan Lalu</option>
+            <option value="all"         ${periode==='all'?'selected':''}>Semua Data</option>
+          </select>
+          ${periode !== 'all' && fromDate ? `<span style="font-size:11px;color:var(--text-3);font-family:var(--font-mono)">${fmtTgl(fromDate)} → ${fmtTgl(toDate)}</span>` : ''}
+        </div>
+        <div style="font-size:11px;color:var(--text-3)">
+          ${formsFiltered.length} form · ${items.length} item · ${activeDays} hari
+        </div>
+      </div>
+
+      <!-- KPI Cards: 6 metrics -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--s3);margin-bottom:var(--s4)" class="do-da-kpi">
         ${[
-          {label:'Total Form',  value:totalForms,         unit:'form',  color:'#6366f1'},
-          {label:'Hari Aktif',  value:activeDays,         unit:'hari',  color:'#10b981'},
-          {label:'Total Item',  value:items.length,       unit:'bahan', color:'#8b5cf6'},
-          {label:'Total Nilai', value:_fmtRp(grandTotal), unit:'',      color:'#f59e0b'},
+          {label:'Total Pengeluaran', value:_fmtRp(grandTotal), unit:'rupiah', color:'#f59e0b', icon:'💰'},
+          {label:'Rata-rata / Hari',  value:_fmtRp(Math.round(avgPerDay)), unit:'rupiah', color:'#6366f1', icon:'📈'},
+          {label:'Total Form',        value:totalForms,         unit:'form',  color:'#8b5cf6', icon:'📋'},
+          {label:'Hari Aktif',        value:activeDays,         unit:'hari',  color:'#10b981', icon:'📅'},
+          {label:'Total Bahan',       value:items.length,       unit:'item',  color:'#06b6d4', icon:'🥬'},
+          {label:'Hari Tertinggi',    value:peakDay?_fmtRp(peakDay.value):'-', unit:peakDay?fmtTgl(peakDay.tgl):'',  color:'#ef4444', icon:'🔥'},
         ].map(s => `
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4)">
-            <div style="font-size:11px;color:var(--text-3);font-weight:600">${s.label}</div>
-            <div style="font-size:20px;font-weight:700;color:${s.color};margin-top:4px">${s.value}</div>
-            ${s.unit ? `<div style="font-size:11px;color:var(--text-3)">${s.unit}</div>` : ''}
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <div style="font-size:10px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${s.label}</div>
+              <span style="font-size:14px">${s.icon}</span>
+            </div>
+            <div style="font-size:18px;font-weight:800;color:${s.color};font-family:var(--font-mono);line-height:1.2">${s.value}</div>
+            ${s.unit ? `<div style="font-size:10px;color:var(--text-3);margin-top:2px">${s.unit}</div>` : ''}
           </div>
         `).join('')}
       </div>
 
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-        <div style="padding:var(--s4);border-bottom:1px solid var(--border)">
-          <span style="font-size:13px;font-weight:700">Penggunaan Bahan Terbesar</span>
-          <span style="font-size:11px;color:var(--text-3);margin-left:8px">${items.length} item</span>
+      <!-- Trend Harian + Distribusi Shift side-by-side -->
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--s3);margin-bottom:var(--s4)" class="do-da-row">
+        <!-- Trend Harian (sparkline) -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:13px;font-weight:700">📈 Trend Pengeluaran Harian</div>
+            <div style="font-size:10px;color:var(--text-3)">${trendDays.length} hari terakhir</div>
+          </div>
+          ${trendDays.length === 0
+            ? `<div style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">Belum ada data</div>`
+            : `<div style="display:flex;align-items:flex-end;gap:8px">
+                <div style="flex:1">${sparkSvg}</div>
+                <div style="text-align:right;font-size:10px;color:var(--text-3);line-height:1.4">
+                  <div>Max: <strong style="color:#ef4444">${_fmtRp(maxTrendVal)}</strong></div>
+                  ${lowestDay ? `<div>Min: <strong style="color:#10b981">${_fmtRp(lowestDay.value)}</strong></div>` : ''}
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-3);margin-top:4px;font-family:var(--font-mono)">
+                <span>${fmtTgl(trendDays[0]?.tgl)}</span>
+                <span>${fmtTgl(trendDays[trendDays.length-1]?.tgl)}</span>
+              </div>`
+          }
         </div>
-        ${items.length === 0
-          ? `<div style="padding:48px;text-align:center;color:var(--text-3)">Belum ada data form produksi</div>`
-          : `<div style="overflow-x:auto">
-              <table style="width:100%;border-collapse:collapse;font-size:12px">
-                <thead>
-                  <tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
-                    <th style="padding:8px;text-align:center;color:var(--text-3);width:36px">#</th>
-                    <th style="padding:8px;text-align:left;color:var(--text-3)">ITEM</th>
-                    <th style="padding:8px;text-align:right;color:var(--primary)">TOTAL QTY</th>
-                    <th style="padding:8px;text-align:center;color:var(--text-3)">SAT</th>
-                    <th style="padding:8px;text-align:right;color:var(--text-3)">TOTAL NILAI</th>
-                    <th style="padding:8px;text-align:right;color:var(--text-3)">% DARI TOTAL</th>
-                    <th style="padding:8px;text-align:center;color:var(--text-3)">FORM</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${items.map((it,i) => {
-                    const pct = grandTotal > 0 ? (it.totalValue/grandTotal*100).toFixed(1) : 0;
-                    return `
-                    <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''}">
-                      <td style="padding:8px;text-align:center;color:var(--text-3)">${i+1}</td>
-                      <td style="padding:8px;font-weight:600">${it.item}</td>
-                      <td style="padding:8px;text-align:right;font-weight:700;color:var(--primary)">${it.totalQty.toLocaleString('id-ID',{maximumFractionDigits:2})}</td>
-                      <td style="padding:8px;text-align:center;color:var(--text-3)">${it.satuan||'-'}</td>
-                      <td style="padding:8px;text-align:right">${_fmtRp(it.totalValue)}</td>
-                      <td style="padding:8px">
-                        <div style="display:flex;align-items:center;gap:6px">
-                          <div style="flex:1;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">
-                            <div style="height:100%;width:${pct}%;background:var(--primary);border-radius:3px"></div>
+
+        <!-- Distribusi Shift -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:13px;font-weight:700">🍽️ Distribusi Shift</div>
+            <div style="font-size:10px;color:var(--text-3)">${shifts.length} shift</div>
+          </div>
+          ${shifts.length === 0
+            ? `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:12px">Belum ada data</div>`
+            : shifts.map(s => {
+                const pct = grandTotal > 0 ? (s.value / grandTotal * 100).toFixed(0) : 0;
+                const color = _isSnack(s.shift) ? '#ec4899' : s.shift === 'S1' ? '#6366f1' : '#10b981';
+                return `<div style="margin-bottom:10px">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+                    <span style="font-size:11px;font-weight:600">${_shiftLabel(s.shift)}</span>
+                    <span style="font-size:10px;color:var(--text-3);font-family:var(--font-mono)">${_fmtRp(s.value)} · ${pct}%</span>
+                  </div>
+                  <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden">
+                    <div style="background:${color};height:6px;border-radius:4px;width:${pct}%;transition:width .5s"></div>
+                  </div>
+                  <div style="font-size:9px;color:var(--text-3);margin-top:2px">${s.count} form · ${s.days} hari</div>
+                </div>`;
+              }).join('')
+          }
+        </div>
+      </div>
+
+      <!-- 2 tables side-by-side: Top Bahan + Top Hari -->
+      <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:var(--s3)" class="do-da-row">
+        <!-- Top Bahan -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+          <div style="padding:var(--s4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:13px;font-weight:700">🥬 Penggunaan Bahan Terbesar</div>
+            <span style="font-size:11px;color:var(--text-3)">${items.length} item</span>
+          </div>
+          ${items.length === 0
+            ? `<div style="padding:48px;text-align:center;color:var(--text-3)">Belum ada data form produksi</div>`
+            : `<div style="overflow-x:auto;max-height:480px">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
+                    <tr style="border-bottom:1px solid var(--border)">
+                      <th style="padding:8px;text-align:center;color:var(--text-3);width:36px">#</th>
+                      <th style="padding:8px;text-align:left;color:var(--text-3)">ITEM</th>
+                      <th style="padding:8px;text-align:right;color:var(--primary)">QTY</th>
+                      <th style="padding:8px;text-align:right;color:var(--text-3)">NILAI</th>
+                      <th style="padding:8px;text-align:right;color:var(--text-3)">%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${items.slice(0, 30).map((it,i) => {
+                      const pct = grandTotal > 0 ? (it.totalValue/grandTotal*100).toFixed(1) : 0;
+                      return `
+                      <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''}">
+                        <td style="padding:7px 8px;text-align:center;color:var(--text-3);font-size:11px">${i+1}</td>
+                        <td style="padding:7px 8px;font-weight:500">${Utils.esc(it.item)}<div style="font-size:9px;color:var(--text-3)">${it.days} hari</div></td>
+                        <td style="padding:7px 8px;text-align:right;font-family:var(--font-mono);color:var(--primary)">${it.totalQty.toLocaleString('id-ID',{maximumFractionDigits:1})} <span style="color:var(--text-3);font-size:9px">${it.satuan||''}</span></td>
+                        <td style="padding:7px 8px;text-align:right;font-family:var(--font-mono);font-weight:600">${_fmtRp(it.totalValue)}</td>
+                        <td style="padding:7px 8px">
+                          <div style="display:flex;align-items:center;gap:5px">
+                            <div style="flex:1;height:4px;background:var(--surface2);border-radius:3px;overflow:hidden">
+                              <div style="height:100%;width:${pct}%;background:var(--primary);border-radius:3px"></div>
+                            </div>
+                            <span style="color:var(--text-3);font-size:10px;width:36px;text-align:right;font-family:var(--font-mono)">${pct}%</span>
                           </div>
-                          <span style="color:var(--text-3);font-size:11px;width:38px;text-align:right">${pct}%</span>
-                        </div>
-                      </td>
-                      <td style="padding:8px;text-align:center;color:var(--text-3)">${it.days}</td>
-                    </tr>`;
-                  }).join('')}
-                </tbody>
-              </table>
-            </div>`
+                        </td>
+                      </tr>`;
+                    }).join('')}
+                    ${items.length > 30 ? `<tr><td colspan="5" style="text-align:center;padding:10px;font-size:10px;color:var(--text-3)">+${items.length-30} item lain</td></tr>` : ''}
+                  </tbody>
+                </table>
+              </div>`
+          }
+        </div>
+
+        <!-- Top Hari by Spend -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+          <div style="padding:var(--s4);border-bottom:1px solid var(--border)">
+            <div style="font-size:13px;font-weight:700">🔥 Hari Pengeluaran Tertinggi</div>
+            <div style="font-size:10px;color:var(--text-3);margin-top:2px">Top 10 hari berdasarkan total nilai</div>
+          </div>
+          ${dailyByValue.length === 0
+            ? `<div style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">Belum ada data</div>`
+            : `<div style="overflow-x:auto;max-height:480px">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
+                    <tr style="border-bottom:1px solid var(--border)">
+                      <th style="padding:8px;text-align:center;color:var(--text-3);width:30px">#</th>
+                      <th style="padding:8px;text-align:left;color:var(--text-3)">TANGGAL</th>
+                      <th style="padding:8px;text-align:right;color:var(--text-3)">NILAI</th>
+                      <th style="padding:8px;text-align:center;color:var(--text-3)">FORM</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${dailyByValue.slice(0, 10).map((d,i) => {
+                      const peakPct = peakDay && peakDay.value > 0 ? (d.value/peakDay.value*100).toFixed(0) : 0;
+                      return `
+                      <tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''};cursor:pointer"
+                        onclick="DailyOrderModule.setDate('${d.tgl}')"
+                        onmouseover="this.style.background='var(--surface2)'"
+                        onmouseout="this.style.background='${i%2?'rgba(0,0,0,.018)':''}'"
+                        title="Klik untuk buka form tanggal ini">
+                        <td style="padding:7px 8px;text-align:center;color:var(--text-3);font-size:11px">${i+1}</td>
+                        <td style="padding:7px 8px;font-weight:500;font-family:var(--font-mono);font-size:11px">${fmtTgl(d.tgl)}</td>
+                        <td style="padding:7px 8px;text-align:right;font-family:var(--font-mono);font-weight:600;color:${i===0?'#ef4444':'var(--text)'}">${_fmtRp(d.value)}<div style="font-size:9px;color:var(--text-3);font-weight:400">${peakPct}%</div></td>
+                        <td style="padding:7px 8px;text-align:center;color:var(--text-3);font-size:11px">${d.formCount}</td>
+                      </tr>`;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>`
+          }
+        </div>
+      </div>
+
+      <style>
+        @media(max-width:768px){
+          .do-da-row{grid-template-columns:1fr !important}
         }
-      </div>`;
+      </style>`;
   }
 
   /* ─── CEK SELISIH ─── */
