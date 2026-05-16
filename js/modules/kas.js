@@ -1997,7 +1997,8 @@ const KasModule = (() => {
   /* ===================== ANALISA DETAIL ===================== */
   function _buildAnalysis({rows, kasMasuk, byType, typesSorted, grand, grandDone, grandTBC, totalMasuk, saldoAwal, saldoAkhir, bulanLabel, bulan}) {
     const fR = Utils.formatRupiah;
-    const _sec = (title, body) => `<div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+    // Section dengan anchor id agar bisa di-jump dari sub-nav
+    const _sec = (title, body, anchor) => `<div ${anchor?`id="${anchor}" style="scroll-margin-top:80px"`:''} style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
       <div style="padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface2)">
         <div style="font-size:13px;font-weight:700;color:var(--heading)">${title}</div>
       </div><div style="padding:16px 20px">${body}</div></div>`;
@@ -2359,11 +2360,30 @@ const KasModule = (() => {
         }).join('')}</tbody>
       </table>`;
 
-    return _sec(`Ringkasan Keuangan — ${bulanLabel}`, summaryHtml)
-      + _sec(`Distribusi Pengeluaran per Kategori`, catHtml)
-      + _sec(`Perbandingan vs Bulan Sebelumnya`, momHtml)
-      + _sec(`Analisa Pengeluaran Harian`, dailyHtml)
-      + _sec(`Deteksi Anomali & Transaksi Janggal`, anomalyHtml + topTxHtml);
+    // Sticky sub-nav: jump-to-section anchors di top analisa
+    const navLinks = [
+      { id:'an-summary',  label:'📊 Ringkasan' },
+      { id:'an-kategori', label:'🗂️ Kategori' },
+      { id:'an-mom',      label:'📈 vs Bulan Lalu' },
+      { id:'an-daily',    label:'📅 Per Hari' },
+      { id:'an-anomali',  label:'⚠️ Anomali' },
+    ];
+    const subNav = `<div style="position:sticky;top:0;z-index:5;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin-top:16px;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none">
+      ${navLinks.map(n => `<a href="#${n.id}" onclick="event.preventDefault();document.getElementById('${n.id}')?.scrollIntoView({behavior:'smooth',block:'start'})"
+        style="font-size:11px;font-weight:600;color:var(--text-2);background:var(--surface2);padding:5px 11px;border-radius:6px;text-decoration:none;white-space:nowrap;transition:all .15s;cursor:pointer"
+        onmouseover="this.style.background='var(--primary)';this.style.color='#fff'"
+        onmouseout="this.style.background='var(--surface2)';this.style.color='var(--text-2)'">${n.label}</a>`).join('')}
+    </div>
+    <style>
+      [id^="an-"]{scroll-margin-top:80px}
+    </style>`;
+
+    return subNav
+      + _sec(`Ringkasan Keuangan — ${bulanLabel}`, summaryHtml, 'an-summary')
+      + _sec(`Distribusi Pengeluaran per Kategori`, catHtml, 'an-kategori')
+      + _sec(`Perbandingan vs Bulan Sebelumnya`, momHtml, 'an-mom')
+      + _sec(`Analisa Pengeluaran Harian`, dailyHtml, 'an-daily')
+      + _sec(`Deteksi Anomali & Transaksi Janggal`, anomalyHtml + topTxHtml, 'an-anomali');
   }
 
   function toggleAnomalyDetail(idx) {

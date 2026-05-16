@@ -227,8 +227,134 @@ const DashboardModule = (() => {
 
       ${canInvoice && invoices?.length ? _renderCustomerGrowth(invoices) : ''}
 
+      ${canInvoice && invoices?.length ? _renderChurnAlert(invoices) : ''}
+
       ${canEmpFinance && topHutang.length ? _renderHutangTable(topHutang) : ''}
     `;
+  }
+
+  // Customer Churn Alert — list customer yg belum order > 30 hari tapi
+  // sebelumnya aktif (punya invoice di 60 hari sebelumnya).
+  function _renderChurnAlert(invoices) {
+    if (!invoices || !invoices.length) return '';
+    const now = new Date();
+    const dayMs = 86400000;
+    // Group invoices per customer
+    const byCust = {};
+    invoices.forEach(inv => {
+      const name = (inv.customerName || inv.namaCustomer || inv.customer || '').trim();
+      if (!name) return;
+      const tgl = inv.tglInvoice || inv.tgl;
+      if (!tgl) return;
+      if (!byCust[name]) byCust[name] = { name, last: null, count: 0, totalValue: 0, allInvoices: [] };
+      const d = new Date(tgl);
+      if (isNaN(d.getTime())) return;
+      byCust[name].allInvoices.push(d);
+      byCust[name].count++;
+      byCust[name].totalValue += (inv.total || inv.grandTotal || 0);
+      if (!byCust[name].last || d > byCust[name].last) byCust[name].last = d;
+    });
+    // At Risk: last 30-60 days ago (no recent order)
+    // Churned: last >60 days ago BUT had active period before
+    const atRisk = [], churned = [];
+    Object.values(byCust).forEach(c => {
+      if (!c.last) return;
+      const daysSinceLast = Math.floor((now - c.last) / dayMs);
+      if (daysSinceLast >= 30 && daysSinceLast <= 60) {
+        atRisk.push({ ...c, daysSinceLast });
+      } else if (daysSinceLast > 60 && daysSinceLast <= 180 && c.count >= 2) {
+        // Hanya tampilkan customer yg pernah aktif (≥2 invoice) sebelumnya
+        churned.push({ ...c, daysSinceLast });
+      }
+    });
+    atRisk.sort((a,b) => b.totalValue - a.totalValue);
+    churned.sort((a,b) => a.daysSinceLast - b.daysSinceLast);
+
+    if (!atRisk.length && !churned.length) return '';
+
+    // Cache untuk popup
+    window._dashChurnAtRisk = atRisk;
+    window._dashChurnChurned = churned;
+
+    const card = (title, color, icon, list, listKey) => {
+      if (!list.length) return '';
+      return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:32px;height:32px;border-radius:8px;background:${color}15;display:flex;align-items:center;justify-content:center;font-size:15px">${icon}</div>
+            <div>
+              <div style="font-size:14px;font-weight:700">${title}</div>
+              <div style="font-size:11px;color:var(--text-3)">${list.length} customer</div>
+            </div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="App.navigate('customer')">Lihat →</button>
+        </div>
+        <div style="padding:6px 10px">
+          ${list.slice(0, 6).map((c, i) => `
+            <div onclick="DashboardModule._openChurnCustomerDetail('${listKey}', ${i})"
+              style="display:flex;align-items:center;justify-content:space-between;padding:8px 8px;border-radius:6px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s"
+              onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''"
+              title="Klik untuk detail customer">
+              <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
+                <span style="font-size:10px;color:var(--text-3);font-weight:700;width:18px;flex-shrink:0">${i+1}</span>
+                <div style="min-width:0;flex:1">
+                  <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${Utils.esc(c.name)}">${Utils.esc(c.name)}</div>
+                  <div style="font-size:10px;color:var(--text-3)">${c.count} invoice · LTV ${Utils.formatRupiah(c.totalValue, true)}</div>
+                </div>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-size:11px;font-weight:700;color:${color};font-family:var(--font-mono)">${c.daysSinceLast}d</div>
+                <div style="font-size:9px;color:var(--text-3)">last order</div>
+              </div>
+            </div>
+          `).join('')}
+          ${list.length > 6 ? `<div style="font-size:10px;color:var(--text-3);text-align:center;padding:6px">+${list.length-6} customer lain</div>` : ''}
+        </div>
+      </div>`;
+    };
+
+    return `<div class="dash-grid dash-grid-2col" style="margin-top:var(--s5)">
+      ${card('⚠️ At Risk · 30-60 hari', '#f59e0b', '⚠️', atRisk, 'atRisk')}
+      ${card('💤 Churned · >60 hari', '#ef4444', '💤', churned, 'churned')}
+    </div>`;
+  }
+
+  function _openChurnCustomerDetail(listKey, idx) {
+    const list = (listKey === 'atRisk' ? window._dashChurnAtRisk : window._dashChurnChurned) || [];
+    const c = list[idx];
+    if (!c) return;
+    const fmtDate = (d) => d ? d.toISOString().slice(0,10).split('-').reverse().join('-') : '-';
+    const recentInv = (c.allInvoices||[]).slice().sort((a,b) => b - a).slice(0, 5);
+    const body = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="width:48px;height:48px;border-radius:50%;background:rgba(245,158,11,.12);display:flex;align-items:center;justify-content:center;font-size:20px">${listKey==='atRisk'?'⚠️':'💤'}</div>
+        <div>
+          <div style="font-size:16px;font-weight:700">${Utils.esc(c.name)}</div>
+          <div style="font-size:11px;color:var(--text-3)">${c.count} invoice · LTV ${Utils.formatRupiah(c.totalValue)}</div>
+        </div>
+      </div>
+      <div style="background:${listKey==='atRisk'?'rgba(245,158,11,.08)':'rgba(239,68,68,.08)'};border:1px solid ${listKey==='atRisk'?'rgba(245,158,11,.3)':'rgba(239,68,68,.3)'};border-radius:10px;padding:14px;margin-bottom:14px;text-align:center">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${listKey==='atRisk'?'#f59e0b':'#ef4444'}">${listKey==='atRisk'?'BELUM ORDER':'CHURNED'} · ${c.daysSinceLast} HARI</div>
+        <div style="font-size:22px;font-weight:800;color:${listKey==='atRisk'?'#f59e0b':'#ef4444'};margin-top:4px">Last order: ${fmtDate(c.last)}</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:4px;font-style:italic">${listKey==='atRisk'?'⚡ Hubungi customer sebelum churn — masih dalam window 60 hari':'❄️ Coba follow-up — sudah lama tidak transaksi'}</div>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-2);margin-bottom:6px">📅 5 Invoice Terakhir</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <tbody>
+          ${recentInv.map((d,i) => `<tr style="border-bottom:.5px solid var(--border-light);background:${i%2?'var(--surface2)':'transparent'}">
+            <td style="padding:7px 12px;color:var(--text-3)">${i+1}</td>
+            <td style="padding:7px 12px;font-family:var(--font-mono)">${fmtDate(d)}</td>
+            <td style="padding:7px 12px;text-align:right;color:var(--text-3);font-size:10px">${Math.floor((new Date() - d) / 86400000)}d lalu</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+    Modal.open({
+      id: 'dash-churn-detail',
+      title: (listKey === 'atRisk' ? '⚠️ At Risk Customer' : '💤 Churned Customer'),
+      body,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('dash-churn-detail')">Tutup</button>
+               <button class="btn btn-primary" onclick="Modal.close('dash-churn-detail');App.navigate('customer')">Buka di Customer →</button>`,
+    });
   }
 
   /* ─────────────────────────────────────────────────────────────
@@ -710,6 +836,6 @@ const DashboardModule = (() => {
     }
   }
 
-  return { init, refresh, openWidgetEditor, _saveW, _resetW, _openKasDetail, _openHutangDetail, _createPODraft };
+  return { init, refresh, openWidgetEditor, _saveW, _resetW, _openKasDetail, _openHutangDetail, _createPODraft, _openChurnCustomerDetail };
 })();
 window.DashboardModule = DashboardModule;
