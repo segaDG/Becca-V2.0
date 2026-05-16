@@ -415,26 +415,73 @@ const DashboardModule = (() => {
       else monthly[b].keluar += (r.jumlah||0);
     });
     const maxVal = Math.max(...Object.values(monthly).map(m => Math.max(m.keluar, m.masuk)), 1);
-    const bars = MONTHS.map(m => {
-      const d = monthly[m];
-      const hK = Math.round(d.keluar / maxVal * 120);
-      const hM = Math.round(d.masuk / maxVal * 120);
-      return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:28px">
-        <div style="height:120px;display:flex;align-items:flex-end;gap:2px">
-          <div style="width:12px;height:${hK}px;background:#ef4444;border-radius:3px 3px 0 0;transition:height .3s" title="Keluar: ${Utils.formatRupiah(d.keluar)}"></div>
-          <div style="width:12px;height:${hM}px;background:#10b981;border-radius:3px 3px 0 0;transition:height .3s" title="Masuk: ${Utils.formatRupiah(d.masuk)}"></div>
-        </div>
-        <span style="font-size:9px;color:var(--text-3);font-weight:600">${m}</span>
-      </div>`;
+    const totalKeluar = MONTHS.reduce((s,m) => s + monthly[m].keluar, 0);
+    const totalMasuk  = MONTHS.reduce((s,m) => s + monthly[m].masuk, 0);
+    const totalNet    = totalMasuk - totalKeluar;
+    const currMonth = MONTHS[new Date().getMonth()];
+    const fmtCompact = (v) => v >= 1e9 ? (v/1e9).toFixed(1)+'M' : v >= 1e6 ? (v/1e6).toFixed(1)+'jt' : v >= 1e3 ? Math.round(v/1e3)+'rb' : String(v);
+
+    // SVG dimensions
+    const W = 720, H = 220;
+    const padL = 58, padR = 14, padT = 16, padB = 32;
+    const chartW = W - padL - padR;
+    const chartH = H - padT - padB;
+    const slotW = chartW / 12;       // each month slot
+    const barW = Math.min(14, (slotW - 8) / 2);
+    const gap = 3;
+
+    // Y-axis grid (0%, 25%, 50%, 75%, 100%)
+    const yLines = [0, 0.25, 0.5, 0.75, 1].map(p => {
+      const y = padT + chartH - (chartH * p);
+      const val = Math.round(maxVal * p);
+      return `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="${p===0?'0':'2,3'}"/>
+              <text x="${padL-6}" y="${y+3}" text-anchor="end" font-size="9" fill="var(--text-3)">${fmtCompact(val)}</text>`;
     }).join('');
+
+    // Bars + labels
+    const bars = MONTHS.map((m, i) => {
+      const d = monthly[m];
+      const x0 = padL + i * slotW + slotW/2;
+      const hK = (d.keluar / maxVal) * chartH;
+      const hM = (d.masuk  / maxVal) * chartH;
+      const xK = x0 - barW - gap/2;
+      const xM = x0 + gap/2;
+      const yK = padT + chartH - hK;
+      const yM = padT + chartH - hM;
+      const isCurr = m === currMonth;
+      // Empty month: muted background highlight
+      const emptyBg = (d.keluar === 0 && d.masuk === 0)
+        ? `<rect x="${(padL+i*slotW+2).toFixed(1)}" y="${padT}" width="${(slotW-4).toFixed(1)}" height="${chartH}" fill="var(--surface2)" opacity="0.3" rx="3"/>` : '';
+      // Click handler: filter Kas tab by bulan
+      const clickAttr = (d.keluar > 0 || d.masuk > 0)
+        ? `style="cursor:pointer" onclick="App.navigate('kas');setTimeout(()=>{if(window.KasModule&&KasModule.setFilter)KasModule.setFilter('bulan','${m}')},200)"`
+        : '';
+      return `<g ${clickAttr}>
+        ${emptyBg}
+        ${d.keluar > 0 ? `<rect x="${xK.toFixed(1)}" y="${yK.toFixed(1)}" width="${barW.toFixed(1)}" height="${hK.toFixed(1)}" fill="#ef4444" rx="2" opacity="${isCurr?1:0.85}"><title>${m}: Keluar ${Utils.formatRupiah(d.keluar)}</title></rect>` : ''}
+        ${d.masuk  > 0 ? `<rect x="${xM.toFixed(1)}" y="${yM.toFixed(1)}" width="${barW.toFixed(1)}" height="${hM.toFixed(1)}" fill="#10b981" rx="2" opacity="${isCurr?1:0.85}"><title>${m}: Masuk ${Utils.formatRupiah(d.masuk)}</title></rect>` : ''}
+        <text x="${x0.toFixed(1)}" y="${(H-padB+14).toFixed(1)}" text-anchor="middle" font-size="10" fill="${isCurr?'var(--primary-h)':'var(--text-3)'}" font-weight="${isCurr?700:400}" style="pointer-events:none">${m}</text>
+      </g>`;
+    }).join('');
+
     return `<div class="card" style="margin-bottom:var(--s4)">
-      <div class="card-header"><div class="card-title">Kas Bulanan</div>
-        <div style="display:flex;gap:12px;font-size:10px;color:var(--text-3)">
-          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#ef4444;margin-right:3px"></span>Keluar</span>
-          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#10b981;margin-right:3px"></span>Masuk</span>
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div class="card-title">📊 Kas Bulanan</div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:2px;font-style:italic">Klik bar untuk drill-down ke transaksi bulan itu</div>
+        </div>
+        <div style="display:flex;gap:14px;font-size:10px;color:var(--text-3);align-items:center;flex-wrap:wrap">
+          <div><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#ef4444;margin-right:4px;vertical-align:middle"></span>Keluar <strong style="color:#ef4444;font-family:var(--font-mono)">${Utils.formatRupiah(totalKeluar)}</strong></div>
+          <div><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#10b981;margin-right:4px;vertical-align:middle"></span>Masuk <strong style="color:#10b981;font-family:var(--font-mono)">${Utils.formatRupiah(totalMasuk)}</strong></div>
+          <div>Net: <strong style="color:${totalNet>=0?'#10b981':'#ef4444'};font-family:var(--font-mono)">${totalNet>=0?'+':'-'}${Utils.formatRupiah(Math.abs(totalNet))}</strong></div>
         </div>
       </div>
-      <div style="padding:var(--s4);display:flex;gap:4px;align-items:flex-end;overflow-x:auto">${bars}</div>
+      <div style="padding:8px 12px 4px;overflow-x:auto">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block;min-height:200px;max-height:280px">
+          ${yLines}
+          ${bars}
+        </svg>
+      </div>
     </div>`;
   }
 
