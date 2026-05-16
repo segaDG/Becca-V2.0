@@ -1270,14 +1270,38 @@ const DailyOrderModule = (() => {
       <!-- DO Aktual vs HPP Stok Inventory comparison table -->
       <div data-block="do-vs-hpp" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
         <div style="padding:var(--s4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <div>
+          <div style="flex:1">
             <div style="font-size:13px;font-weight:700">💰 DO Aktual vs HPP Stok Inventory (Qty &amp; Nilai)</div>
-            <div style="font-size:10px;color:var(--text-3);margin-top:3px;font-style:italic">
-              <strong>AKT QTY (DO)</strong>: dari Daily Order Form Produksi (aktQty).
-              <strong>STOK KELUAR</strong>: dari log Inventory action=KELUAR di tanggal yg sama.
-              <strong>HARGA STOK</strong>: prioritas <code>_weightedAvgPrice</code> (rata-rata tertimbang dari history pembelian) → fallback <code>hargaSatuan</code> (manual entry) → <code>_hppLatest</code> (transaksi MASUK terakhir).
-              <strong>HPP STOK</strong>: nilai aktual dari log KELUAR kalau ada, atau AKT QTY × HARGA STOK.
-            </div>
+            <details style="margin-top:4px">
+              <summary style="font-size:10px;color:var(--primary-h);cursor:pointer;font-weight:600;outline:none;list-style:none">
+                <span style="display:inline-flex;align-items:center;gap:3px">ℹ️ Cara baca tabel ini</span>
+              </summary>
+              <div style="font-size:10px;color:var(--text-3);margin-top:8px;line-height:1.6;padding:8px 10px;background:var(--surface2);border-radius:6px;border-left:3px solid var(--primary)">
+                <div style="margin-bottom:6px"><strong style="color:var(--text-2)">Sumber data:</strong></div>
+                <ul style="margin:0;padding-left:18px">
+                  <li><strong>AKT QTY (DO)</strong>: dari Daily Order Form Produksi (field aktQty).</li>
+                  <li><strong>STOK KELUAR</strong>: dari log Inventory dgn jenis=KELUAR di tanggal yg sama.</li>
+                  <li><strong>HARGA DO</strong>: harga snapshot saat form DO dibuat.</li>
+                  <li><strong>HARGA STOK</strong>: prioritas weighted-avg dari history pembelian → manual entry → HPP MASUK terakhir.</li>
+                  <li><strong>NILAI DO</strong>: AKT QTY × HARGA DO.</li>
+                  <li><strong>HPP STOK</strong>: nilai aktual dari log KELUAR (kalau ada), atau AKT QTY × HARGA STOK.</li>
+                </ul>
+                <div style="margin-top:8px;margin-bottom:6px"><strong style="color:var(--text-2)">Formula selisih:</strong></div>
+                <div style="font-family:var(--font-mono);background:var(--surface);padding:6px 10px;border-radius:4px;border:1px solid var(--border);font-size:10px">
+                  Δ NILAI = NILAI DO − HPP STOK<br>
+                  Δ QTY = AKT QTY (DO) − STOK KELUAR
+                </div>
+                <div style="margin-top:8px;margin-bottom:6px"><strong style="color:var(--text-2)">Arti status:</strong></div>
+                <ul style="margin:0;padding-left:18px">
+                  <li><span style="background:rgba(16,185,129,.1);color:#10b981;padding:1px 6px;border-radius:8px;font-weight:700;font-size:9px">OK</span> &nbsp;qty &amp; harga match (variance &lt;5%)</li>
+                  <li><span style="background:rgba(6,182,212,.12);color:#06b6d4;padding:1px 6px;border-radius:8px;font-weight:700;font-size:9px">STOK MISMATCH</span> &nbsp;qty DO ≠ qty inventory KELUAR (perlu sync inventory)</li>
+                  <li><span style="background:rgba(245,158,11,.12);color:#f59e0b;padding:1px 6px;border-radius:8px;font-weight:700;font-size:9px">PRICE DRIFT</span> &nbsp;qty match tapi harga DO ≠ HPP inventory (harga sudah update)</li>
+                  <li><span style="background:rgba(239,68,68,.12);color:#ef4444;padding:1px 6px;border-radius:8px;font-weight:700;font-size:9px">MAJOR VAR</span> &nbsp;qty &amp; harga keduanya mismatch — audit</li>
+                  <li><span style="background:rgba(148,163,184,.12);color:#64748b;padding:1px 6px;border-radius:8px;font-weight:700;font-size:9px">NO LOG</span> &nbsp;item di inv tapi belum ada log KELUAR (perlu sync DO → Inventory)</li>
+                  <li><span style="background:rgba(245,158,11,.12);color:#f59e0b;padding:1px 6px;border-radius:8px;font-weight:700;font-size:9px">UNMATCHED</span> &nbsp;item DO tidak ditemukan di Inventory master</li>
+                </ul>
+              </div>
+            </details>
           </div>
           <div style="font-size:10px;color:var(--text-3);text-align:right;white-space:nowrap">${hppRows.length} item${unmatchedCount?' · ⚠️ '+unmatchedCount+' tidak di stok':''}${noLogCount?' · 📋 '+noLogCount+' tanpa log keluar':''}</div>
         </div>
@@ -1305,8 +1329,8 @@ const DailyOrderModule = (() => {
                       return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''};opacity:.6">
                         <td style="padding:8px;font-weight:600">${Utils.esc(r.item)} <span style="font-size:9px;color:#f59e0b;background:rgba(245,158,11,.12);padding:1px 5px;border-radius:8px;margin-left:4px">tidak di stok</span></td>
                         <td style="padding:8px;text-align:right;color:#10b981">${r.totalAkt.toLocaleString('id-ID',{maximumFractionDigits:2})} ${r.satuan||''}</td>
-                        <td colspan="7" style="padding:8px;text-align:center;color:var(--text-3);font-style:italic;font-size:11px">Item tidak ditemukan di Inventory — tambah di Inventory > Stok atau perbaiki nama</td>
-                        <td style="padding:8px;text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(245,158,11,.12);color:#f59e0b;font-weight:700">UNMATCHED</span></td>
+                        <td colspan="7" style="padding:8px;text-align:center;color:var(--text-3);font-style:italic;font-size:11px">Item tidak ditemukan di Inventory · <a href="javascript:void(0)" onclick="App.navigate('inventory')" style="color:var(--primary-h);text-decoration:underline;font-weight:600">Buka Inventory → Stok</a> untuk tambah item atau perbaiki nama</td>
+                        <td style="padding:8px;text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(245,158,11,.12);color:#f59e0b;font-weight:700" title="Item DO tidak ditemukan di Inventory master — perbaiki nama atau tambah ke Inventory">UNMATCHED</span></td>
                       </tr>`;
                     }
                     const priceOk = Math.abs(r.variance) < Math.max(1000, r.aktHPPCost * 0.05);
@@ -1327,13 +1351,15 @@ const DailyOrderModule = (() => {
                       <td style="padding:8px;font-weight:600">${Utils.esc(r.item)}</td>
                       <td style="padding:8px;text-align:right;color:#10b981;font-family:var(--font-mono)">${r.totalAkt.toLocaleString('id-ID',{maximumFractionDigits:2})}<span style="color:var(--text-3);font-size:10px"> ${r.satuan||''}</span></td>
                       <td style="padding:8px;text-align:right;color:${r.hasInvLog?'#06b6d4':'var(--text-3)'};font-family:var(--font-mono)">${r.hasInvLog?r.invKeluarQty.toLocaleString('id-ID',{maximumFractionDigits:2}):'—'}${r.hasInvLog?'<span style="color:var(--text-3);font-size:10px"> '+(r.satuan||'')+'</span>':''}</td>
-                      <td style="padding:8px;text-align:right;font-family:var(--font-mono);color:${qtyColor};font-weight:${qtyOk?400:600}">${r.hasInvLog ? (qtyOk?'~':(r.qtyDiff>0?'+':'')+r.qtyDiff.toLocaleString('id-ID',{maximumFractionDigits:2})) : '—'}${r.hasInvLog && !qtyOk ? '<div style="font-size:9px;font-weight:400">'+(r.qtyDiffPct>0?'+':'')+r.qtyDiffPct.toFixed(0)+'%</div>' : ''}</td>
+                      <td style="padding:8px;text-align:right;font-family:var(--font-mono);color:${qtyColor};font-weight:${qtyOk?400:600}"
+                          title="${r.hasInvLog ? 'Δ QTY = AKT QTY DO ('+r.totalAkt.toLocaleString('id-ID',{maximumFractionDigits:2})+' '+(r.satuan||'')+') − STOK KELUAR ('+r.invKeluarQty.toLocaleString('id-ID',{maximumFractionDigits:2})+' '+(r.satuan||'')+') = '+(r.qtyDiff>=0?'+':'')+r.qtyDiff.toLocaleString('id-ID',{maximumFractionDigits:2}) : 'Belum ada log inventory KELUAR untuk item ini di periode terpilih'}">${r.hasInvLog ? (qtyOk?'~':(r.qtyDiff>0?'+':'')+r.qtyDiff.toLocaleString('id-ID',{maximumFractionDigits:2})) : '—'}${r.hasInvLog && !qtyOk ? '<div style="font-size:9px;font-weight:400">'+(r.qtyDiffPct>0?'+':'')+r.qtyDiffPct.toFixed(0)+'%</div>' : ''}</td>
                       <td style="padding:8px;text-align:right;font-family:var(--font-mono);color:var(--text-2)">${_fmtRp(r.hargaDO)}</td>
                       <td style="padding:8px;text-align:right;font-family:var(--font-mono);color:var(--text-2)">${_fmtRp(r.hargaInv)}</td>
                       <td style="padding:8px;text-align:right;font-family:var(--font-mono);font-weight:600;color:#6366f1">${_fmtRp(r.aktDOCost)}</td>
                       <td style="padding:8px;text-align:right;font-family:var(--font-mono);font-weight:600;color:#f59e0b">${_fmtRp(r.aktHPPCost)}</td>
-                      <td style="padding:8px;text-align:right;font-family:var(--font-mono);font-weight:600;color:${priceColor}">${priceOk?'~':(r.variance>0?'+':'')+_fmtRp(Math.abs(r.variance))}${priceOk?'':'<div style="font-size:9px;font-weight:400">'+(r.variancePct>0?'+':'')+r.variancePct.toFixed(1)+'%</div>'}</td>
-                      <td style="padding:8px;text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${statusBg};color:${statusFg};font-weight:700;white-space:nowrap">${statusLabel}</span></td>
+                      <td style="padding:8px;text-align:right;font-family:var(--font-mono);font-weight:600;color:${priceColor}"
+                          title="Δ NILAI = NILAI DO (${_fmtRp(r.aktDOCost)}) − HPP STOK (${_fmtRp(r.aktHPPCost)}) = ${r.variance>=0?'+':''}${_fmtRp(Math.abs(r.variance))}">${priceOk?'~':(r.variance>0?'+':'')+_fmtRp(Math.abs(r.variance))}${priceOk?'':'<div style="font-size:9px;font-weight:400">'+(r.variancePct>0?'+':'')+r.variancePct.toFixed(1)+'%</div>'}</td>
+                      <td style="padding:8px;text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${statusBg};color:${statusFg};font-weight:700;white-space:nowrap" title="${statusLabel === 'OK' ? 'Qty & harga match (variance <5%)' : statusLabel === 'STOK MISMATCH' ? 'Qty DO ≠ qty inventory KELUAR — perlu sync inventory' : statusLabel === 'PRICE DRIFT' ? 'Harga DO ≠ HPP inventory — harga sudah update' : statusLabel === 'MAJOR VAR' ? 'Qty & harga keduanya mismatch — perlu audit' : statusLabel === 'NO LOG' ? 'Item di inv tapi belum ada log KELUAR di periode ini' : ''}">${statusLabel}</span></td>
                     </tr>`;
                   }).join('')}
                 </tbody>
