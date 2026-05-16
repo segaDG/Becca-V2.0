@@ -2808,6 +2808,77 @@ const InventoryModule = (() => {
     } catch(e) { Notify.error('Gagal tolak', e.message); }
   }
 
+  // Bulk approve semua pending opname di bulan terpilih (admin/superadmin)
+  async function _bulkApproveOpname(month) {
+    if (!Auth.can('inventory','edit')) { Notify.error('Tidak punya hak akses'); return; }
+    const pending = _opnameLogs.filter(l => l.pendingChange && (l.tgl||'').startsWith(month||''));
+    if (!pending.length) { Notify.info('Tidak ada pending approval'); return; }
+    const sumDelta = pending.reduce((s,r) => s + ((r.pendingChange?.jumlah || 0) - (r.jumlah || 0)), 0);
+    const ok = await Modal.confirm({
+      title: '⚡ Approve Semua Pending Opname',
+      message: `<div style="font-size:13px">
+        <p style="margin-bottom:10px">Setujui <strong>${pending.length} perubahan opname</strong> sekaligus di bulan ini?</p>
+        <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:10px;margin-bottom:10px">
+          <div style="font-size:11px;color:#10b981;font-weight:700">RINGKASAN PERUBAHAN</div>
+          <div style="font-size:12px;color:var(--text-2);margin-top:4px">Net qty change: <strong style="color:${sumDelta>=0?'#10b981':'#ef4444'};font-family:var(--font-mono)">${sumDelta>=0?'+':''}${sumDelta.toLocaleString('id-ID',{maximumFractionDigits:2})}</strong></div>
+        </div>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead style="position:sticky;top:0;background:var(--surface2)"><tr>
+              <th style="text-align:left;padding:5px 8px;font-size:9px;color:var(--text-3);text-transform:uppercase">Item</th>
+              <th style="text-align:right;padding:5px 8px;font-size:9px;color:var(--text-3);text-transform:uppercase">Lama</th>
+              <th style="text-align:right;padding:5px 8px;font-size:9px;color:#10b981;text-transform:uppercase">Baru</th>
+              <th style="text-align:right;padding:5px 8px;font-size:9px;color:var(--text-3);text-transform:uppercase">Δ</th>
+            </tr></thead>
+            <tbody>
+              ${pending.map((r,i) => {
+                const sat = (_items.find(it => String(it.id) === String(r.itemId))?.satuan) || '';
+                const delta = (r.pendingChange?.jumlah || 0) - (r.jumlah || 0);
+                return `<tr style="border-bottom:.5px solid var(--border-light);background:${i%2?'var(--surface2)':'transparent'}">
+                  <td style="padding:5px 8px;font-weight:500">${Utils.esc(r.itemNama||'-')}</td>
+                  <td style="padding:5px 8px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${_r2(r.jumlah||0)} ${sat}</td>
+                  <td style="padding:5px 8px;text-align:right;font-family:var(--font-mono);color:#10b981;font-weight:600">${_r2(r.pendingChange?.jumlah||0)} ${sat}</td>
+                  <td style="padding:5px 8px;text-align:right;font-family:var(--font-mono);color:${delta>0?'#10b981':delta<0?'#ef4444':'var(--text-3)'}">${delta>=0?'+':''}${_r2(delta)}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`,
+      confirmText: 'Approve Semua',
+      cancelText: 'Batal',
+    });
+    if (!ok) return;
+    // Apply changes sequentially (avoid race condition)
+    let success = 0, failed = 0;
+    for (const row of pending) {
+      try {
+        const after = { jumlah: row.pendingChange.jumlah, catatan: row.pendingChange.catatan || '' };
+        const before = { jumlah: row.jumlah, catatan: row.catatan || '' };
+        const reqBy = row.pendingBy;
+        row.jumlah = after.jumlah;
+        row.catatan = after.catatan;
+        row.pendingChange = null;
+        row.pendingBy = null;
+        row.pendingAt = null;
+        await DB.saveOpnameLog({...row});
+        DB.logActivity({
+          type: 'opname_approve',
+          detail: `Bulk approve opname "${row.itemNama}" dari ${reqBy}: ${before.jumlah} → ${after.jumlah}`,
+          rowId: row.id,
+          snapshot: { before, after },
+        });
+        success++;
+      } catch (e) {
+        console.warn('[Inventory] bulk approve failed for', row.id, e);
+        failed++;
+      }
+    }
+    if (failed > 0) Notify.warning(`${success} approved, ${failed} gagal`);
+    else Notify.success(`${success} perubahan opname disetujui`);
+    renderLaporanBulanan();
+  }
+
   /* ===================== DELETE / RESET OPNAME (admin only) ===================== */
   async function deleteOpnameLog(id) {
     const userRole = Auth.currentUser()?.role || '';
@@ -3414,10 +3485,15 @@ const InventoryModule = (() => {
               <div style="font-size:11px;color:var(--text-3);margin-top:2px">Ada perubahan opname yg perlu di-review &amp; approve oleh admin sebelum tersimpan permanen.</div>
             </div>
           </div>
-          <button onclick="document.querySelector('[data-opname-section]')?.scrollIntoView({behavior:'smooth',block:'start'})"
-            style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">
-            Lihat Pending ↓
-          </button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${(typeof Auth!=='undefined' && Auth.can && Auth.can('inventory','edit')) ? `<button onclick="InventoryModule._bulkApproveOpname('${currMonth}')"
+              style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap"
+              title="Setujui semua pending opname di bulan ini sekaligus">⚡ Approve Semua</button>` : ''}
+            <button onclick="document.querySelector('[data-opname-section]')?.scrollIntoView({behavior:'smooth',block:'start'})"
+              style="background:transparent;color:#f59e0b;border:1px solid #f59e0b;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+              Lihat Pending ↓
+            </button>
+          </div>
         </div>` : ''}
 
         ${(()=>{
@@ -4029,6 +4105,7 @@ const InventoryModule = (() => {
     setInvLogPerPage,
     flushPendingEdit,
     _openHPPItemDetail,
+    _bulkApproveOpname,
     renderOpnameTab,
     _onOpnameInput,
     _onOpnameKey,
