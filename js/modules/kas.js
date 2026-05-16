@@ -1756,7 +1756,14 @@ const KasModule = (() => {
       nd[b][t]=(nd[b][t]||0)+(r.jumlah||0);
     });
     const bulan = ORDER.filter(b=>nd[b]);
-    if (!bulan.length) { el.innerHTML=UI.empty({iconKey:'money', title:'Tidak ada data', desc:'Belum ada transaksi pada periode ini'}); return; }
+    if (!bulan.length) {
+      el.innerHTML = UI.empty({
+        iconKey: 'money',
+        title: 'Belum ada data Kas Kecil',
+        desc: 'Mulai input transaksi di tab Transaksi atau import dari Excel via Settings → Data → Import Kas',
+      });
+      return;
+    }
     const typeMap={};
     kasRaw.forEach(r=>{ const t=r.type||'Lain-lain'; typeMap[t]=(typeMap[t]||0)+(r.jumlah||0); });
     const allTypes=Object.entries(typeMap).sort((a,b)=>b[1]-a[1]).map(([t])=>t);

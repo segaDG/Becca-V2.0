@@ -3336,7 +3336,7 @@ const InventoryModule = (() => {
     const BULAN = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
     const allMonths = [...new Set(_logs.filter(l=>l.tgl).map(l=>l.tgl.slice(0,7)))].sort();
     if (!allMonths.length) {
-      el.innerHTML = UI.empty({iconKey:'list', title:'Belum ada data activity', desc:'Import Activity Line terlebih dahulu'});
+      el.innerHTML = UI.empty({iconKey:'list', title:'Belum ada data Activity Inventory', desc:'Input transaksi MASUK/KELUAR di tab Stok atau import via Settings → Data → Import Inventory'});
       return;
     }
     // Default month: BULAN INI (current month) bukan last-month-with-data.
@@ -3759,7 +3759,7 @@ const InventoryModule = (() => {
 
     const allMonths = [...new Set(_logs.filter(l=>l.tgl).map(l=>l.tgl.slice(0,7)))].sort();
     if (!allMonths.length) {
-      el.innerHTML = UI.empty({iconKey:'chart', title:'Belum ada data activity', desc:'Import Activity Line terlebih dahulu'});
+      el.innerHTML = UI.empty({iconKey:'chart', title:'Belum ada data untuk dianalisa', desc:'Tambah transaksi MASUK/KELUAR di tab Stok untuk lihat analisa di sini'});
       return;
     }
     const last3 = allMonths.slice(-3);

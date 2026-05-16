@@ -284,7 +284,7 @@ const APModule = (() => {
     if (!tbody) return;
 
     if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="12">' + UI.empty({iconKey:'money', title:'Tidak ada data AP', desc:'Belum ada tagihan yang cocok dengan filter'}) + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12">' + UI.empty({iconKey:'money', title:'Tidak ada tagihan yang cocok', desc:'Coba reset filter (tombol ↺) atau ganti rentang tanggal. Tambah AP baru via tombol "+ Tambah AP" di pojok kanan atas.'}) + '</td></tr>';
       _updateSummaryCards(data);
       return;
     }
