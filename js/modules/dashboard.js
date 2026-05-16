@@ -175,18 +175,21 @@ const DashboardModule = (() => {
                         .sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')||String(b.id).localeCompare(String(a.id)))
                         .slice(0,10);
 
+    // Number formatting consistency: SEMUA stat card pakai full format
+    // (Rp 1.234.567) untuk akurasi compare. Compact format (Rp 1,2jt) hanya
+    // dipakai di tooltip/inline secondary metrics yg space-constrained.
     const vals = {
       saldo_kas:    {v: Utils.formatRupiah(saldo),               c: saldo>=0?'var(--success)':'var(--danger)'},
       total_keluar: {v: Utils.formatRupiah(totalKeluar),         c: 'var(--danger)'},
       total_masuk:  {v: Utils.formatRupiah(totalMasuk),          c: 'var(--success)'},
       karyawan:     {v: activeEmp+' orang',                      c: 'var(--primary-h)'},
-      hutang:       {v: Utils.formatRupiah(totalHutang,true),    c: 'var(--warning)'},
+      hutang:       {v: Utils.formatRupiah(totalHutang),         c: 'var(--warning)'},
       barang_aktif: {v: activeItems+' item',                     c: 'var(--info)'},
-      nilai_inv:    {v: Utils.formatRupiah(totalInvValue,true),  c: 'var(--primary-h)'},
+      nilai_inv:    {v: Utils.formatRupiah(totalInvValue),       c: 'var(--primary-h)'},
       total_trx:    {v: kas.length+' transaksi',                  c: 'var(--text-2)'},
       task_open:    {v: taskOpen+' task',                        c: taskOpen>0?'var(--warning)':'var(--success)'},
-      invoice_belum:{v: Utils.formatRupiah(invBelum,true),       c: 'var(--danger)'},
-      ap_belum:     {v: Utils.formatRupiah(apBelum,true),        c: 'var(--danger)'},
+      invoice_belum:{v: Utils.formatRupiah(invBelum),            c: 'var(--danger)'},
+      ap_belum:     {v: Utils.formatRupiah(apBelum),             c: 'var(--danger)'},
     };
 
     const widgets = _getCfg().filter(w => {
