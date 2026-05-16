@@ -487,6 +487,8 @@ const DashboardModule = (() => {
 
   function _renderRecentKasTable(rows) {
     const nav = "App.navigate(\'kas\')";
+    // Cache rows globally untuk popup detail
+    window._dashRecentKas = rows;
     let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">'
       + '<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(239,68,68,.1);display:flex;align-items:center;justify-content:center;font-size:15px">💰</div>'
@@ -497,8 +499,9 @@ const DashboardModule = (() => {
     if (!rows.length) {
       h += '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data</td></tr>';
     } else {
-      rows.forEach(function(r) {
-        h += '<tr style="cursor:pointer" onclick="' + nav + '">'
+      rows.forEach(function(r, idx) {
+        // Klik row → popup detail (bukan langsung navigate)
+        h += '<tr style="cursor:pointer" onclick="DashboardModule._openKasDetail(' + idx + ')" title="Klik untuk detail transaksi">'
           + '<td style="white-space:nowrap">' + (r.tgl ? Utils.formatDate(r.tgl,'dd/mm/yyyy') : '-') + '</td>'
           + '<td style="font-weight:600">' + (r.nama||'-') + '</td>'
           + '<td><span class="badge badge-neutral">' + (r.type||'-') + '</span></td>'
@@ -508,6 +511,50 @@ const DashboardModule = (() => {
       });
     }
     return h + '</tbody></table></div></div>';
+  }
+
+  // Popup detail transaksi kas dari dashboard
+  function _openKasDetail(idx) {
+    const r = (window._dashRecentKas || [])[idx];
+    if (!r) return;
+    const body = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:14px">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
+          <div style="font-size:9px;color:var(--text-3);font-weight:700;text-transform:uppercase">Tanggal</div>
+          <div style="font-size:13px;font-weight:600;font-family:var(--font-mono)">${r.tgl ? Utils.formatDate(r.tgl,'dd mmmm yyyy') : '-'}</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
+          <div style="font-size:9px;color:var(--text-3);font-weight:700;text-transform:uppercase">Jumlah</div>
+          <div style="font-size:16px;font-weight:800;font-family:var(--font-mono);color:${r.type==='Kas'?'#10b981':'#ef4444'}">${r.type==='Kas'?'+':'-'}${Utils.formatRupiah(r.jumlah||0)}</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
+          <div style="font-size:9px;color:var(--text-3);font-weight:700;text-transform:uppercase">Status</div>
+          <div style="font-size:13px;font-weight:600"><span class="badge ${r.status==='DONE'?'badge-success':'badge-warning'}">${r.status||'-'}</span></div>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <tbody>
+          ${[
+            ['Nama/Keterangan', Utils.esc(r.nama||'-')],
+            ['Type', Utils.esc(r.type||'-')],
+            ['Vendor', Utils.esc(r.vendor||'-')],
+            ['Penerima', Utils.esc(r.penerima||'-')],
+            ['Qty', `${r.qty||0} ${Utils.esc(r.satuan||'')}`],
+            ['Harga Satuan', Utils.formatRupiah(r.hargaSatuan||0)],
+            ['Bulan', Utils.esc(r.bulan||'-')],
+          ].map(([k,v],i) => `<tr style="border-bottom:.5px solid var(--border-light);background:${i%2?'var(--surface2)':'transparent'}">
+            <td style="padding:8px 12px;color:var(--text-3);font-weight:600;width:40%">${k}</td>
+            <td style="padding:8px 12px;color:var(--text);font-family:var(--font-mono)">${v}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+    Modal.open({
+      id: 'dash-kas-detail',
+      title: '💰 Detail Transaksi Kas',
+      body,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('dash-kas-detail')">Tutup</button>
+               <button class="btn btn-primary" onclick="Modal.close('dash-kas-detail');App.navigate('kas')">Buka di Kas →</button>`,
+    });
   }
 
   function _renderLowStockCard(lowStock) {
@@ -527,14 +574,19 @@ const DashboardModule = (() => {
     const totalEstCost = suggestions.reduce((s, x) => s + (x._estCost || 0), 0);
     const totalQty = suggestions.reduce((s, x) => s + (x._suggested || 0), 0);
 
+    // Cache suggestions globally untuk action handler
+    window._dashLowStockSuggestions = suggestions;
     let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">'
       + '<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(245,158,11,.1);display:flex;align-items:center;justify-content:center;font-size:15px">🛒</div>'
       + '<div><div style="font-size:14px;font-weight:700">Stok Menipis · Saran PO</div>'
       + '<div style="font-size:11px;color:var(--text-3)">' + lowStock.length + ' item perlu di-restock'
       + (totalQty > 0 ? ' · estimasi <strong style="color:var(--warning)">' + Utils.formatRupiah(totalEstCost) + '</strong>' : '')
       + '</div></div></div>'
+      + '<div style="display:flex;gap:6px">'
+      + (suggestions.length > 0 ? '<button class="btn btn-primary btn-sm" onclick="DashboardModule._createPODraft()" title="Buat PO draft dengan semua item saran">⚡ Buat PO Draft</button>' : '')
       + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat →</button>'
+      + '</div>'
       + '</div><div style="padding:8px 12px">';
     if (!suggestions.length) {
       h += '<div style="text-align:center;padding:30px;color:var(--success);font-weight:600">Semua stok aman ✅</div>';
@@ -558,6 +610,8 @@ const DashboardModule = (() => {
 
   function _renderHutangTable(topHutang) {
     const nav = "App.navigate(\'employee\')";
+    // Cache untuk popup
+    window._dashTopHutang = topHutang;
     let h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-top:var(--s5);box-shadow:0 1px 4px rgba(0,0,0,.08)">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">'
       + '<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(245,158,11,.1);display:flex;align-items:center;justify-content:center;font-size:15px">💳</div>'
@@ -566,7 +620,7 @@ const DashboardModule = (() => {
       + '</div><div class="table-scroll"><table class="table">'
       + '<thead><tr><th>#</th><th>Nama</th><th>Divisi</th><th class="num">Sisa Hutang</th></tr></thead><tbody>';
     topHutang.forEach(function(e,i) {
-      h += '<tr style="cursor:pointer" onclick="' + nav + '">'
+      h += '<tr style="cursor:pointer" onclick="DashboardModule._openHutangDetail(' + i + ')" title="Klik untuk detail karyawan">'
         + '<td class="text-muted">' + (i+1) + '</td>'
         + '<td style="font-weight:700">' + e.nama + '</td>'
         + '<td><span class="badge badge-neutral">' + (e.divisi||'-') + '</span></td>'
@@ -576,8 +630,86 @@ const DashboardModule = (() => {
     return h + '</tbody></table></div></div>';
   }
 
+  // Popup detail karyawan hutang
+  function _openHutangDetail(idx) {
+    const e = (window._dashTopHutang || [])[idx];
+    if (!e) return;
+    const body = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="width:48px;height:48px;border-radius:50%;background:rgba(245,158,11,.15);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">👷</div>
+        <div>
+          <div style="font-size:16px;font-weight:700">${Utils.esc(e.nama||'-')}</div>
+          <div style="font-size:11px;color:var(--text-3)">${Utils.esc(e.divisi||'-')}${e.jabatan?' · '+Utils.esc(e.jabatan):''}</div>
+        </div>
+      </div>
+      <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:14px;margin-bottom:14px;text-align:center">
+        <div style="font-size:11px;color:#f59e0b;font-weight:700;letter-spacing:.05em;text-transform:uppercase">SISA HUTANG</div>
+        <div style="font-size:26px;font-weight:800;color:#f59e0b;font-family:var(--font-mono);margin-top:4px">${Utils.formatRupiah(e.sisaHutang||0)}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <tbody>
+          ${[
+            ['Gaji Pokok', e.gajiPokok ? Utils.formatRupiah(e.gajiPokok) : '-'],
+            ['Tunjangan', e.tunjangan ? Utils.formatRupiah(e.tunjangan) : '-'],
+            ['Total Gaji', Utils.formatRupiah((e.gaji || e.gajiPokok || 0) + (e.tunjangan || 0))],
+            ['Status', Utils.esc(e.status || 'AKTIF')],
+            ['ID', Utils.esc(e.id || '-')],
+          ].map(([k,v],i) => `<tr style="border-bottom:.5px solid var(--border-light);background:${i%2?'var(--surface2)':'transparent'}">
+            <td style="padding:8px 12px;color:var(--text-3);font-weight:600;width:40%">${k}</td>
+            <td style="padding:8px 12px;color:var(--text);font-family:var(--font-mono)">${v}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+    Modal.open({
+      id: 'dash-hutang-detail',
+      title: '💳 Detail Karyawan',
+      body,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('dash-hutang-detail')">Tutup</button>
+               <button class="btn btn-primary" onclick="Modal.close('dash-hutang-detail');App.navigate('employee')">Buka di Karyawan →</button>`,
+    });
+  }
 
+  // Auto-create PO draft dari saran low-stock
+  async function _createPODraft() {
+    const suggestions = window._dashLowStockSuggestions || [];
+    if (!suggestions.length) { Notify.warning('Tidak ada saran PO'); return; }
+    const ok = await Modal.confirm({
+      title: '⚡ Buat PO Draft',
+      message: `Buat draft PO Anggaran dengan <strong>${suggestions.length} item</strong> dari saran restock?<br><br>Total estimasi: <strong style="color:var(--warning)">${Utils.formatRupiah(suggestions.reduce((s,x)=>s+(x._estCost||0),0))}</strong>.<br><br>Draft bisa di-review &amp; edit di modul PO sebelum approve.`,
+      confirmText: 'Buat Draft',
+    });
+    if (!ok) return;
+    const today = new Date();
+    const _pad = n => String(n).padStart(2,'0');
+    const doc = {
+      id: Utils.uid(),
+      nomorEstimasi: 'PO-' + today.getFullYear().toString().slice(-2) + _pad(today.getMonth()+1) + _pad(today.getDate()) + '-AUTO',
+      namaPetugas: (Auth.currentUser()?.nama || Auth.currentUser()?.username || 'Auto'),
+      periode: '',
+      tahun: today.getFullYear(),
+      status: 'draft',
+      items: suggestions.map(s => ({
+        namaBarang: s.nama,
+        qty: s._suggested,
+        satuan: s.satuan || '',
+        keterangan: 'Auto-restock (stok ' + s._stok + ' < min ' + s._min + ')',
+        harga: s._harga,
+        totalHarga: s._estCost,
+        alokasiDanaReal: '',
+      })),
+      createdAt: today.toISOString(),
+      _autoFromDashboard: true,
+    };
+    try {
+      await DB.savePO(doc);
+      Notify.success('PO draft dibuat: ' + doc.nomorEstimasi);
+      App.navigate('po');
+      setTimeout(() => { if (window.POModule && POModule.openAnggaran) POModule.openAnggaran(doc.id); }, 300);
+    } catch (e) {
+      Notify.error('Gagal buat PO: ' + (e.message || ''));
+    }
+  }
 
-  return { init, refresh, openWidgetEditor, _saveW, _resetW };
+  return { init, refresh, openWidgetEditor, _saveW, _resetW, _openKasDetail, _openHutangDetail, _createPODraft };
 })();
 window.DashboardModule = DashboardModule;
