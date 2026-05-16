@@ -3339,7 +3339,13 @@ const InventoryModule = (() => {
       el.innerHTML = UI.empty({iconKey:'list', title:'Belum ada data activity', desc:'Import Activity Line terlebih dahulu'});
       return;
     }
-    const currMonth = (_laporanBulan && allMonths.includes(_laporanBulan)) ? _laporanBulan : allMonths[allMonths.length - 1];
+    // Default month: BULAN INI (current month) bukan last-month-with-data.
+    // User audit feedback: data terbaru lebih relevan dari historical.
+    // Kalau bulan ini belum ada data, fallback ke bulan terakhir yg ada data.
+    const thisMonth = new Date().toISOString().slice(0,7);
+    const currMonth = (_laporanBulan && allMonths.includes(_laporanBulan))
+      ? _laporanBulan
+      : (allMonths.includes(thisMonth) ? thisMonth : allMonths[allMonths.length - 1]);
     const [yr, mo] = currMonth.split('-');
     const bulanLabel = (BULAN[parseInt(mo)]||mo) + ' ' + yr;
 
@@ -3386,6 +3392,8 @@ const InventoryModule = (() => {
     });
     const top10 = Object.values(byItem).sort((a,b)=>b.hpp-a.hpp).slice(0,10);
 
+    const pendingApprovalCount = opnameMonth.filter(l => l.pendingChange).length;
+
     el.innerHTML = `
       <div style="padding-top:var(--s4)">
         <div style="display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
@@ -3396,6 +3404,21 @@ const InventoryModule = (() => {
           </select>
           <span style="font-size:15px;font-weight:700;color:var(--heading)">Laporan Inventory — ${bulanLabel}</span>
         </div>
+
+        ${pendingApprovalCount > 0 ? `
+        <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:12px 16px;margin-bottom:var(--s4);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:22px;animation:pulse 2s ease-in-out infinite">⏳</span>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:#f59e0b">${pendingApprovalCount} Stok Opname Menunggu Approval</div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:2px">Ada perubahan opname yg perlu di-review &amp; approve oleh admin sebelum tersimpan permanen.</div>
+            </div>
+          </div>
+          <button onclick="document.querySelector('[data-opname-section]')?.scrollIntoView({behavior:'smooth',block:'start'})"
+            style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">
+            Lihat Pending ↓
+          </button>
+        </div>` : ''}
 
         ${(()=>{
           // Total HPP bulan ini = HPP keluar + nilai retur (sesuai filter bulan)
@@ -3529,7 +3552,7 @@ const InventoryModule = (() => {
         </div>
 
         <!-- HASIL STOK OPNAME -->
-        <div style="margin-top:var(--s5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+        <div data-opname-section style="margin-top:var(--s5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;scroll-margin-top:80px">
           <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
             <div>
               <span style="font-size:14px;font-weight:700;color:var(--heading)">📋 Hasil Stok Opname — ${bulanLabel}</span>
