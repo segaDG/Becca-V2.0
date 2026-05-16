@@ -4001,16 +4001,26 @@ const InventoryModule = (() => {
       try { return JSON.parse(String(monthsCsv).replace(/&quot;/g,'"')); } catch { return []; }
     })();
     const monthSet = new Set(months);
+    // FIX: Inventory log pakai field 'jenis' (bukan 'action'), 'jumlah' (bukan
+    // 'qty'), 'itemNama' (bukan 'namaProduk'), 'tgl' (bukan 'tanggal'),
+    // 'harga' (bukan 'hargaSatuan'), 'catatan' (bukan 'keterangan').
+    // Resolve itemNama via itemId lookup → fallback ke itemNama field.
+    const itemByName = {};
+    (_items||[]).forEach(i => { itemByName[(i.nama||'').trim()] = i; });
+    const targetItem = itemByName[itemName];
     const matches = (_logs||[]).filter(l => {
-      if (!l || l.action !== 'KELUAR') return false;
-      const nm = String(l.namaProduk||l.nama||'').trim();
+      if (!l || l.jenis !== 'KELUAR') return false;
+      // Match by itemId kalau ada, fallback ke itemNama
+      let nm = '';
+      if (l.itemId && targetItem && String(l.itemId) === String(targetItem.id)) nm = itemName;
+      if (!nm) nm = String(l.itemNama||'').trim();
       if (nm !== itemName) return false;
-      const ym = (l.tanggal||l.tgl||'').substring(0,7);
+      const ym = (l.tgl||'').substring(0,7);
       return !months.length || monthSet.has(ym);
     });
-    matches.sort((a,b) => (b.tanggal||b.tgl||'').localeCompare(a.tanggal||a.tgl||''));
-    const total = matches.reduce((s,l) => s + ((l.qty||0) * (l.hargaSatuan||l._hpp||0)), 0);
-    const totalQty = matches.reduce((s,l) => s + (l.qty||0), 0);
+    matches.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+    const total = matches.reduce((s,l) => s + ((l.jumlah||0) * (l.harga||l._hpp||0)), 0);
+    const totalQty = matches.reduce((s,l) => s + (l.jumlah||0), 0);
     const fmtRp = Utils.formatRupiah;
     const fmtTgl = (t) => t ? t.split('-').reverse().join('-') : '-';
     const MONTHS = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -4028,8 +4038,8 @@ const InventoryModule = (() => {
           </div>
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
             <div style="font-size:9px;color:var(--text-3);letter-spacing:.04em;font-weight:700">TOTAL QTY</div>
-            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${totalQty}</div>
-            <div style="font-size:10px;color:var(--text-3)">${matches[0]?.satuan||'unit'}</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${totalQty.toLocaleString('id-ID',{maximumFractionDigits:2})}</div>
+            <div style="font-size:10px;color:var(--text-3)">${(targetItem && targetItem.satuan) || 'unit'}</div>
           </div>
         </div>
         <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
@@ -4045,12 +4055,14 @@ const InventoryModule = (() => {
             </thead>
             <tbody>
               ${matches.map((l,i) => {
-                const harga = l.hargaSatuan || l._hpp || 0;
-                const sub = (l.qty||0) * harga;
+                const qty = l.jumlah || 0;
+                const harga = l.harga || l._hpp || 0;
+                const sub = qty * harga;
+                const sat = (targetItem && targetItem.satuan) || '';
                 return `<tr style="border-bottom:.5px solid var(--border-light);background:${i%2?'var(--surface)':'transparent'}">
-                  <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;color:var(--text-2)">${fmtTgl(l.tanggal||l.tgl)}</td>
-                  <td style="padding:7px 10px;color:var(--text);font-size:11px">${Utils.esc(l.keterangan||l.alasan||'-')}</td>
-                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-size:11px">${l.qty||0}${l.satuan?' '+l.satuan:''}</td>
+                  <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;color:var(--text-2)">${fmtTgl(l.tgl)}</td>
+                  <td style="padding:7px 10px;color:var(--text);font-size:11px">${Utils.esc(l.catatan||'-')}</td>
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-size:11px">${qty.toLocaleString('id-ID',{maximumFractionDigits:2})}${sat?' '+sat:''}</td>
                   <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--text-3)">${fmtRp(harga)}</td>
                   <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-weight:600;color:var(--danger)">${fmtRp(sub)}</td>
                 </tr>`;

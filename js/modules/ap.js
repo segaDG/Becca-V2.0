@@ -1789,13 +1789,13 @@ const APModule = (() => {
     if (scope === 'vendor') {
       const v = String(arg1||'');
       filtered = data.filter(r => String(r.vendor||r.supplier_nama||r.supplier||'').trim() === v);
-      title = '🏢 ' + v;
+      title = '🏢 ' + Utils.esc(v);
     } else if (scope === 'bulan') {
       const b = String(arg1||'');
       filtered = data.filter(r => (r.tgl_transaksi||r.tgl||'').substring(0,7) === b);
       const MONTHS = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
       const [y,m] = b.split('-');
-      title = '📅 ' + (MONTHS[parseInt(m)]||m) + ' ' + y;
+      title = '📅 ' + (MONTHS[parseInt(m)]||m) + ' ' + Utils.esc(y);
     } else if (scope === 'item') {
       const itLabel = String(arg1||'');
       filtered = data.filter(r => {
@@ -1805,7 +1805,7 @@ const APModule = (() => {
         const itemKey = itemRaw.length > 60 ? itemRaw.substring(0,57)+'…' : itemRaw;
         return itemKey === itLabel;
       });
-      title = '📦 ' + itLabel;
+      title = '📦 ' + Utils.esc(itLabel);
     } else if (scope === 'vendor-bulan') {
       const v = String(arg1||''); const b = String(arg2||'');
       filtered = data.filter(r =>
@@ -1814,7 +1814,7 @@ const APModule = (() => {
       );
       const MONTHS = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
       const [y,m] = b.split('-');
-      title = '🏢 ' + v + ' · ' + (MONTHS[parseInt(m)]||m) + ' ' + y;
+      title = '🏢 ' + Utils.esc(v) + ' · ' + (MONTHS[parseInt(m)]||m) + ' ' + Utils.esc(y);
     } else return;
 
     filtered.sort((a,b)=> (a.tgl_transaksi||a.tgl||'').localeCompare(b.tgl_transaksi||b.tgl||''));

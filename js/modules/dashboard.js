@@ -626,13 +626,14 @@ const DashboardModule = (() => {
       h += '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-3)">Belum ada data</td></tr>';
     } else {
       rows.forEach(function(r, idx) {
-        // Klik row → popup detail (bukan langsung navigate)
-        h += '<tr style="cursor:pointer" onclick="DashboardModule._openKasDetail(' + idx + ')" title="Klik untuk detail transaksi">'
+        // Klik row → popup detail. Pass row.id (stable) bukan array idx (rentan stale).
+        const rowId = (r.id || '').replace(/'/g, '');
+        h += '<tr style="cursor:pointer" onclick="DashboardModule._openKasDetail(\'' + rowId + '\')" title="Klik untuk detail transaksi">'
           + '<td style="white-space:nowrap">' + (r.tgl ? Utils.formatDate(r.tgl,'dd/mm/yyyy') : '-') + '</td>'
-          + '<td style="font-weight:600">' + (r.nama||'-') + '</td>'
-          + '<td><span class="badge badge-neutral">' + (r.type||'-') + '</span></td>'
+          + '<td style="font-weight:600">' + Utils.esc(r.nama||'-') + '</td>'
+          + '<td><span class="badge badge-neutral">' + Utils.esc(r.type||'-') + '</span></td>'
           + '<td class="num" style="font-weight:700">' + Utils.formatRupiah(r.jumlah||0) + '</td>'
-          + '<td><span class="badge ' + (r.status==='DONE'?'badge-success':'badge-warning') + '">' + (r.status||'-') + '</span></td>'
+          + '<td><span class="badge ' + (r.status==='DONE'?'badge-success':'badge-warning') + '">' + Utils.esc(r.status||'-') + '</span></td>'
           + '</tr>';
       });
     }
@@ -640,8 +641,12 @@ const DashboardModule = (() => {
   }
 
   // Popup detail transaksi kas dari dashboard
-  function _openKasDetail(idx) {
-    const r = (window._dashRecentKas || [])[idx];
+  // Backward-compat: terima id (string) atau idx (number)
+  function _openKasDetail(idOrIdx) {
+    const list = window._dashRecentKas || [];
+    let r = null;
+    if (typeof idOrIdx === 'string') r = list.find(x => String(x.id) === idOrIdx);
+    if (!r && typeof idOrIdx === 'number') r = list[idOrIdx];
     if (!r) return;
     const body = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:14px">
@@ -710,7 +715,7 @@ const DashboardModule = (() => {
       + (totalQty > 0 ? ' · estimasi <strong style="color:var(--warning)">' + Utils.formatRupiah(totalEstCost) + '</strong>' : '')
       + '</div></div></div>'
       + '<div style="display:flex;gap:6px">'
-      + (suggestions.length > 0 ? '<button class="btn btn-primary btn-sm" onclick="DashboardModule._createPODraft()" title="Buat PO draft dengan semua item saran">⚡ Buat PO Draft</button>' : '')
+      + (suggestions.length > 0 && (typeof Auth !== 'undefined' && Auth.can && Auth.can('po','edit')) ? '<button class="btn btn-primary btn-sm" onclick="DashboardModule._createPODraft()" title="Buat PO draft dengan semua item saran">⚡ Buat PO Draft</button>' : '')
       + '<button class="btn btn-ghost btn-sm" onclick="' + nav + '">Lihat →</button>'
       + '</div>'
       + '</div><div style="padding:8px 12px">';
@@ -746,10 +751,11 @@ const DashboardModule = (() => {
       + '</div><div class="table-scroll"><table class="table">'
       + '<thead><tr><th>#</th><th>Nama</th><th>Divisi</th><th class="num">Sisa Hutang</th></tr></thead><tbody>';
     topHutang.forEach(function(e,i) {
-      h += '<tr style="cursor:pointer" onclick="DashboardModule._openHutangDetail(' + i + ')" title="Klik untuk detail karyawan">'
+      const empId = (e.id || '').replace(/'/g, '');
+      h += '<tr style="cursor:pointer" onclick="DashboardModule._openHutangDetail(\'' + empId + '\')" title="Klik untuk detail karyawan">'
         + '<td class="text-muted">' + (i+1) + '</td>'
-        + '<td style="font-weight:700">' + e.nama + '</td>'
-        + '<td><span class="badge badge-neutral">' + (e.divisi||'-') + '</span></td>'
+        + '<td style="font-weight:700">' + Utils.esc(e.nama||'-') + '</td>'
+        + '<td><span class="badge badge-neutral">' + Utils.esc(e.divisi||'-') + '</span></td>'
         + '<td class="num" style="color:var(--warning);font-weight:700;font-family:var(--font-mono)">' + Utils.formatRupiah(e.sisaHutang) + '</td>'
         + '</tr>';
     });
@@ -757,8 +763,11 @@ const DashboardModule = (() => {
   }
 
   // Popup detail karyawan hutang
-  function _openHutangDetail(idx) {
-    const e = (window._dashTopHutang || [])[idx];
+  function _openHutangDetail(idOrIdx) {
+    const list = window._dashTopHutang || [];
+    let e = null;
+    if (typeof idOrIdx === 'string') e = list.find(x => String(x.id) === idOrIdx);
+    if (!e && typeof idOrIdx === 'number') e = list[idOrIdx];
     if (!e) return;
     const body = `
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
@@ -797,6 +806,11 @@ const DashboardModule = (() => {
 
   // Auto-create PO draft dari saran low-stock
   async function _createPODraft() {
+    // Auth guard: butuh hak edit PO untuk save draft (mirror tombol render check)
+    if (typeof Auth !== 'undefined' && Auth.can && !Auth.can('po','edit')) {
+      Notify.error('Tidak punya hak akses untuk membuat PO');
+      return;
+    }
     const suggestions = window._dashLowStockSuggestions || [];
     if (!suggestions.length) { Notify.warning('Tidak ada saran PO'); return; }
     const ok = await Modal.confirm({

@@ -134,7 +134,7 @@ const ReportModule = (() => {
                 const pct = totalKeluar > 0 ? Math.round(v/totalKeluar*100) : 0;
                 return `<div style="margin-bottom:8px">
                   <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:2px">
-                    <span style="font-weight:600">${t}</span>
+                    <span style="font-weight:600">${Utils.esc(t)}</span>
                     <span style="color:var(--text-3);font-family:var(--font-mono)">${Utils.formatRupiah(v)} · ${pct}%</span>
                   </div>
                   <div style="background:var(--surface2);border-radius:4px;height:5px;overflow:hidden">
@@ -154,7 +154,7 @@ const ReportModule = (() => {
           <tbody>
             ${typeRows.map(([t,v]) => `
               <tr>
-                <td>${t}</td>
+                <td>${Utils.esc(t)}</td>
                 <td class="num">${Utils.formatRupiah(v)}</td>
                 <td class="num text-muted">${totalKeluar>0?Math.round(v/totalKeluar*100):0}%</td>
               </tr>
