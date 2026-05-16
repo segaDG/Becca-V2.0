@@ -24,12 +24,12 @@
   <!-- Preload modul yg most-common dibuka per role.
        BUILD harus match App.BUILD_VERSION. Kalau mismatch, no harm — browser
        cuma warning di console + fallback fetch normal (_loadModule). -->
-  <link rel="preload" as="script" href="js/modules/dashboard.js?v=20260516m"/>
-  <link rel="preload" as="script" href="js/modules/kas.js?v=20260516m"/>
-  <link rel="preload" as="script" href="js/modules/daily-order.js?v=20260516m"/>
+  <link rel="preload" as="script" href="js/modules/dashboard.js?v=20260516n"/>
+  <link rel="preload" as="script" href="js/modules/kas.js?v=20260516n"/>
+  <link rel="preload" as="script" href="js/modules/daily-order.js?v=20260516n"/>
   <link rel="stylesheet" href="css/base.css?v=20260404x"/>
   <link rel="stylesheet" href="css/layout.css?v=20260504a"/>
-  <link rel="stylesheet" href="css/components.css?v=20260516m"/>
+  <link rel="stylesheet" href="css/components.css?v=20260516n"/>
   <link rel="stylesheet" href="css/tables.css?v=20260404x"/>
   <!-- Supabase SDK — async agar tidak block parse HTML.
        db.js._initClient() sudah punya dynamic fallback jika belum tersedia. -->
@@ -91,7 +91,7 @@
   <script src="js/utils.js?v=20260507d"               defer></script>
   <script src="js/utils-extensions.js?v=20260507a"    defer></script>
   <script src="js/db.js?v=20260512a"                  defer></script>
-  <script src="js/db-extensions.js?v=20260516m"       defer></script>
+  <script src="js/db-extensions.js?v=20260516n"       defer></script>
   <script src="js/db-patch.js?v=20260424a"            defer></script>
   <script src="js/offline-queue.js?v=20260509a"       defer></script>
   <script src="js/auth.js?v=20260426c"                defer></script>
@@ -112,8 +112,8 @@
   <script src="js/modules/weekly-digest.js?v=20260507a"   defer></script>
 
   <!-- Boot — modules dimuat lazily saat navigate ke halaman tersebut -->
-  <script src="js/tests.js?v=20260516m"               defer></script>
-  <script src="js/app.js?v=20260516m"                 defer></script>
+  <script src="js/tests.js?v=20260516n"               defer></script>
+  <script src="js/app.js?v=20260516n"                 defer></script>
 
   <!-- PWA: daftarkan Service Worker -->
   <script>

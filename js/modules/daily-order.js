@@ -854,14 +854,47 @@ const DailyOrderModule = (() => {
     // ── Daily trend mini sparkline (14 days max) ──
     const trendDays = dailySorted.slice(-14);
     const maxTrendVal = Math.max(...trendDays.map(d => d.value), 1);
+    const avgTrend = trendDays.length > 0 ? trendDays.reduce((s,d)=>s+d.value,0) / trendDays.length : 0;
+    // SVG chart: proportional viewBox dengan padding untuk label + grid
     const sparkSvg = trendDays.length === 0 ? '' : (() => {
-      const W = 100, H = 28, bw = W / Math.max(1, trendDays.length);
-      const bars = trendDays.map((d, i) => {
-        const h = (d.value / maxTrendVal) * H;
-        const x = i * bw + 0.5;
-        return `<rect x="${x.toFixed(1)}" y="${(H-h).toFixed(1)}" width="${(bw-1).toFixed(1)}" height="${h.toFixed(1)}" fill="#6366f1" rx="1"><title>${d.tgl}: ${_fmtRp(d.value)}</title></rect>`;
+      const W = 600, H = 160;
+      const padL = 50, padR = 10, padT = 12, padB = 28;
+      const chartW = W - padL - padR;
+      const chartH = H - padT - padB;
+      const bw = chartW / Math.max(1, trendDays.length);
+      const fmtShortRp = (v) => v >= 1e6 ? (v/1e6).toFixed(1)+'jt' : v >= 1e3 ? Math.round(v/1e3)+'rb' : String(v);
+      // Y axis: 4 grid lines (0%, 33%, 66%, 100%)
+      const yLines = [0, 0.33, 0.66, 1].map(p => {
+        const y = padT + chartH - (chartH * p);
+        const val = Math.round(maxTrendVal * p);
+        return `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="${p===0?'0':'2,3'}"/>
+                <text x="${padL-4}" y="${y+3}" text-anchor="end" font-size="9" fill="var(--text-3)">${fmtShortRp(val)}</text>`;
       }).join('');
-      return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:28px;display:block">${bars}</svg>`;
+      // Avg line dashed
+      const avgY = padT + chartH - (chartH * (avgTrend / maxTrendVal));
+      const avgLine = `<line x1="${padL}" y1="${avgY}" x2="${W-padR}" y2="${avgY}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3" opacity="0.7"/>
+                       <text x="${W-padR-2}" y="${avgY-3}" text-anchor="end" font-size="9" fill="#f59e0b" font-weight="600">avg ${fmtShortRp(avgTrend)}</text>`;
+      // Bars + X labels (show every 2nd label kalau >7 hari biar tidak overlap)
+      const labelEvery = trendDays.length > 7 ? 2 : 1;
+      const bars = trendDays.map((d, i) => {
+        const h = (d.value / maxTrendVal) * chartH;
+        const x = padL + i * bw + 2;
+        const y = padT + chartH - h;
+        const isPeak = d.value === maxTrendVal && d.value > 0;
+        const color = isPeak ? '#ef4444' : (d.value >= avgTrend ? '#6366f1' : '#a5b4fc');
+        const showLabel = i % labelEvery === 0 || i === trendDays.length - 1;
+        const tglParts = (d.tgl||'').split('-'); // YYYY-MM-DD
+        const tglLabel = tglParts.length === 3 ? tglParts[2]+'/'+tglParts[1] : '';
+        return `<g>
+          <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(bw-4).toFixed(1)}" height="${h.toFixed(1)}" fill="${color}" rx="2"><title>${d.tgl}: ${_fmtRp(d.value)} · ${d.formCount} form</title></rect>
+          ${showLabel ? `<text x="${(x+bw/2-2).toFixed(1)}" y="${(H-padB+12).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--text-3)">${tglLabel}</text>` : ''}
+        </g>`;
+      }).join('');
+      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block;max-height:200px">
+        ${yLines}
+        ${bars}
+        ${avgLine}
+      </svg>`;
     })();
 
     const periodeLabel = ({
@@ -914,25 +947,22 @@ const DailyOrderModule = (() => {
 
       <!-- Trend Harian + Distribusi Shift side-by-side -->
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--s3);margin-bottom:var(--s4)" class="do-da-row">
-        <!-- Trend Harian (sparkline) -->
+        <!-- Trend Harian (proper bar chart) -->
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4)">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-            <div style="font-size:13px;font-weight:700">📈 Trend Pengeluaran Harian</div>
-            <div style="font-size:10px;color:var(--text-3)">${trendDays.length} hari terakhir</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+            <div>
+              <div style="font-size:13px;font-weight:700">📈 Trend Pengeluaran Harian</div>
+              <div style="font-size:10px;color:var(--text-3);margin-top:2px">${trendDays.length} hari terakhir · bar merah = peak, biru muda = di bawah rata-rata</div>
+            </div>
+            <div style="display:flex;gap:14px;font-size:10px;color:var(--text-3);text-align:right">
+              <div><div style="color:var(--text-3)">MAX</div><strong style="color:#ef4444;font-family:var(--font-mono);font-size:12px">${_fmtRp(maxTrendVal)}</strong></div>
+              ${avgTrend > 0 ? `<div><div style="color:var(--text-3)">AVG</div><strong style="color:#f59e0b;font-family:var(--font-mono);font-size:12px">${_fmtRp(Math.round(avgTrend))}</strong></div>` : ''}
+              ${lowestDay && lowestDay.value !== maxTrendVal ? `<div><div style="color:var(--text-3)">MIN</div><strong style="color:#10b981;font-family:var(--font-mono);font-size:12px">${_fmtRp(lowestDay.value)}</strong></div>` : ''}
+            </div>
           </div>
           ${trendDays.length === 0
-            ? `<div style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">Belum ada data</div>`
-            : `<div style="display:flex;align-items:flex-end;gap:8px">
-                <div style="flex:1">${sparkSvg}</div>
-                <div style="text-align:right;font-size:10px;color:var(--text-3);line-height:1.4">
-                  <div>Max: <strong style="color:#ef4444">${_fmtRp(maxTrendVal)}</strong></div>
-                  ${lowestDay ? `<div>Min: <strong style="color:#10b981">${_fmtRp(lowestDay.value)}</strong></div>` : ''}
-                </div>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-3);margin-top:4px;font-family:var(--font-mono)">
-                <span>${fmtTgl(trendDays[0]?.tgl)}</span>
-                <span>${fmtTgl(trendDays[trendDays.length-1]?.tgl)}</span>
-              </div>`
+            ? `<div style="padding:48px;text-align:center;color:var(--text-3);font-size:12px">Belum ada data</div>`
+            : sparkSvg
           }
         </div>
 
