@@ -53,24 +53,102 @@ const ReportModule = (() => {
 
     // Pengeluaran per kategori — exclude type="Kas" (itu masuk, bukan keluar)
     const byType = {};
-    kas.filter(r=>r.type!=='Kas').forEach(r => { byType[r.type] = (byType[r.type]||0) + (r.jumlah||0); });
+    kas.filter(r=>r.type!=='Kas').forEach(r => { byType[r.type||'Lainnya'] = (byType[r.type||'Lainnya']||0) + (r.jumlah||0); });
     const typeRows = Object.entries(byType).sort((a,b) => b[1]-a[1]);
 
+    // MoM comparison: bulan ini vs bulan lalu
+    const today = new Date();
+    const ym = (d) => d.toISOString().slice(0,7);
+    const thisMonth = ym(today);
+    const lastMonth = ym(new Date(today.getFullYear(), today.getMonth()-1, 1));
+    const thisMonthKeluar = kas.filter(r => r.type!=='Kas' && (r.tgl||'').startsWith(thisMonth)).reduce((s,r)=>s+(r.jumlah||0),0);
+    const lastMonthKeluar = kas.filter(r => r.type!=='Kas' && (r.tgl||'').startsWith(lastMonth)).reduce((s,r)=>s+(r.jumlah||0),0);
+    const momDelta = thisMonthKeluar - lastMonthKeluar;
+    const momPct = lastMonthKeluar > 0 ? (momDelta/lastMonthKeluar*100) : 0;
+    const momColor = momDelta > 0 ? 'var(--danger)' : 'var(--success)';
+    const momArrow = momDelta > 0 ? '▲' : '▼';
+
+    // Trend 6 bulan terakhir
+    const last6 = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
+      last6.push(ym(d));
+    }
+    const monthlyKeluar = last6.map(m => ({
+      ym: m,
+      val: kas.filter(r => r.type!=='Kas' && (r.tgl||'').startsWith(m)).reduce((s,r)=>s+(r.jumlah||0),0)
+    }));
+    const maxMonthly = Math.max(...monthlyKeluar.map(m => m.val), 1);
+    const BULAN_SHORT = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const _bl = ym => { if(!ym) return ''; const[y,m]=ym.split('-'); return BULAN_SHORT[parseInt(m)]+' \''+y.slice(-2); };
+
+    // SVG sparkline bar chart 6 bulan
+    const sparkW = 360, sparkH = 60, bw = sparkW / monthlyKeluar.length;
+    const sparkBars = monthlyKeluar.map((m,i) => {
+      const h = (m.val/maxMonthly) * (sparkH-16);
+      const x = i*bw + 2;
+      const isCurrent = m.ym === thisMonth;
+      return `<g><rect x="${x.toFixed(1)}" y="${(sparkH-h-12).toFixed(1)}" width="${(bw-4).toFixed(1)}" height="${h.toFixed(1)}" fill="${isCurrent?'#ef4444':'#6366f1'}" rx="2"><title>${_bl(m.ym)}: ${Utils.formatRupiah(m.val)}</title></rect>
+        <text x="${(x+bw/2-2).toFixed(1)}" y="${(sparkH-2).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--text-3)">${_bl(m.ym)}</text></g>`;
+    }).join('');
+
     document.getElementById('rpt-kas').innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s4);margin-bottom:var(--s5)">
+      <!-- KPI strip — 4 cards -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--s4);margin-bottom:var(--s4)">
         ${[
-          { l:'Saldo Kas Kecil', v: Utils.formatRupiah(saldo),   c: saldo>=0?'var(--success)':'var(--danger)' },
-          { l:'Total Masuk',  v: Utils.formatRupiah(totalMasuk), c:'var(--success)' },
-          { l:'Total Keluar', v: Utils.formatRupiah(totalKeluar),c:'var(--danger)' },
+          { l:'Saldo Kas Kecil', v: Utils.formatRupiah(saldo),   c: saldo>=0?'var(--success)':'var(--danger)', icon:'💰' },
+          { l:'Total Masuk',  v: Utils.formatRupiah(totalMasuk), c:'var(--success)', icon:'⬆️' },
+          { l:'Total Keluar', v: Utils.formatRupiah(totalKeluar),c:'var(--danger)',  icon:'⬇️' },
+          { l:'MoM Pengeluaran', v: lastMonthKeluar>0 ? `${momArrow} ${Math.abs(momPct).toFixed(1)}%` : '—', c: momColor, icon:'📊', sub: lastMonthKeluar>0 ? `${Utils.formatRupiah(thisMonthKeluar)} vs ${Utils.formatRupiah(lastMonthKeluar)}` : 'belum ada bulan sebelumnya' },
         ].map(s => `
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5)">
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase">${s.l}</div>
-            <div style="font-size:20px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+              <div style="font-size:10px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${s.l}</div>
+              <span style="font-size:14px">${s.icon}</span>
+            </div>
+            <div style="font-size:18px;font-weight:800;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
+            ${s.sub ? `<div style="font-size:10px;color:var(--text-3);margin-top:2px">${s.sub}</div>` : ''}
           </div>
         `).join('')}
       </div>
+
+      <!-- Trend chart + Kategori side-by-side -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);margin-bottom:var(--s4)" class="rpt-kas-row">
+        <!-- Trend 6 bulan -->
+        <div class="card" style="padding:var(--s4)">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">📈 Trend Pengeluaran 6 Bulan</div>
+          <div style="font-size:10px;color:var(--text-3);margin-bottom:8px">Bulan ini disorot merah</div>
+          <svg viewBox="0 0 ${sparkW} ${sparkH}" style="width:100%;height:${sparkH}px;display:block">${sparkBars}</svg>
+        </div>
+
+        <!-- Kategori with progress bars -->
+        <div class="card" style="padding:var(--s4)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:13px;font-weight:700">📊 Top Kategori Pengeluaran</div>
+            <button onclick="App.navigate('kas');setTimeout(()=>KasModule.switchTab&&KasModule.switchTab('summary'),100)"
+              style="font-size:10px;background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;color:var(--text-3)">Detail →</button>
+          </div>
+          ${typeRows.length === 0
+            ? `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:12px">Belum ada pengeluaran</div>`
+            : typeRows.slice(0, 7).map(([t,v]) => {
+                const pct = totalKeluar > 0 ? Math.round(v/totalKeluar*100) : 0;
+                return `<div style="margin-bottom:8px">
+                  <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:2px">
+                    <span style="font-weight:600">${t}</span>
+                    <span style="color:var(--text-3);font-family:var(--font-mono)">${Utils.formatRupiah(v)} · ${pct}%</span>
+                  </div>
+                  <div style="background:var(--surface2);border-radius:4px;height:5px;overflow:hidden">
+                    <div style="background:var(--primary);height:5px;border-radius:4px;width:${pct}%;transition:width .4s"></div>
+                  </div>
+                </div>`;
+              }).join('') + (typeRows.length > 7 ? `<div style="font-size:10px;color:var(--text-3);text-align:center;margin-top:8px">+${typeRows.length-7} kategori lain</div>` : '')
+          }
+        </div>
+      </div>
+
+      <!-- Detail kategori table -->
       <div class="card">
-        <div class="card-header"><div class="card-title">Pengeluaran per Kategori</div></div>
+        <div class="card-header"><div class="card-title">📋 Detail Pengeluaran per Kategori</div></div>
         <table class="table">
           <thead><tr><th>Kategori</th><th class="num">Total</th><th class="num">%</th></tr></thead>
           <tbody>
@@ -81,9 +159,20 @@ const ReportModule = (() => {
                 <td class="num text-muted">${totalKeluar>0?Math.round(v/totalKeluar*100):0}%</td>
               </tr>
             `).join('')}
+            ${typeRows.length>0 ? `<tr style="border-top:2px solid var(--border);font-weight:700;background:var(--surface2)">
+              <td>TOTAL</td>
+              <td class="num">${Utils.formatRupiah(totalKeluar)}</td>
+              <td class="num">100%</td>
+            </tr>` : ''}
           </tbody>
         </table>
       </div>
+
+      <style>
+        @media(max-width:768px){
+          .rpt-kas-row{grid-template-columns:1fr !important}
+        }
+      </style>
     `;
   }
 
@@ -93,21 +182,125 @@ const ReportModule = (() => {
     const real   = orders.filter(o => (o.jenis === 'real orderan' || (o.catatan||'').toLowerCase().includes('real'))).length;
     const est    = orders.filter(o => !(o.jenis === 'real orderan' || (o.catatan||'').toLowerCase().includes('real'))).length;
     const totalPax = orders.reduce((s,o) => s+(parseInt(o.shift1)||0)+(parseInt(o.shift2)||0)+(parseInt(o.shift3)||0), 0);
+    const totalS1 = orders.reduce((s,o) => s+(parseInt(o.shift1)||0), 0);
+    const totalS2 = orders.reduce((s,o) => s+(parseInt(o.shift2)||0), 0);
+    const totalS3 = orders.reduce((s,o) => s+(parseInt(o.shift3)||0), 0);
+
+    // Top 10 customer by pax
+    const byCustomer = {};
+    orders.forEach(o => {
+      const name = (o.namaCustomer || o.customer || 'Tidak Diketahui').trim();
+      if (!byCustomer[name]) byCustomer[name] = { name, count: 0, pax: 0 };
+      byCustomer[name].count++;
+      byCustomer[name].pax += (parseInt(o.shift1)||0)+(parseInt(o.shift2)||0)+(parseInt(o.shift3)||0);
+    });
+    const topCustomers = Object.values(byCustomer).sort((a,b) => b.pax - a.pax).slice(0, 10);
+    const maxPax = Math.max(...topCustomers.map(c => c.pax), 1);
+
+    // Trend order per bulan (6 bulan terakhir)
+    const today = new Date();
+    const last6 = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
+      const ym = d.toISOString().slice(0,7);
+      const bulanOrders = orders.filter(o => (o.tglOrder||o.tgl||'').startsWith(ym));
+      last6.push({
+        ym,
+        count: bulanOrders.length,
+        pax: bulanOrders.reduce((s,o)=>s+(parseInt(o.shift1)||0)+(parseInt(o.shift2)||0)+(parseInt(o.shift3)||0), 0)
+      });
+    }
+    const maxOrderCount = Math.max(...last6.map(m => m.count), 1);
+    const BULAN_SHORT = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
+    const _bl = ym => { if(!ym) return ''; const[y,m]=ym.split('-'); return BULAN_SHORT[parseInt(m)]+' \''+y.slice(-2); };
 
     document.getElementById('rpt-order').innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--s4);margin-bottom:var(--s5)">
+      <!-- KPI strip -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--s4);margin-bottom:var(--s4)">
         ${[
-          { l:'Total Order',     v: total + ' order',          c:'var(--primary-h)' },
-          { l:'Real Orderan',    v: real  + ' order',          c:'var(--success)' },
-          { l:'Estimasi',        v: est   + ' order',          c:'var(--warning)' },
-          { l:'Total Pax',       v: totalPax.toLocaleString('id') + ' pax', c:'var(--info)' },
+          { l:'Total Order',  v: total.toLocaleString('id'),    c:'var(--primary-h)', icon:'📋' },
+          { l:'Real Orderan', v: real.toLocaleString('id'),     c:'var(--success)',   icon:'✅' },
+          { l:'Estimasi',     v: est.toLocaleString('id'),      c:'var(--warning)',   icon:'📊' },
+          { l:'Total Pax',    v: totalPax.toLocaleString('id'), c:'var(--info)',      icon:'👥' },
         ].map(s => `
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5)">
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase">${s.l}</div>
-            <div style="font-size:22px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+              <div style="font-size:10px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${s.l}</div>
+              <span style="font-size:14px">${s.icon}</span>
+            </div>
+            <div style="font-size:20px;font-weight:800;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
           </div>
         `).join('')}
       </div>
+
+      <!-- Trend bulanan + Distribusi shift side-by-side -->
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--s4);margin-bottom:var(--s4)" class="rpt-order-row">
+        <!-- Trend order per bulan -->
+        <div class="card" style="padding:var(--s4)">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">📈 Trend Order 6 Bulan</div>
+          ${last6.every(m => m.count === 0) ? `<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Belum ada order</div>` : `
+            <div style="display:flex;align-items:flex-end;gap:8px;height:80px;padding-top:8px">
+              ${last6.map(m => {
+                const h = (m.count / maxOrderCount) * 70;
+                return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px" title="${_bl(m.ym)}: ${m.count} order · ${m.pax} pax">
+                  <div style="font-size:9px;color:var(--text-2);font-weight:600">${m.count}</div>
+                  <div style="width:100%;background:var(--primary);height:${h}px;border-radius:3px 3px 0 0;min-height:${m.count>0?2:0}px"></div>
+                  <div style="font-size:9px;color:var(--text-3)">${_bl(m.ym)}</div>
+                </div>`;
+              }).join('')}
+            </div>`
+          }
+        </div>
+
+        <!-- Distribusi shift -->
+        <div class="card" style="padding:var(--s4)">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px">🍽️ Distribusi Pax per Shift</div>
+          ${[
+            { l: 'Shift 1', v: totalS1, c: '#6366f1' },
+            { l: 'Shift 2', v: totalS2, c: '#10b981' },
+            { l: 'Shift 3', v: totalS3, c: '#f59e0b' },
+          ].map(s => {
+            const pct = totalPax > 0 ? Math.round(s.v / totalPax * 100) : 0;
+            return `<div style="margin-bottom:10px">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+                <span style="font-weight:600">${s.l}</span>
+                <span style="color:var(--text-3);font-family:var(--font-mono)">${s.v.toLocaleString('id')} pax · ${pct}%</span>
+              </div>
+              <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden">
+                <div style="background:${s.c};height:6px;border-radius:4px;width:${pct}%;transition:width .4s"></div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Top 10 customer -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">🏆 Top 10 Customer (by Pax)</div></div>
+        ${topCustomers.length === 0 ? `<div style="padding:48px;text-align:center;color:var(--text-3)">Belum ada order</div>` : `
+          <table class="table">
+            <thead><tr><th>#</th><th>Customer</th><th class="num">Order</th><th class="num">Pax</th><th>Distribusi</th></tr></thead>
+            <tbody>
+              ${topCustomers.map((c,i) => {
+                const pct = Math.round(c.pax / maxPax * 100);
+                return `<tr>
+                  <td class="text-muted">${i+1}</td>
+                  <td style="font-weight:500">${Utils.esc(c.name)}</td>
+                  <td class="num">${c.count}</td>
+                  <td class="num" style="font-weight:600">${c.pax.toLocaleString('id')}</td>
+                  <td><div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;max-width:200px"><div style="background:var(--primary);height:6px;border-radius:4px;width:${pct}%"></div></div></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`
+        }
+      </div>
+
+      <style>
+        @media(max-width:768px){
+          .rpt-order-row{grid-template-columns:1fr !important}
+        }
+      </style>
     `;
   }
 
@@ -115,38 +308,129 @@ const ReportModule = (() => {
     const employees = await DB.getEmployees().catch(() => []);
     const ACTIVE_STATS = ['AKTIF','ACTIVE','Active','Tetap','Kontrak','Percobaan','Harian'];
     const active = employees.filter(e => ACTIVE_STATS.includes(e.status));
+    const inactive = employees.filter(e => !ACTIVE_STATS.includes(e.status));
     const totalGaji   = active.reduce((s,e) => s+(e.gaji||e.gajiPokok||0), 0);
     const totalHutang = active.reduce((s,e) => s+(e.sisaHutang||e.hutang||0), 0);
+    const avgGaji = active.length > 0 ? totalGaji / active.length : 0;
+
+    // Divisi breakdown
     const byDiv = {};
     active.forEach(e => { const d=e.divisi||e.departemen||'Lainnya'; byDiv[d]=(byDiv[d]||0)+1; });
+    const divEntries = Object.entries(byDiv).sort((a,b)=>b[1]-a[1]);
+    const maxDiv = Math.max(...divEntries.map(([,n]) => n), 1);
 
-    const canFinance = Auth.can('emp_finance', 'view');
+    // Status breakdown
+    const byStatus = {};
+    active.forEach(e => { const s = e.status || 'AKTIF'; byStatus[s] = (byStatus[s]||0)+1; });
+    const statusEntries = Object.entries(byStatus).sort((a,b)=>b[1]-a[1]);
+    const STATUS_COLORS = {
+      'Tetap':'#10b981', 'Kontrak':'#6366f1', 'Percobaan':'#f59e0b',
+      'Harian':'#8b5cf6', 'AKTIF':'#06b6d4', 'ACTIVE':'#06b6d4', 'Active':'#06b6d4',
+    };
+
+    // Top hutang karyawan
+    const topHutang = canFinanceAcc()
+      ? active.filter(e => (e.sisaHutang||e.hutang||0) > 0)
+              .map(e => ({ nama: e.nama || e.username || 'Tanpa Nama', divisi: e.divisi || e.departemen || '-', hutang: e.sisaHutang || e.hutang || 0 }))
+              .sort((a,b) => b.hutang - a.hutang)
+              .slice(0, 10)
+      : [];
+    const maxHutang = Math.max(...topHutang.map(e => e.hutang), 1);
+
+    const canFinance = canFinanceAcc();
     document.getElementById('rpt-karyawan').innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--s4);margin-bottom:var(--s5)">
+      <!-- KPI strip -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--s4);margin-bottom:var(--s4)">
         ${[
-          { l:'Karyawan Aktif',   v: active.length + ' orang',        c:'var(--primary-h)', show: true },
-          { l:'Total Gaji/Bulan', v: Utils.formatRupiah(totalGaji),   c:'var(--success)',   show: canFinance },
-          { l:'Total Hutang',     v: Utils.formatRupiah(totalHutang), c:'var(--warning)',   show: canFinance },
+          { l:'Karyawan Aktif',   v: active.length + ' orang',       c:'var(--primary-h)', icon:'👥', show:true, sub: inactive.length>0?`+${inactive.length} non-aktif`:'' },
+          { l:'Total Gaji/Bulan', v: Utils.formatRupiah(totalGaji),   c:'var(--success)',   icon:'💰', show:canFinance, sub: active.length>0?`avg ${Utils.formatRupiah(Math.round(avgGaji), true)}/orang`:'' },
+          { l:'Total Hutang',     v: Utils.formatRupiah(totalHutang), c:'var(--warning)',   icon:'⚠️', show:canFinance, sub: topHutang.length>0?`${topHutang.length} karyawan punya hutang`:'tidak ada hutang' },
+          { l:'Jumlah Divisi',    v: divEntries.length + ' divisi',   c:'var(--info)',      icon:'🏢', show:true },
         ].filter(s => s.show).map(s => `
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s5)">
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase">${s.l}</div>
-            <div style="font-size:22px;font-weight:700;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+              <div style="font-size:10px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${s.l}</div>
+              <span style="font-size:14px">${s.icon}</span>
+            </div>
+            <div style="font-size:20px;font-weight:800;color:${s.c};font-family:var(--font-mono)">${s.v}</div>
+            ${s.sub ? `<div style="font-size:10px;color:var(--text-3);margin-top:2px">${s.sub}</div>` : ''}
           </div>
         `).join('')}
       </div>
+
+      <!-- Divisi bar chart + Status breakdown side-by-side -->
+      <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:var(--s4);margin-bottom:var(--s4)" class="rpt-karyawan-row">
+        <!-- Divisi bar chart -->
+        <div class="card" style="padding:var(--s4)">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">🏢 Distribusi per Divisi</div>
+          ${divEntries.length === 0 ? `<div style="padding:24px;text-align:center;color:var(--text-3)">Belum ada data</div>` : `
+            <div>
+              ${divEntries.map(([d,n]) => {
+                const pct = Math.round(n / maxDiv * 100);
+                return `<div style="margin-bottom:8px">
+                  <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:2px">
+                    <span style="font-weight:600">${Utils.esc(d)}</span>
+                    <span style="color:var(--text-3);font-family:var(--font-mono)">${n} orang</span>
+                  </div>
+                  <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden">
+                    <div style="background:var(--primary);height:6px;border-radius:4px;width:${pct}%;transition:width .4s"></div>
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>`
+          }
+        </div>
+
+        <!-- Status breakdown -->
+        <div class="card" style="padding:var(--s4)">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">📋 Status Karyawan</div>
+          ${statusEntries.length === 0 ? `<div style="padding:24px;text-align:center;color:var(--text-3)">Belum ada data</div>` : `
+            ${statusEntries.map(([s,n]) => {
+              const pct = active.length > 0 ? Math.round(n / active.length * 100) : 0;
+              const color = STATUS_COLORS[s] || '#94a3b8';
+              return `<div style="margin-bottom:10px">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:3px">
+                  <span style="font-weight:600">${Utils.esc(s)}</span>
+                  <span style="color:var(--text-3);font-family:var(--font-mono)">${n} · ${pct}%</span>
+                </div>
+                <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden">
+                  <div style="background:${color};height:6px;border-radius:4px;width:${pct}%"></div>
+                </div>
+              </div>`;
+            }).join('')}`
+          }
+        </div>
+      </div>
+
+      <!-- Top hutang (kalau ada finance access) -->
+      ${canFinance && topHutang.length > 0 ? `
       <div class="card">
-        <div class="card-header"><div class="card-title">Karyawan per Divisi</div></div>
+        <div class="card-header"><div class="card-title">💳 Top 10 Hutang Karyawan</div></div>
         <table class="table">
-          <thead><tr><th>Divisi</th><th class="num">Jumlah</th></tr></thead>
+          <thead><tr><th>#</th><th>Nama</th><th>Divisi</th><th class="num">Sisa Hutang</th><th>Distribusi</th></tr></thead>
           <tbody>
-            ${Object.entries(byDiv).sort((a,b)=>b[1]-a[1]).map(([d,n]) => `
-              <tr><td>${d}</td><td class="num">${n} orang</td></tr>
-            `).join('')}
+            ${topHutang.map((e,i) => {
+              const pct = Math.round(e.hutang / maxHutang * 100);
+              return `<tr>
+                <td class="text-muted">${i+1}</td>
+                <td style="font-weight:500">${Utils.esc(e.nama)}</td>
+                <td class="text-muted">${Utils.esc(e.divisi)}</td>
+                <td class="num" style="font-weight:600;color:var(--warning)">${Utils.formatRupiah(e.hutang)}</td>
+                <td><div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;max-width:200px"><div style="background:var(--warning);height:6px;border-radius:4px;width:${pct}%"></div></div></td>
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
-      </div>
+      </div>` : ''}
+
+      <style>
+        @media(max-width:768px){
+          .rpt-karyawan-row{grid-template-columns:1fr !important}
+        }
+      </style>
     `;
   }
+  function canFinanceAcc() { try { return Auth.can('emp_finance', 'view'); } catch { return false; } }
 
   /* ========================================================
      TREND 12 BULAN
