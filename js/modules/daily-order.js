@@ -961,15 +961,15 @@ const DailyOrderModule = (() => {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4);box-shadow:0 1px 3px rgba(0,0,0,.04)">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
             <span style="font-size:14px">💰</span>
-            <span style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.04em">SELISIH DO vs HPP INVENTORY</span>
+            <span style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.04em">SELISIH DO vs HPP STOK</span>
           </div>
           <div style="font-size:24px;font-weight:800;margin-top:4px;color:${Math.abs(totalVarHPP)<1000?'var(--text)':totalVarHPP>0?'#ef4444':'#10b981'};font-family:var(--font-mono)">
             ${totalVarHPP>=0?'+':''}${_fmtRp(Math.abs(totalVarHPP))}
           </div>
           <div style="font-size:10px;color:var(--text-3);margin-top:4px;line-height:1.5">
             <span style="color:#6366f1">DO ${_fmtRp(totalDOExp)}</span> · <span style="color:#f59e0b">HPP ${_fmtRp(totalHPPExp)}</span><br>
-            Qty AKT <strong>${totalAktQty.toLocaleString('id-ID',{maximumFractionDigits:1})}</strong> vs INV KELUAR <strong>${totalInvQty.toLocaleString('id-ID',{maximumFractionDigits:1})}</strong>
-            ${unmatchedCount?'<br>⚠️ '+unmatchedCount+' item tidak di inv':''}${noLogCount?' · 📋 '+noLogCount+' belum ada log keluar':''}
+            Qty AKT <strong>${totalAktQty.toLocaleString('id-ID',{maximumFractionDigits:1})}</strong> vs STOK KELUAR <strong>${totalInvQty.toLocaleString('id-ID',{maximumFractionDigits:1})}</strong>
+            ${unmatchedCount?'<br>⚠️ '+unmatchedCount+' item tidak di stok':''}${noLogCount?' · 📋 '+noLogCount+' belum ada log keluar':''}
           </div>
         </div>
       </div>
@@ -1028,15 +1028,15 @@ const DailyOrderModule = (() => {
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:var(--s4)">
         <div style="padding:var(--s4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div>
-            <div style="font-size:13px;font-weight:700">💰 DO Aktual vs HPP Inventory (Qty &amp; Nilai)</div>
+            <div style="font-size:13px;font-weight:700">💰 DO Aktual vs HPP Stok Inventory (Qty &amp; Nilai)</div>
             <div style="font-size:10px;color:var(--text-3);margin-top:3px;font-style:italic">
-              <strong>AKT QTY</strong>: dari DO Form Produksi (aktQty).
-              <strong>INV KELUAR</strong>: dari log inventory action=KELUAR di tanggal yg sama.
-              <strong>HARGA INV</strong>: prioritas <code>_weightedAvgPrice</code> (rata-rata tertimbang dari history pembelian) → fallback <code>hargaSatuan</code> (manual) → <code>_hppLatest</code> (transaksi MASUK terakhir).
-              <strong>HPP INV</strong>: nilai aktual dari log KELUAR kalau ada, atau aktQty × HARGA INV.
+              <strong>AKT QTY (DO)</strong>: dari Daily Order Form Produksi (aktQty).
+              <strong>STOK KELUAR</strong>: dari log Inventory action=KELUAR di tanggal yg sama.
+              <strong>HARGA STOK</strong>: prioritas <code>_weightedAvgPrice</code> (rata-rata tertimbang dari history pembelian) → fallback <code>hargaSatuan</code> (manual entry) → <code>_hppLatest</code> (transaksi MASUK terakhir).
+              <strong>HPP STOK</strong>: nilai aktual dari log KELUAR kalau ada, atau AKT QTY × HARGA STOK.
             </div>
           </div>
-          <div style="font-size:10px;color:var(--text-3);text-align:right;white-space:nowrap">${hppRows.length} item${unmatchedCount?' · ⚠️ '+unmatchedCount+' tidak di inv':''}${noLogCount?' · 📋 '+noLogCount+' tanpa log keluar':''}</div>
+          <div style="font-size:10px;color:var(--text-3);text-align:right;white-space:nowrap">${hppRows.length} item${unmatchedCount?' · ⚠️ '+unmatchedCount+' tidak di stok':''}${noLogCount?' · 📋 '+noLogCount+' tanpa log keluar':''}</div>
         </div>
         ${hppRows.length === 0
           ? `<div style="padding:48px;text-align:center;color:var(--text-3)">Belum ada data form produksi atau inventory belum di-link</div>`
@@ -1046,12 +1046,12 @@ const DailyOrderModule = (() => {
                   <tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
                     <th style="padding:8px;text-align:left;color:var(--text-3)">ITEM</th>
                     <th style="padding:8px;text-align:right;color:#10b981" title="Total aktual qty dari Form Produksi (sum aktQty)">AKT QTY (DO)</th>
-                    <th style="padding:8px;text-align:right;color:#06b6d4" title="Total qty di log inventory action=KELUAR pada tanggal yg sama">INV KELUAR</th>
+                    <th style="padding:8px;text-align:right;color:#06b6d4" title="Total qty di log Inventory action=KELUAR pada tanggal yg sama">STOK KELUAR</th>
                     <th style="padding:8px;text-align:right;color:var(--text-3)">Δ QTY</th>
                     <th style="padding:8px;text-align:right;color:var(--text-3)" title="Harga snapshot saat form DO dibuat">HARGA DO</th>
-                    <th style="padding:8px;text-align:right;color:var(--text-3)" title="Harga current di inventory: weighted avg dari history pembelian / manual / HPP terbaru">HARGA INV</th>
+                    <th style="padding:8px;text-align:right;color:var(--text-3)" title="Harga current di Inventory: weighted avg dari history pembelian / manual / HPP terbaru">HARGA STOK</th>
                     <th style="padding:8px;text-align:right;color:#6366f1" title="Pengeluaran DO = AKT QTY × HARGA DO">NILAI DO</th>
-                    <th style="padding:8px;text-align:right;color:#f59e0b" title="Nilai HPP Inventory: dari log KELUAR kalau ada, atau aktQty × HARGA INV">HPP INV</th>
+                    <th style="padding:8px;text-align:right;color:#f59e0b" title="Nilai HPP dari Inventory: log KELUAR kalau ada, atau AKT QTY × HARGA STOK">HPP STOK</th>
                     <th style="padding:8px;text-align:right;color:var(--text-3)">Δ NILAI</th>
                     <th style="padding:8px;text-align:center;color:var(--text-3)">STATUS</th>
                   </tr>
@@ -1060,9 +1060,9 @@ const DailyOrderModule = (() => {
                   ${hppRows.map((r,i) => {
                     if (!r.hasInv) {
                       return `<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(0,0,0,.018)':''};opacity:.6">
-                        <td style="padding:8px;font-weight:600">${Utils.esc(r.item)} <span style="font-size:9px;color:#f59e0b;background:rgba(245,158,11,.12);padding:1px 5px;border-radius:8px;margin-left:4px">tidak di inv</span></td>
+                        <td style="padding:8px;font-weight:600">${Utils.esc(r.item)} <span style="font-size:9px;color:#f59e0b;background:rgba(245,158,11,.12);padding:1px 5px;border-radius:8px;margin-left:4px">tidak di stok</span></td>
                         <td style="padding:8px;text-align:right;color:#10b981">${r.totalAkt.toLocaleString('id-ID',{maximumFractionDigits:2})} ${r.satuan||''}</td>
-                        <td colspan="7" style="padding:8px;text-align:center;color:var(--text-3);font-style:italic;font-size:11px">Item tidak ditemukan di inventory — tambah di Inventory > Stok atau perbaiki nama</td>
+                        <td colspan="7" style="padding:8px;text-align:center;color:var(--text-3);font-style:italic;font-size:11px">Item tidak ditemukan di Inventory — tambah di Inventory > Stok atau perbaiki nama</td>
                         <td style="padding:8px;text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(245,158,11,.12);color:#f59e0b;font-weight:700">UNMATCHED</span></td>
                       </tr>`;
                     }
