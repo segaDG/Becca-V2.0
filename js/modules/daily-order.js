@@ -15,6 +15,7 @@ const DailyOrderModule = (() => {
   let _saving       = false; // guard against double-save race condition
   let _inventory    = [];
   let _invLogs      = []; // inventory activity logs — for sync status check
+  let _cekSelisihPeriode = '30d'; // periode filter di tab Cek Selisih: 7d/30d/90d/this-month/last-month/all
   let _customers    = [];
   let _bulkSelected = new Set();
 
@@ -866,8 +867,29 @@ const DailyOrderModule = (() => {
 
   /* ─── CEK SELISIH ─── */
   function _htmlCekSelisih() {
+    // Periode filter — default 30 hari, configurable via _cekSelisihPeriode.
+    const periode = _cekSelisihPeriode || '30d';
+    const today = new Date();
+    const ymd = (d) => d.toISOString().split('T')[0];
+    let fromDate = '', toDate = ymd(today);
+    if (periode === '7d')       fromDate = ymd(new Date(today.getTime() - 7  * 86400000));
+    else if (periode === '30d') fromDate = ymd(new Date(today.getTime() - 30 * 86400000));
+    else if (periode === '90d') fromDate = ymd(new Date(today.getTime() - 90 * 86400000));
+    else if (periode === 'this-month') { fromDate = ymd(new Date(today.getFullYear(), today.getMonth(), 1)); }
+    else if (periode === 'last-month') {
+      fromDate = ymd(new Date(today.getFullYear(), today.getMonth()-1, 1));
+      toDate   = ymd(new Date(today.getFullYear(), today.getMonth(),   0));
+    }
+    // 'all' = no date filter
+
+    const inPeriode = (tgl) => {
+      if (periode === 'all' || !tgl) return periode === 'all' || !fromDate;
+      return tgl >= fromDate && tgl <= toDate;
+    };
+    const formsFiltered = _forms.filter(f => periode === 'all' || inPeriode(f.tanggal));
+
     const itemMap = {};
-    _forms.forEach(f => {
+    formsFiltered.forEach(f => {
       (f.items||[]).forEach(it => {
         if (!itemMap[it.item]) itemMap[it.item] = {item:it.item, satuan:it.satuan, harga:_n(it.hargaSatuan), totalEst:0, totalAkt:0};
         itemMap[it.item].totalEst += _n(it.estQty);
@@ -881,29 +903,32 @@ const DailyOrderModule = (() => {
     })).sort((a,b) => Math.abs(b.nilaiSelisih) - Math.abs(a.nilaiSelisih));
     const totalNilai = rows.reduce((s,r) => s + r.nilaiSelisih, 0);
 
-    // ── NEW: Comparison DO Aktual (qty + harga) vs Inventory (KELUAR qty + HPP) ──
-    // Untuk tiap item di forms:
-    //   • AKT QTY (dari DO forms)        vs INV KELUAR QTY (dari inv_activities logs)
-    //   • HARGA DO snapshot              vs HPP Inventory (_weightedAvgPrice)
-    //   • PENGELUARAN DO = aktQty × harga_DO  vs  HPP INV = invKeluarQty × HPP_inv
-    // Reveal: stock mismatch (qty), price drift (harga), cost variance (nilai).
+    // ── Comparison DO Aktual (qty + harga) vs Inventory (KELUAR qty + HPP) ──
+    // FIX: Inventory pakai field 'jenis' (bukan action) dgn value MASUK/KELUAR,
+    // qty di field 'jumlah' (bukan qty), nama di 'itemNama' (bukan namaProduk).
     const invByName = {};
-    (_inventory || []).forEach(i => { invByName[(i.nama||'').toLowerCase().trim()] = i; });
+    const invById = {};
+    (_inventory || []).forEach(i => {
+      invByName[(i.nama||'').toLowerCase().trim()] = i;
+      if (i.id) invById[i.id] = i;
+    });
 
-    // Aggregate inv KELUAR qty per item, filtered ke tanggal form (sehari yg sama).
-    // Match by tanggal: ambil semua form dates, lalu cocokkan log.tanggal.
-    const formDates = new Set();
-    _forms.forEach(f => { if (f.tanggal) formDates.add(f.tanggal); });
+    // Aggregate inv KELUAR per item, filtered ke periode terpilih.
     const invKeluarByName = {};
     (_invLogs || []).forEach(l => {
-      if (!l || (l.action||l.tipe) !== 'KELUAR') return;
-      const tgl = l.tanggal || l.tgl;
-      if (formDates.size && !formDates.has(tgl)) return;
-      const nm = String(l.namaProduk || l.nama || '').toLowerCase().trim();
+      if (!l || l.jenis !== 'KELUAR') return;
+      if (!inPeriode(l.tgl)) return;
+      // Resolve nama via itemId lookup → fallback itemNama
+      let nm = '';
+      if (l.itemId && invById[l.itemId]) nm = invById[l.itemId].nama;
+      if (!nm) nm = l.itemNama || l.namaProduk || l.nama || '';
+      nm = String(nm).toLowerCase().trim();
       if (!nm) return;
+      const qty = _n(l.jumlah);
+      const harga = _n(l.harga || l.hargaSatuan || l._hpp || 0);
       if (!invKeluarByName[nm]) invKeluarByName[nm] = { qty: 0, nilai: 0 };
-      invKeluarByName[nm].qty += _n(l.qty);
-      invKeluarByName[nm].nilai += _n(l.qty) * _n(l.hargaSatuan || l._hpp || 0);
+      invKeluarByName[nm].qty += qty;
+      invKeluarByName[nm].nilai += qty * harga;
     });
 
     const hppRows = rows.map(r => {
@@ -943,7 +968,32 @@ const DailyOrderModule = (() => {
     const unmatchedCount = hppRows.filter(r => !r.hasInv).length;
     const noLogCount = hppRows.filter(r => r.hasInv && !r.hasInvLog).length;
 
+    const periodeLabel = ({
+      '7d':'7 Hari Terakhir', '30d':'30 Hari Terakhir', '90d':'90 Hari Terakhir',
+      'this-month':'Bulan Ini', 'last-month':'Bulan Lalu', 'all':'Semua Data'
+    })[periode] || '30 Hari Terakhir';
+
     return `
+      <!-- Periode picker -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:var(--s3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em">📆 Periode</span>
+          <select onchange="DailyOrderModule._setCekSelisihPeriode(this.value)"
+            style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;font-weight:600">
+            <option value="7d"          ${periode==='7d'?'selected':''}>7 Hari Terakhir</option>
+            <option value="30d"         ${periode==='30d'?'selected':''}>30 Hari Terakhir</option>
+            <option value="90d"         ${periode==='90d'?'selected':''}>90 Hari Terakhir</option>
+            <option value="this-month"  ${periode==='this-month'?'selected':''}>Bulan Ini</option>
+            <option value="last-month"  ${periode==='last-month'?'selected':''}>Bulan Lalu</option>
+            <option value="all"         ${periode==='all'?'selected':''}>Semua Data</option>
+          </select>
+          ${periode !== 'all' ? `<span style="font-size:11px;color:var(--text-3);font-family:var(--font-mono)">${fromDate ? fromDate.split('-').reverse().join('-') : ''} → ${toDate.split('-').reverse().join('-')}</span>` : ''}
+        </div>
+        <div style="font-size:11px;color:var(--text-3)">
+          ${formsFiltered.length} form · ${rows.length} item
+        </div>
+      </div>
+
       <!-- 2 KPI cards side-by-side -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:var(--s4)" class="do-selisih-cards">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s4);box-shadow:0 1px 3px rgba(0,0,0,.04)">
@@ -974,9 +1024,11 @@ const DailyOrderModule = (() => {
         </div>
       </div>
 
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      <!-- Wrap kedua tabel dgn column-reverse: DO vs HPP tampil DULU (visual), Est vs Akt KEDUA -->
+      <div style="display:flex;flex-direction:column-reverse;gap:var(--s4)">
+      <div data-block="est-vs-akt" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
         <div style="padding:var(--s4);border-bottom:1px solid var(--border)">
-          <span style="font-size:13px;font-weight:700">Selisih Estimasi vs Aktual per Bahan</span>
+          <span style="font-size:13px;font-weight:700">📊 Selisih Estimasi vs Aktual per Bahan</span>
         </div>
         ${rows.length === 0
           ? `<div style="padding:48px;text-align:center;color:var(--text-3)">Belum ada data form produksi</div>`
@@ -1024,8 +1076,8 @@ const DailyOrderModule = (() => {
         }
       </div>
 
-      <!-- NEW: DO Aktual vs HPP Inventory comparison table -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:var(--s4)">
+      <!-- DO Aktual vs HPP Stok Inventory comparison table -->
+      <div data-block="do-vs-hpp" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
         <div style="padding:var(--s4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:13px;font-weight:700">💰 DO Aktual vs HPP Stok Inventory (Qty &amp; Nilai)</div>
@@ -1111,6 +1163,7 @@ const DailyOrderModule = (() => {
             </div>`
         }
       </div>
+      </div><!-- end column-reverse wrap -->
 
       <style>
         @media(max-width:640px){
@@ -1737,6 +1790,10 @@ const DailyOrderModule = (() => {
     _renderContent();
   }
   function setMonth(m) { _summaryMonth = m; _renderContent(); }
+  function _setCekSelisihPeriode(p) {
+    _cekSelisihPeriode = p || '30d';
+    _renderContent();
+  }
 
   async function copyEstToAkt() {
     // Only admin & superadmin can use this — normal flow is via Sync revisi
@@ -2688,7 +2745,7 @@ const DailyOrderModule = (() => {
 
   /* ─── PUBLIC API ─── */
   return {
-    init, setView, setDate, setShift, setMonth,
+    init, setView, setDate, setShift, setMonth, _setCekSelisihPeriode,
     setFormMonth, prevFormMonth, nextFormMonth,
     createForm, addEvent, saveEventMeta, copyEstToAkt, syncToInventory, openCopyFormModal, doCopyForm, printForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, goToDate,
