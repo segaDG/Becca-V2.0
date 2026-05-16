@@ -144,9 +144,30 @@
   color: var(--heading);
   font-family: var(--font-mono);
   margin-bottom: 2px;
+  /* Wrap rupiah full-format gracefully kalau width sempit */
+  word-break: break-word;
+  line-height: 1.15;
 }
 .stat-label { font-size: 12px; color: var(--text-2); }
 .stat-sub   { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+/* Mobile responsive: kecilkan font value supaya 'Rp 1.234.567' muat di card 140px */
+@media (max-width: 480px) {
+  .stat-value { font-size: 16px; }
+  .stat-label { font-size: 11px; }
+  .stat-card { padding: 12px 14px !important; }
+  /* Dashboard grid: 2 cards per row di mobile (smaller cards) */
+  .dash-stat-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+}
+@media (min-width: 481px) and (max-width: 768px) {
+  .stat-value { font-size: 18px; }
+  .dash-stat-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+  }
+}
 
 /* ===========================
    BADGES

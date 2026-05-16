@@ -205,7 +205,7 @@ const DashboardModule = (() => {
     const el = document.getElementById('dash-content');
     if (!el) return;
     el.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--s4);margin-bottom:var(--s6)">
+      <div class="dash-stat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:var(--s4);margin-bottom:var(--s6)">
         ${widgets.map(w => {
           const v = vals[w.id] || {v:'-', c:'var(--text-2)'};
           const cc = _wColor[w.id] || 'sc-purple';

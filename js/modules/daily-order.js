@@ -1308,7 +1308,7 @@ const DailyOrderModule = (() => {
         ${hppRows.length === 0
           ? `<div style="padding:48px;text-align:center;color:var(--text-3)">Belum ada data form produksi atau inventory belum di-link</div>`
           : `<div style="overflow-x:auto">
-              <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:900px">
+              <table class="do-cek-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:900px">
                 <thead>
                   <tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
                     <th style="padding:8px;text-align:left;color:var(--text-3)">ITEM</th>
@@ -1385,6 +1385,11 @@ const DailyOrderModule = (() => {
       <style>
         @media(max-width:640px){
           .do-selisih-cards{grid-template-columns:1fr !important}
+          /* DO vs HPP table: hide low-priority cols di mobile, keep Item/Qty/Status */
+          .do-cek-table th:nth-child(3), .do-cek-table td:nth-child(3),  /* STOK KELUAR */
+          .do-cek-table th:nth-child(5), .do-cek-table td:nth-child(5),  /* HARGA DO */
+          .do-cek-table th:nth-child(6), .do-cek-table td:nth-child(6)   /* HARGA STOK */
+          { display:none; }
         }
       </style>`;
   }
