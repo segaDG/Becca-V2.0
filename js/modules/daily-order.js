@@ -978,23 +978,29 @@ const DailyOrderModule = (() => {
             <div style="font-size:10px;color:var(--text-3)">${shifts.length} shift</div>
           </div>
           <div style="font-size:10px;color:var(--text-3);font-style:italic;margin-bottom:10px;line-height:1.5">
-            Shift 1/2&amp;3 = produksi reguler · Snack = bekal tambahan · <strong>Event (EVT)</strong> = catering khusus / one-off
+            Nilai = Σ <code>aktTotal</code> (atau <code>estTotal</code> fallback) semua item per shift.<br>
+            Shift 1/2&amp;3 = reguler · Snack = tambahan · <strong>Event (EVT)</strong> = catering one-off.
           </div>
           ${shifts.length === 0
             ? `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:12px">Belum ada data</div>`
             : shifts.map(s => {
-                const pct = grandTotal > 0 ? (s.value / grandTotal * 100).toFixed(0) : 0;
+                const pctNum = grandTotal > 0 ? (s.value / grandTotal * 100) : 0;
+                const pct = pctNum >= 10 ? pctNum.toFixed(0) : pctNum.toFixed(1);
                 const isEvt = (s.shift||'').startsWith('EVT');
                 const color = isEvt ? '#f59e0b' : _isSnack(s.shift) ? '#ec4899' : s.shift === 'S1' ? '#6366f1' : '#10b981';
-                return `<div style="margin-bottom:10px">
+                return `<div style="margin-bottom:10px;padding:4px 6px;border-radius:6px;cursor:pointer;transition:background .15s"
+                  onclick="DailyOrderModule._openShiftDetail('${s.shift}')"
+                  onmouseover="this.style.background='var(--surface2)'"
+                  onmouseout="this.style.background=''"
+                  title="Klik untuk detail form &amp; item ${_shiftLabel(s.shift)}">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
                     <span style="font-size:11px;font-weight:600">${_shiftLabel(s.shift)}</span>
                     <span style="font-size:10px;color:var(--text-3);font-family:var(--font-mono)">${_fmtRp(s.value)} · ${pct}%</span>
                   </div>
                   <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden">
-                    <div style="background:${color};height:6px;border-radius:4px;width:${pct}%;transition:width .5s"></div>
+                    <div style="background:${color};height:6px;border-radius:4px;width:${Math.max(pctNum,0.5).toFixed(1)}%;transition:width .5s"></div>
                   </div>
-                  <div style="font-size:9px;color:var(--text-3);margin-top:2px">${s.count} form · ${s.days} hari</div>
+                  <div style="font-size:9px;color:var(--text-3);margin-top:2px">${s.count} form · ${s.days} hari · avg ${_fmtRp(Math.round(s.value/Math.max(1,s.count)))} per form</div>
                 </div>`;
               }).join('')
           }
@@ -2056,6 +2062,125 @@ const DailyOrderModule = (() => {
     _renderContent();
   }
 
+  // Popup detail per shift: list semua form + items aggregate untuk shift terpilih.
+  // Dipanggil dari klik row di Distribusi Shift di Data Analysis tab.
+  function _openShiftDetail(shift) {
+    // Use same periode filter as Data Analysis
+    const periode = _cekSelisihPeriode || '30d';
+    const today = new Date();
+    const ymd = (d) => d.toISOString().split('T')[0];
+    let fromDate = '', toDate = ymd(today);
+    if (periode === '7d')       fromDate = ymd(new Date(today.getTime() - 7  * 86400000));
+    else if (periode === '30d') fromDate = ymd(new Date(today.getTime() - 30 * 86400000));
+    else if (periode === '90d') fromDate = ymd(new Date(today.getTime() - 90 * 86400000));
+    else if (periode === 'this-month') { fromDate = ymd(new Date(today.getFullYear(), today.getMonth(), 1)); }
+    else if (periode === 'last-month') {
+      fromDate = ymd(new Date(today.getFullYear(), today.getMonth()-1, 1));
+      toDate   = ymd(new Date(today.getFullYear(), today.getMonth(),   0));
+    }
+    const inPeriode = (tgl) => periode === 'all' || !tgl || !fromDate ? periode === 'all' || !fromDate : (tgl >= fromDate && tgl <= toDate);
+
+    const matchForms = _forms.filter(f => f.shift === shift && inPeriode(f.tanggal))
+      .sort((a,b) => (b.tanggal||'').localeCompare(a.tanggal||''));
+    const fmtTgl = (t) => t ? t.split('-').reverse().join('-') : '-';
+
+    // Aggregate items
+    const itemMap = {};
+    matchForms.forEach(f => {
+      (f.items||[]).forEach(it => {
+        if (!itemMap[it.item]) itemMap[it.item] = { item: it.item, satuan: it.satuan, qty: 0, value: 0 };
+        const v = (it.aktTotal != null && it.aktTotal !== '') ? _n(it.aktTotal) : _n(it.estTotal);
+        const q = (it.aktQty != null && it.aktQty !== '') ? _n(it.aktQty) : _n(it.estQty);
+        itemMap[it.item].qty += q;
+        itemMap[it.item].value += v;
+      });
+    });
+    const itemRows = Object.values(itemMap).sort((a,b) => b.value - a.value);
+    const totalValue = itemRows.reduce((s,r) => s + r.value, 0);
+    const isEvent = (shift||'').startsWith('EVT');
+    const title = `🍽️ ${_shiftLabel(shift)}${isEvent?' · Catering Event':''}`;
+
+    const body = matchForms.length === 0
+      ? `<div style="text-align:center;padding:32px;color:var(--text-3)">Tidak ada form di periode ini</div>`
+      : `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:16px">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:var(--text-3);letter-spacing:.04em;font-weight:700">TOTAL NILAI</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${_fmtRp(totalValue)}</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:var(--text-3);letter-spacing:.04em;font-weight:700">FORM</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${matchForms.length}</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:var(--text-3);letter-spacing:.04em;font-weight:700">ITEM UNIK</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--font-mono);color:var(--text)">${itemRows.length}</div>
+          </div>
+        </div>
+
+        <div style="font-size:11px;font-weight:700;color:var(--text-2);margin:14px 0 6px">📅 Form (sort by tgl desc)</div>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
+              <tr style="border-bottom:1px solid var(--border)">
+                <th style="text-align:left;padding:7px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Tgl</th>
+                ${isEvent ? '<th style="text-align:left;padding:7px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Customer</th><th style="text-align:right;padding:7px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Porsi</th>' : ''}
+                <th style="text-align:right;padding:7px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Item</th>
+                <th style="text-align:right;padding:7px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Nilai</th>
+                <th style="text-align:center;padding:7px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${matchForms.map((f,i) => {
+                const fVal = (f.items||[]).reduce((s,it) => s + ((it.aktTotal!=null&&it.aktTotal!=='')?_n(it.aktTotal):_n(it.estTotal)), 0);
+                return `<tr style="border-bottom:.5px solid var(--border-light);background:${i%2?'var(--surface)':'transparent'}">
+                  <td style="padding:7px 10px;font-family:var(--font-mono);color:var(--text-2)">${fmtTgl(f.tanggal)}</td>
+                  ${isEvent ? `<td style="padding:7px 10px;font-weight:500">${Utils.esc(f.evtCustomer||'-')}</td><td style="padding:7px 10px;text-align:right;font-family:var(--font-mono)">${f.evtPortions||0}</td>` : ''}
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono)">${(f.items||[]).length}</td>
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-weight:600">${_fmtRp(fVal)}</td>
+                  <td style="padding:7px 10px;text-align:center"><button onclick="Modal.close('do-shift-detail');DailyOrderModule.setDate('${f.tanggal}');DailyOrderModule.setShift('${f.shift}');DailyOrderModule.setView('form')" style="font-size:10px;background:transparent;border:1px solid var(--border);border-radius:5px;padding:2px 8px;cursor:pointer;color:var(--primary-h)">Buka →</button></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="font-size:11px;font-weight:700;color:var(--text-2);margin:0 0 6px">🥬 Top Item (sort by nilai desc)</div>
+        <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
+              <tr style="border-bottom:1px solid var(--border)">
+                <th style="text-align:center;padding:7px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700;width:30px">#</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Item</th>
+                <th style="text-align:right;padding:7px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Qty</th>
+                <th style="text-align:right;padding:7px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">Nilai</th>
+                <th style="text-align:right;padding:7px 10px;font-size:9px;text-transform:uppercase;color:var(--text-3);font-weight:700">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemRows.map((r,i) => {
+                const pct = totalValue > 0 ? (r.value/totalValue*100).toFixed(1) : 0;
+                return `<tr style="border-bottom:.5px solid var(--border-light);background:${i%2?'var(--surface)':'transparent'}">
+                  <td style="padding:7px 10px;text-align:center;color:var(--text-3)">${i+1}</td>
+                  <td style="padding:7px 10px;font-weight:500">${Utils.esc(r.item)}</td>
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono)">${r.qty.toLocaleString('id-ID',{maximumFractionDigits:1})} ${r.satuan||''}</td>
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);font-weight:600">${_fmtRp(r.value)}</td>
+                  <td style="padding:7px 10px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${pct}%</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+
+    Modal.open({
+      id: 'do-shift-detail',
+      title,
+      size: 'modal-lg',
+      body,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('do-shift-detail')">Tutup</button>`,
+    });
+  }
+
   async function copyEstToAkt() {
     // Only admin & superadmin can use this — normal flow is via Sync revisi
     const role = Auth.currentUser()?.role;
@@ -3006,7 +3131,7 @@ const DailyOrderModule = (() => {
 
   /* ─── PUBLIC API ─── */
   return {
-    init, setView, setDate, setShift, setMonth, _setCekSelisihPeriode,
+    init, setView, setDate, setShift, setMonth, _setCekSelisihPeriode, _openShiftDetail,
     setFormMonth, prevFormMonth, nextFormMonth,
     createForm, addEvent, saveEventMeta, copyEstToAkt, syncToInventory, openCopyFormModal, doCopyForm, printForm, toggleStatus, deleteForm, updateFormMeta,
     startAddItem, startEditItem, deleteItem, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, goToDate,
