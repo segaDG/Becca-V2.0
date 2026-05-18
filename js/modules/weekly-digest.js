@@ -126,9 +126,14 @@ const WeeklyDigest = (() => {
       return (f.items||[]).some(it => +it.aktQty > 0) && f.status !== 'synced';
     }).length;
 
+    // Hitung jumlah hari unik berdasarkan f.tanggal (1 hari bisa punya multi-shift)
+    const uniqueDays = new Set();
+    formsThisWk.forEach(f => { if (f.tanggal) uniqueDays.add(f.tanggal); });
+    const totalDays = uniqueDays.size;
+
     const lines = [];
     if (totalPax > 0) lines.push(`Total order: ${totalPax.toLocaleString('id-ID')} pax`);
-    lines.push(`Form Produksi: ${formsThisWk.length} shift (${formsFinal} final)`);
+    lines.push(`Form Produksi: ${formsThisWk.length} shift, ${totalDays} hari (${formsFinal} final)`);
     if (bpThisWk.length) lines.push(`Belanja Pasar: ${bpThisWk.length} dokumen (${_rp(bpValue)}, ${bpConfirmed} confirmed)`);
     lines.push(pendingSync > 0 ? `⚠ Sync Inventory pending: ${pendingSync} form` : `Sync Inventory: ✓ tidak ada pending`);
     return { title: '🍽️ *OPERASIONAL*', lines };
