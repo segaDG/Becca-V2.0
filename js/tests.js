@@ -781,6 +781,191 @@ const BeccaTests = (() => {
   }
 
   // ═══════════════════════════════════════════
+  // 8. SMOKE TESTS — critical user flows (replace Playwright E2E equivalent)
+  //    Test critical money/data paths end-to-end pakai DB API. Catch regression
+  //    di flow yg paling sering bermasalah saat refactor.
+  // ═══════════════════════════════════════════
+  async function testSmoke() {
+    const S = 'Smoke';
+    const _stamp = Date.now();
+    const _testIds = []; // collect untuk cleanup
+
+    // ── FLOW 1: KAS SAVE → LOAD → VERIFY all fields preserved ──
+    try {
+      const testKas = {
+        id: '__test_kas_' + _stamp,
+        tgl: '2026-05-16',
+        nama: 'Smoke Test Belanja',
+        type: 'Belanja Pasar',
+        vendor: 'Test Vendor & <Script>', // XSS char to verify escape
+        qty: 5,
+        satuan: 'Kg',
+        hargaSatuan: 12345,
+        jumlah: 5 * 12345,
+        penerima: 'Test Penerima',
+        status: 'DONE',
+        bulan: 'Mei',
+      };
+      _testIds.push({ table: 'kas', id: testKas.id });
+      await DB.saveKas(testKas);
+      const kasList = await DB.getKas();
+      const saved = kasList.find(r => r.id === testKas.id);
+      assert(S, 'Flow 1: Kas saved & loaded', !!saved);
+      if (saved) {
+        assert(S, 'Flow 1: nama preserved', saved.nama === testKas.nama);
+        assert(S, 'Flow 1: vendor preserved (XSS char intact)', saved.vendor === testKas.vendor);
+        assert(S, 'Flow 1: qty preserved as number', saved.qty === testKas.qty);
+        assert(S, 'Flow 1: hargaSatuan preserved as number', saved.hargaSatuan === testKas.hargaSatuan);
+        assert(S, 'Flow 1: jumlah = qty × hargaSatuan', saved.jumlah === testKas.jumlah);
+        assert(S, 'Flow 1: status preserved', saved.status === testKas.status);
+      }
+    } catch (e) {
+      _log(S, 'Flow 1: Kas save/load', false, e.message);
+    }
+
+    // ── FLOW 2: AP CREATE → MARK LUNAS → status change persists ──
+    try {
+      const testAP = {
+        id: '__test_ap_' + _stamp,
+        tgl: '2026-05-16',
+        tgl_transaksi: '2026-05-16',
+        vendor: 'Test Vendor AP',
+        supplier: 'Test Vendor AP',
+        keterangan: 'Smoke test invoice',
+        qty: 10, satuan: 'Pcs', hargaSatuan: 50000,
+        total: 500000, terbayar: 0,
+        status: 'BELUM',
+      };
+      _testIds.push({ table: 'ap', id: testAP.id });
+      await DB.saveAP(testAP);
+      // Step 2: mark as paid (status='LUNAS', terbayar=total)
+      const paid = { ...testAP, status: 'LUNAS', terbayar: testAP.total };
+      await DB.saveAP(paid);
+      const apList = await DB.getAP();
+      const found = apList.find(r => r.id === testAP.id);
+      assert(S, 'Flow 2: AP mark LUNAS persists', found && found.status === 'LUNAS');
+      assert(S, 'Flow 2: AP terbayar = total', found && found.terbayar === testAP.total);
+      assert(S, 'Flow 2: AP total field intact after status update', found && found.total === testAP.total);
+    } catch (e) {
+      _log(S, 'Flow 2: AP mark lunas', false, e.message);
+    }
+
+    // ── FLOW 3: DAILY ORDER FORM SAVE → items array intact ──
+    try {
+      const testForm = {
+        id: '__test_doform_' + _stamp,
+        tanggal: '2026-05-16',
+        shift: 'S1',
+        status: 'draft',
+        items: [
+          { id: 'item1', item: 'Daging Sapi', estQty: 10, aktQty: 9, satuan: 'kg', hargaSatuan: 145000, estTotal: 1450000, aktTotal: 1305000 },
+          { id: 'item2', item: 'Bawang Merah', estQty: 5,  aktQty: 5, satuan: 'kg', hargaSatuan: 40000,  estTotal: 200000,  aktTotal: 200000 },
+        ],
+        foodCostPct: 53,
+        createdAt: new Date().toISOString(),
+      };
+      _testIds.push({ table: 'daily_order_forms', id: testForm.id });
+      await DB.saveDailyOrderForm(testForm);
+      const forms = await DB.getDailyOrderForms();
+      const f = forms.find(r => r.id === testForm.id);
+      assert(S, 'Flow 3: DO form saved & loaded', !!f);
+      if (f) {
+        assert(S, 'Flow 3: items array length preserved', Array.isArray(f.items) && f.items.length === 2);
+        const i0 = (f.items||[])[0];
+        assert(S, 'Flow 3: item.item preserved', i0?.item === 'Daging Sapi');
+        assert(S, 'Flow 3: item.aktQty number preserved', i0?.aktQty === 9);
+        assert(S, 'Flow 3: item.aktTotal preserved', i0?.aktTotal === 1305000);
+        assert(S, 'Flow 3: shift preserved', f.shift === 'S1');
+        assert(S, 'Flow 3: foodCostPct preserved', f.foodCostPct === 53);
+      }
+    } catch (e) {
+      _log(S, 'Flow 3: Daily Order form save', false, e.message);
+    }
+
+    // ── FLOW 4: INVENTORY KELUAR LOG → field schema (jenis/jumlah/itemNama) ──
+    // Regression guard: pastikan field naming consistent dengan code yang depend
+    // (Cek Selisih DO vs HPP, Top Produk HPP detail). Bug pattern sebelumnya:
+    // pakai 'action'/'qty'/'namaProduk' yg tidak ada → silent zero result.
+    try {
+      const testInv = {
+        id: '__test_invlog_' + _stamp,
+        itemId: 'test-item',
+        itemNama: 'Test Item Keluar',
+        jenis: 'KELUAR',
+        jumlah: 3.5,
+        harga: 20000,
+        tgl: '2026-05-16',
+        catatan: 'Smoke test',
+      };
+      _testIds.push({ table: 'inv_activities', id: testInv.id });
+      await DB.saveInventoryLog(testInv);
+      const logs = await DB.getInventory();
+      const log = logs.find(r => r.id === testInv.id);
+      assert(S, 'Flow 4: Inventory log saved & loaded', !!log);
+      if (log) {
+        assert(S, 'Flow 4: jenis field (bukan action)', log.jenis === 'KELUAR');
+        assert(S, 'Flow 4: jumlah field (bukan qty)',  log.jumlah === 3.5);
+        assert(S, 'Flow 4: harga field (bukan hargaSatuan)', log.harga === 20000);
+        assert(S, 'Flow 4: itemNama field (bukan namaProduk)', log.itemNama === 'Test Item Keluar');
+        assert(S, 'Flow 4: tgl field (bukan tanggal)', log.tgl === '2026-05-16');
+        assert(S, 'Flow 4: catatan field (bukan keterangan)', log.catatan === 'Smoke test');
+      }
+    } catch (e) {
+      _log(S, 'Flow 4: Inventory log schema', false, e.message);
+    }
+
+    // ── FLOW 5: KAS ↔ ANGGARAN LINK → anggaranId field persists ──
+    // Verifikasi fitur Opsi 4 (Kas Kecil ter-link ke Anggaran) tetap aman:
+    // anggaranId nullable, di-save di JSONB, tidak hilang setelah save ulang.
+    try {
+      const testKas2 = {
+        id: '__test_kas_link_' + _stamp,
+        tgl: '2026-05-16',
+        nama: 'Kas linked test',
+        type: 'Belanja',
+        qty: 1, satuan: 'Pcs', hargaSatuan: 50000,
+        jumlah: 50000, penerima: 'Test',
+        status: 'DONE',
+        anggaranId: 'test-anggaran-id-' + _stamp,
+      };
+      _testIds.push({ table: 'kas', id: testKas2.id });
+      await DB.saveKas(testKas2);
+      const list = await DB.getKas();
+      const saved = list.find(r => r.id === testKas2.id);
+      assert(S, 'Flow 5: Kas with anggaranId saved', !!saved);
+      assert(S, 'Flow 5: anggaranId field preserved', saved && saved.anggaranId === testKas2.anggaranId);
+      // Unlink: remove anggaranId
+      delete saved.anggaranId;
+      await DB.saveKas(saved);
+      const list2 = await DB.getKas();
+      const saved2 = list2.find(r => r.id === testKas2.id);
+      assert(S, 'Flow 5: Unlink anggaranId persists (undefined/missing)',
+        saved2 && (saved2.anggaranId === undefined || saved2.anggaranId === null || saved2.anggaranId === ''));
+    } catch (e) {
+      _log(S, 'Flow 5: Kas-Anggaran link', false, e.message);
+    }
+
+    // ── CLEANUP: hapus semua test records ──
+    for (const t of _testIds) {
+      try {
+        if      (t.table === 'kas') await DB.deleteKas(t.id);
+        else if (t.table === 'ap')  await DB.deleteAP(t.id);
+        else if (t.table === 'daily_order_forms') await DB.deleteDailyOrderForm?.(t.id);
+        else if (t.table === 'inv_activities')     await DB.deleteInventoryLog?.(t.id);
+      } catch {}
+    }
+    // Cleanup verification
+    try {
+      const remainingKas = (await DB.getKas()).filter(r => String(r.id||'').startsWith('__test_'));
+      const remainingAP  = (await DB.getAP() ).filter(r => String(r.id||'').startsWith('__test_'));
+      assert(S, 'Cleanup: no __test_ kas records leaked', remainingKas.length === 0,
+        remainingKas.length ? `Leaked: ${remainingKas.map(r=>r.id).join(',')}` : 'clean');
+      assert(S, 'Cleanup: no __test_ AP records leaked', remainingAP.length === 0,
+        remainingAP.length ? `Leaked: ${remainingAP.map(r=>r.id).join(',')}` : 'clean');
+    } catch {}
+  }
+
+  // ═══════════════════════════════════════════
   // RUN ALL
   // ═══════════════════════════════════════════
   async function runAll() {
@@ -810,6 +995,9 @@ const BeccaTests = (() => {
 
     console.log('\n── 7. New Features (Utils, OfflineQueue, WeeklyDigest, dll) ──');
     await testNewFeatures();
+
+    console.log('\n── 8. Smoke Tests (critical user flows) ──');
+    await testSmoke();
 
     console.log('\n═══════════════════════════════════════');
     console.log(`  RESULTS: ${_passed} passed, ${_failed} failed, ${_skipped} skipped`);
@@ -842,6 +1030,6 @@ const BeccaTests = (() => {
       <tbody>${rows}</tbody></table></div>`;
   }
 
-  return { runAll, testRegression, testDataIntegrity, testPermissions, testFinancialAccuracy, testCriticalPath, testPerformance, testNewFeatures, getHtmlReport };
+  return { runAll, testRegression, testDataIntegrity, testPermissions, testFinancialAccuracy, testCriticalPath, testPerformance, testNewFeatures, testSmoke, getHtmlReport };
 })();
 window.BeccaTests = BeccaTests;

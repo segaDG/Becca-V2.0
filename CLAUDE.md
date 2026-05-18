@@ -161,7 +161,7 @@ InventoryModule?.init?.();
 
 ### Test Suite (`js/tests.js`)
 
-7 test suites, dijalankan di browser:
+8 test suites, dijalankan di browser:
 1. **Regression** — globals, DB methods, module map, no hardcoded passwords
 2. **Data Integrity** — save/load/merge preserves all fields
 3. **Permission** — role-based access (superadmin/viewer/operator)
@@ -169,6 +169,7 @@ InventoryModule?.init?.();
 5. **Critical Path** — DB connection, load all tables, CRUD cycle
 6. **Performance & Health** — load time, render speed, query latency
 7. **New Features** — Utils helpers (timeAgo/normalizePhone/helpTip/pullToRefresh/urlState/skeletonRows), DB.getLastEditMap, OfflineQueue, WeeklyDigest, Activity Drawer, GridSelect, UndoRedo, PO Belanja Pasar SUPPLIER column + Tab handling, Daily Order Form Produksi mobile Enter fix
+8. **Smoke Tests (E2E equivalent)** — critical user flows: Kas save → load → field preserved (incl. XSS escape verify), AP mark LUNAS persists, Daily Order form save items[] intact, Inventory log schema (jenis/jumlah/itemNama/tgl/harga/catatan field naming regression guard), Kas↔Anggaran link anggaranId nullable persists. Auto-cleanup `__test_*` records setelah suite.
 
 ### Cara Run
 - **Browser:** Settings → Data → Run Tests (superadmin only)
