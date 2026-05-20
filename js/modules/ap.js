@@ -1133,8 +1133,8 @@ const APModule = (() => {
           +'<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:'+C+';color:#fff;margin-top:'+(vIdx>1?'12px':'0')+';border-radius:10px 10px 0 0">'
             +'<div style="display:flex;align-items:center;gap:12px">'
               +'<div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.2);'
-                +'font-weight:900;font-size:17px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'
-                +supName.trim().substring(0,1).toUpperCase()
+                +'font-weight:900;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--font-mono)" title="Vendor #'+vIdx+'">'
+                +vIdx
               +'</div>'
               +'<div>'
                 +'<div style="font-weight:800;font-size:15px;letter-spacing:.01em">'+supName
