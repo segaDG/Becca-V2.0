@@ -568,28 +568,117 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
     _processQuery(q);
   }
 
-  // ── Floating button ──────────────────────────────────────
+  // ── Floating button (draggable) ──────────────────────────
+  const FAB_POS_KEY = 'becca_ai_fab_pos';
+  function _loadFabPos() {
+    try {
+      const raw = localStorage.getItem(FAB_POS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+  function _saveFabPos(pos) {
+    try { localStorage.setItem(FAB_POS_KEY, JSON.stringify(pos)); } catch {}
+  }
+  function _applyFabPos(fab, pos) {
+    const size = 52;
+    const margin = 8;
+    const maxX = window.innerWidth - size - margin;
+    const maxY = window.innerHeight - size - margin;
+    const x = Math.max(margin, Math.min(maxX, pos.x));
+    const y = Math.max(margin, Math.min(maxY, pos.y));
+    fab.style.left = x + 'px';
+    fab.style.top = y + 'px';
+    fab.style.right = 'auto';
+    fab.style.bottom = 'auto';
+  }
   function _injectFAB() {
     if (document.getElementById('ai-fab')) return;
     const fab = document.createElement('button');
     fab.id = 'ai-fab';
-    fab.title = 'AI Assistant (Tanya tentang data BECCA)';
+    fab.title = 'AI Assistant (drag untuk pindah, klik untuk buka)';
     fab.innerHTML = 'AI';
     fab.style.cssText = `
       position:fixed;right:18px;bottom:140px;
       width:52px;height:52px;border-radius:50%;border:none;
       background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;
-      font-size:16px;font-weight:800;letter-spacing:.03em;cursor:pointer;
+      font-size:16px;font-weight:800;letter-spacing:.03em;cursor:grab;
       box-shadow:0 6px 20px rgba(99,102,241,.4);
-      transition:transform .2s,box-shadow .2s;
+      transition:box-shadow .2s;
       z-index:99;
       display:flex;align-items:center;justify-content:center;
       font-family:var(--font,sans-serif);
+      touch-action:none;user-select:none;-webkit-user-select:none;
     `;
-    fab.onmouseover = () => { fab.style.transform = 'scale(1.1)'; fab.style.boxShadow = '0 8px 24px rgba(99,102,241,.55)'; };
-    fab.onmouseout = () => { fab.style.transform = ''; fab.style.boxShadow = '0 6px 20px rgba(99,102,241,.4)'; };
-    fab.onclick = open;
     document.body.appendChild(fab);
+
+    // Restore saved position (if any)
+    const saved = _loadFabPos();
+    if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') {
+      _applyFabPos(fab, saved);
+    }
+
+    // Drag state
+    let dragStart = null;   // {x, y, fabX, fabY}
+    let didMove = false;
+    const DRAG_THRESHOLD = 5; // px — below this counts as click
+
+    const onDown = (e) => {
+      const pt = e.touches ? e.touches[0] : e;
+      const rect = fab.getBoundingClientRect();
+      dragStart = { x: pt.clientX, y: pt.clientY, fabX: rect.left, fabY: rect.top };
+      didMove = false;
+      fab.style.cursor = 'grabbing';
+      fab.style.boxShadow = '0 10px 28px rgba(99,102,241,.6)';
+      window.addEventListener('mousemove', onMove, { passive: false });
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('mouseup', onUp);
+      window.addEventListener('touchend', onUp);
+    };
+    const onMove = (e) => {
+      if (!dragStart) return;
+      const pt = e.touches ? e.touches[0] : e;
+      const dx = pt.clientX - dragStart.x;
+      const dy = pt.clientY - dragStart.y;
+      if (!didMove && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
+        didMove = true;
+      }
+      if (didMove) {
+        e.preventDefault?.();
+        _applyFabPos(fab, { x: dragStart.fabX + dx, y: dragStart.fabY + dy });
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchend', onUp);
+      fab.style.cursor = 'grab';
+      fab.style.boxShadow = '0 6px 20px rgba(99,102,241,.4)';
+      if (didMove) {
+        const rect = fab.getBoundingClientRect();
+        _saveFabPos({ x: rect.left, y: rect.top });
+      }
+      dragStart = null;
+      // suppress click after drag — handled below via didMove check in onclick
+    };
+    fab.addEventListener('mousedown', onDown);
+    fab.addEventListener('touchstart', onDown, { passive: true });
+
+    fab.onclick = (e) => {
+      if (didMove) {
+        e.preventDefault();
+        e.stopPropagation();
+        didMove = false;
+        return;
+      }
+      open();
+    };
+
+    // Clamp to viewport on resize (e.g., rotate mobile)
+    window.addEventListener('resize', () => {
+      const cur = _loadFabPos();
+      if (cur) _applyFabPos(fab, cur);
+    });
   }
 
   function init() {
