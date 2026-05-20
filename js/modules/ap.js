@@ -1141,10 +1141,10 @@ const APModule = (() => {
                   +(sup?.supplierCode?'<span style="opacity:.5;font-size:11px;margin-left:6px;font-weight:600">#'+sup.supplierCode+'</span>':'')
                 +'</div>'
                 +'<div style="font-size:11px;opacity:.8;margin-top:2px">'+(sup?.kategori||'Supplier')+'</div>'
-                +(sup?.bank?'<div style="display:flex;gap:12px;margin-top:4px;font-size:11px;opacity:.9">'
+                +(sup?.bank?'<div style="display:flex;gap:12px;margin-top:4px;font-size:13px;font-weight:700;opacity:1">'
                   +'<span>🏦 '+sup.bank+'</span>'
-                  +(sup?.noRek?'<span style="font-family:var(--font-mono);letter-spacing:.03em">'+sup.noRek+'</span>':'')
-                  +(sup?.atasNama?'<span>a/n '+sup.atasNama+'</span>':'')
+                  +(sup?.noRek?'<span style="font-family:var(--font-mono);letter-spacing:.03em;font-weight:700">'+sup.noRek+'</span>':'')
+                  +(sup?.atasNama?'<span style="font-weight:700">a/n '+sup.atasNama+'</span>':'')
                 +'</div>':'')
               +'</div>'
             +'</div>'
