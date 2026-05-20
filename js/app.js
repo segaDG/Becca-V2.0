@@ -6,7 +6,7 @@ const App = {
   // Global cache buster — bump SEKALI saat deploy, applies ke semua modul lazy-load.
   // index.html eager scripts (utils, db, ui/*, dll) tetap per-file karena
   // HTML loads dulu sebelum JS constant ini bisa diakses.
-  BUILD_VERSION: '20260520b',
+  BUILD_VERSION: '20260520c',
   _currentPage: 'dashboard',
   _loadedModules: new Set(),
 
@@ -385,6 +385,10 @@ const App = {
     // Weekly digest auto-trigger (Monday 8am default — user-configurable)
     if (typeof WeeklyDigest !== 'undefined' && Auth.isSuperAdmin()) {
       try { WeeklyDigest.checkAndShow(); } catch {}
+    }
+    // AI Assistant FAB (floating button bottom-right)
+    if (typeof AIAssistant !== 'undefined') {
+      try { AIAssistant.init(); } catch (e) { console.warn('[AI] init failed', e); }
     }
     // Low stock push notification check (once per session)
     if (!sessionStorage.getItem('becca_stock_checked')) {
