@@ -192,36 +192,48 @@ const AIAssistant = (() => {
 
 Tugasmu: jawab pertanyaan user tentang data operasional dengan ringkas, akurat, dalam Bahasa Indonesia.
 
-KAMU PUNYA AKSES ke data berikut via "tool functions":
-- kas_summary(periode): summary kas masuk/keluar (periode: 'today', 'week', 'this-month', 'all')
-- inventory_stock(search, lowStockOnly): stok inventory (search nama, atau lowStockOnly:true untuk yg menipis)
-- top_customers(limit, sortBy): customer terbesar ('pax' atau 'count')
-- ap_summary(status): AP hutang vendor ('all', 'unpaid', 'paid')
+TOOLS (selalu pakai kalau user tanya angka):
+- kas_summary(periode): kas masuk/keluar. periode: 'today'|'week'|'this-month'|'all'
+- inventory_stock(search?, lowStockOnly?): stok inventory
+- top_customers(limit?, sortBy?): customer terbesar ('pax'|'count')
+- ap_summary(status?): AP vendor ('all'|'unpaid'|'paid')
 - employee_summary(): karyawan & hutang
-- invoice_summary(status): invoice ('all', 'unpaid')
+- invoice_summary(status?): invoice ('all'|'unpaid')
 
-CARA PANGGIL TOOL:
-Kalau butuh data, jawab dengan FORMAT JSON ini SAJA (tanpa text lain):
+CARA PANGGIL TOOL — BALAS DENGAN HANYA JSON BLOCK INI, TANPA TEXT/PREAMBLE APAPUN:
 \`\`\`json
 {"tool": "nama_function", "args": {"key": "value"}}
 \`\`\`
 
-Sistem akan eksekusi tool, lalu kasih hasilnya ke kamu untuk reasoning. Setelah dapat hasil, baru jawab user dengan natural language + angka.
+Sistem akan eksekusi, kasih hasilnya ke kamu. Setelah dapat hasil, JAWAB user dengan natural language ringkas + angka konkret.
 
-ATURAN:
-1. JANGAN buat-buat data — selalu pakai tool kalau user tanya angka spesifik
-2. Format Rupiah: "Rp 1.234.567" (titik separator) atau compact "Rp 1,2jt" / "Rp 250rb"
-3. Jawaban ringkas — max 5 kalimat kecuali user minta detail
-4. Kalau tidak yakin tools mana yg cocok, tanya klarifikasi ke user
-5. Untuk pertanyaan umum (bukan tentang data), jawab langsung tanpa tool
+ATURAN KETAT:
+1. ❌ JANGAN tulis kalimat sebelum JSON tool call (NO preamble seperti "Baik, saya akan cek..." atau "Untuk membantu...")
+2. ❌ JANGAN tanya konfirmasi periode/tanggal — pakai default sensible: kas/anomali → 'this-month', "minggu ini" → 'week', "hari ini" → 'today'
+3. ✅ Klarifikasi HANYA kalau benar-benar ambigu (mis. nama item tidak jelas). Kalau bisa ditebak, langsung tool call.
+4. ✅ Format Rupiah: "Rp 1.234.567" (titik) atau compact "Rp 1,2jt" / "Rp 250rb"
+5. ✅ Jawaban max 5 kalimat kecuali user minta detail
+6. ✅ Untuk pertanyaan umum (bukan data), jawab langsung tanpa tool
 
-CONTOH:
+CONTOH BENAR:
 User: "Berapa stok bawang merah?"
 Kamu: \`\`\`json
-{"tool": "inventory_stock", "args": {"search": "bawang merah"}}
+{"tool":"inventory_stock","args":{"search":"bawang merah"}}
 \`\`\`
-[setelah dapat hasil tool]
-Kamu: "Stok Bawang Merah: 25 Kg (di atas minimum 10 Kg, status aman). Harga satuan Rp 40.000/Kg."
+
+User: "Cek anomali kas"
+Kamu: \`\`\`json
+{"tool":"kas_summary","args":{"periode":"this-month"}}
+\`\`\`
+
+User: "Kas minggu ini gimana?"
+Kamu: \`\`\`json
+{"tool":"kas_summary","args":{"periode":"week"}}
+\`\`\`
+
+CONTOH SALAH (jangan):
+User: "Cek anomali kas"
+Kamu: "Untuk cek anomali, saya perlu data kas. Mau periode mana?" ← SALAH, langsung tool call saja
 
 User: "Halo"
 Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, AP, invoice, atau karyawan."`;
@@ -255,7 +267,7 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents,
-            generationConfig: { temperature: 0.3, maxOutputTokens: 1000 },
+            generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
           }),
         });
         if (res.status === 403 || res.status === 401) {
@@ -310,6 +322,8 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
       if (!aiText) { _showTyping(false); return; }
 
       // Try parse as tool call (max 2 hops — reduce API call frequency, save quota)
+      let lastToolName = null;
+      let lastToolResult = null;
       for (let hop = 0; hop < 2; hop++) {
         const toolCall = _parseToolCall(aiText);
         if (!toolCall) break;
@@ -324,11 +338,17 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
         } catch (e) {
           result = { error: e.message || 'tool execution failed' };
         }
+        lastToolName = toolCall.tool;
+        lastToolResult = result;
         // Append tool result to conversation, ask AI to format response
         messages.push({ role: 'model', parts: [{ text: aiText }] });
         messages.push({ role: 'user', parts: [{ text: `[TOOL RESULT for ${toolCall.tool}]: ${JSON.stringify(result)}\n\nSekarang jawab user dengan natural language berdasarkan hasil di atas. Format ringkas, Bahasa Indonesia, pakai Rupiah format.` }] });
-        aiText = await _callGemini(messages);
-        if (!aiText) { _showTyping(false); return; }
+        const synthText = await _callGemini(messages);
+        if (synthText) { aiText = synthText; continue; }
+        // Synthesis API failed — fallback: format tool result client-side
+        // so user gets at least the raw data instead of blank screen
+        aiText = _formatToolResultFallback(lastToolName, lastToolResult);
+        break;
       }
 
       _history.push({ role: 'assistant', text: aiText, time: Date.now() });
@@ -343,6 +363,74 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
       _setInputDisabled(false);
       document.getElementById('ai-chat-input')?.focus();
     }
+  }
+
+  // Client-side fallback formatter: dipakai saat Gemini synthesis call gagal (503/429)
+  // setelah tool sudah eksekusi sukses. Minimal user dapat data terstruktur, bukan layar kosong.
+  function _formatToolResultFallback(toolName, result) {
+    if (!result) return 'AI sedang sibuk — coba lagi sebentar.';
+    if (result.error) return `Maaf, gagal ambil data: ${result.error}`;
+    const fmt = (n) => 'Rp ' + (n || 0).toLocaleString('id-ID');
+    const note = '\n\n_⚠ AI sedang sibuk (503). Data ditampilkan apa adanya tanpa interpretasi._';
+    try {
+      if (toolName === 'kas_summary') {
+        const r = result;
+        let txt = `**Ringkasan Kas (${r.periode || 'this-month'}):**\n`;
+        txt += `• Masuk: ${fmt(r.totalMasuk)}\n`;
+        txt += `• Keluar: ${fmt(r.totalKeluar)}\n`;
+        txt += `• Saldo: ${fmt(r.saldo)}\n`;
+        txt += `• Transaksi: ${r.transaksiCount || 0}`;
+        if (Array.isArray(r.topKategori) && r.topKategori.length) {
+          txt += `\n\n**Top Kategori Pengeluaran:**\n`;
+          txt += r.topKategori.map((k, i) => `${i + 1}. ${k.kategori}: ${fmt(k.nilai)}`).join('\n');
+        }
+        return txt + note;
+      }
+      if (toolName === 'inventory_stock') {
+        const items = result.items || result;
+        if (!Array.isArray(items) || !items.length) return 'Tidak ada item ditemukan.' + note;
+        let txt = `**Stok Inventory** (${items.length} item):\n`;
+        txt += items.slice(0, 10).map(it => `• ${it.nama}: ${it.stok || 0} ${it.satuan || ''}${it.lowStock ? ' ⚠ MENIPIS' : ''}`).join('\n');
+        if (items.length > 10) txt += `\n_...dan ${items.length - 10} item lainnya_`;
+        return txt + note;
+      }
+      if (toolName === 'top_customers') {
+        const list = result.customers || result;
+        if (!Array.isArray(list) || !list.length) return 'Tidak ada data customer.' + note;
+        let txt = `**Top Customer:**\n`;
+        txt += list.slice(0, 10).map((c, i) => `${i + 1}. ${c.nama}: ${c.totalPax || c.count || 0} pax`).join('\n');
+        return txt + note;
+      }
+      if (toolName === 'ap_summary') {
+        const r = result;
+        let txt = `**Ringkasan AP:**\n`;
+        txt += `• Total: ${fmt(r.grandTotal || r.total)}\n`;
+        txt += `• Terbayar: ${fmt(r.terbayar)}\n`;
+        txt += `• Outstanding: ${fmt(r.outstanding)}\n`;
+        txt += `• Vendor count: ${r.vendorCount || (r.byVendor && r.byVendor.length) || 0}`;
+        return txt + note;
+      }
+      if (toolName === 'employee_summary') {
+        const r = result;
+        let txt = `**Ringkasan Karyawan:**\n`;
+        txt += `• Total: ${r.totalKaryawan || r.count || 0} orang\n`;
+        if (r.totalHutang != null) txt += `• Total Hutang: ${fmt(r.totalHutang)}\n`;
+        if (r.totalGaji != null) txt += `• Total Gaji/Bulan: ${fmt(r.totalGaji)}`;
+        return txt + note;
+      }
+      if (toolName === 'invoice_summary') {
+        const r = result;
+        let txt = `**Ringkasan Invoice:**\n`;
+        txt += `• Total: ${fmt(r.grandTotal || r.total)}\n`;
+        txt += `• Terbayar: ${fmt(r.terbayar)}\n`;
+        txt += `• Outstanding: ${fmt(r.outstanding)}`;
+        return txt + note;
+      }
+    } catch (e) {
+      console.warn('[AI fallback formatter]', e);
+    }
+    // Generic fallback: just dump JSON
+    return '**Data:**\n```\n' + JSON.stringify(result, null, 2).slice(0, 800) + '\n```' + note;
   }
 
   function _parseToolCall(text) {
