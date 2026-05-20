@@ -241,8 +241,12 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
       { role: 'model', parts: [{ text: 'Baik, saya siap membantu.' }] },
       ...messages,
     ];
-    const MAX_RETRIES = 3;
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    // Backoff strategy: lebih agresif untuk free-tier (RPM limit). Total worst case ~15s.
+    const RETRY_DELAYS = [0, 4000, 9000]; // ms — exponential-ish
+    for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
+      if (attempt > 0) {
+        await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
+      }
       const model = _GEMINI_MODELS[Math.min(attempt, _GEMINI_MODELS.length - 1)];
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       try {
@@ -258,12 +262,15 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
           Notify.error('API key Gemini tidak valid');
           return null;
         }
-        if (res.status === 429 || res.status === 503 || res.status === 500 || res.status === 404) {
-          if (attempt < MAX_RETRIES - 1) {
-            await new Promise(r => setTimeout(r, 1500));
-            continue;
-          }
-          Notify.error('AI sedang sibuk');
+        if (res.status === 429) {
+          // Rate limit — wait longer, try fallback model
+          if (attempt < RETRY_DELAYS.length - 1) continue;
+          Notify.error('Quota Gemini habis. Coba lagi 1 menit lagi atau cek limit di Google AI Studio.');
+          return null;
+        }
+        if (res.status === 503 || res.status === 500 || res.status === 404) {
+          if (attempt < RETRY_DELAYS.length - 1) continue;
+          Notify.error('Gemini sedang down — coba lagi nanti');
           return null;
         }
         if (!res.ok) {
@@ -273,7 +280,7 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
         const data = await res.json();
         return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
       } catch (e) {
-        if (attempt < MAX_RETRIES - 1) { await new Promise(r => setTimeout(r, 800)); continue; }
+        if (attempt < RETRY_DELAYS.length - 1) continue;
         Notify.error('Gagal menghubungi AI: ' + e.message);
         return null;
       }
@@ -302,8 +309,8 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
       let aiText = await _callGemini(messages);
       if (!aiText) { _showTyping(false); return; }
 
-      // Try parse as tool call (max 3 hops to prevent loops)
-      for (let hop = 0; hop < 3; hop++) {
+      // Try parse as tool call (max 2 hops — reduce API call frequency, save quota)
+      for (let hop = 0; hop < 2; hop++) {
         const toolCall = _parseToolCall(aiText);
         if (!toolCall) break;
         // Execute tool
@@ -357,7 +364,7 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
     if (_history.length === 0) {
       wrap.innerHTML = `
         <div style="padding:24px 16px;text-align:center;color:var(--text-3)">
-          <div style="font-size:32px;margin-bottom:8px">🤖</div>
+          <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:16px;font-weight:800;letter-spacing:.04em;margin-bottom:8px">AI</div>
           <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:6px">Halo! Saya BECCA Assistant</div>
           <div style="font-size:11px;line-height:1.5">Tanya apa saja tentang data BECCA. Contoh:</div>
           <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px;max-width:280px;margin-left:auto;margin-right:auto">
@@ -431,7 +438,7 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
     _loadHistory();
     Modal.open({
       id: 'ai-assistant',
-      title: '🤖 BECCA Assistant',
+      title: 'BECCA AI Assistant',
       size: 'modal-lg',
       body: `
         <div id="ai-chat-messages" style="max-height:420px;overflow-y:auto;padding:8px 4px;margin-bottom:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);min-height:300px"></div>
@@ -479,16 +486,17 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
     const fab = document.createElement('button');
     fab.id = 'ai-fab';
     fab.title = 'AI Assistant (Tanya tentang data BECCA)';
-    fab.innerHTML = '🤖';
+    fab.innerHTML = 'AI';
     fab.style.cssText = `
       position:fixed;right:18px;bottom:140px;
       width:52px;height:52px;border-radius:50%;border:none;
       background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;
-      font-size:24px;cursor:pointer;
+      font-size:16px;font-weight:800;letter-spacing:.03em;cursor:pointer;
       box-shadow:0 6px 20px rgba(99,102,241,.4);
       transition:transform .2s,box-shadow .2s;
       z-index:99;
       display:flex;align-items:center;justify-content:center;
+      font-family:var(--font,sans-serif);
     `;
     fab.onmouseover = () => { fab.style.transform = 'scale(1.1)'; fab.style.boxShadow = '0 8px 24px rgba(99,102,241,.55)'; };
     fab.onmouseout = () => { fab.style.transform = ''; fab.style.boxShadow = '0 6px 20px rgba(99,102,241,.4)'; };
