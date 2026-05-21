@@ -8,7 +8,8 @@ const AIAssistant = (() => {
   'use strict';
 
   const _GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-lite'];
-  const HISTORY_KEY = 'becca_ai_chat_history';
+  const HISTORY_KEY_PREFIX = 'becca_ai_chat_history_'; // per-user — append userId
+  const LEGACY_KEY = 'becca_ai_chat_history';          // pre-v20260521d — shared
   const MAX_HISTORY = 50;
   let _history = [];     // [{role:'user'|'assistant', text, time, data?}]
   let _busy = false;
@@ -19,13 +20,23 @@ const AIAssistant = (() => {
     return settings.geminiApiKey || '';
   }
 
+  // Per-user history key. Reading currentUser at call-time, jadi kalau ada
+  // user-switch tanpa reload page, key ikut update di load/save berikutnya.
+  function _historyKey() {
+    let uid = 'guest';
+    try {
+      const u = (typeof Auth !== 'undefined' && Auth.currentUser) ? Auth.currentUser() : null;
+      if (u) uid = u.id || u.username || u.email || 'guest';
+    } catch {}
+    return HISTORY_KEY_PREFIX + uid;
+  }
   function _loadHistory() {
-    try { _history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { _history = []; }
+    try { _history = JSON.parse(localStorage.getItem(_historyKey()) || '[]'); } catch { _history = []; }
   }
   function _saveHistory() {
     try {
       const trimmed = _history.slice(-MAX_HISTORY);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+      localStorage.setItem(_historyKey(), JSON.stringify(trimmed));
     } catch {}
   }
   function clearHistory() {
@@ -33,6 +44,16 @@ const AIAssistant = (() => {
     _saveHistory();
     _renderMessages();
     Notify.info('Riwayat chat AI dihapus');
+  }
+  // One-time cleanup: hapus legacy shared key (pre-v20260521d) supaya
+  // history lama dari user manapun tidak nyangkut. Tidak migrasi —
+  // privacy concern: kita tidak tahu chat lama itu milik siapa.
+  function _migrateLegacyKey() {
+    try {
+      if (localStorage.getItem(LEGACY_KEY) != null) {
+        localStorage.removeItem(LEGACY_KEY);
+      }
+    } catch {}
   }
 
   // ── Tool functions: AI can call these to fetch BECCA data ──────
@@ -682,6 +703,7 @@ Kamu: "Halo! Saya BECCA Assistant. Mau tanya apa? Bisa cek stok, kas, customer, 
   }
 
   function init() {
+    _migrateLegacyKey(); // hapus key shared pre-v20260521d (privacy)
     _loadHistory();
     // Hide for non-logged-in users
     const cu = typeof Auth !== 'undefined' ? Auth.currentUser() : null;
