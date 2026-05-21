@@ -109,9 +109,23 @@ const Auth = {
     }
     if (!user) throw new Error('Username atau password salah, atau akun tidak aktif');
 
+    // ── 2FA challenge ──────────────────────────────────────
+    // After password OK, if 2FA enabled, prompt OTP (kecuali device sudah trusted)
+    if (user.twofaEnabled === true && typeof TwoFA !== 'undefined') {
+      const trusted = TwoFA.isDeviceTrusted(user.id);
+      if (!trusted) {
+        try {
+          await TwoFA.challenge(user); // throws on cancel/fail, resolves(true) on success
+        } catch (otpErr) {
+          throw new Error(otpErr.message || 'Verifikasi 2FA gagal');
+        }
+      }
+    }
+
     this._user = { ...user };
     const mustChange = user.mustChangePassword === true;
     delete this._user.password;
+    delete this._user.twofaBackupCodes; // sensitive — don't keep in session
 
     if (remember) {
       Utils.ls.set(this._SESSION_KEY, this._user);

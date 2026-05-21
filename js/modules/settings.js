@@ -37,6 +37,7 @@ else { window.SettingsModule = (() => {
       </div>
       <div class="tabs">
         <button class="tab-btn active" data-tab="umum"      onclick="SettingsModule.switchTab('umum')">⚙️ Umum</button>
+        <button class="tab-btn" data-tab="keamanan" onclick="SettingsModule.switchTab('keamanan')">🔐 Keamanan</button>
         ${Auth.isSuperAdmin() ? `
           <button class="tab-btn" data-tab="users"     onclick="SettingsModule.switchTab('users')">👥 Users</button>
           <button class="tab-btn" data-tab="privilege" onclick="SettingsModule.switchTab('privilege')">🔐 Hak Akses</button>
@@ -45,6 +46,7 @@ else { window.SettingsModule = (() => {
         <button class="tab-btn" data-tab="data"     onclick="SettingsModule.switchTab('data')">🗄️ Data</button>
       </div>
       <div id="set-tab-umum"></div>
+      <div id="set-tab-keamanan"  class="hidden"></div>
       <div id="set-tab-users"     class="hidden"></div>
       <div id="set-tab-privilege" class="hidden"></div>
       <div id="set-tab-activity"  class="hidden"></div>
@@ -54,11 +56,11 @@ else { window.SettingsModule = (() => {
   }
 
   function switchTab(tab) {
-    ['umum','users','privilege','activity','data'].forEach(t => {
+    ['umum','keamanan','users','privilege','activity','data'].forEach(t => {
       document.getElementById(`set-tab-${t}`)?.classList.toggle('hidden', t !== tab);
       document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
     });
-    ({umum:renderUmum, users:renderUsers, privilege:renderPrivilege, activity:renderActivity, data:renderData})[tab]?.();
+    ({umum:renderUmum, keamanan:renderKeamanan, users:renderUsers, privilege:renderPrivilege, activity:renderActivity, data:renderData})[tab]?.();
   }
 
   /* ===================== TAB: UMUM ===================== */
@@ -204,6 +206,294 @@ else { window.SettingsModule = (() => {
 
       </div>
     `;
+  }
+
+  /* ===================== TAB: KEAMANAN (2FA) ===================== */
+  async function renderKeamanan() {
+    const user = Auth.currentUser();
+    const settings = await DB.getSettings().catch(() => ({}));
+    // Re-fetch user fresh dari DB supaya twofa fields up-to-date
+    let fresh = user;
+    try {
+      const all = await DB.getUsers();
+      fresh = all.find(u => u.id === user.id) || user;
+    } catch {}
+    const enabled = fresh.twofaEnabled === true;
+    const channel = fresh.twofaChannel || 'email';
+    const target = channel === 'email' ? (fresh.twofaEmail || fresh.email || '-') : (fresh.twofaPhone || '-');
+    const targetMasked = target !== '-' ? target.replace(/(.{2}).+(.{2})/, '$1***$2') : '-';
+    const backupRemain = Array.isArray(fresh.twofaBackupCodes) ? fresh.twofaBackupCodes.length : 0;
+    const trustedCount = TwoFA?.isDeviceTrusted ? (TwoFA.isDeviceTrusted(user.id) ? 1 : 0) : 0;
+
+    document.getElementById('set-tab-keamanan').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:var(--s5)">
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🔐 Autentikasi 2 Langkah (2FA)</div>
+          </div>
+          <div style="padding:var(--s5)">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;background:${enabled?'rgba(34,197,94,.08)':'rgba(239,68,68,.08)'};border-radius:8px;margin-bottom:12px">
+              <div style="width:32px;height:32px;border-radius:50%;background:${enabled?'#22c55e':'#ef4444'};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800">${enabled?'✓':'✗'}</div>
+              <div style="flex:1">
+                <div style="font-weight:700;font-size:13px;color:${enabled?'#15803d':'#b91c1c'}">${enabled?'2FA Aktif':'2FA Tidak Aktif'}</div>
+                <div style="font-size:11px;color:var(--text-2)">${enabled?`Channel: ${channel==='email'?'📧 Email':'💬 WhatsApp'} → ${Utils.esc(targetMasked)}`:'Akun Anda hanya dilindungi password'}</div>
+              </div>
+            </div>
+            ${enabled ? `
+              <div style="display:flex;gap:6px;margin-bottom:8px">
+                <button class="btn btn-secondary" style="flex:1" onclick="SettingsModule.disable2FA()">🔓 Matikan 2FA</button>
+                <button class="btn btn-ghost" style="flex:1" onclick="SettingsModule.regenerateBackupCodes()">🔄 Backup Code Baru</button>
+              </div>
+              <div style="font-size:11px;color:var(--text-3);padding:8px;background:var(--surface2);border-radius:6px;line-height:1.5">
+                <div>Backup code tersisa: <strong>${backupRemain}</strong> / 10</div>
+                <div>Device dipercaya 7 hari: <strong>${trustedCount}</strong></div>
+                ${trustedCount ? `<button class="btn-link" style="background:transparent;border:none;color:var(--primary);cursor:pointer;font-size:11px;padding:0;text-decoration:underline" onclick="SettingsModule.revokeTrusted()">Cabut device terpercaya</button>` : ''}
+              </div>
+            ` : `
+              <button class="btn btn-primary w-full" onclick="SettingsModule.enable2FA()">🛡️ Aktifkan 2FA</button>
+              <div style="font-size:11px;color:var(--text-3);margin-top:8px;line-height:1.5">
+                Recommended untuk role <strong>superadmin / admin / finance</strong>. Setelah login dengan password, sistem akan kirim OTP 6-digit ke email atau WhatsApp Anda.
+              </div>
+            `}
+          </div>
+        </div>
+
+        ${Auth.isSuperAdmin() ? `
+          <div class="card">
+            <div class="card-header"><div class="card-title">⚙️ Konfigurasi Provider OTP</div></div>
+            <div style="padding:var(--s5)">
+              <p style="font-size:12px;color:var(--text-2);margin-bottom:14px">
+                Hanya superadmin yang bisa edit. Setting ini berlaku untuk <strong>semua user</strong> yang aktifkan 2FA.
+              </p>
+              <div style="font-size:12px;font-weight:700;color:var(--text-1);margin-bottom:6px;display:flex;align-items:center;gap:6px">
+                📧 EmailJS <span style="font-size:10px;color:var(--text-3);font-weight:400">(emailjs.com — gratis 200/bulan)</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" style="font-size:11px">Service ID</label>
+                <input class="form-control" id="emailjs-service" placeholder="service_xxxxxxx" value="${Utils.esc(settings.emailjsServiceId||'')}">
+              </div>
+              <div class="form-group">
+                <label class="form-label" style="font-size:11px">Template ID</label>
+                <input class="form-control" id="emailjs-template" placeholder="template_xxxxxxx" value="${Utils.esc(settings.emailjsTemplateId||'')}">
+                <div style="font-size:10px;color:var(--text-3);margin-top:3px">Template harus punya variables: <code>{{to_name}}</code>, <code>{{to_email}}</code>, <code>{{otp}}</code>, <code>{{expires_in}}</code>, <code>{{app_name}}</code></div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" style="font-size:11px">Public Key</label>
+                <input class="form-control" id="emailjs-key" type="password" placeholder="xxxxxxxxxxxxxxx" value="${Utils.esc(settings.emailjsPublicKey||'')}">
+              </div>
+
+              <div style="font-size:12px;font-weight:700;color:var(--text-1);margin:14px 0 6px;display:flex;align-items:center;gap:6px">
+                💬 Fonnte WhatsApp <span style="font-size:10px;color:var(--text-3);font-weight:400">(fonnte.com — ~Rp 100/pesan)</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" style="font-size:11px">Device Token</label>
+                <input class="form-control" id="fonnte-token" type="password" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value="${Utils.esc(settings.fonnteToken||'')}">
+                <div style="font-size:10px;color:var(--text-3);margin-top:3px">Dapatkan setelah scan QR WhatsApp di dashboard Fonnte</div>
+              </div>
+
+              <button class="btn btn-primary w-full" onclick="SettingsModule.saveOTPProviderConfig()">💾 Simpan Konfigurasi</button>
+            </div>
+          </div>
+        ` : ''}
+
+      </div>
+    `;
+  }
+
+  async function enable2FA() {
+    const user = Auth.currentUser();
+    if (!user) return;
+    const settings = await DB.getSettings().catch(() => ({}));
+    // Step 1: pilih channel + isi target
+    Modal.open({
+      id: '2fa-enable-1',
+      title: '🛡️ Aktifkan 2FA — Pilih Channel',
+      size: 'modal-sm',
+      body: `
+        <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">Pilih cara terima kode OTP:</div>
+        <div style="display:grid;gap:8px">
+          <label style="display:flex;align-items:center;gap:10px;padding:12px;border:2px solid var(--border);border-radius:8px;cursor:pointer" onclick="this.querySelector('input').checked=true;document.querySelectorAll('.twofa-ch-card').forEach(c=>c.style.borderColor='var(--border)');this.style.borderColor='var(--primary)'" class="twofa-ch-card">
+            <input type="radio" name="twofa-ch" value="email" checked>
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:13px">📧 Email</div>
+              <div style="font-size:11px;color:var(--text-3)">Gratis, butuh EmailJS dikonfigurasi superadmin</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:center;gap:10px;padding:12px;border:2px solid var(--border);border-radius:8px;cursor:pointer" onclick="this.querySelector('input').checked=true;document.querySelectorAll('.twofa-ch-card').forEach(c=>c.style.borderColor='var(--border)');this.style.borderColor='var(--primary)'" class="twofa-ch-card">
+            <input type="radio" name="twofa-ch" value="wa">
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:13px">💬 WhatsApp</div>
+              <div style="font-size:11px;color:var(--text-3)">Lebih cepat, butuh Fonnte dikonfigurasi superadmin</div>
+            </div>
+          </label>
+        </div>
+        <div class="form-group" style="margin-top:14px">
+          <label class="form-label" id="twofa-target-label">Email untuk OTP</label>
+          <input class="form-control" id="twofa-target-input" placeholder="${user.email||'email@example.com'}" value="${Utils.esc(user.email||'')}">
+          <div style="font-size:10px;color:var(--text-3);margin-top:3px">Untuk WhatsApp pakai format: 08xxxxxxxxxx atau +62xxxxxxxxxx</div>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-secondary" onclick="Modal.close('2fa-enable-1')">Batal</button>
+        <button class="btn btn-primary" id="twofa-enable-next">Lanjut →</button>
+      `,
+      onOpen: () => {
+        document.querySelectorAll('input[name="twofa-ch"]').forEach(r => {
+          r.onchange = () => {
+            const v = r.value;
+            document.getElementById('twofa-target-label').textContent = v === 'email' ? 'Email untuk OTP' : 'Nomor WhatsApp untuk OTP';
+            document.getElementById('twofa-target-input').placeholder = v === 'email' ? 'email@example.com' : '08xxxxxxxxxx';
+          };
+        });
+        document.getElementById('twofa-enable-next').onclick = async () => {
+          const ch = document.querySelector('input[name="twofa-ch"]:checked').value;
+          const tgt = document.getElementById('twofa-target-input').value.trim();
+          if (!tgt) { Notify.warning('Isi ' + (ch === 'email' ? 'email' : 'nomor WhatsApp')); return; }
+          if (ch === 'email' && !tgt.includes('@')) { Notify.warning('Format email tidak valid'); return; }
+          if (ch === 'email' && !settings.emailjsServiceId) { Notify.error('EmailJS belum dikonfigurasi superadmin'); return; }
+          if (ch === 'wa' && !settings.fonnteToken) { Notify.error('Fonnte belum dikonfigurasi superadmin'); return; }
+          // Step 2: kirim OTP test untuk verifikasi channel works
+          const testUser = { ...user, twofaEnabled: true, twofaChannel: ch, twofaEmail: ch === 'email' ? tgt : user.email, twofaPhone: ch === 'wa' ? tgt : '' };
+          Modal.close('2fa-enable-1');
+          try {
+            const info = await TwoFA.sendOTP(testUser);
+            Modal.open({
+              id: '2fa-enable-2',
+              title: '🛡️ Verifikasi OTP',
+              size: 'modal-sm',
+              body: `
+                <div style="text-align:center">
+                  <div style="font-size:13px;color:var(--text-2);margin-bottom:6px">Kode OTP terkirim ke:</div>
+                  <div style="font-weight:700;font-size:14px;margin-bottom:14px">${Utils.esc(info.targetMasked)}</div>
+                  <input id="twofa-enable-otp" type="text" inputmode="numeric" maxlength="6" class="form-control"
+                    style="text-align:center;font-size:24px;letter-spacing:6px;font-weight:700;font-family:var(--font-mono,monospace);max-width:240px;margin:0 auto" placeholder="••••••">
+                  <div id="twofa-enable-err" class="form-error" style="margin-top:8px;display:none"></div>
+                </div>
+              `,
+              footer: `
+                <button class="btn btn-secondary" onclick="Modal.close('2fa-enable-2')">Batal</button>
+                <button class="btn btn-primary" id="twofa-enable-confirm">Aktifkan →</button>
+              `,
+              onOpen: () => {
+                setTimeout(() => document.getElementById('twofa-enable-otp').focus(), 80);
+                document.getElementById('twofa-enable-confirm').onclick = async () => {
+                  const code = document.getElementById('twofa-enable-otp').value.trim();
+                  const ok = await TwoFA.verifyOTP(testUser, code);
+                  if (!ok) {
+                    const err = document.getElementById('twofa-enable-err');
+                    err.textContent = 'Kode salah. Coba lagi.'; err.style.display = 'block';
+                    return;
+                  }
+                  // Generate backup codes
+                  const { plain, hashed } = await TwoFA.generateBackupCodes(10);
+                  // Save to user
+                  const fresh = (await DB.getUsers()).find(u => u.id === user.id) || user;
+                  Object.assign(fresh, {
+                    twofaEnabled: true,
+                    twofaChannel: ch,
+                    twofaEmail: ch === 'email' ? tgt : (fresh.twofaEmail || ''),
+                    twofaPhone: ch === 'wa' ? tgt : (fresh.twofaPhone || ''),
+                    twofaBackupCodes: hashed,
+                  });
+                  await DB.saveUser(fresh);
+                  DB.logActivity({ type: '2fa_enabled', detail: `2FA aktif via ${ch}` });
+                  Modal.close('2fa-enable-2');
+                  // Show backup codes
+                  _showBackupCodes(plain);
+                };
+              },
+            });
+          } catch (e) {
+            Notify.error(e.message);
+          }
+        };
+      },
+    });
+  }
+
+  function _showBackupCodes(codes) {
+    const text = codes.join('\n');
+    Modal.open({
+      id: '2fa-backup-show',
+      title: '🔑 Backup Codes — SIMPAN INI!',
+      size: 'modal-sm',
+      closable: false,
+      body: `
+        <div style="font-size:12px;color:#dc2626;font-weight:700;padding:10px;background:rgba(239,68,68,.08);border-radius:6px;margin-bottom:12px;line-height:1.5">
+          ⚠ Simpan kode-kode ini di tempat aman. Setiap kode hanya bisa dipakai 1x.<br>
+          Pakai kalau Anda kehilangan akses ke ${codes.length} email/WhatsApp.
+        </div>
+        <div style="font-family:var(--font-mono,monospace);font-size:14px;padding:14px;background:var(--surface2);border-radius:8px;line-height:1.9;text-align:center;letter-spacing:1px;font-weight:700">
+          ${codes.map(c => Utils.esc(c)).join('<br>')}
+        </div>
+        <div style="display:flex;gap:6px;margin-top:12px">
+          <button class="btn btn-ghost" style="flex:1" onclick="navigator.clipboard.writeText('${text.replace(/'/g, "\\'")}').then(()=>Notify.success('Disalin ke clipboard'))">📋 Copy</button>
+          <button class="btn btn-ghost" style="flex:1" onclick="(()=>{const b=new Blob(['${text}'],{type:'text/plain'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='becca-backup-codes.txt';a.click();URL.revokeObjectURL(u);Notify.success('Diunduh');})()">⬇ Download</button>
+        </div>
+      `,
+      footer: `<button class="btn btn-primary w-full" onclick="(()=>{Modal.close('2fa-backup-show');SettingsModule.switchTab('keamanan');Notify.success('2FA aktif! Lain kali login akan minta OTP.');})()">Saya sudah simpan ✓</button>`,
+    });
+  }
+
+  async function disable2FA() {
+    const user = Auth.currentUser();
+    Modal.confirm({
+      title: 'Matikan 2FA?',
+      message: 'Akun Anda akan kembali hanya terlindung password. Lanjutkan?',
+      danger: true,
+      okText: 'Ya, matikan',
+      onConfirm: async () => {
+        const fresh = (await DB.getUsers()).find(u => u.id === user.id) || user;
+        fresh.twofaEnabled = false;
+        delete fresh.twofaChannel;
+        delete fresh.twofaBackupCodes;
+        // Keep twofaEmail/twofaPhone (user might re-enable later)
+        await DB.saveUser(fresh);
+        TwoFA.revokeAllTrusted(user.id);
+        DB.logActivity({ type: '2fa_disabled', detail: '2FA dimatikan' });
+        Notify.success('2FA dimatikan');
+        renderKeamanan();
+      },
+    });
+  }
+
+  async function regenerateBackupCodes() {
+    const user = Auth.currentUser();
+    Modal.confirm({
+      title: 'Generate backup codes baru?',
+      message: 'Kode lama akan tidak berlaku. Pastikan simpan kode baru.',
+      okText: 'Generate',
+      onConfirm: async () => {
+        const { plain, hashed } = await TwoFA.generateBackupCodes(10);
+        const fresh = (await DB.getUsers()).find(u => u.id === user.id) || user;
+        fresh.twofaBackupCodes = hashed;
+        await DB.saveUser(fresh);
+        DB.logActivity({ type: '2fa_backup_regen', detail: 'Backup codes regenerated' });
+        _showBackupCodes(plain);
+      },
+    });
+  }
+
+  function revokeTrusted() {
+    const user = Auth.currentUser();
+    TwoFA.revokeAllTrusted(user.id);
+    Notify.success('Device terpercaya dicabut. Login berikutnya akan minta OTP.');
+    renderKeamanan();
+  }
+
+  async function saveOTPProviderConfig() {
+    if (!Auth.isSuperAdmin()) { Notify.error('Hanya superadmin'); return; }
+    const existing = await DB.getSettings().catch(() => ({}));
+    const data = { ...existing,
+      emailjsServiceId: document.getElementById('emailjs-service').value.trim(),
+      emailjsTemplateId: document.getElementById('emailjs-template').value.trim(),
+      emailjsPublicKey: document.getElementById('emailjs-key').value.trim(),
+      fonnteToken: document.getElementById('fonnte-token').value.trim(),
+    };
+    await DB.saveSettings(data);
+    DB.logActivity({ type: 'otp_provider_config', detail: 'Provider OTP dikonfigurasi' });
+    Notify.success('Konfigurasi OTP disimpan');
   }
 
   function _handleLogoUpload(input) {
@@ -2732,6 +3022,7 @@ else { window.SettingsModule = (() => {
   return {
     init, switchTab,
     saveGeneralSettings, _handleLogoUpload, _removeLogo, openChangePasswordModal, _changePassword,
+    renderKeamanan, enable2FA, disable2FA, regenerateBackupCodes, revokeTrusted, saveOTPProviderConfig,
     renderUsers, openUserModal, _submitUser, toggleUser, deleteUser, bulkCreateFromEmployees, _doBulkCreate,
     renderPrivilege, savePrivileges, resetPrivileges, _onPrivChange, addCustomRole, _saveNewRole, deleteCustomRole,
     renderActivity, _renderActivityRows, _filterActivityLog, _setActType, _setActCat, _setActPage, _setActPerPage, _resetActFilters, _loadMoreActivity, showActivityDetail, _goToRow, _parseActivityObject, _renderActivitySnapshot, clearActivityLog,
