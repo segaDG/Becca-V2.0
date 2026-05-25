@@ -122,7 +122,8 @@ else { window.POModule = (() => {
     const el = document.getElementById('po-content');
     if (!el) return;
     const sorted = _sortedChain();
-    const list = sorted.filter(d => tab==='arsip' ? d.status==='arsip' : d.status!=='arsip');
+    // Display newest-first; chainIdx tetap berdasarkan urutan kronologis (oldest=#1)
+    const list = sorted.filter(d => tab==='arsip' ? d.status==='arsip' : d.status!=='arsip').slice().reverse();
     // Supplier cards container — di-populate async setelah fetch BP docs
     const supplierCardsHtml = tab === 'active' ? `<div id="po-supplier-cards" style="margin-bottom:14px"></div>` : '';
     if (!list.length) {
