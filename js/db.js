@@ -758,6 +758,17 @@ const DB = (() => {
   const saveDailyOrderForm   = (data) => { if (!data.id) data.id = Utils.uid(); return _save('daily_order_forms', data); };
   const deleteDailyOrderForm = (id)   => _delete('daily_order_forms', id);
 
+  // ── HACCP / Food Safety ──────────────────────────────────
+  const getHaccpTemp        = ()     => _get('haccp_temp_log');
+  const saveHaccpTemp       = (data) => { if (!data.id) data.id = Utils.uid(); return _save('haccp_temp_log', data); };
+  const deleteHaccpTemp     = (id)   => _delete('haccp_temp_log', id);
+  const getHaccpSanitation  = ()     => _get('haccp_sanitation');
+  const saveHaccpSanitation = (data) => { if (!data.id) data.id = Utils.uid(); return _save('haccp_sanitation', data); };
+  const deleteHaccpSanitation = (id) => _delete('haccp_sanitation', id);
+  const getHaccpReceiving   = ()     => _get('haccp_receiving');
+  const saveHaccpReceiving  = (data) => { if (!data.id) data.id = Utils.uid(); return _save('haccp_receiving', data); };
+  const deleteHaccpReceiving = (id)  => _delete('haccp_receiving', id);
+
   // ── SETTINGS (with memory cache) ───────────────────────────
   const getSettings  = async () => {
     // Return cached if fresh (5 min)
@@ -1393,6 +1404,10 @@ const DB = (() => {
     getTasks, saveTask, deleteTask,
     // Daily Order Forms
     getDailyOrderForms, saveDailyOrderForm, deleteDailyOrderForm,
+    // HACCP / Food Safety
+    getHaccpTemp, saveHaccpTemp, deleteHaccpTemp,
+    getHaccpSanitation, saveHaccpSanitation, deleteHaccpSanitation,
+    getHaccpReceiving, saveHaccpReceiving, deleteHaccpReceiving,
     // Settings
     getSettings, saveSettings,
     // Logs

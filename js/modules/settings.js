@@ -23,7 +23,7 @@ else { window.SettingsModule = (() => {
     } catch {}
     return [..._DEFAULT_ROLES, ...extra.filter(r=>!_DEFAULT_ROLES.includes(r))];
   }
-  const FEATURES = ['dashboard','order','invoice','customer','employee','emp_finance','inventory','kas','ap','po','task','daily-order','report','settings','news'];
+  const FEATURES = ['dashboard','order','invoice','customer','employee','emp_finance','inventory','kas','ap','po','task','daily-order','delivery','menu','haccp','chat','personal','report','settings','news'];
 
   /* ===================== INIT ===================== */
   async function init() {
