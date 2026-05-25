@@ -146,7 +146,7 @@ else { window.POModule = (() => {
         const isSelesai = d.status === 'selesai';
         const cardBg = isSelesai ? 'rgba(100,116,139,.08)' : isConfirmed ? 'rgba(16,185,129,.08)' : d.status==='arsip' ? 'rgba(100,116,139,.04)' : '';
         const cardBorder = isSelesai ? 'rgba(100,116,139,.25)' : isConfirmed ? 'rgba(16,185,129,.3)' : 'var(--border)';
-        return `<div style="background:var(--surface);border:1px solid ${cardBorder};border-radius:10px;padding:12px 16px;cursor:pointer;transition:.15s;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);${cardBg?'background:'+cardBg:''}"
+        return `<div id="po-row-${d.id}" style="background:var(--surface);border:1px solid ${cardBorder};border-radius:10px;padding:12px 16px;cursor:pointer;transition:.15s;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);${cardBg?'background:'+cardBg:''}"
           onclick="POModule.openAnggaran('${d.id}')"
           onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
           ${isSelesai ? `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-25deg);font-size:32px;font-weight:900;color:rgba(100,116,139,.12);pointer-events:none;white-space:nowrap;letter-spacing:6px;font-style:italic">SELESAI</div>` : ''}
@@ -345,6 +345,7 @@ else { window.POModule = (() => {
     };
     try {
       await DB.savePO(doc); _data.unshift(doc); openAnggaran(doc.id);
+      DB.logActivity?.({ type: 'add_po', detail: `Anggaran baru: ${doc.nomorEstimasi||doc.id}`, rowId: doc.id });
       setTimeout(() => _startEdit(doc.id, 0), 100);
     } catch(e) { Notify.error('Gagal membuat anggaran'); }
   }
@@ -702,6 +703,7 @@ else { window.POModule = (() => {
     });
     item.totalHarga = (Number(item.qty)||0) * (Number(item.harga)||0);
     DB.savePO(doc).catch(() => {});
+    DB.logActivity?.({ type: 'edit_po', detail: `Edit baris #${idx+1}: ${item.namaBarang||'(kosong)'} — ${doc.nomorEstimasi||''}`, rowId: docId });
 
     const locked = doc.status === 'selesai' || doc.status === 'arsip';
     tr.outerHTML = _viewRow(docId, item, idx, locked);
@@ -881,8 +883,11 @@ else { window.POModule = (() => {
   async function _saveMeta(docId, key, val) {
     const doc = _data.find(d => d.id === docId);
     if (!doc) return;
+    const oldVal = doc[key];
+    if (String(oldVal ?? '') === String(val ?? '')) return; // no change → skip log & save
     doc[key] = val;
     DB.savePO(doc).catch(() => {});
+    DB.logActivity?.({ type: 'edit_po', detail: `${key}: ${oldVal||'∅'} → ${val||'∅'} (${doc.nomorEstimasi||''})`, rowId: docId });
   }
 
   /* ── Add rows ──────────────────────────────── */
@@ -930,6 +935,7 @@ else { window.POModule = (() => {
     if (!doc) return;
     doc.status = 'arsip';
     await DB.savePO(doc);
+    DB.logActivity?.({ type: 'po_anggaran_arsip', detail: `Arsipkan: ${doc.nomorEstimasi||''} (${doc.periode||''})`, rowId: id });
     Notify.success('Anggaran diarsipkan');
     _render();
   }
@@ -938,6 +944,7 @@ else { window.POModule = (() => {
     if (!doc) return;
     doc.status = 'draft';
     await DB.savePO(doc);
+    DB.logActivity?.({ type: 'po_anggaran_unarsip', detail: `Buka arsip: ${doc.nomorEstimasi||''}`, rowId: id });
     Notify.success('Anggaran dibuka dari arsip');
     openAnggaran(id);
   }
@@ -951,6 +958,7 @@ else { window.POModule = (() => {
     if (!doc) return;
     doc.status = 'selesai';
     await DB.savePO(doc);
+    DB.logActivity?.({ type: 'po_anggaran_selesai', detail: `Selesai: ${doc.nomorEstimasi||''} (${doc.periode||''})`, rowId: id });
     Notify.success('Anggaran ditandai Selesai');
     openAnggaran(id);
   }
@@ -959,6 +967,7 @@ else { window.POModule = (() => {
     if (!doc) return;
     doc.status = 'draft';
     await DB.savePO(doc);
+    DB.logActivity?.({ type: 'po_anggaran_reopen', detail: `Buka kembali: ${doc.nomorEstimasi||''}`, rowId: id });
     Notify.success('Anggaran dibuka kembali');
     openAnggaran(id);
   }
@@ -975,6 +984,7 @@ else { window.POModule = (() => {
     doc.confirmedAt = new Date().toISOString();
     doc.pendingFinance = false;
     await DB.savePO(doc);
+    DB.logActivity?.({ type: 'po_anggaran_confirm', detail: `Konfirmasi finance: ${doc.nomorEstimasi||''} oleh ${nama}`, rowId: id });
     _updateBadge();
     Notify.success('Anggaran dikonfirmasi oleh ' + nama);
     // Push notif ke pembuat anggaran bahwa sudah dikonfirmasi
@@ -998,6 +1008,7 @@ else { window.POModule = (() => {
     doc.pendingBy = pengaju;
     doc.pendingAt = new Date().toISOString();
     await DB.savePO(doc);
+    DB.logActivity?.({ type: 'po_anggaran_pending', detail: `Ajukan ke finance: ${doc.nomorEstimasi||''} oleh ${pengaju}`, rowId: id });
     _updateBadge();
 
     // Push notification ke semua user role finance
@@ -1131,6 +1142,7 @@ else { window.POModule = (() => {
     try {
       await DB.savePO(doc);
       _data.push(doc);
+      DB.logActivity?.({ type: 'add_po', detail: `Duplikat dari ${src.nomorEstimasi||''} → ${doc.nomorEstimasi}`, rowId: doc.id });
       Notify.success('Anggaran berhasil diduplikat');
       openAnggaran(doc.id);
     } catch(e) { Notify.error('Gagal menduplikat'); }
@@ -1138,10 +1150,14 @@ else { window.POModule = (() => {
 
   /* ── Delete ────────────────────────────────── */
   async function deleteAnggaran(id) {
+    const target = _data.find(d => d.id === id);
     const ok = await Modal.confirm({title:'Hapus Anggaran',message:'Anggaran ini akan dihapus permanen.<br><strong>Perhatian:</strong> Sisa dana akan menyesuaikan ke anggaran sesudahnya.',danger:true,confirmText:'Hapus'});
     if (!ok) return;
     _data = _data.filter(d => d.id !== id);
-    try { await DB.deletePO(id); } catch(e) {}
+    try {
+      await DB.deletePO(id);
+      DB.logActivity?.({ type: 'delete_po', detail: `Hapus: ${target?.nomorEstimasi||id} (${target?.periode||''})`, rowId: id });
+    } catch(e) {}
     _render();
     Notify.success('Anggaran dihapus');
   }
@@ -1206,7 +1222,7 @@ else { window.POModule = (() => {
         <th style="padding:6px;font-size:9px;text-align:left">Nama barang</th><th style="padding:6px;font-size:9px;width:40px">QTY</th><th style="padding:6px;font-size:9px;width:50px">Satuan</th>
         <th style="padding:6px;font-size:9px;text-align:left">Keterangan</th><th style="padding:6px;font-size:9px;text-align:right;width:90px">Harga (IDR)</th>
         <th style="padding:6px;font-size:9px;text-align:right;width:100px;background:rgba(0,0,0,.1)">Total Harga</th>
-        <th style="padding:6px;font-size:9px;text-align:right;width:100px;background:rgba(255,255,255,.1)">Alokasi Dana Real</th>${locked?'':'<th style="padding:6px;font-size:9px;width:60px">Aksi</th>'}</tr></thead>
+        <th style="padding:6px;font-size:9px;text-align:right;width:100px;background:rgba(255,255,255,.1)">Alokasi Dana Real</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
         <tr style="background:#fef2f2;font-weight:700"><td colspan="4"></td><td style="padding:6px;text-align:right;color:#dc2626">Total Kebutuhan</td><td style="padding:6px;text-align:right;font-size:12px;color:#dc2626">${rpP(itemsTotal)}</td><td></td></tr>
