@@ -11,6 +11,7 @@ const ChatModule = (() => {
   let _dmLock = false;
   let _onlineSet = new Set();   // usernames currently online
   let _presenceTimer = null;
+  let _unreadDivAt = '';        // timestamp lastread saat buka room → garis "Pesan baru"
   const _msgIds = new Set();
 
   function _esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -112,11 +113,27 @@ const ChatModule = (() => {
       if (_activeRoom && msg.roomId === _activeRoom.id) {
         _messages.push(msg);
         _appendMsg(msg);
+        // Saya sedang buka room ini → otomatis tandai sebagai dibaca
+        const me0 = _me();
+        if (me0 && msg.senderId !== me0.id && msg.senderUsername !== me0.username) _markRead(_activeRoom);
       }
       // Toast if not current room
       const me = _me();
       if (me && msg.senderId!==me.id && (!_activeRoom||msg.roomId!==_activeRoom.id)) {
         Notify.info((msg.senderName||'')+ ': '+(msg.text||'[Media]').slice(0,50));
+      }
+    });
+    // Realtime chat_rooms → deteksi lawan bicara sudah baca (read receipt)
+    DB.onRealtimeChange('chat_rooms', (pl) => {
+      if (pl.eventType === 'DELETE') return;
+      const raw = pl.new; if (!raw) return;
+      const room = raw.data ? (typeof raw.data==='string'?JSON.parse(raw.data):raw.data) : raw;
+      if (!room || !room.id) return;
+      const local = _rooms.find(r=>r.id===room.id);
+      if (local && room.reads) local.reads = { ...(local.reads||{}), ...room.reads };
+      if (_activeRoom && _activeRoom.id === room.id) {
+        if (room.reads) _activeRoom.reads = { ...(_activeRoom.reads||{}), ...room.reads };
+        _updateReadTicks();
       }
     });
   }
@@ -215,11 +232,47 @@ const ChatModule = (() => {
       if (main) main.classList.remove('cht-hide');
     }
     _renderRoomList();
+    // Capture lastread SEBELUM di-update — untuk garis pemisah "Pesan baru"
+    let prevRead = '';
+    try { prevRead = (JSON.parse(localStorage.getItem('becca_chat_lastread')||'{}'))[roomId] || ''; } catch {}
+    _unreadDivAt = prevRead;
     _messages = await DB.getChatMessagesByRoom(roomId, 50).catch(()=>[]);
     _messages.forEach(m=>_msgIds.add(m.id));
     _renderChat();
     try { const lr=JSON.parse(localStorage.getItem('becca_chat_lastread')||'{}'); lr[roomId]=new Date().toISOString(); localStorage.setItem('becca_chat_lastread',JSON.stringify(lr)); } catch{}
+    // Read receipt: tandai bahwa SAYA sudah baca room ini (per-user di room.reads)
+    _markRead(_activeRoom);
     if (typeof App!=='undefined'&&App._checkChatUnread) App._checkChatUnread();
+  }
+
+  // Tulis timestamp "saya sudah baca" ke room.reads[username] dan save (debounced)
+  let _markReadTimer = null;
+  function _markRead(room) {
+    if (!room) return;
+    const me = _me(); if (!me?.username) return;
+    room.reads = room.reads || {};
+    room.reads[me.username] = new Date().toISOString();
+    clearTimeout(_markReadTimer);
+    _markReadTimer = setTimeout(() => { DB.saveChatRoom(room).catch(()=>{}); }, 400);
+  }
+
+  // ✓ = terkirim, ✓✓ = sudah dibaca lawan (DM: other; grup: semua member lain)
+  function _readMark(createdAt) {
+    if (!_activeRoom) return { mark: '✓', read: false };
+    const me = _me();
+    const reads = _activeRoom.reads || {};
+    const others = (_activeRoom.memberUsernames||[]).filter(u => u && u !== me?.username);
+    if (!others.length) return { mark: '✓', read: false };
+    const allRead = others.every(u => reads[u] && reads[u] >= createdAt);
+    return { mark: allRead ? '✓✓' : '✓', read: allRead };
+  }
+  // Update semua tick di pesan sendiri (dipanggil saat room.reads berubah via realtime)
+  function _updateReadTicks() {
+    document.querySelectorAll('.cht-tick').forEach(el => {
+      const { mark, read } = _readMark(el.dataset.ts || '');
+      el.textContent = mark;
+      el.style.color = read ? '#38bdf8' : 'rgba(255,255,255,.5)';
+    });
   }
 
   function _renderChat() {
@@ -310,6 +363,11 @@ const ChatModule = (() => {
       const label = d===today?'Hari Ini':new Date(d+'T12:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'long'});
       cont.insertAdjacentHTML('beforeend',`<div style="text-align:center;padding:2px 0"><span style="font-size:10px;padding:2px 10px;border-radius:var(--r-full);background:var(--surface2);color:var(--text-3)">${label}</span></div>`);
     }
+    // Garis pemisah "Pesan baru" — sebelum pesan pertama (dari orang lain) yang lebih baru dari lastread
+    if (_unreadDivAt && m.createdAt > _unreadDivAt && !(m.senderId===_me()?.id||m.senderUsername===_me()?.username)) {
+      cont.insertAdjacentHTML('beforeend',`<div id="cht-unread-div" style="text-align:center;padding:6px 0;display:flex;align-items:center;gap:8px"><span style="flex:1;height:1px;background:var(--danger);opacity:.4"></span><span style="font-size:10px;color:var(--danger);font-weight:700;letter-spacing:.04em">PESAN BARU</span><span style="flex:1;height:1px;background:var(--danger);opacity:.4"></span></div>`);
+      _unreadDivAt = ''; // hanya sekali
+    }
     let content = '';
     if (m.type==='task') {
       const t = m.taskData || {};
@@ -339,7 +397,7 @@ const ChatModule = (() => {
       ${!isMine&&_activeRoom?.type==='group'?`<span style="font-size:9px;font-weight:600;color:${_uc(m.senderName)};padding-left:4px">${_esc(m.senderName||'')}</span>`:''}
       <div style="display:flex;align-items:center;gap:2px;${isMine?'flex-direction:row':'flex-direction:row-reverse'};max-width:100%">
         ${delBtn}
-        <div class="msg-b ${isMine?'msg-m':'msg-o'}">${content}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.5)':'color:var(--text-3)'};text-align:right;margin-top:1px">${_hm(m.createdAt)}</div></div>
+        <div class="msg-b ${isMine?'msg-m':'msg-o'}">${content}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.5)':'color:var(--text-3)'};text-align:right;margin-top:1px;display:flex;align-items:center;justify-content:flex-end;gap:3px"><span>${_hm(m.createdAt)}</span>${isMine&&m.type!=='task'?(()=>{const rm=_readMark(m.createdAt);return `<span class="cht-tick" id="cht-tick-${m.id}" data-ts="${m.createdAt}" style="font-size:10px;letter-spacing:-1px;color:${rm.read?'#38bdf8':'rgba(255,255,255,.5)'}">${rm.mark}</span>`;})():''}</div></div>
       </div>${dl}
     </div>`);
     // Pesan masuk saat user scroll ke atas \u2192 jangan paksa scroll, tambah badge
