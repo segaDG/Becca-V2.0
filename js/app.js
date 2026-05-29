@@ -6,7 +6,7 @@ const App = {
   // Global cache buster — bump SEKALI saat deploy, applies ke semua modul lazy-load.
   // index.html eager scripts (utils, db, ui/*, dll) tetap per-file karena
   // HTML loads dulu sebelum JS constant ini bisa diakses.
-  BUILD_VERSION: '20260525g',
+  BUILD_VERSION: '20260525h',
   _currentPage: 'dashboard',
   _loadedModules: new Set(),
 
@@ -159,6 +159,7 @@ const App = {
   },
 
   async _checkChatUnread() {
+    if (document.hidden) return; // skip polling saat tab tidak aktif
     const badge = document.getElementById('chat-fab-badge');
     if (!badge) return;
     try {
@@ -879,6 +880,7 @@ const App = {
     if (!user) return;
     this._presenceSessionId = Utils.uid();
     const update = () => {
+      if (document.hidden) return; // jangan tulis presence saat tab tidak aktif
       DB.updatePresence(user.id || user.username, {
         id:        user.id || user.username,
         nama:      user.nama || user.username,
@@ -893,13 +895,25 @@ const App = {
     // Render online users every 20s (store ref untuk cleanup)
     this._renderOnlineUsers();
     this._onlineUsersInterval = setInterval(() => this._renderOnlineUsers(), 20000);
+    // Saat tab kembali aktif → refresh segera (tidak menunggu interval)
+    if (!this._visBound) {
+      this._visBound = true;
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) { this._renderOnlineUsers(); this._checkChatUnread(); }
+      });
+    }
   },
 
   async _renderOnlineUsers() {
+    if (document.hidden) return; // skip render saat tab tidak aktif
     const bar = document.getElementById('online-users-bar');
     if (!bar) return;
     const currentUser = Auth.currentUser();
     const users = await DB.getOnlineUsers(30000).catch(() => []);
+    // Skip rebuild DOM kalau daftar online sama persis (hindari thrash tiap 20s)
+    const sig = users.map(u => (u.username||'')+':'+(u.page||'')).sort().join('|');
+    if (sig === this._onlineSig) return;
+    this._onlineSig = sig;
     // Color palette for avatars
     const COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#ef4444'];
     const getColor = (name) => {

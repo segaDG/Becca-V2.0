@@ -159,8 +159,10 @@ const DBExtensions = (() => {
       inv_activities: () => {
         // Skip re-init when user is on inventory page — their local state is fresh
         if (window.App?._currentPage === 'inventory') return;
-        // Cross-device sync: reload inventory data when user is on another page
-        if (window.InventoryModule?.init) window.InventoryModule.init();
+        // Cross-device sync: JANGAN full re-init halaman tersembunyi (boros CPU +
+        // bikin lag halaman yang sedang dipakai). Cukup invalidate cache supaya
+        // data fresh saat user navigate ke inventory berikutnya.
+        _rtDebounce('inv_inval', () => { try { DB.invalidateCache?.('inv_activities'); DB.invalidateCache?.('inv_products'); } catch {} }, 1000);
       },
       ap: () => {
         // Skip re-init when user is on AP page — their local state is fresh

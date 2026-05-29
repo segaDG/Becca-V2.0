@@ -1365,7 +1365,7 @@ const DB = (() => {
     subscribe, unsubscribeAll, setupRealtime, onRealtimeChange,
     migrateFromLocalStorage, recoverFromLocalStorage,
     isReady: () => _ready,
-    getCached, getPage,
+    getCached, getPage, invalidateCache: _invalidateCache,
 
     // Users
     getUsers, saveUser, deleteUser,
