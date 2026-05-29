@@ -716,6 +716,7 @@ const DB = (() => {
     return merged.slice(-limit);
   };
   const saveChatMessage = (data) => { if (!data.id) data.id = Utils.uid(); return _save('chat_messages', data); };
+  const deleteChatMessage = (id) => _delete('chat_messages', id);
   const deleteChatRoom  = (id) => _delete('chat_rooms', id);
   const deleteChatMessagesByRoom = async (roomId) => {
     const sb = await _initClient();
@@ -1393,7 +1394,7 @@ const DB = (() => {
     getMenuLibrary, saveMenuItem, deleteMenuItem,
     getMenuPlans, saveMenuPlan, deleteMenuPlan,
     // Chat
-    getChatRooms, saveChatRoom, deleteChatRoom, getChatMessages, getChatMessagesByRoom, saveChatMessage, deleteChatMessagesByRoom,
+    getChatRooms, saveChatRoom, deleteChatRoom, getChatMessages, getChatMessagesByRoom, saveChatMessage, deleteChatMessage, deleteChatMessagesByRoom,
     // Personal Notes
     getPersonalNotes, savePersonalNote, deletePersonalNote,
     // AP

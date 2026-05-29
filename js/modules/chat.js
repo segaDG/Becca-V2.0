@@ -9,9 +9,55 @@ const ChatModule = (() => {
   'use strict';
   let _rooms = [], _messages = [], _users = [], _activeRoom = null, _rtSetup = false;
   let _dmLock = false;
+  let _onlineSet = new Set();   // usernames currently online
+  let _presenceTimer = null;
   const _msgIds = new Set();
 
   function _esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  // Escape lalu ubah URL jadi link yang bisa diklik (text message only)
+  function _linkify(s) {
+    const esc = _esc(s);
+    return esc.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
+      const clean = url.replace(/[.,;:!?)]+$/, '');
+      const trail = url.slice(clean.length);
+      return `<a href="${clean}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;word-break:break-all">${clean}</a>${trail}`;
+    });
+  }
+  // Jumlah pesan belum dibaca per room (pakai lastread + lastMessageAt + lastSender)
+  function _unread(room) {
+    try {
+      const me = _me(); if (!me || !room.lastMessageAt) return 0;
+      if (room.lastSender === me.nama || room.lastSender === me.username) return 0;
+      const lr = (JSON.parse(localStorage.getItem('becca_chat_lastread')||'{}'))[room.id] || '';
+      return room.lastMessageAt > lr ? 1 : 0;
+    } catch { return 0; }
+  }
+  function _isOnline(user) {
+    if (!user) return false;
+    return _onlineSet.has((user.username||'').toLowerCase()) || _onlineSet.has(user.username);
+  }
+  async function _refreshPresence() {
+    try {
+      const online = await DB.getOnlineUsers(90000); // online = aktif 90 detik terakhir
+      const me = _me();
+      _onlineSet = new Set();
+      (online||[]).forEach(u => {
+        const un = u.username || u.id;
+        if (un && un !== me?.username) { _onlineSet.add(un); _onlineSet.add(String(un).toLowerCase()); }
+      });
+      _renderRoomList();
+      _updateHeaderPresence();
+    } catch {}
+  }
+  function _updateHeaderPresence() {
+    const dot = document.getElementById('cht-hdr-presence');
+    if (!dot || !_activeRoom || _activeRoom.type==='group') return;
+    const other = _findOther(_activeRoom, _me());
+    const on = _isOnline(other);
+    dot.style.display = on ? 'block' : 'none';
+    const st = document.getElementById('cht-hdr-status');
+    if (st) { st.textContent = on ? 'online' : ''; st.style.color = on ? '#22c55e' : 'var(--text-3)'; }
+  }
   function _me() { return Auth.currentUser(); }
   function _initials(n) { return (n||'?').split(' ').slice(0,2).map(w=>(w[0]||'')).join('').toUpperCase(); }
   function _timeAgo(ts) { if(!ts) return ''; const s=(Date.now()-new Date(ts))/1000; if(s<60) return 'baru'; if(s<3600) return Math.floor(s/60)+'m'; if(s<86400) return Math.floor(s/3600)+'j'; return new Date(ts).toLocaleDateString('id-ID',{day:'2-digit',month:'short'}); }
@@ -41,6 +87,13 @@ const ChatModule = (() => {
     _users = _users.filter(u=>u.aktif!==false);
     _setupRT();
     _render(page);
+    // Presence: fetch sekarang + refresh tiap 30 detik selama di halaman chat
+    _refreshPresence();
+    if (_presenceTimer) clearInterval(_presenceTimer);
+    _presenceTimer = setInterval(() => {
+      if (window.App?._currentPage !== 'chat') { clearInterval(_presenceTimer); _presenceTimer = null; return; }
+      _refreshPresence();
+    }, 30000);
   }
 
   function _setupRT() {
@@ -84,6 +137,9 @@ const ChatModule = (() => {
         .task-card-chat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-width:180px;max-width:280px;cursor:pointer}
         .task-card-chat:hover{border-color:var(--primary)}
         @keyframes mi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+        .cht-msg-wrap:hover .cht-msg-del{opacity:.7!important}
+        .cht-msg-del:hover{opacity:1!important}
+        #cht-inp{font-family:inherit}
         @media(max-width:768px){
           .cht-lay{grid-template-columns:1fr;height:calc(100vh - 60px);height:calc(100dvh - 60px);border:none;border-radius:0;box-shadow:none}
           .cht-side.cht-hide{display:none}.cht-main.cht-hide{display:none}
@@ -129,12 +185,20 @@ const ChatModule = (() => {
       const other = _findOther(r, me);
       const nm = isG ? r.name : (other?.nama||r.lastSender||'Unknown');
       const act = _activeRoom?.id===r.id;
+      const unread = _unread(r);
+      const online = !isG && _isOnline(other);
       return `<div class="cht-ri ${act?'act':''}" onclick="ChatModule.openRoom('${r.id}')">
-        <div style="width:38px;height:38px;border-radius:50%;background:${_uc(nm)};color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${isG?(r.name?.charAt(0)||'G'):_initials(nm)}</div>
+        <div style="position:relative;flex-shrink:0">
+          <div style="width:38px;height:38px;border-radius:50%;background:${_uc(nm)};color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">${isG?(r.name?.charAt(0)||'G'):_initials(nm)}</div>
+          ${online?`<span style="position:absolute;bottom:0;right:0;width:11px;height:11px;border-radius:50%;background:#22c55e;border:2px solid var(--surface)"></span>`:''}
+        </div>
         <div style="flex:1;min-width:0">
-          <div style="display:flex;justify-content:space-between"><span style="font-size:13px;font-weight:600;color:var(--heading);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(nm)}</span>
-          <span style="font-size:10px;color:var(--text-3);flex-shrink:0">${_timeAgo(r.lastMessageAt)}</span></div>
-          <div style="font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.lastMessage||'')}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span style="font-size:13px;font-weight:${unread?700:600};color:var(--heading);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(nm)}</span>
+          <span style="font-size:10px;color:${unread?'var(--primary)':'var(--text-3)'};flex-shrink:0;font-weight:${unread?700:400}">${_timeAgo(r.lastMessageAt)}</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+            <span style="font-size:11px;color:${unread?'var(--text-2)':'var(--text-3)'};font-weight:${unread?600:400};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${_esc(r.lastMessage||'')}</span>
+            ${unread?`<span style="flex-shrink:0;min-width:18px;height:18px;border-radius:9px;background:var(--primary);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px">●</span>`:''}
+          </div>
         </div>
       </div>`;
     }).join('') || '<div style="text-align:center;padding:var(--s6);color:var(--text-3);font-size:12px">Belum ada chat</div>';
@@ -164,11 +228,15 @@ const ChatModule = (() => {
     const isG = r.type==='group';
     const other = _findOther(r, me);
     const nm = isG ? r.name : (other?.nama||r.lastSender||'Chat');
+    const otherOnline = !isG && _isOnline(other);
     el.innerHTML = `
       <div style="padding:10px var(--s4);border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:var(--s3);flex-shrink:0">
         <button class="btn-icon" style="display:${_mob()?'flex':'none'}" id="cht-back" onclick="ChatModule._back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
-        <div style="width:34px;height:34px;border-radius:50%;background:${_uc(nm)};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${isG?(r.name?.charAt(0)||'G'):_initials(nm)}</div>
-        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--heading)">${_esc(nm)}</div></div>
+        <div style="position:relative">
+          <div style="width:34px;height:34px;border-radius:50%;background:${_uc(nm)};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${isG?(r.name?.charAt(0)||'G'):_initials(nm)}</div>
+          <span id="cht-hdr-presence" style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:#22c55e;border:2px solid var(--surface);display:${otherOnline?'block':'none'}"></span>
+        </div>
+        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--heading)">${_esc(nm)}</div>${!isG?`<div style="font-size:10px;color:${otherOnline?'#22c55e':'var(--text-3)'}" id="cht-hdr-status">${otherOnline?'online':''}</div>`:''}</div>
         <button onclick="ChatModule._shareTask()" title="Kirim Task" style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(99,102,241,.3);background:rgba(99,102,241,.07);cursor:pointer;color:var(--primary);display:flex;align-items:center;justify-content:center">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
         </button>
@@ -176,20 +244,59 @@ const ChatModule = (() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
         </button>
       </div>
-      <div id="cht-msgs" style="flex:1;overflow-y:auto;padding:var(--s3);display:flex;flex-direction:column;gap:4px"></div>
-      <div style="padding:var(--s2) var(--s3);border-top:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:var(--s2);flex-shrink:0">
-        <label style="cursor:pointer;color:var(--text-3);display:flex" title="Foto/Video">
+      <div style="flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column">
+        <div id="cht-msgs" style="flex:1;overflow-y:auto;padding:var(--s3);display:flex;flex-direction:column;gap:4px"></div>
+        <button id="cht-scroll-btn" onclick="ChatModule._scrollEnd(true)" style="display:none;position:absolute;bottom:12px;right:14px;width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18);align-items:center;justify-content:center;z-index:5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+          <span id="cht-scroll-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;background:var(--primary);color:#fff;font-size:9px;font-weight:700;align-items:center;justify-content:center;padding:0 4px"></span>
+        </button>
+      </div>
+      <div style="padding:var(--s2) var(--s3);border-top:1px solid var(--border);background:var(--surface);display:flex;align-items:flex-end;gap:var(--s2);flex-shrink:0">
+        <label style="cursor:pointer;color:var(--text-3);display:flex;padding-bottom:8px" title="Foto/Video">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           <input type="file" accept="image/*,video/*" style="display:none" onchange="ChatModule._media(this.files[0])">
         </label>
-        <input type="text" id="cht-inp" class="form-control" placeholder="Ketik pesan..." style="flex:1;min-height:34px;font-size:13px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ChatModule.send()}">
-        <button class="btn btn-primary" onclick="ChatModule.send()" style="min-height:34px;padding:0 14px">
+        <textarea id="cht-inp" class="form-control" placeholder="Ketik pesan..." rows="1" style="flex:1;min-height:34px;max-height:120px;font-size:13px;resize:none;line-height:1.4;padding-top:8px;padding-bottom:8px;overflow-y:auto"
+          oninput="ChatModule._composerInput(this)"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ChatModule.send()}"></textarea>
+        <button class="btn btn-primary" id="cht-send-btn" onclick="ChatModule.send()" disabled style="min-height:34px;padding:0 14px;opacity:.5">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
       </div>`;
     const cont = document.getElementById('cht-msgs');
-    if (cont) { let lastD=''; _messages.forEach(m=>{ _appendMsg(m,cont,lastD); lastD=(m.createdAt||'').slice(0,10); }); }
+    if (cont) {
+      let lastD=''; _messages.forEach(m=>{ _appendMsg(m,cont,lastD); lastD=(m.createdAt||'').slice(0,10); });
+      cont.onscroll = _onMsgScroll;
+    }
     _scrollEnd();
+  }
+
+  // Composer: auto-grow textarea + enable/disable send button
+  function _composerInput(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+    const btn = document.getElementById('cht-send-btn');
+    if (btn) {
+      const has = !!ta.value.trim();
+      btn.disabled = !has;
+      btn.style.opacity = has ? '1' : '.5';
+    }
+  }
+
+  // Tampilkan tombol scroll-to-bottom saat user scroll ke atas
+  let _newWhileScrolled = 0;
+  function _onMsgScroll() {
+    const el = document.getElementById('cht-msgs');
+    const btn = document.getElementById('cht-scroll-btn');
+    if (!el || !btn) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (nearBottom) {
+      btn.style.display = 'none';
+      _newWhileScrolled = 0;
+      const badge = document.getElementById('cht-scroll-badge'); if (badge) badge.style.display='none';
+    } else {
+      btn.style.display = 'flex';
+    }
   }
 
   /* ═══ APPEND single message ═══ */
@@ -224,17 +331,53 @@ const ChatModule = (() => {
     } else if (m.type==='video') {
       content = `<video src="${m.mediaUrl}" controls preload="none" style="max-width:220px;border-radius:8px;display:block"></video>`;
     } else {
-      content = `<div style="white-space:pre-wrap">${_esc(m.text)}</div>`;
+      content = `<div style="white-space:pre-wrap">${_linkify(m.text)}</div>`;
     }
     const dl = (m.type==='image'||m.type==='video')?`<a href="${m.mediaUrl}" download style="font-size:10px;color:var(--primary-h);margin-top:1px;display:block">\u2b07 Download</a>`:'';
-    cont.insertAdjacentHTML('beforeend',`<div style="display:flex;flex-direction:column;${isMine?'align-items:flex-end':'align-items:flex-start'}">
+    const delBtn = isMine ? `<button class="cht-msg-del" title="Hapus pesan" onclick="event.stopPropagation();ChatModule._deleteMsg('${m.id}')" style="opacity:0;transition:opacity .12s;border:none;background:transparent;color:var(--text-3);cursor:pointer;font-size:13px;padding:0 4px;align-self:center">\ud83d\uddd1\ufe0f</button>` : '';
+    cont.insertAdjacentHTML('beforeend',`<div class="cht-msg-wrap" data-mid="${m.id}" style="display:flex;flex-direction:column;${isMine?'align-items:flex-end':'align-items:flex-start'}">
       ${!isMine&&_activeRoom?.type==='group'?`<span style="font-size:9px;font-weight:600;color:${_uc(m.senderName)};padding-left:4px">${_esc(m.senderName||'')}</span>`:''}
-      <div class="msg-b ${isMine?'msg-m':'msg-o'}">${content}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.5)':'color:var(--text-3)'};text-align:right;margin-top:1px">${_hm(m.createdAt)}</div></div>${dl}
+      <div style="display:flex;align-items:center;gap:2px;${isMine?'flex-direction:row':'flex-direction:row-reverse'};max-width:100%">
+        ${delBtn}
+        <div class="msg-b ${isMine?'msg-m':'msg-o'}">${content}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.5)':'color:var(--text-3)'};text-align:right;margin-top:1px">${_hm(m.createdAt)}</div></div>
+      </div>${dl}
     </div>`);
-    _scrollEnd();
+    // Pesan masuk saat user scroll ke atas \u2192 jangan paksa scroll, tambah badge
+    const el = document.getElementById('cht-msgs');
+    if (el) {
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      if (nearBottom || isMine) _scrollEnd();
+      else {
+        _newWhileScrolled++;
+        const btn = document.getElementById('cht-scroll-btn');
+        const badge = document.getElementById('cht-scroll-badge');
+        if (btn) btn.style.display = 'flex';
+        if (badge) { badge.textContent = _newWhileScrolled > 9 ? '9+' : String(_newWhileScrolled); badge.style.display = 'flex'; }
+      }
+    }
   }
 
-  function _scrollEnd() { setTimeout(()=>{ const el=document.getElementById('cht-msgs'); if(el) el.scrollTop=el.scrollHeight; },30); }
+  function _scrollEnd(force) {
+    setTimeout(()=>{
+      const el=document.getElementById('cht-msgs'); if(!el) return;
+      el.scrollTop=el.scrollHeight;
+      if (force) {
+        _newWhileScrolled = 0;
+        const btn=document.getElementById('cht-scroll-btn'); if(btn) btn.style.display='none';
+        const badge=document.getElementById('cht-scroll-badge'); if(badge) badge.style.display='none';
+      }
+    },30);
+  }
+
+  async function _deleteMsg(mid) {
+    const ok = await Modal.confirm({ title:'Hapus Pesan', message:'Pesan ini akan dihapus untuk semua orang.', danger:true, confirmText:'Hapus' });
+    if (!ok) return;
+    try { await DB.deleteChatMessage(mid); } catch(e) { Notify.error('Gagal hapus: '+e.message); return; }
+    _messages = _messages.filter(m=>m.id!==mid);
+    _msgIds.delete(mid);
+    document.querySelector(`.cht-msg-wrap[data-mid="${mid}"]`)?.remove();
+    Notify.success('Pesan dihapus');
+  }
   function _back() {
     _activeRoom=null;
     if (_mob()) {
@@ -251,7 +394,9 @@ const ChatModule = (() => {
   /* ═══ SEND TEXT ═══ */
   async function send() {
     const inp=document.getElementById('cht-inp'); const text=(inp?.value||'').trim();
-    if (!text||!_activeRoom) return; inp.value='';
+    if (!text||!_activeRoom) return;
+    inp.value=''; inp.style.height='34px';
+    const sbtn=document.getElementById('cht-send-btn'); if(sbtn){ sbtn.disabled=true; sbtn.style.opacity='.5'; }
     const me=_me(), msg = { id:Utils.uid(), roomId:_activeRoom.id, senderId:me?.id, senderUsername:me?.username, senderName:me?.nama||'', type:'text', text, createdAt:new Date().toISOString() };
     _msgIds.add(msg.id); _messages.push(msg); _appendMsg(msg);
     _activeRoom.lastMessage=text.slice(0,80); _activeRoom.lastMessageAt=msg.createdAt; _activeRoom.lastSender=msg.senderName;
@@ -451,6 +596,6 @@ const ChatModule = (() => {
     Notify.success('Chat dihapus');
   }
 
-  return { init, openRoom, send, _media, newChat, _filt, _dm, _grp, _search, _back, deleteRoom, _shareTask, _filtTask, _sendTask };
+  return { init, openRoom, send, _media, newChat, _filt, _dm, _grp, _search, _back, deleteRoom, _shareTask, _filtTask, _sendTask, _composerInput, _scrollEnd, _deleteMsg };
 })();
 window.ChatModule = ChatModule;
