@@ -693,23 +693,27 @@ const DB = (() => {
   const getChatRooms    = ()     => _get('chat_rooms');
   const saveChatRoom    = (data) => { if (!data.id) data.id = Utils.uid(); return _save('chat_rooms', data); };
   const getChatMessages = ()     => _get('chat_messages');
-  // Fetch messages for a specific room only (server-side filter)
-  const getChatMessagesByRoom = async (roomId, limit=50) => {
+  // Fetch messages for a specific room only (server-side filter).
+  // beforeCreatedAt: jika diisi, ambil pesan LEBIH LAMA dari timestamp ini (untuk load-more / infinite scroll ke atas).
+  const getChatMessagesByRoom = async (roomId, limit=50, beforeCreatedAt=null) => {
     const sb = await _initClient();
     // Always check localStorage for messages that failed to save to Supabase
     let lsMsgs = [];
     try { const all = JSON.parse(localStorage.getItem('becca_chat_messages')||'[]'); lsMsgs = all.filter(m=>m.roomId===roomId); } catch {}
-    if (!sb) return lsMsgs.slice(-limit);
-    const { data, error } = await sb.from('chat_messages').select('*')
+    if (beforeCreatedAt) lsMsgs = lsMsgs.filter(m => (m.createdAt||'') < beforeCreatedAt);
+    if (!sb) return lsMsgs.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')).slice(-limit);
+    let q = sb.from('chat_messages').select('*')
       .filter('data->>roomId','eq',roomId)
       .order('created_at',{ascending:false}).limit(limit);
+    if (beforeCreatedAt) q = q.filter('data->>createdAt','lt',beforeCreatedAt);
+    const { data, error } = await q;
     if (error) { console.warn('[DB] getChatMessagesByRoom:', error.message); return lsMsgs.slice(-limit); }
     const supaMsgs = _fromRows(data||[]).reverse();
     // Merge: add localStorage messages not in Supabase (failed saves)
     const supaIds = new Set(supaMsgs.map(m=>m.id));
     const pending = lsMsgs.filter(m => !supaIds.has(m.id));
-    if (pending.length) {
-      // Re-save pending messages to Supabase in background
+    if (pending.length && !beforeCreatedAt) {
+      // Re-save pending messages to Supabase in background (only for initial load)
       pending.forEach(m => _save('chat_messages', m).catch(()=>{}));
     }
     const merged = [...supaMsgs, ...pending].sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||''));
@@ -1357,6 +1361,7 @@ const DB = (() => {
   // ── Public API ─────────────────────────────────────────────
   return {
     init,
+    getClient: _initClient,   // raw Supabase client (untuk broadcast channel: typing indicator)
     subscribe, unsubscribeAll, setupRealtime, onRealtimeChange,
     migrateFromLocalStorage, recoverFromLocalStorage,
     isReady: () => _ready,
