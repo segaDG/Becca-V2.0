@@ -175,8 +175,14 @@ const ChatModule = (() => {
         .task-card-chat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-width:180px;max-width:280px;cursor:pointer}
         .task-card-chat:hover{border-color:var(--primary)}
         @keyframes mi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-        .cht-msg-wrap:hover .cht-msg-menu{opacity:.6!important}
-        .cht-msg-menu:hover{opacity:1!important}
+        .cht-msg-wrap{position:relative;max-width:100%;min-width:0}
+        .cht-msg-row{display:flex;align-items:center;gap:2px;max-width:100%;min-width:0}
+        .cht-msg-menu{position:absolute;top:50%;transform:translateY(-50%);opacity:0;transition:opacity .12s;border:none;background:var(--surface2);color:var(--text-3);cursor:pointer;font-size:14px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.12);z-index:2}
+        .cht-msg-wrap.mine .cht-msg-menu{right:calc(100% + 4px)}
+        .cht-msg-wrap.other .cht-msg-menu{left:calc(100% + 4px)}
+        .cht-msg-wrap:hover .cht-msg-menu{opacity:.95}
+        .cht-msg-menu:hover{background:var(--primary);color:#fff}
+        .msg-b{min-width:48px}
         #cht-inp{font-family:inherit}
         .cht-msg-flash{animation:chtFlash 1.4s ease}
         @keyframes chtFlash{0%,100%{background:transparent}30%,60%{background:rgba(99,102,241,.18)}}
@@ -341,7 +347,7 @@ const ChatModule = (() => {
       </div>
       <div id="cht-pin-bar" style="display:none;align-items:center;gap:8px;padding:6px var(--s3);border-bottom:1px solid var(--border);background:rgba(99,102,241,.05);flex-shrink:0"></div>
       <div style="flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column">
-        <div id="cht-msgs" style="flex:1;overflow-y:auto;padding:var(--s3);display:flex;flex-direction:column;gap:4px"></div>
+        <div id="cht-msgs" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:var(--s3);display:flex;flex-direction:column;gap:4px"></div>
         <button id="cht-scroll-btn" onclick="ChatModule._scrollEnd(true)" style="display:none;position:absolute;bottom:12px;right:14px;width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18);align-items:center;justify-content:center;z-index:5">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
           <span id="cht-scroll-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;background:var(--primary);color:#fff;font-size:9px;font-weight:700;align-items:center;justify-content:center;padding:0 4px"></span>
@@ -610,16 +616,16 @@ const ChatModule = (() => {
     } else {
       content = `<div style="white-space:pre-wrap;word-break:break-word">${_renderText(m.text)}</div>`;
     }
-    const dl = (m.type==='image'||m.type==='video')?`<a href="${m.mediaUrl}" download style="font-size:10px;color:var(--primary-h);margin-top:1px;display:block">⬇ Download</a>`:'';
+    const dlInside = (m.type==='image'||m.type==='video')?`<a href="${m.mediaUrl}" download style="font-size:10px;color:${isMine?'rgba(255,255,255,.85)':'var(--primary-h)'};margin-top:3px;display:inline-block;text-decoration:none">⬇ Download</a>`:'';
     const edited = m.editedAt ? `<span style="opacity:.7;font-style:italic;margin-right:3px">diedit</span>` : '';
-    const menuBtn = `<button class="cht-msg-menu" title="Opsi" onclick="event.stopPropagation();ChatModule._msgMenu('${m.id}',this)" style="opacity:0;transition:opacity .12s;border:none;background:transparent;color:var(--text-3);cursor:pointer;font-size:15px;padding:0 4px;align-self:center;line-height:1">⋯</button>`;
+    const menuBtn = `<button class="cht-msg-menu" title="Opsi" onclick="event.stopPropagation();ChatModule._msgMenu('${m.id}',this)">⋯</button>`;
     const tick = isMine && m.type!=='task' ? (()=>{const rm=_readMark(m.createdAt);return `<span class="cht-tick" id="cht-tick-${m.id}" data-ts="${m.createdAt}" style="font-size:10px;letter-spacing:-1px;color:${rm.read?'#38bdf8':'rgba(255,255,255,.5)'}">${rm.mark}</span>`;})() : '';
-    return `<div class="cht-msg-wrap" data-mid="${m.id}" style="display:flex;flex-direction:column;${isMine?'align-items:flex-end':'align-items:flex-start'}">
-      ${!isMine&&_activeRoom?.type==='group'?`<span style="font-size:9px;font-weight:600;color:${_uc(m.senderName)};padding-left:4px">${_esc(m.senderName||'')}</span>`:''}
-      <div style="display:flex;align-items:center;gap:2px;${isMine?'flex-direction:row':'flex-direction:row-reverse'};max-width:100%">
+    return `<div class="cht-msg-wrap ${isMine?'mine':'other'}" data-mid="${m.id}" style="display:flex;flex-direction:column;${isMine?'align-items:flex-end':'align-items:flex-start'};max-width:100%">
+      ${!isMine&&_activeRoom?.type==='group'?`<span style="font-size:9px;font-weight:600;color:${_uc(m.senderName)};padding-left:4px;margin-bottom:1px">${_esc(m.senderName||'')}</span>`:''}
+      <div class="cht-msg-row">
         ${menuBtn}
-        <div class="msg-b ${isMine?'msg-m':'msg-o'}">${_replyQuote(m)}${content}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.5)':'color:var(--text-3)'};text-align:right;margin-top:1px;display:flex;align-items:center;justify-content:flex-end;gap:3px">${edited}<span>${_hm(m.createdAt)}</span>${tick}</div></div>
-      </div>${_reactionChips(m, isMine)}${dl}
+        <div class="msg-b ${isMine?'msg-m':'msg-o'}">${_replyQuote(m)}${content}${dlInside}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.55)':'color:var(--text-3)'};text-align:right;margin-top:2px;display:flex;align-items:center;justify-content:flex-end;gap:3px">${edited}<span>${_hm(m.createdAt)}</span>${tick}</div></div>
+      </div>${_reactionChips(m, isMine)}
     </div>`;
   }
 
