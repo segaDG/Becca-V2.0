@@ -27,7 +27,7 @@
        Modul tetap di-lazy-load via _loadModule + SW cache. -->
   <link rel="stylesheet" href="css/base.css?v=20260404x"/>
   <link rel="stylesheet" href="css/layout.css?v=20260504a"/>
-  <link rel="stylesheet" href="css/components.css?v=20260530a"/>
+  <link rel="stylesheet" href="css/components.css?v=20260530b"/>
   <link rel="stylesheet" href="css/tables.css?v=20260404x"/>
   <!-- Supabase SDK — async agar tidak block parse HTML.
        db.js._initClient() sudah punya dynamic fallback jika belum tersedia. -->
@@ -89,15 +89,15 @@
   <!-- Core — defer supaya tidak block render HTML, execute in-order sebelum DOMContentLoaded -->
   <script src="js/utils.js?v=20260507d"               defer></script>
   <script src="js/utils-extensions.js?v=20260507a"    defer></script>
-  <script src="js/db.js?v=20260530a"                  defer></script>
-  <script src="js/db-extensions.js?v=20260530a"       defer></script>
+  <script src="js/db.js?v=20260530b"                  defer></script>
+  <script src="js/db-extensions.js?v=20260530b"       defer></script>
   <script src="js/db-patch.js?v=20260424a"            defer></script>
   <script src="js/offline-queue.js?v=20260509a"       defer></script>
-  <script src="js/auth.js?v=20260530a"                defer></script>
-  <script src="js/two-factor.js?v=20260530a"          defer></script>
+  <script src="js/auth.js?v=20260530b"                defer></script>
+  <script src="js/two-factor.js?v=20260530b"          defer></script>
   <script src="js/ui/notify.js?v=20260404x"           defer></script>
   <script src="js/ui/modal.js?v=20260513c"            defer></script>
-  <script src="js/ui/sidebar.js?v=20260530a"          defer></script>
+  <script src="js/ui/sidebar.js?v=20260530b"          defer></script>
   <script src="js/ui/bottom-nav.js?v=20260504a"       defer></script>
 
   <!-- Firebase SDK: di-load dinamis oleh push.js saat user enable notifikasi.
@@ -110,11 +110,11 @@
   <script src="js/grid-select.js?v=20260513c"             defer></script>
   <script src="js/modules/face-attendance.js?v=20260512a" defer></script>
   <script src="js/modules/weekly-digest.js?v=20260516w"   defer></script>
-  <script src="js/ai-assistant.js?v=20260530a"            defer></script>
+  <script src="js/ai-assistant.js?v=20260530b"            defer></script>
 
   <!-- Boot — modules dimuat lazily saat navigate ke halaman tersebut -->
   <script src="js/tests.js?v=20260516x"               defer></script>
-  <script src="js/app.js?v=20260530a"                 defer></script>
+  <script src="js/app.js?v=20260530b"                 defer></script>
 
   <!-- PWA: daftarkan Service Worker -->
   <script>

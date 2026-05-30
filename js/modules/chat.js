@@ -169,20 +169,21 @@ const ChatModule = (() => {
         .cht-main{display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
         .cht-ri{display:flex;align-items:center;gap:var(--s3);padding:10px var(--s4);cursor:pointer;transition:background .1s;border-bottom:1px solid var(--border)}
         .cht-ri:hover{background:var(--surface2)}.cht-ri.act{background:var(--primary-bg)}
-        .msg-b{max-width:70%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.5;animation:mi .15s ease}
-        .msg-m{background:var(--primary);color:white;border-bottom-right-radius:4px;margin-left:auto}
+        .msg-b{padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.5;animation:mi .15s ease;word-break:break-word;overflow-wrap:anywhere;min-width:48px;max-width:100%}
+        .msg-m{background:var(--primary);color:white;border-bottom-right-radius:4px}
         .msg-o{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px}
         .task-card-chat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-width:180px;max-width:280px;cursor:pointer}
         .task-card-chat:hover{border-color:var(--primary)}
         @keyframes mi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-        .cht-msg-wrap{position:relative;max-width:100%;min-width:0}
-        .cht-msg-row{display:flex;align-items:center;gap:2px;max-width:100%;min-width:0}
-        .cht-msg-menu{position:absolute;top:50%;transform:translateY(-50%);opacity:0;transition:opacity .12s;border:none;background:var(--surface2);color:var(--text-3);cursor:pointer;font-size:14px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.12);z-index:2}
+        .cht-msg-wrap{position:relative;max-width:75%;display:flex;flex-direction:column;min-width:0}
+        .cht-msg-wrap.mine{align-self:flex-end;align-items:flex-end}
+        .cht-msg-wrap.other{align-self:flex-start;align-items:flex-start}
+        @media(max-width:768px){.cht-msg-wrap{max-width:85%}}
+        .cht-msg-menu{position:absolute;top:8px;opacity:0;transition:opacity .12s;border:none;background:var(--surface2);color:var(--text-3);cursor:pointer;font-size:14px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.12);z-index:2}
         .cht-msg-wrap.mine .cht-msg-menu{right:calc(100% + 4px)}
         .cht-msg-wrap.other .cht-msg-menu{left:calc(100% + 4px)}
         .cht-msg-wrap:hover .cht-msg-menu{opacity:.95}
         .cht-msg-menu:hover{background:var(--primary);color:#fff}
-        .msg-b{min-width:48px}
         #cht-inp{font-family:inherit}
         .cht-msg-flash{animation:chtFlash 1.4s ease}
         @keyframes chtFlash{0%,100%{background:transparent}30%,60%{background:rgba(99,102,241,.18)}}
@@ -620,12 +621,11 @@ const ChatModule = (() => {
     const edited = m.editedAt ? `<span style="opacity:.7;font-style:italic;margin-right:3px">diedit</span>` : '';
     const menuBtn = `<button class="cht-msg-menu" title="Opsi" onclick="event.stopPropagation();ChatModule._msgMenu('${m.id}',this)">⋯</button>`;
     const tick = isMine && m.type!=='task' ? (()=>{const rm=_readMark(m.createdAt);return `<span class="cht-tick" id="cht-tick-${m.id}" data-ts="${m.createdAt}" style="font-size:10px;letter-spacing:-1px;color:${rm.read?'#38bdf8':'rgba(255,255,255,.5)'}">${rm.mark}</span>`;})() : '';
-    return `<div class="cht-msg-wrap ${isMine?'mine':'other'}" data-mid="${m.id}" style="display:flex;flex-direction:column;${isMine?'align-items:flex-end':'align-items:flex-start'};max-width:100%">
+    return `<div class="cht-msg-wrap ${isMine?'mine':'other'}" data-mid="${m.id}">
       ${!isMine&&_activeRoom?.type==='group'?`<span style="font-size:9px;font-weight:600;color:${_uc(m.senderName)};padding-left:4px;margin-bottom:1px">${_esc(m.senderName||'')}</span>`:''}
-      <div class="cht-msg-row">
-        ${menuBtn}
-        <div class="msg-b ${isMine?'msg-m':'msg-o'}">${_replyQuote(m)}${content}${dlInside}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.55)':'color:var(--text-3)'};text-align:right;margin-top:2px;display:flex;align-items:center;justify-content:flex-end;gap:3px">${edited}<span>${_hm(m.createdAt)}</span>${tick}</div></div>
-      </div>${_reactionChips(m, isMine)}
+      ${menuBtn}
+      <div class="msg-b ${isMine?'msg-m':'msg-o'}">${_replyQuote(m)}${content}${dlInside}<div style="font-size:9px;${isMine?'color:rgba(255,255,255,.55)':'color:var(--text-3)'};text-align:right;margin-top:2px;display:flex;align-items:center;justify-content:flex-end;gap:3px">${edited}<span>${_hm(m.createdAt)}</span>${tick}</div></div>
+      ${_reactionChips(m, isMine)}
     </div>`;
   }
 
