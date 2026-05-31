@@ -50,6 +50,40 @@ const Notify = {
   warning(title, msg = '') { this._show(title, msg, 'warning'); },
   info   (title, msg = '') { this._show(title, msg, 'info'); },
 
+  /**
+   * Error toast dengan tombol "Coba Lagi" → onRetry() saat diklik.
+   * Untuk operasi yang gagal karena network/server, supaya user
+   * tidak harus refresh atau ulang flow dari awal.
+   *
+   * Usage:
+   *   Notify.errorRetry('Gagal simpan kas', 'Koneksi terputus', () => saveKas(data));
+   */
+  errorRetry(title, msg, onRetry, ms = 8000) {
+    const root = document.getElementById('toast-container');
+    if (!root) { Notify.error(title, msg); return; }
+    const el = document.createElement('div');
+    el.className = 'toast toast-error';
+    const btnId = 'rty-' + Math.random().toString(36).slice(2,8);
+    el.innerHTML = `
+      <div class="toast-icon-wrap">${this._icons.error}</div>
+      <div class="toast-content">
+        <div class="toast-title">${title}</div>
+        ${msg ? `<div class="toast-msg">${msg}</div>` : ''}
+        <button id="${btnId}" style="margin-top:6px;background:rgba(255,255,255,.18);color:inherit;border:1px solid rgba(255,255,255,.35);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer">↻ Coba Lagi</button>
+      </div>
+      <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:16px;padding:0 0 0 8px;line-height:1">×</button>
+    `;
+    root.appendChild(el);
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+    el.querySelector('#' + btnId).onclick = (ev) => {
+      ev.stopPropagation();
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 250);
+      try { onRetry?.(); } catch (e) { Notify.error('Coba lagi gagal', e.message); }
+    };
+    if (ms > 0) setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 350); }, ms);
+  },
+
   // Snackbar bawah layar dengan tombol Undo
   undo(title, onUndo, ms = 5000) {
     document.getElementById('_undo-snack')?.remove();

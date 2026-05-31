@@ -793,6 +793,8 @@ const CustomerModule = (() => {
         inp.addEventListener('focus', () => { if (inp.value === '0') inp.value = ''; });
         inp.addEventListener('blur',  () => { if (inp.value === '')  inp.value = '0'; });
       });
+      // Auto-save draft → pulih kalau modal tertutup tak sengaja (hanya untuk Tambah baru, bukan edit)
+      if (!id && Utils.formDraft) Utils.formDraft.attach(el, 'customer-add');
     }, 50);
   }
 
@@ -840,6 +842,7 @@ const CustomerModule = (() => {
     localStorage.setItem('becca_customers', JSON.stringify(_data));
     Modal.close(window._beccaCustModalId);
     Notify.success(id?'Customer diperbarui':'Customer berhasil ditambahkan');
+    if (!id) Utils.formDraft?.clear('customer-add'); // hapus draft setelah sukses
     _render();
   }
 

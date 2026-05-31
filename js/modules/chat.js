@@ -897,7 +897,11 @@ const ChatModule = (() => {
       DB.saveChatRoom(_activeRoom).catch(e => console.warn('[Chat] save room:', e));
       _notifyMembers(_activeRoom, me?.nama||'', isImg?'Mengirim foto':'Mengirim video');
       Notify.success('Terkirim');
-    } catch(e) { Notify.error('Gagal: '+e.message); }
+    } catch(e) {
+      // Tampilkan tombol "Coba Lagi" supaya user tidak perlu pilih file lagi
+      Notify.errorRetry?.('Gagal kirim media', e.message || 'Coba lagi?', () => _media(file))
+        || Notify.error('Gagal: '+e.message);
+    }
   }
 
   /* ═══ PUSH NOTIFICATION ═══ */

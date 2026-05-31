@@ -77,7 +77,13 @@
   border-radius: var(--r-lg);
   padding: var(--s5);
   box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  /* Performance: isolasi layout/style supaya hover/edit di satu card
+     tidak retrigger reflow seluruh halaman. Tidak pakai `paint` supaya
+     shadow/overlay tetap normal. */
+  contain: layout style;
 }
+.modal-content { contain: layout style; }
+.toast { contain: layout style; }
 .card-header {
   display: flex;
   align-items: center;

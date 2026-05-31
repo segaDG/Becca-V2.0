@@ -62,7 +62,10 @@
   transition: background var(--t-fast);
 }
 .table tr:last-child td { border-bottom: none; }
-.table tbody tr { transition: background var(--t-fast); }
+/* contain: layout style — baris tabel tidak retrigger reflow seluruh
+   tabel saat hover/edit. Membantu performa kas/inventory/ap yang
+   punya 25-100 baris dengan banyak cell. */
+.table tbody tr { transition: background var(--t-fast); contain: layout style; }
 .table tbody tr:hover { background: var(--primary-bg); }
 
 /* Number columns (right-aligned) */

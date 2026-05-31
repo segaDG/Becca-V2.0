@@ -8,6 +8,72 @@ Object.assign(Utils, {
   MONTHS_SHORT: ['Jan','Feb','Mar','Apr','Mei','Jun',
                  'Jul','Ags','Sep','Okt','Nov','Des'],
 
+  /**
+   * Form auto-save draft — simpan isi form ke localStorage saat user mengetik,
+   * restore otomatis saat form dibuka lagi. Hindari kehilangan input saat
+   * modal tidak sengaja tertutup / browser crash / accidentaly refresh.
+   *
+   * Usage di onOpen modal:
+   *   Utils.formDraft.attach('emp-modal', 'employee-add')
+   * Setelah submit sukses:
+   *   Utils.formDraft.clear('employee-add')
+   *
+   * Auto-skip: field type file/password tidak disimpan (privacy).
+   */
+  formDraft: {
+    _KEY_PREFIX: 'becca_draft_',
+    _esc(s) { return (window.CSS?.escape || (x=>String(x).replace(/[^\w-]/g,'\\$&')))(s); },
+    // Selector untuk semua input yang punya identifier (name ATAU id)
+    _selector: 'input[name], textarea[name], select[name], input[id], textarea[id], select[id]',
+    _idOf(inp) { return inp.name || inp.id; },
+    attach(modalIdOrEl, key, opts = {}) {
+      const el = typeof modalIdOrEl === 'string' ? document.getElementById(modalIdOrEl) : modalIdOrEl;
+      if (!el || !key) return;
+      const k = this._KEY_PREFIX + key;
+      // Restore existing draft (skip kalau field sudah berisi — mode edit jangan ditimpa)
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(k) || 'null'); } catch {}
+      if (saved && typeof saved === 'object') {
+        let restored = 0;
+        Object.entries(saved).forEach(([name, val]) => {
+          const inp = el.querySelector(`[name="${this._esc(name)}"], #${this._esc(name)}`);
+          if (!inp) return;
+          if (inp.type === 'file' || inp.type === 'password') return;
+          if (inp.type === 'checkbox' || inp.type === 'radio') {
+            if (!inp.checked) { inp.checked = !!val; restored++; }
+          } else if (!inp.value) {
+            inp.value = val; restored++;
+          }
+        });
+        if (restored > 0 && opts.notify !== false && typeof Notify !== 'undefined') {
+          Notify.info('Draft form dipulihkan', `${restored} field diisi dari sesi sebelumnya`);
+        }
+      }
+      // Debounced save on input
+      const save = Utils.debounce(() => {
+        const data = {};
+        el.querySelectorAll(this._selector).forEach(inp => {
+          if (inp.type === 'file' || inp.type === 'password') return;
+          const id = this._idOf(inp); if (!id) return;
+          if (inp.type === 'checkbox' || inp.type === 'radio') data[id] = inp.checked ? 1 : 0;
+          else data[id] = inp.value;
+        });
+        try { localStorage.setItem(k, JSON.stringify(data)); } catch {}
+      }, 500);
+      el.addEventListener('input', save);
+      el.addEventListener('change', save);
+    },
+    clear(key) { try { localStorage.removeItem(this._KEY_PREFIX + key); } catch {} },
+    list() {
+      const out = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(this._KEY_PREFIX)) out.push(k.slice(this._KEY_PREFIX.length));
+      }
+      return out;
+    },
+  },
+
   formatDateInput(d) {
     return Utils.formatDate(d, 'yyyy-mm-dd');
   },
