@@ -545,6 +545,7 @@ const KasModule = (() => {
         </select>
 
         <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+          ${Utils.savedViews?.renderButton('kas', { onApply:'KasModule.applySavedFilter', getCurrent:'KasModule.getCurrentFilter' })||''}
           <button title="Lihat aktivitas terbaru" onclick="Utils.openActivityDrawer('kas')" class="ks-act-btn" style="display:inline-flex;align-items:center;gap:5px;padding:6px 10px">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             Aktivitas
@@ -813,12 +814,32 @@ const KasModule = (() => {
     const inp = document.getElementById('ks-nama-'+id);
     if (inp) { inp.value = val; inp.dispatchEvent(new Event('input')); }
     document.getElementById('ks-ac-drop')?.remove();
-    // Also trigger type suggestion
-    const suggested = _suggestType(val);
-    if (suggested) { const sel = document.getElementById('ks-type-'+id); if (sel) sel.value = suggested; }
-    // Also fill vendor if known
-    const prevRow = _kas.find(r => r.nama === val && r.vendor);
-    if (prevRow) { const v = document.getElementById('ks-vendor-'+id); if (v && !v.value) v.value = prevRow.vendor; }
+    // ── Smart defaults: tarik dari entry TERBARU dengan nama sama ──
+    // Type, vendor, satuan, hargaSatuan auto-fill kalau field masih kosong.
+    // qty tidak di-autofill karena bervariasi tiap transaksi.
+    const sameName = _kas.filter(r => r.nama === val && r.id !== id);
+    const recent = sameName.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''))[0];
+    const fill = (fieldId, value) => {
+      if (value == null || value === '') return;
+      const el = document.getElementById(fieldId);
+      if (el && !el.value) {
+        el.value = value;
+        if (el.dispatchEvent) el.dispatchEvent(new Event('change'));
+      }
+    };
+    // Type: prefer suggester ML-style → fallback ke recent
+    const suggestedType = _suggestType(val) || recent?.type;
+    if (suggestedType) fill('ks-type-'+id, suggestedType);
+    if (recent) {
+      // Vendor: cari entry pertama yang punya vendor (recent mungkin tidak ada vendor)
+      const withVendor = sameName.find(r => r.vendor);
+      if (withVendor) fill('ks-vendor-'+id, withVendor.vendor);
+      if (recent.satuan) fill('ks-satuan-'+id, recent.satuan);
+      if (recent.hargaSatuan) {
+        const el = document.getElementById('ks-harga-'+id);
+        if (el && !el.value) { el.value = recent.hargaSatuan; _calcTotal(id); }
+      }
+    }
   }
 
   /* ---- CALC TOTAL ---- */
@@ -1430,6 +1451,15 @@ const KasModule = (() => {
     if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 600); }
     if(_editingId)commitEdit(_editingId); _filter={search:''}; _page=1; renderTransaksi();
     Utils.urlState?.clear('kas');
+  }
+  // Saved views API — dipakai Utils.savedViews dropdown
+  function getCurrentFilter() { return {..._filter}; }
+  function applySavedFilter(filter) {
+    if(_editingId)commitEdit(_editingId);
+    _filter = { bulan:'', type:'', status:'', dateFrom:'', dateTo:'', search:'', ...(filter||{}) };
+    _page = 1;
+    renderTransaksi();
+    Utils.urlState?.write('kas', {..._filter, page:''});
   }
   function toggleSearch() {
     const bar = document.getElementById('kas-search-bar');
@@ -3175,6 +3205,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
+  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
 })();
 window.KasModule = KasModule;

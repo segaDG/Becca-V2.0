@@ -880,8 +880,10 @@ const ChatModule = (() => {
         url = await new Promise((res) => {
           const img=new Image(); const objUrl=URL.createObjectURL(file);
           img.onload=()=>{ const c=document.createElement('canvas'); let w=img.width,h=img.height;
-            if(w>600){h=h*(600/w);w=600;} c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
-            URL.revokeObjectURL(objUrl); res(c.toDataURL('image/jpeg',0.6)); };
+            // Compress lebih agresif: max 500px + JPEG 50% (sebelumnya 600px + 60%)
+            // Hemat ~35% size, kualitas masih oke untuk preview chat.
+            if(w>500){h=h*(500/w);w=500;} c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
+            URL.revokeObjectURL(objUrl); res(c.toDataURL('image/jpeg',0.5)); };
           img.onerror=()=>{ URL.revokeObjectURL(objUrl); res(null); };
           img.src=objUrl;
         });

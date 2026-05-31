@@ -6,7 +6,7 @@ const App = {
   // Global cache buster — bump SEKALI saat deploy, applies ke semua modul lazy-load.
   // index.html eager scripts (utils, db, ui/*, dll) tetap per-file karena
   // HTML loads dulu sebelum JS constant ini bisa diakses.
-  BUILD_VERSION: '20260601a',
+  BUILD_VERSION: '20260601b',
   _currentPage: 'dashboard',
   _loadedModules: new Set(),
 
@@ -108,6 +108,8 @@ const App = {
     setTimeout(() => this._deferredBoot(), 2000);
     // FABs — always visible
     setTimeout(() => { this._injectChatFAB(); this._injectNotesFAB(); }, 500);
+    // Command palette (Cmd/Ctrl+K) — listener global, modal on-demand
+    if (typeof CommandPalette !== 'undefined') CommandPalette.init();
     // Offline indicator
     this._watchOnline();
   },

@@ -20,6 +20,154 @@ Object.assign(Utils, {
    *
    * Auto-skip: field type file/password tidak disimpan (privacy).
    */
+  /**
+   * Saved Views / Quick Filters — simpan kombinasi filter dengan nama.
+   *
+   * Usage di modul kas/inventory/ap:
+   *   // Save:  Utils.savedViews.save('kas', 'Belanja Pasar bulan ini', _filter);
+   *   // List:  Utils.savedViews.list('kas') → [{name, filter, createdAt}]
+   *   // Apply: setFilter, lalu re-render
+   *   // Dropdown UI siap pakai:
+   *   //   Utils.savedViews.render({moduleKey:'kas', current:_filter, onApply:(f)=>setFilter(f)})
+   */
+  savedViews: {
+    _KEY: 'becca_views_',
+    list(moduleKey) {
+      try { return JSON.parse(localStorage.getItem(this._KEY + moduleKey) || '[]'); } catch { return []; }
+    },
+    save(moduleKey, name, filter) {
+      if (!name || !filter) return;
+      const arr = this.list(moduleKey).filter(v => v.name !== name);
+      arr.unshift({ name, filter, createdAt: new Date().toISOString() });
+      try { localStorage.setItem(this._KEY + moduleKey, JSON.stringify(arr.slice(0, 20))); } catch {}
+    },
+    delete(moduleKey, name) {
+      const arr = this.list(moduleKey).filter(v => v.name !== name);
+      try { localStorage.setItem(this._KEY + moduleKey, JSON.stringify(arr)); } catch {}
+    },
+    /** Render dropdown button kecil. Return HTML — pasang ke tempat filter bar. */
+    renderButton(moduleKey, opts = {}) {
+      const id = 'sv-btn-' + moduleKey;
+      const views = this.list(moduleKey);
+      const hasViews = views.length > 0;
+      return `<div style="position:relative;display:inline-block">
+        <button id="${id}" onclick="Utils.savedViews._toggleMenu('${moduleKey}', '${opts.onApply||''}', '${opts.getCurrent||''}', '${opts.onAfterApply||''}')" title="Filter tersimpan"
+          style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text-2);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px${hasViews?';color:var(--primary);background:rgba(99,102,241,.08);border-color:rgba(99,102,241,.3)':''}">
+          ⭐ Views${hasViews?` <span style="font-size:10px;color:var(--text-3)">${views.length}</span>`:''}
+        </button>
+      </div>`;
+    },
+    _toggleMenu(moduleKey, onApplyFnName, getCurrentFnName, onAfterApplyFnName) {
+      document.getElementById('sv-menu')?.remove();
+      const btn = document.getElementById('sv-btn-' + moduleKey);
+      if (!btn) return;
+      const views = this.list(moduleKey);
+      const r = btn.getBoundingClientRect();
+      const menu = document.createElement('div');
+      menu.id = 'sv-menu';
+      menu.style.cssText = `position:fixed;z-index:9000;top:${r.bottom+4}px;left:${Math.max(8, r.left - 80)}px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.2);min-width:240px;padding:6px;max-height:340px;overflow-y:auto`;
+      let html = '';
+      if (views.length) {
+        html += views.map((v, i) => `
+          <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="Utils.savedViews._apply('${moduleKey}', ${i}, '${onApplyFnName}', '${onAfterApplyFnName}')">
+            <span style="flex:1;font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${Utils.esc(v.name)}</span>
+            <button title="Hapus view" onclick="event.stopPropagation();Utils.savedViews._del('${moduleKey}', '${Utils.esc(v.name).replace(/'/g,"\\'")}','${onApplyFnName}','${getCurrentFnName}','${onAfterApplyFnName}')" style="border:none;background:transparent;cursor:pointer;color:var(--text-3);font-size:11px;padding:2px 4px">✕</button>
+          </div>`).join('');
+        html += '<div style="border-top:1px solid var(--border);margin:4px -6px"></div>';
+      } else {
+        html += '<div style="padding:10px;font-size:11px;color:var(--text-3);text-align:center">Belum ada view tersimpan</div>';
+      }
+      html += `<div style="padding:6px 8px;cursor:pointer;border-radius:6px;display:flex;align-items:center;gap:6px;color:var(--primary);font-weight:600;font-size:12px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="Utils.savedViews._saveCurrent('${moduleKey}', '${getCurrentFnName}', '${onApplyFnName}', '${onAfterApplyFnName}')">
+        ➕ Simpan filter saat ini
+      </div>`;
+      menu.innerHTML = html;
+      document.body.appendChild(menu);
+      setTimeout(() => {
+        const closeOnOutside = (e) => {
+          if (!menu.contains(e.target) && e.target !== btn) {
+            menu.remove();
+            document.removeEventListener('click', closeOnOutside);
+          }
+        };
+        document.addEventListener('click', closeOnOutside);
+      }, 0);
+    },
+    _apply(moduleKey, idx, onApplyFnName, onAfterApplyFnName) {
+      const v = this.list(moduleKey)[idx];
+      if (!v) return;
+      try {
+        const fn = onApplyFnName.split('.').reduce((o,k) => o?.[k], window);
+        fn?.(v.filter);
+        const after = onAfterApplyFnName && onAfterApplyFnName.split('.').reduce((o,k) => o?.[k], window);
+        after?.();
+      } catch (e) { console.warn('savedViews apply:', e); }
+      document.getElementById('sv-menu')?.remove();
+      Notify?.success?.('View dimuat: ' + v.name);
+    },
+    _saveCurrent(moduleKey, getCurrentFnName, onApplyFnName, onAfterApplyFnName) {
+      const name = prompt('Nama view (mis. "Bulan Mei TBC"):');
+      if (!name) return;
+      try {
+        const fn = getCurrentFnName.split('.').reduce((o,k) => o?.[k], window);
+        const cur = fn?.() || {};
+        this.save(moduleKey, name.trim(), cur);
+        Notify?.success?.('View disimpan: ' + name.trim());
+      } catch (e) { Notify?.error?.('Gagal simpan view', e.message); }
+      document.getElementById('sv-menu')?.remove();
+    },
+    _del(moduleKey, name, onApplyFnName, getCurrentFnName, onAfterApplyFnName) {
+      this.delete(moduleKey, name);
+      Notify?.info?.('View dihapus: ' + name);
+      // Re-open menu dengan list ter-update
+      setTimeout(() => this._toggleMenu(moduleKey, onApplyFnName, getCurrentFnName, onAfterApplyFnName), 50);
+    },
+  },
+
+  /**
+   * Bulk Action Bar — floating bar di bawah layar saat ada item dipilih.
+   * Infrastruktur generik untuk modul yang mau support bulk operations.
+   *
+   * Usage:
+   *   Utils.bulkActionBar.show({
+   *     count: 5,
+   *     actions: [
+   *       { label:'Hapus', icon:'🗑️', danger:true, onClick:()=>deleteSelected() },
+   *       { label:'Export', icon:'⬇', onClick:()=>exportSelected() },
+   *     ],
+   *     onClear: () => clearSelection(),
+   *   });
+   *   Utils.bulkActionBar.hide();   // saat selection kosong
+   */
+  bulkActionBar: {
+    _id: '_becca-bulk-bar',
+    show({ count = 0, actions = [], onClear }) {
+      this.hide();
+      if (count <= 0) return;
+      const bar = document.createElement('div');
+      bar.id = this._id;
+      bar.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(0);z-index:9000;background:#1e293b;color:#f8fafc;border-radius:12px;padding:8px 8px 8px 16px;display:flex;align-items:center;gap:8px;box-shadow:0 12px 28px rgba(0,0,0,.4);animation:bulkBarUp .2s cubic-bezier(.34,1.4,.64,1);max-width:calc(100vw - 24px)`;
+      bar.innerHTML = `
+        <span style="font-size:13px;font-weight:600">${count} dipilih</span>
+        <span style="width:1px;height:18px;background:rgba(248,250,252,.2);margin:0 4px"></span>
+        ${actions.map((a,i)=>`<button data-i="${i}" style="background:${a.danger?'#dc2626':'rgba(255,255,255,.12)'};color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">${a.icon||''} ${a.label}</button>`).join('')}
+        <button id="_bulk-clear" title="Batal pilih" style="background:transparent;border:none;color:rgba(248,250,252,.6);cursor:pointer;font-size:18px;padding:0 4px 0 6px;line-height:1">✕</button>
+      `;
+      if (!document.getElementById('_bulk-bar-css')) {
+        const s = document.createElement('style');
+        s.id = '_bulk-bar-css';
+        s.textContent = `@keyframes bulkBarUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`;
+        document.head.appendChild(s);
+      }
+      document.body.appendChild(bar);
+      bar.querySelectorAll('button[data-i]').forEach(btn => {
+        btn.onclick = () => { try { actions[+btn.dataset.i]?.onClick?.(); } catch (e) { Notify?.error?.('Aksi gagal', e.message); } };
+      });
+      bar.querySelector('#_bulk-clear').onclick = () => { onClear?.(); this.hide(); };
+    },
+    hide() { document.getElementById(this._id)?.remove(); },
+    update(count, actions, onClear) { this.show({ count, actions, onClear }); },
+  },
+
   formDraft: {
     _KEY_PREFIX: 'becca_draft_',
     _esc(s) { return (window.CSS?.escape || (x=>String(x).replace(/[^\w-]/g,'\\$&')))(s); },
