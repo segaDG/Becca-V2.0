@@ -840,10 +840,17 @@ const TaskModule = (() => {
     const t = _tasks.find(x=>x.id===id);
     if (!t||!_canEdit(t)) { Notify.warning('Hanya pembuat task & superadmin yang bisa menghapus'); return; }
     if (!confirm('Hapus task ini?')) return;
-    await DB.deleteTask(id).catch(()=>{ _tasks=_tasks.filter(x=>x.id!==id); });
-    _tasks=_tasks.filter(x=>x.id!==id);
+    // Snapshot untuk undo (deep clone supaya referensi tidak shared)
+    const snapshot = JSON.parse(JSON.stringify(t));
+    Utils.softDeleteWithUndo({
+      label: 'Task "' + (t.title||t.judul||'(tanpa judul)') + '" dihapus',
+      item: snapshot,
+      remove: () => { _tasks = _tasks.filter(x => x.id !== id); _renderTabs(); render(); },
+      restore: () => { _tasks.push(snapshot); _renderTabs(); render(); },
+      saveRemove: () => DB.deleteTask(id),
+      saveRestore: () => DB.saveTask(snapshot),
+    });
     DB.logActivity({type:'delete_task',detail:'Task dihapus'});
-    _renderTabs(); render(); Notify.success('Task dihapus');
   }
 
   /* ── Open modal ── */

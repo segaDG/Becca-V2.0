@@ -138,6 +138,221 @@ Object.assign(Utils, {
    *   });
    *   Utils.bulkActionBar.hide();   // saat selection kosong
    */
+  /**
+   * Soft-delete dengan undo snackbar — wrap pattern:
+   *   1. Hapus item dari array + DB
+   *   2. Tampilkan snackbar "X dihapus" dengan tombol Undo (5 detik)
+   *   3. Klik Undo → kembalikan item (push back ke array + save DB)
+   *
+   * Usage di module:
+   *   Utils.softDeleteWithUndo({
+   *     label: 'Task dihapus',
+   *     item: task,
+   *     remove: () => { _tasks = _tasks.filter(x => x.id !== task.id); render(); },
+   *     restore: () => { _tasks.push(task); render(); },
+   *     saveRemove: () => DB.deleteTask(task.id),
+   *     saveRestore: () => DB.saveTask(task),
+   *   });
+   *
+   * Memberikan UX undo konsisten lintas modul — user tidak perlu khawatir
+   * salah hapus, ada 5 detik untuk batalkan.
+   */
+  softDeleteWithUndo({ label, item, remove, restore, saveRemove, saveRestore, ms = 5000 }) {
+    if (!item) return;
+    try { remove?.(); } catch (e) { Notify?.error?.('Gagal hapus', e.message); return; }
+    saveRemove?.().catch?.(e => console.warn('softDelete saveRemove:', e));
+    if (typeof Notify !== 'undefined' && Notify.undo) {
+      Notify.undo(label || 'Item dihapus', () => {
+        try { restore?.(); } catch (e) { Notify?.error?.('Gagal restore', e.message); return; }
+        saveRestore?.().catch?.(e => console.warn('softDelete saveRestore:', e));
+      }, ms);
+    }
+  },
+
+  /**
+   * Onboarding Tour Engine — guided walkthrough dengan highlight + tooltip.
+   *
+   * Steps: array of { selector?, title, message, position?, action? }
+   *   selector — CSS selector elemen untuk di-highlight (opsional;
+   *              null = modal di tengah tanpa highlight)
+   *   action   — fungsi dipanggil SEBELUM step di-render
+   *              (mis. App.navigate('kas') untuk pindah halaman dulu)
+   *
+   * Snooze: user centang "Jangan tampilkan lagi" → cooldown 15 hari.
+   * Trigger ulang manual via Utils.tour.run(id, steps, { force: true }).
+   */
+  tour: {
+    _SEEN_KEY: 'becca_tour_seen_',
+    _SNOOZE_MS: 15 * 24 * 60 * 60 * 1000, // 15 hari
+    isSnoozed(id) {
+      try {
+        const until = parseInt(localStorage.getItem(this._SEEN_KEY + id) || '0');
+        return until > Date.now();
+      } catch { return false; }
+    },
+    snooze(id, ms = this._SNOOZE_MS) {
+      try { localStorage.setItem(this._SEEN_KEY + id, String(Date.now() + ms)); } catch {}
+    },
+    clearSnooze(id) { try { localStorage.removeItem(this._SEEN_KEY + id); } catch {} },
+    run(id, steps, opts = {}) {
+      if (!opts.force && this.isSnoozed(id)) return;
+      if (!Array.isArray(steps) || !steps.length) return;
+      // Inject CSS sekali
+      if (!document.getElementById('_tour-css')) {
+        const s = document.createElement('style');
+        s.id = '_tour-css';
+        s.textContent = `
+          @keyframes tourPulse{0%,100%{box-shadow:0 0 0 4px rgba(99,102,241,.3)}50%{box-shadow:0 0 0 10px rgba(99,102,241,.5)}}
+          @keyframes tourTipIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+          ._tour-dim{position:fixed;background:rgba(0,0,0,.55);z-index:10500;pointer-events:auto}
+        `;
+        document.head.appendChild(s);
+      }
+      let idx = 0;
+      let snoozeChecked = false;
+      const cleanup = () => {
+        document.querySelectorAll('._tour-dim, #_tour-spot, #_tour-tip').forEach(el => el.remove());
+        if (snoozeChecked) this.snooze(id);
+      };
+      const render = async () => {
+        const step = steps[idx];
+        if (!step) { cleanup(); return; }
+        if (typeof step.action === 'function') {
+          try { await step.action(); } catch {}
+          await new Promise(r => setTimeout(r, 300)); // tunggu DOM update
+        }
+        document.querySelectorAll('._tour-dim, #_tour-spot, #_tour-tip').forEach(el => el.remove());
+        const target = step.selector ? document.querySelector(step.selector) : null;
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          await new Promise(r => setTimeout(r, 250));
+          const r = target.getBoundingClientRect();
+          const pad = 6;
+          const t = Math.max(0, r.top - pad), l = Math.max(0, r.left - pad);
+          const w = Math.min(window.innerWidth, r.width + pad*2);
+          const h = Math.min(window.innerHeight, r.height + pad*2);
+          // 4 dimming rectangles around target
+          const mk = (s) => { const d = document.createElement('div'); d.className = '_tour-dim'; d.style.cssText = s; document.body.appendChild(d); return d; };
+          mk(`top:0;left:0;right:0;height:${t}px`);
+          mk(`top:${t}px;left:0;width:${l}px;height:${h}px`);
+          mk(`top:${t}px;left:${l+w}px;right:0;height:${h}px`);
+          mk(`top:${t+h}px;left:0;right:0;bottom:0`);
+          const spot = document.createElement('div');
+          spot.id = '_tour-spot';
+          spot.style.cssText = `position:fixed;top:${t}px;left:${l}px;width:${w}px;height:${h}px;border:2px solid var(--primary);border-radius:8px;pointer-events:none;z-index:10501;animation:tourPulse 1.6s ease-in-out infinite`;
+          document.body.appendChild(spot);
+        } else {
+          const d = document.createElement('div');
+          d.className = '_tour-dim';
+          d.style.cssText = 'inset:0';
+          document.body.appendChild(d);
+        }
+        // Tooltip
+        const tip = document.createElement('div');
+        tip.id = '_tour-tip';
+        const r2 = target ? target.getBoundingClientRect() : null;
+        const tipW = 320, tipMargin = 16;
+        let top, left, transform = '';
+        if (r2) {
+          // Coba di bawah dulu; fallback ke atas jika tidak muat
+          if (r2.bottom + tipMargin + 200 < window.innerHeight) {
+            top = r2.bottom + tipMargin;
+          } else {
+            top = Math.max(12, r2.top - tipMargin - 200);
+          }
+          left = Math.max(12, Math.min(window.innerWidth - tipW - 12, r2.left));
+        } else {
+          top = '50%'; left = '50%'; transform = 'translate(-50%, -50%)';
+        }
+        tip.style.cssText = `position:fixed;z-index:10502;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:0 16px 40px rgba(0,0,0,.35);width:${tipW}px;max-width:calc(100vw - 24px);pointer-events:auto;animation:tourTipIn .22s ease;top:${typeof top==='number'?top+'px':top};left:${typeof left==='number'?left+'px':left};${transform?'transform:'+transform:''}`;
+        tip.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.08em;text-transform:uppercase">Tur · ${idx+1}/${steps.length}</span>
+            <button data-act="close" style="background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:16px;padding:0;line-height:1">✕</button>
+          </div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">${Utils.esc(step.title||'')}</div>
+          <div style="font-size:12.5px;color:var(--text-2);line-height:1.55">${step.message||''}</div>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:12px;font-size:11px;color:var(--text-3);cursor:pointer;user-select:none">
+            <input type="checkbox" data-act="snooze" ${snoozeChecked?'checked':''} style="width:14px;height:14px;cursor:pointer">
+            <span>Jangan tampilkan lagi (15 hari)</span>
+          </label>
+          <div style="display:flex;gap:6px;margin-top:10px;justify-content:flex-end">
+            ${idx > 0 ? '<button data-act="prev" style="background:transparent;border:1px solid var(--border);border-radius:7px;padding:7px 12px;font-size:12px;cursor:pointer">← Kembali</button>' : ''}
+            ${idx < steps.length - 1
+              ? '<button data-act="next" style="background:var(--primary);color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">Lanjut →</button>'
+              : '<button data-act="done" style="background:var(--primary);color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">Selesai ✓</button>'}
+          </div>`;
+        document.body.appendChild(tip);
+        tip.querySelector('[data-act="snooze"]').addEventListener('change', (e) => { snoozeChecked = e.target.checked; });
+        tip.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+          const a = btn.dataset.act;
+          if (a === 'next') { idx++; render(); }
+          else if (a === 'prev') { idx--; render(); }
+          else { cleanup(); }
+        }));
+      };
+      render();
+    },
+  },
+
+  /**
+   * Virtual Scrolling — render hanya baris yang terlihat di viewport
+   * (+ buffer atas-bawah). Mengurangi DOM nodes dari ribuan jadi puluhan.
+   *
+   * Pas untuk: activity log, history pesan, kas log lama (>500 baris).
+   *
+   * Usage:
+   *   Utils.virtualScroll({
+   *     container: document.getElementById('log-list'),  // overflow-y:auto
+   *     items: arrayOfData,
+   *     rowHeight: 40,             // tinggi fixed per row (px)
+   *     buffer: 6,                 // jumlah row tambahan di atas/bawah viewport
+   *     renderRow: (item, idx) => `<div class="row" style="height:40px">...</div>`,
+   *     onMount: (containerEl) => {},  // optional, dipanggil setelah render
+   *   });
+   *
+   * Catatan: ini OPT-IN — tidak diaplikasikan ke kas/inventory yang sudah
+   * paginasi server-side. Cocok kalau dataset full di-load ke client.
+   */
+  virtualScroll({ container, items, rowHeight, buffer = 6, renderRow, onMount }) {
+    if (!container || !Array.isArray(items) || !rowHeight || !renderRow) return null;
+    const total = items.length;
+    const totalHeight = total * rowHeight;
+    // Wrapper structure: spacer (full height) + window (absolute, sliding)
+    container.innerHTML = `
+      <div style="position:relative;height:${totalHeight}px">
+        <div data-vs-window style="position:absolute;top:0;left:0;right:0"></div>
+      </div>`;
+    const winEl = container.querySelector('[data-vs-window]');
+    let lastFirst = -1, lastLast = -1;
+    const render = () => {
+      const scroll = container.scrollTop;
+      const viewH = container.clientHeight;
+      const first = Math.max(0, Math.floor(scroll / rowHeight) - buffer);
+      const last = Math.min(total, Math.ceil((scroll + viewH) / rowHeight) + buffer);
+      if (first === lastFirst && last === lastLast) return; // skip jika range sama
+      lastFirst = first; lastLast = last;
+      let html = '';
+      for (let i = first; i < last; i++) html += renderRow(items[i], i);
+      winEl.style.transform = `translateY(${first * rowHeight}px)`;
+      winEl.innerHTML = html;
+    };
+    const onScroll = () => requestAnimationFrame(render);
+    container.addEventListener('scroll', onScroll, { passive: true });
+    render();
+    onMount?.(container);
+    // Return controller untuk update/dispose
+    return {
+      update(newItems) {
+        items.length = 0; items.push(...newItems);
+        const newTotalH = newItems.length * rowHeight;
+        container.querySelector('div').style.height = newTotalH + 'px';
+        lastFirst = lastLast = -1; render();
+      },
+      destroy() { container.removeEventListener('scroll', onScroll); container.innerHTML = ''; },
+    };
+  },
+
   bulkActionBar: {
     _id: '_becca-bulk-bar',
     show({ count = 0, actions = [], onClear }) {

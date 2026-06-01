@@ -6,7 +6,7 @@ const App = {
   // Global cache buster — bump SEKALI saat deploy, applies ke semua modul lazy-load.
   // index.html eager scripts (utils, db, ui/*, dll) tetap per-file karena
   // HTML loads dulu sebelum JS constant ini bisa diakses.
-  BUILD_VERSION: '20260601b',
+  BUILD_VERSION: '20260601c',
   _currentPage: 'dashboard',
   _loadedModules: new Set(),
 
@@ -394,6 +394,13 @@ const App = {
     if (typeof AIAssistant !== 'undefined') {
       try { AIAssistant.init(); } catch (e) { console.warn('[AI] init failed', e); }
     }
+    // Onboarding tour — auto-trigger sekali (snooze 15 hari kalau user tandai).
+    // Hanya jalan di halaman dashboard supaya selector elemen valid.
+    setTimeout(() => {
+      if (this._currentPage === 'dashboard' && typeof Utils.tour !== 'undefined') {
+        try { this._runDashboardTour(); } catch (e) { console.warn('[Tour]', e); }
+      }
+    }, 4000);
     // Low stock push notification check (once per session)
     if (!sessionStorage.getItem('becca_stock_checked')) {
       setTimeout(() => this._checkLowStock(), 5000);
@@ -832,6 +839,46 @@ const App = {
         }
       }
     } catch(e) { /* silent */ }
+  },
+
+  // ── Onboarding Tour Content ──────────────────────────────
+  // Auto-trigger sekali setelah login. User bisa centang
+  // "Jangan tampilkan lagi" untuk snooze 15 hari, atau replay
+  // lewat tombol "Putar tur ulang" di footer sidebar (opsional).
+  _runDashboardTour(opts = {}) {
+    const steps = [
+      {
+        title: '👋 Selamat datang di BECCA',
+        message: 'Tur singkat untuk mengenal fitur utama. Cukup 4 langkah — bisa di-skip kapan saja.',
+      },
+      {
+        selector: '#sidebar',
+        title: 'Menu Navigasi',
+        message: 'Klik item di sidebar untuk pindah halaman. Item akan disesuaikan dengan hak akses Anda.',
+      },
+      {
+        selector: '#header',
+        title: '⚡ Cmd/Ctrl + K — Navigasi Cepat',
+        message: 'Tekan <kbd style="background:var(--surface2);padding:1px 6px;border-radius:4px;font-family:monospace;font-size:11px;border:1px solid var(--border)">Cmd+K</kbd> (Mac) atau <kbd style="background:var(--surface2);padding:1px 6px;border-radius:4px;font-family:monospace;font-size:11px;border:1px solid var(--border)">Ctrl+K</kbd> (Windows) di mana saja untuk membuka <strong>command palette</strong> — cari halaman atau aksi tanpa klik menu.',
+      },
+      {
+        selector: '#ai-fab',
+        title: '🤖 AI Assistant',
+        message: 'Tombol AI di pojok kanan-bawah bisa ditanya soal data BECCA (kas, stok, customer, dll). Bisa di-drag ke posisi favorit.',
+      },
+      {
+        title: '🎉 Selesai!',
+        message: 'Tip lain: tekan <kbd style="background:var(--surface2);padding:1px 6px;border-radius:4px;font-family:monospace;font-size:11px;border:1px solid var(--border)">?</kbd> untuk lihat shortcut keyboard (segera). Selamat memakai BECCA!',
+      },
+    ];
+    if (typeof Utils?.tour?.run === 'function') Utils.tour.run('dashboard-intro', steps, opts);
+  },
+
+  /** Public — dipanggil dari Settings → Bantuan → Putar tur ulang */
+  replayDashboardTour() {
+    if (typeof Utils?.tour !== 'undefined') Utils.tour.clearSnooze('dashboard-intro');
+    if (this._currentPage !== 'dashboard') this.navigate('dashboard').then(() => setTimeout(() => this._runDashboardTour({ force: true }), 500));
+    else this._runDashboardTour({ force: true });
   },
 
   async _autoBackup() {
