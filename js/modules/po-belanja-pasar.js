@@ -284,9 +284,15 @@ window.POBelanjaPasarModule = (() => {
 
       <style>
         #bp-table{table-layout:fixed}
-        #bp-table .bp-item-cell{overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
-        #bp-table .bp-item-cell::-webkit-scrollbar{height:4px}
-        #bp-table .bp-item-cell::-webkit-scrollbar-thumb{background:var(--text-3);border-radius:2px}
+        /* Item cell: default tidak ada scroll/scrollbar.
+           Class .is-overflow ditambah via JS hanya kalau scrollWidth > clientWidth
+           (nama benar-benar lebih panjang dari kolom). */
+        #bp-table .bp-item-cell{padding:12px 8px}
+        #bp-table .bp-item-name{overflow:hidden;white-space:nowrap;font-weight:600}
+        #bp-table .bp-item-name.is-overflow{overflow-x:auto;scrollbar-width:thin;-webkit-overflow-scrolling:touch;cursor:ew-resize}
+        #bp-table .bp-item-name.is-overflow::-webkit-scrollbar{height:4px}
+        #bp-table .bp-item-name.is-overflow::-webkit-scrollbar-thumb{background:var(--text-3);border-radius:2px}
+        #bp-table .bp-item-name.is-overflow::-webkit-scrollbar-track{background:transparent}
         #bp-table thead th{position:sticky;top:0;z-index:2}
       </style>
       <div style="border:1px solid var(--border);border-radius:10px;overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 260px)">
@@ -316,7 +322,7 @@ window.POBelanjaPasarModule = (() => {
             const bg = i%2 ? 'background:rgba(0,0,0,.012)' : '';
             return `<tr style="border-bottom:1px solid var(--border);${bg}">
               <td style="padding:12px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
-              <td class="bp-item-cell" style="padding:12px 8px;font-weight:600" title="${(it.item||'').replace(/"/g,'&quot;')}">${it.item}</td>
+              <td class="bp-item-cell" title="${(it.item||'').replace(/"/g,'&quot;')}"><div class="bp-item-name">${it.item}</div></td>
               <td style="padding:12px 6px;text-align:right;font-family:var(--font-mono);color:${(it.stokGudang||0)>0?'#10b981':'var(--text-3)'};font-weight:600">${_n2(it.stokGudang||0)}</td>
               <td style="padding:12px 6px;text-align:right;font-family:var(--font-mono);color:#6366f1">${_n2(it.totalDemand||0)}</td>
               <td style="padding:8px 4px;text-align:right;background:rgba(0,0,0,.02)">
@@ -369,6 +375,24 @@ window.POBelanjaPasarModule = (() => {
         </table>
       </div>
       ${!locked ? `<div style="margin-top:8px;font-size:11px;color:var(--text-3);font-style:italic">Cikopo (hijau) → pasar Cikopo · Supplier (kuning) → diteruskan ke Anggaran sebagai mini-card · Sisanya otomatis ke PS. Karawang. Hanya PASAR & PARTIAL yang masuk.</div>` : ''}`;
+    // Deteksi overflow nama item — tambah class .is-overflow hanya kalau benar-benar lebih panjang dari cell.
+    // Pakai rAF supaya DOM sudah layout sebelum diukur.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.querySelectorAll('#bp-table .bp-item-name').forEach(el => {
+        if (el.scrollWidth - el.clientWidth > 1) el.classList.add('is-overflow');
+        else el.classList.remove('is-overflow');
+      });
+    }));
+    // Re-deteksi saat window resize (kolom ITEM flex bisa berubah lebarnya)
+    if (!window.__bpResizeBound) {
+      window.__bpResizeBound = true;
+      window.addEventListener('resize', Utils.debounce(() => {
+        document.querySelectorAll('#bp-table .bp-item-name').forEach(el => {
+          if (el.scrollWidth - el.clientWidth > 1) el.classList.add('is-overflow');
+          else el.classList.remove('is-overflow');
+        });
+      }, 150));
+    }
   }
 
   // BELI QTY editable — admin boleh beli > kebutuhan bersih (surplus jadi stok)
