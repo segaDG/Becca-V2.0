@@ -293,7 +293,14 @@ window.POBelanjaPasarModule = (() => {
         #bp-table .bp-item-name.is-overflow::-webkit-scrollbar{height:4px}
         #bp-table .bp-item-name.is-overflow::-webkit-scrollbar-thumb{background:var(--text-3);border-radius:2px}
         #bp-table .bp-item-name.is-overflow::-webkit-scrollbar-track{background:transparent}
-        #bp-table thead th{position:sticky;top:0;z-index:2}
+        /* Sticky thead — background SOLID supaya row di bawah tidak tembus saat scroll.
+           Untuk th yang punya tint rgba (CIKOPO/SUPPLIER/KARAWANG/BELI QTY), tint
+           dilayer di atas base solid via linear-gradient. */
+        #bp-table thead th{position:sticky;top:0;z-index:3;background:var(--thead-bg);box-shadow:inset 0 -1px 0 var(--border)}
+        #bp-table thead th.th-tint-beli{background:linear-gradient(rgba(0,0,0,.06),rgba(0,0,0,.06)),var(--thead-bg)}
+        #bp-table thead th.th-tint-cikopo{background:linear-gradient(rgba(5,150,105,.18),rgba(5,150,105,.18)),var(--thead-bg)}
+        #bp-table thead th.th-tint-supplier{background:linear-gradient(rgba(245,158,11,.18),rgba(245,158,11,.18)),var(--thead-bg)}
+        #bp-table thead th.th-tint-karawang{background:linear-gradient(rgba(99,102,241,.15),rgba(99,102,241,.15)),var(--thead-bg)}
       </style>
       <div style="border:1px solid var(--border);border-radius:10px;overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 260px)">
         <table style="width:100%;border-collapse:collapse;font-size:12px" id="bp-table">
@@ -303,18 +310,18 @@ window.POBelanjaPasarModule = (() => {
             <col style="width:48px"><col style="width:82px"><col style="width:92px">
             <col style="width:80px"><col style="width:80px"><col style="width:88px">
           </colgroup>
-          <thead><tr style="background:var(--thead-bg);color:var(--thead-text)">
+          <thead><tr style="color:var(--thead-text)">
             <th style="padding:10px 6px;font-size:9px;font-weight:700">#</th>
             <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:left">ITEM</th>
             <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right">SISA GUDANG</th>
             <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right">EST QTY</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;background:rgba(0,0,0,.1)" title="Boleh lebih dari kebutuhan — selebihnya jadi stok">BELI QTY</th>
+            <th class="th-tint-beli" style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right" title="Boleh lebih dari kebutuhan — selebihnya jadi stok">BELI QTY</th>
             <th style="padding:10px 6px;font-size:9px;font-weight:700">SATUAN</th>
             <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right">HARGA</th>
             <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right">TOTAL</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;background:rgba(5,150,105,.15)">CIKOPO</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;background:rgba(245,158,11,.15)">SUPPLIER</th>
-            <th style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right;background:rgba(99,102,241,.12)">PS. KARAWANG</th>
+            <th class="th-tint-cikopo" style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right">CIKOPO</th>
+            <th class="th-tint-supplier" style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right">SUPPLIER</th>
+            <th class="th-tint-karawang" style="padding:10px 6px;font-size:9px;font-weight:700;text-align:right">PS. KARAWANG</th>
           </tr></thead>
           <tbody>${items.map((it,i) => {
             const sisa = Math.round((it.totalQty - (it.qtyCikopo||0) - (it.qtySupplier||0)) * 100) / 100;
