@@ -211,7 +211,7 @@ window.POBelanjaPasarModule = (() => {
       stockMap[inv.nama.toLowerCase().trim()] = stok;
     });
 
-    // 2. Accumulate total estQty demand across ALL selected forms
+    // 2. Accumulate total estQty demand across ALL selected forms + track date/shift per item
     const demandMap = {};
     _doc.selectedForms.forEach(sf => {
       const f = _forms.find(f => f.id === sf.formId);
@@ -222,9 +222,16 @@ window.POBelanjaPasarModule = (() => {
         if (estQ <= 0) return;
         const key = it.item.toLowerCase().trim();
         const _pH = v => { const s = String(v||0).replace(/[Rp\s]/g,''); return /^\d+\.\d{3}/.test(s) ? Number(s.replace(/\./g,'')) : Number(s.replace(/,/g,'.'))||0; };
-        if (!demandMap[key]) demandMap[key] = { item: it.item, satuan: it.satuan||'', totalDemand: 0, harga: _pH(it.hargaSatuan) };
+        if (!demandMap[key]) demandMap[key] = { item: it.item, satuan: it.satuan||'', totalDemand: 0, harga: _pH(it.hargaSatuan), dateShifts: {} };
         demandMap[key].totalDemand += estQ;
         if (!demandMap[key].harga && it.hargaSatuan) demandMap[key].harga = _pH(it.hargaSatuan);
+        // Track tanggal + shift per item — untuk display "Tgl X, S1,S2,S3" di tabel
+        const tgl = sf.tanggal || f.tanggal;
+        const shift = f.shift || sf.shift;
+        if (tgl && shift) {
+          if (!demandMap[key].dateShifts[tgl]) demandMap[key].dateShifts[tgl] = new Set();
+          demandMap[key].dateShifts[tgl].add(shift);
+        }
       });
     });
 
@@ -239,7 +246,10 @@ window.POBelanjaPasarModule = (() => {
       else if (stok < demand) pasarQty = demand - stok; // PARTIAL: buy the shortage
       // else: STOK — don't add to belanja pasar
       if (pasarQty <= 0) return;
-      map[key] = { item: d.item, satuan: d.satuan, totalQty: Math.round(pasarQty*100)/100, harga: d.harga, qtyCikopo: 0, qtySupplier: 0, qtyKarawang: 0, stokGudang: Math.max(0,stok), totalDemand: demand };
+      // Serialisasi dateShifts (Set tidak bisa JSON) jadi { '2026-06-01': ['S1','S2'] }
+      const dsSer = {};
+      Object.entries(d.dateShifts || {}).forEach(([t, s]) => { dsSer[t] = [...s].sort(); });
+      map[key] = { item: d.item, satuan: d.satuan, totalQty: Math.round(pasarQty*100)/100, harga: d.harga, qtyCikopo: 0, qtySupplier: 0, qtyKarawang: 0, stokGudang: Math.max(0,stok), totalDemand: demand, dateShifts: dsSer };
     });
 
     // 4. Preserve existing Cikopo + Supplier assignments
@@ -256,6 +266,58 @@ window.POBelanjaPasarModule = (() => {
       m.qtyKarawang = Math.round((m.totalQty - (m.qtyCikopo||0) - (m.qtySupplier||0)) * 100) / 100;
     });
     _doc.items = merged;
+  }
+
+  // Format dateShifts → string compact untuk display di sel ITEM.
+  // Contoh: { '2026-06-01': ['S1','S2','S3'], '2026-06-02': ['S1','S2','S3'], '2026-06-03': ['S1','S2','S3'] }
+  //         → "Tgl 1-3 · S1-3"      (semua tanggal sama shift, dan shift continuous)
+  //         → "Tgl 1: S1,S2 · Tgl 2: S2"  (shift beda per tanggal)
+  function _fmtDateShifts(ds) {
+    if (!ds || typeof ds !== 'object') return '';
+    const entries = Object.entries(ds);
+    if (!entries.length) return '';
+
+    // Helper: kelompokkan angka konsekutif jadi range. [1,2,3,5,6,8] → "1-3,5-6,8"
+    const _range = (nums) => {
+      const sorted = [...new Set(nums)].sort((a,b)=>a-b);
+      if (!sorted.length) return '';
+      const out = [];
+      let start = sorted[0], prev = sorted[0];
+      for (let i = 1; i <= sorted.length; i++) {
+        if (i < sorted.length && sorted[i] === prev + 1) { prev = sorted[i]; continue; }
+        out.push(start === prev ? String(start) : `${start}-${prev}`);
+        if (i < sorted.length) { start = sorted[i]; prev = sorted[i]; }
+      }
+      return out.join(',');
+    };
+
+    // Ambil hari (tanggal) dari ISO date
+    const _day = (t) => { const d = new Date(t); return isNaN(d) ? 0 : d.getDate(); };
+    // Format shift list: ['S1','S2','S3'] → "S1-3", ['S1','S3'] → "S1,S3"
+    const _fmtShifts = (arr) => {
+      const nums = arr.map(s => parseInt(String(s).replace(/\D/g,'')) || 0).filter(n => n > 0).sort((a,b)=>a-b);
+      if (!nums.length) return '';
+      // Continuous → S1-3, scattered → S1,S3
+      let contiguous = true;
+      for (let i = 1; i < nums.length; i++) if (nums[i] !== nums[i-1] + 1) { contiguous = false; break; }
+      if (contiguous && nums.length > 1) return `S${nums[0]}-${nums[nums.length-1]}`;
+      return nums.map(n => 'S' + n).join(',');
+    };
+
+    // Cek apakah semua tanggal punya shift set yang SAMA → format ringkas
+    const days = entries.map(([t]) => _day(t)).filter(d => d > 0);
+    const uniqueShiftSets = new Set(entries.map(([,s]) => [...s].sort().join('|')));
+    if (uniqueShiftSets.size === 1) {
+      const sh = _fmtShifts(entries[0][1]);
+      return `Tgl ${_range(days)} · ${sh}`;
+    }
+    // Per-tanggal breakdown (sort by day)
+    return entries
+      .map(([t, s]) => ({ day: _day(t), shifts: _fmtShifts(s) }))
+      .filter(x => x.day > 0)
+      .sort((a,b) => a.day - b.day)
+      .map(x => `Tgl ${x.day}: ${x.shifts}`)
+      .join(' · ');
   }
 
   /* ── Step 3: Form Belanja Pasar (pembagian lokasi) ── */
@@ -293,6 +355,8 @@ window.POBelanjaPasarModule = (() => {
         #bp-table .bp-item-name.is-overflow::-webkit-scrollbar{height:4px}
         #bp-table .bp-item-name.is-overflow::-webkit-scrollbar-thumb{background:var(--text-3);border-radius:2px}
         #bp-table .bp-item-name.is-overflow::-webkit-scrollbar-track{background:transparent}
+        /* Sub-line di bawah nama: keterangan tanggal & shift (compact, italic) */
+        #bp-table .bp-item-sub{font-size:10px;color:var(--text-3);margin-top:2px;font-weight:400;letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         /* Sticky thead — background SOLID supaya row di bawah tidak tembus saat scroll.
            Untuk th yang punya tint rgba (CIKOPO/SUPPLIER/KARAWANG/BELI QTY), tint
            dilayer di atas base solid via linear-gradient. */
@@ -329,7 +393,10 @@ window.POBelanjaPasarModule = (() => {
             const bg = i%2 ? 'background:rgba(0,0,0,.012)' : '';
             return `<tr style="border-bottom:1px solid var(--border);${bg}">
               <td style="padding:12px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
-              <td class="bp-item-cell" title="${(it.item||'').replace(/"/g,'&quot;')}"><div class="bp-item-name">${it.item}</div></td>
+              <td class="bp-item-cell" title="${(it.item||'').replace(/"/g,'&quot;')}${(()=>{const d=_fmtDateShifts(it.dateShifts);return d?'&#10;Kebutuhan: '+d.replace(/"/g,'&quot;'):'';})()}">
+                <div class="bp-item-name">${it.item}</div>
+                ${(()=>{const d=_fmtDateShifts(it.dateShifts);return d?`<div class="bp-item-sub">📅 ${d}</div>`:'';})()}
+              </td>
               <td style="padding:12px 6px;text-align:right;font-family:var(--font-mono);color:${(it.stokGudang||0)>0?'#10b981':'var(--text-3)'};font-weight:600">${_n2(it.stokGudang||0)}</td>
               <td style="padding:12px 6px;text-align:right;font-family:var(--font-mono);color:#6366f1">${_n2(it.totalDemand||0)}</td>
               <td style="padding:8px 4px;text-align:right;background:rgba(0,0,0,.02)">
