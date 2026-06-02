@@ -612,7 +612,10 @@ window.POBelanjaPasarModule = (() => {
         // Only include items that are in the merged pasar list
         const merged = (_doc.items||[]).find(m => m.item.toLowerCase().trim() === fi.item.toLowerCase().trim());
         if (!merged || !merged.totalQty) return;
-        const derivedKarawang = Math.max(0, merged.totalQty - (merged.qtyCikopo||0));
+        // BUG FIX: derivedKarawang harus kurangi BOTH qtyCikopo + qtySupplier.
+        // Sebelumnya cuma kurangi Cikopo → item yang 100% ke Supplier malah
+        // ikut dihitung masuk Karawang.
+        const derivedKarawang = Math.max(0, merged.totalQty - (merged.qtyCikopo||0) - (merged.qtySupplier||0));
         const ratioK = merged.totalQty > 0 ? derivedKarawang / merged.totalQty : 0;
         const qK = Math.round(estQ * ratioK * 100) / 100;
         if (qK > 0) karawang.push({ item: fi.item, qty: qK, satuan: fi.satuan||merged.satuan||'', harga: merged.harga||Number(fi.hargaSatuan)||0 });
