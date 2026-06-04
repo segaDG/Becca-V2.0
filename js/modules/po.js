@@ -81,19 +81,20 @@ else { window.POModule = (() => {
         </div>
       </div>
       <div class="tabs" style="margin-bottom:var(--s4)">
-        <button class="tab-btn active" onclick="POModule.switchTab('active')">Anggaran</button>
+        <button class="tab-btn active" onclick="POModule.switchTab('belanja-pasar')">Belanja Pasar</button>
+        <button class="tab-btn" onclick="POModule.switchTab('active')">Anggaran</button>
         <button class="tab-btn" onclick="POModule.switchTab('arsip')">Arsip</button>
-        <button class="tab-btn" onclick="POModule.switchTab('belanja-pasar')">Belanja Pasar</button>
       </div>
       <div id="po-content"></div>`;
-    _renderList('active');
+    // Default landing tab: Belanja Pasar (paling sering dipakai operator harian)
+    _loadBelanjaPasar();
   }
 
   function switchTab(tab) {
     // Auto-save belanja pasar when switching away
     if (typeof POBelanjaPasarModule !== 'undefined') POBelanjaPasarModule.autoSave?.();
     document.querySelectorAll('.tabs .tab-btn').forEach((b,i) => {
-      b.classList.toggle('active', (i===0&&tab==='active')||(i===1&&tab==='arsip')||(i===2&&tab==='belanja-pasar'));
+      b.classList.toggle('active', (i===0&&tab==='belanja-pasar')||(i===1&&tab==='active')||(i===2&&tab==='arsip'));
     });
     if (tab === 'belanja-pasar') { _loadBelanjaPasar(); return; }
     _renderList(tab);
