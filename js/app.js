@@ -6,7 +6,7 @@ const App = {
   // Global cache buster — bump SEKALI saat deploy, applies ke semua modul lazy-load.
   // index.html eager scripts (utils, db, ui/*, dll) tetap per-file karena
   // HTML loads dulu sebelum JS constant ini bisa diakses.
-  BUILD_VERSION: '20260604a',
+  BUILD_VERSION: '20260604b',
   _currentPage: 'dashboard',
   _loadedModules: new Set(),
 
