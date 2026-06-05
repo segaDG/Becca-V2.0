@@ -2989,37 +2989,122 @@ const KasModule = (() => {
     if (!docs.length) { el.innerHTML = ''; return; }
 
     const isAdmin = Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'admin';
-    const cards = docs.map(d => {
-      const isConfirmed = d.kasStatus === 'confirmed';
-      const itemCount = (d.kasItems||d.items||[]).filter(it=>it.item||it.totalQty).length;
-      const statusColor = isConfirmed ? '#10b981' : '#f59e0b';
-      const statusText = isConfirmed ? 'Terkonfirmasi' : 'Belum Konfirmasi';
-      const statusBg = isConfirmed ? 'rgba(16,185,129,.1)' : 'rgba(245,158,11,.1)';
-      return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;
-        border:1px solid ${isConfirmed?'rgba(16,185,129,.3)':'rgba(245,158,11,.3)'};
-        border-radius:8px;background:${statusBg};min-width:90px;position:relative;cursor:pointer;transition:.15s"
-        onclick="KasModule.openBPDetail('${d.id}')"
+
+    // Pisah jadi 1 card per destinasi (cikopo / karawang per tanggal+shift / supplier)
+    // Status confirm per-dest tersimpan di doc.confirmedDests array.
+    const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+    const _fmtShort = (ymd) => { const d=new Date(ymd); return isNaN(d)?ymd:`${d.getDate()} ${months[d.getMonth()]}`; };
+    const _destColor = (dest) => {
+      if (dest==='cikopo') return { c:'#059669', bg:'rgba(5,150,105,.08)', bd:'rgba(5,150,105,.3)' };
+      if (dest==='supplier') return { c:'#d97706', bg:'rgba(245,158,11,.08)', bd:'rgba(245,158,11,.3)' };
+      if (dest && dest.startsWith('karawang')) return { c:'#6366f1', bg:'rgba(99,102,241,.08)', bd:'rgba(99,102,241,.3)' };
+      return { c:'#f59e0b', bg:'rgba(245,158,11,.1)', bd:'rgba(245,158,11,.3)' };
+    };
+    const _destShortLabel = (dest) => {
+      if (dest==='cikopo') return 'Cikopo';
+      if (dest==='supplier') return 'Supplier';
+      if (dest==='karawang') return 'PS Karawang';
+      if (dest && dest.startsWith('karawang|')) {
+        const [, tgl, shift] = dest.split('|');
+        return `Karawang ${_fmtShort(tgl)} ${shift}`;
+      }
+      return dest || '';
+    };
+
+    // Build flat list { doc, dest, label, items, isConfirmed }
+    const allCards = [];
+    docs.forEach(d => {
+      const confirmedDests = Array.isArray(d.confirmedDests) ? d.confirmedDests : [];
+      const globalConfirmed = d.kasStatus === 'confirmed';
+      // Kalau kasItems sudah per-dest
+      const ki = d.kasItems || [];
+      const hasPerDest = ki.some(it => !!it.dest);
+      const buckets = {};
+      if (hasPerDest) {
+        ki.forEach(it => {
+          if (!it.item) return;
+          const k = it.dest || 'other';
+          if (!buckets[k]) buckets[k] = { dest: k, count: 0 };
+          buckets[k].count++;
+        });
+      } else {
+        // Belum punya kasItems → derive dari doc.items
+        (d.items||[]).forEach(it => {
+          if (!it.item) return;
+          if ((it.qtyCikopo||0) > 0) { buckets.cikopo = buckets.cikopo || { dest:'cikopo', count:0 }; buckets.cikopo.count++; }
+          if ((it.qtySupplier||0) > 0) { buckets.supplier = buckets.supplier || { dest:'supplier', count:0 }; buckets.supplier.count++; }
+        });
+        // Karawang per shift dari perShiftKarawang kalau ada
+        const ps = d.perShiftKarawang || {};
+        Object.entries(ps).forEach(([k, list]) => {
+          if (!Array.isArray(list) || !list.length) return;
+          const [tgl, shift] = k.split('_');
+          const destKey = `karawang|${tgl}|${shift}`;
+          buckets[destKey] = { dest: destKey, count: list.length };
+        });
+        // Fallback karawang kalau ps kosong tapi ada qtyKarawang
+        if (!Object.keys(ps).length) {
+          (d.items||[]).forEach(it => {
+            const qK = (it.totalQty||0) - (it.qtyCikopo||0) - (it.qtySupplier||0);
+            if (qK > 0) { buckets.karawang = buckets.karawang || { dest:'karawang', count:0 }; buckets.karawang.count++; }
+          });
+        }
+      }
+      // Sort: cikopo → karawang* → supplier
+      const order = (k) => k==='cikopo' ? 0 : k.startsWith('karawang') ? 1 : k==='supplier' ? 2 : 3;
+      const sortedKeys = Object.keys(buckets).sort((a,b) => order(a)-order(b) || a.localeCompare(b));
+      sortedKeys.forEach(k => {
+        const b = buckets[k];
+        allCards.push({
+          doc: d,
+          dest: b.dest,
+          count: b.count,
+          isConfirmed: globalConfirmed || confirmedDests.includes(b.dest),
+        });
+      });
+    });
+
+    const cards = allCards.map(card => {
+      const d = card.doc;
+      const col = _destColor(card.dest);
+      const statusText = card.isConfirmed ? 'Terkonfirmasi' : 'Belum Konfirmasi';
+      const statusColor = card.isConfirmed ? '#10b981' : col.c;
+      const bg = card.isConfirmed ? 'rgba(16,185,129,.08)' : col.bg;
+      const bd = card.isConfirmed ? 'rgba(16,185,129,.3)' : col.bd;
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 11px;
+        border:1px solid ${bd};border-radius:8px;background:${bg};min-width:110px;position:relative;cursor:pointer;transition:.15s"
+        onclick="KasModule.openBPDetail('${d.id}','${card.dest.replace(/'/g,"\\'")}')"
         onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
-        <span style="font-size:9px;font-weight:700;color:var(--text-3)">🛒 ${d.periode||'-'}</span>
+        <span style="font-size:9px;font-weight:700;color:${col.c}">🛒 ${_destShortLabel(card.dest)}</span>
+        <span style="font-size:8px;color:var(--text-3)">${d.periode||'-'}</span>
         <span style="font-size:9px;font-weight:700;color:${statusColor}">${statusText}</span>
-        <span style="font-size:8px;color:var(--text-3)">${itemCount} items</span>
-        ${isAdmin ? `<button onclick="event.stopPropagation();KasModule.deleteBPKas('${d.id}')" title="Hapus"
-          style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:99px;border:none;background:#ef4444;color:#fff;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700">×</button>` : ''}
+        <span style="font-size:8px;color:var(--text-3)">${card.count} items</span>
       </div>`;
     }).join('');
 
-    const pendingCount = docs.filter(d => d.kasStatus !== 'confirmed').length;
+    // Delete button per doc (one for the whole period)
+    const docManageRow = isAdmin ? docs.map(d => {
+      const allDestsForDoc = allCards.filter(c => c.doc.id === d.id).length;
+      if (!allDestsForDoc) return '';
+      return `<button onclick="KasModule.deleteBPKas('${d.id}')" title="Hapus semua belanja pasar periode ini"
+        style="font-size:9px;padding:3px 8px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.06);color:#ef4444;border-radius:5px;cursor:pointer;font-weight:600">
+        ✕ ${d.periode||'-'}
+      </button>`;
+    }).join('') : '';
+
+    const pendingCount = allCards.filter(c => !c.isConfirmed).length;
     el.innerHTML = `
       <div style="background:var(--surface);border:1px solid rgba(8,145,178,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#0891b2;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#0891b2;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           🛒 Belanja Pasar
           ${pendingCount>0?`<span style="background:#f59e0b;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700">${pendingCount} belum konfirmasi</span>`:''}
+          ${isAdmin && docManageRow ? `<span style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap">${docManageRow}</span>` : ''}
         </div>
         <div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px">${cards}</div>
       </div>`;
   }
 
-  async function openBPDetail(docId) {
+  async function openBPDetail(docId, focusDest) {
     const doc = _bpDocs.find(d => d.id === docId);
     if (!doc) return;
     const isConfirmed = doc.kasStatus === 'confirmed';
@@ -3125,7 +3210,7 @@ const KasModule = (() => {
       const c = groupColors(key);
       const sectionSubtotal = group.items.reduce((s,it) => s + (Number(it.aktQty)||0)*(Number(it.aktHarga)||0), 0);
       return `
-        <div style="margin-bottom:14px;border:1px solid ${c.border};border-radius:8px;overflow:hidden">
+        <div id="bp-kas-section-${doc.id}-${key.replace(/[|]/g,'_')}" style="margin-bottom:14px;border:1px solid ${c.border};border-radius:8px;overflow:hidden;scroll-margin-top:8px">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:${c.bg};border-bottom:1px solid ${c.border}">
             <div style="font-size:12px;font-weight:700;color:${c.text}">📍 ${group.label}</div>
             <div style="font-size:11px;color:${c.text};font-weight:700;font-family:var(--font-mono)" id="bp-kas-sub-${doc.id}-${key.replace(/[|]/g,'_')}">${rp(sectionSubtotal)}</div>
@@ -3191,6 +3276,20 @@ const KasModule = (() => {
         </div>`,
       footer: isConfirmed ? '' : `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
         <button class="btn btn-primary" onclick="KasModule.confirmBelanjaPasar('${doc.id}')" style="background:#059669;border-color:#059669">Konfirmasi</button>`,
+      onOpen: () => {
+        if (focusDest) {
+          const key = String(focusDest).replace(/[|]/g,'_');
+          const el = document.getElementById(`bp-kas-section-${doc.id}-${key}`);
+          if (el) {
+            el.scrollIntoView({ behavior:'smooth', block:'start' });
+            // Highlight flash 1.4s
+            const orig = el.style.boxShadow;
+            el.style.transition = 'box-shadow .25s';
+            el.style.boxShadow = '0 0 0 3px rgba(99,102,241,.35)';
+            setTimeout(() => { el.style.boxShadow = orig; }, 1400);
+          }
+        }
+      },
     });
   }
 
