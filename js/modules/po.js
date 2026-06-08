@@ -450,9 +450,9 @@ else { window.POModule = (() => {
               const _ak = locked ? '' : '<td></td>';
               return `
             <tr style="border-top:2px solid var(--border);background:rgba(220,38,38,.06)">
-              <td colspan="6" style="padding:7px;text-align:right;font-size:11px;font-weight:700;color:#dc2626">Total Kebutuhan</td>
-              <td style="padding:7px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:#dc2626" id="po-f-kebutuhan">${rpA(itemsTotal)}</td>
-              <td style="padding:7px;text-align:right;font-size:10px;font-weight:700;color:#dc2626;${_rBg}"><span style="color:var(--text-3);font-weight:400">Total Alokasi</span> <span id="po-f-alokasi-total" style="font-family:var(--font-mono);font-size:12px">${rpA(alokasiTotal)}</span></td>
+              <td colspan="6" style="padding:6px;text-align:right;font-size:10px;font-weight:600;color:#dc2626">Total Kebutuhan</td>
+              <td style="padding:6px;text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:600;color:#dc2626" id="po-f-kebutuhan">${rpA(itemsTotal)}</td>
+              <td style="padding:6px;text-align:right;font-size:10px;font-weight:700;color:#dc2626;${_rBg}"><span style="color:var(--text-3);font-weight:400">Total Alokasi</span> <span id="po-f-alokasi-total" style="font-family:var(--font-mono);font-size:12px">${rpA(alokasiTotal)}</span></td>
               ${_ak}
             </tr>
             <tr style="background:var(--surface2)">
@@ -468,10 +468,10 @@ else { window.POModule = (() => {
               <td style="padding:6px;${_rBg}"></td>
               ${_ak}
             </tr>
-            <tr style="background:rgba(99,102,241,.05)">
-              <td colspan="6" style="padding:7px;text-align:right;font-size:11px;font-weight:700;color:#6366f1">Request Dana</td>
-              <td style="padding:7px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:#6366f1" id="po-f-request">${requestDana > 0 ? rpA(requestDana) : 'Rp 0 (surplus '+rp(Math.abs(requestDana))+')'}</td>
-              <td style="padding:7px;${_rBg};text-align:right;font-size:10px;color:var(--text-3)">Dana Diterima ${_inp('danaDiterima', danaDiterima)}</td>
+            <tr style="background:rgba(99,102,241,.08)">
+              <td colspan="6" style="padding:9px;text-align:right;font-size:13px;font-weight:800;color:#6366f1">Request Dana</td>
+              <td style="padding:9px;text-align:right;font-family:var(--font-mono);font-size:17px;font-weight:900;color:#6366f1;letter-spacing:.01em" id="po-f-request">${requestDana > 0 ? rpA(requestDana) : 'Rp 0 (surplus '+rp(Math.abs(requestDana))+')'}</td>
+              <td style="padding:9px;${_rBg};text-align:right;font-size:10px;color:var(--text-3)">Dana Diterima ${_inp('danaDiterima', danaDiterima)}</td>
               ${_ak}
             </tr>
             <tr style="background:var(--surface2)"><td colspan="6"></td>
@@ -1237,9 +1237,9 @@ else { window.POModule = (() => {
         <th style="padding:6px;font-size:9px;text-align:right;width:100px;background:rgba(255,255,255,.1)">Alokasi Dana Real</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
-        <tr style="background:#fef2f2;font-weight:700"><td colspan="4"></td><td style="padding:6px;text-align:right;color:#dc2626">Total Kebutuhan</td><td style="padding:6px;text-align:right;font-size:12px;color:#dc2626">${rpP(itemsTotal)}</td><td style="padding:6px;text-align:right;font-size:11px;color:#dc2626;background:rgba(244,63,94,.06)">${hasReal?'<span style="font-weight:400;color:#999">Total Alokasi</span> '+rpP(alokasiTotal):''}</td></tr>
+        <tr style="background:#fef2f2"><td colspan="4"></td><td style="padding:5px;text-align:right;font-size:10px;font-weight:600;color:#dc2626">Total Kebutuhan</td><td style="padding:5px;text-align:right;font-size:10px;font-weight:600;color:#dc2626">${rpP(itemsTotal)}</td><td style="padding:5px;text-align:right;font-size:10px;color:#dc2626;background:rgba(244,63,94,.06)">${hasReal?'<span style="font-weight:400;color:#999">Total Alokasi</span> '+rpP(alokasiTotal):''}</td></tr>
         <tr><td colspan="4"></td><td style="padding:4px 6px;text-align:right;font-size:10px;color:#666">Sisa Periode Sebelumnya</td><td style="padding:4px 6px;text-align:right;font-size:10px;color:#10b981;font-weight:600">${rpP(sisaPeriode)}</td><td style="background:rgba(244,63,94,.06)"></td></tr>
-        <tr style="background:#eef2ff"><td colspan="4"></td><td style="padding:5px 6px;text-align:right;font-size:10px;font-weight:700;color:#4f46e5">Request Dana</td><td style="padding:5px 6px;text-align:right;font-size:11px;font-weight:700;color:#4f46e5">${requestDana>0?rpP(requestDana):'0,- (surplus)'}</td><td style="padding:5px 6px;text-align:right;font-size:10px;color:#666;background:rgba(244,63,94,.06)">${hasReal?'<span style="color:#999">Dana Diterima</span> '+rpP(danaDiterima):''}</td></tr>
+        <tr style="background:#eef2ff"><td colspan="4"></td><td style="padding:8px 6px;text-align:right;font-size:13px;font-weight:800;color:#4f46e5">Request Dana</td><td style="padding:8px 6px;text-align:right;font-size:17px;font-weight:900;color:#4f46e5;letter-spacing:.01em">${requestDana>0?rpP(requestDana):'0,- (surplus)'}</td><td style="padding:8px 6px;text-align:right;font-size:10px;color:#666;background:rgba(244,63,94,.06)">${hasReal?'<span style="color:#999">Dana Diterima</span> '+rpP(danaDiterima):''}</td></tr>
         <tr><td colspan="5"></td><td style="padding:3px 6px;text-align:right;font-size:10px">Cash ${rpP(doc.cash||0)}</td><td style="padding:3px 6px;text-align:right;font-size:10px;background:rgba(244,63,94,.06)">${hasReal?'<span style="color:#999">Cash</span> '+rpP(cashReal):''}</td></tr>
         <tr><td colspan="5"></td><td style="padding:3px 6px;text-align:right;font-size:10px">ATM. ${rpP(doc.atm||0)}</td><td style="padding:3px 6px;text-align:right;font-size:10px;background:rgba(244,63,94,.06)">${hasReal?'<span style="color:#999">ATM</span> '+rpP(atmReal):''}</td></tr>
         <tr><td colspan="5"></td><td style="padding:3px 6px;text-align:right;font-size:10px;color:#666">Total Dana ${rpP(totalDana)}</td><td style="padding:3px 6px;text-align:right;font-size:10px;color:#666;font-weight:600;background:rgba(244,63,94,.06)">${hasReal?'<span style="color:#999;font-weight:400">Total Cash+ATM</span> '+rpP(totalDanaReal):''}</td></tr>
