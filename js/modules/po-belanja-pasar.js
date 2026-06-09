@@ -218,11 +218,7 @@ window.POBelanjaPasarModule = (() => {
       if (!f || !f.items) return;
       f.items.forEach(it => {
         if (!it.item) return;
-        // Fallback ke aktQty kalau estQty kosong/0 — beberapa form hanya diisi
-        // aktQty (qty aktual setelah produksi) tanpa estimasi awal. Sebelumnya
-        // item-item itu ke-skip dari Belanja Pasar (mis. cabe rawit merah,
-        // cabai hijau tw) padahal aktual mereka dipakai.
-        const estQ = Number(it.estQty) || Number(it.aktQty) || 0;
+        const estQ = Number(it.estQty) || 0;
         if (estQ <= 0) return;
         const key = it.item.toLowerCase().trim();
         const _pH = v => { const s = String(v||0).replace(/[Rp\s]/g,''); return /^\d+\.\d{3}/.test(s) ? Number(s.replace(/\./g,'')) : Number(s.replace(/,/g,'.'))||0; };
@@ -246,24 +242,29 @@ window.POBelanjaPasarModule = (() => {
       const stok = stockMap[key] || 0;
       const demand = d.totalDemand;
       let pasarQty = 0;
-      if (stok <= 0)       pasarQty = demand;        // PASAR: no stock at all
-      else if (stok < demand) pasarQty = demand - stok; // PARTIAL: buy the shortage
-      // else: STOK — don't add to belanja pasar
-      if (pasarQty <= 0) return;
+      let sumber;
+      if (stok <= 0)            { pasarQty = demand; sumber = 'PASAR'; }
+      else if (stok < demand)   { pasarQty = demand - stok; sumber = 'PARTIAL'; }
+      else                       { pasarQty = 0; sumber = 'STOK'; } // ikut masuk tabel dengan qty 0
       // Serialisasi dateShifts (Set tidak bisa JSON) jadi { '2026-06-01': ['S1','S2'] }
       const dsSer = {};
       Object.entries(d.dateShifts || {}).forEach(([t, s]) => { dsSer[t] = [...s].sort(); });
-      map[key] = { item: d.item, satuan: d.satuan, totalQty: Math.round(pasarQty*100)/100, harga: d.harga, qtyCikopo: 0, qtySupplier: 0, qtyKarawang: 0, stokGudang: Math.max(0,stok), totalDemand: demand, dateShifts: dsSer };
+      map[key] = { item: d.item, satuan: d.satuan, totalQty: Math.round(pasarQty*100)/100, harga: d.harga, qtyCikopo: 0, qtySupplier: 0, qtyKarawang: 0, stokGudang: Math.max(0,stok), totalDemand: demand, dateShifts: dsSer, sumber };
     });
 
-    // 4. Preserve existing Cikopo + Supplier assignments
+    // 4. Preserve existing Cikopo + Supplier assignments + user-input BELI QTY (terutama STOK rows)
     const oldItems = _doc.items || [];
     const merged = Object.values(map).sort((a,b) => a.item.localeCompare(b.item));
     merged.forEach(m => {
       const old = oldItems.find(o => o.item.toLowerCase().trim() === m.item.toLowerCase().trim());
       if (old) {
+        // Untuk STOK rows: preserve totalQty (BELI QTY) yang user input manual.
+        // Untuk PASAR/PARTIAL: jaga totalQty kalau user pernah edit ke > demand
+        // (admin boleh beli > kebutuhan untuk stok).
+        if (m.sumber === 'STOK' && (old.totalQty||0) > 0) m.totalQty = old.totalQty;
+        else if ((m.sumber === 'PASAR' || m.sumber === 'PARTIAL') && (old.totalQty||0) > m.totalQty) m.totalQty = old.totalQty;
         m.qtyCikopo   = Math.min(old.qtyCikopo   || 0, m.totalQty);
-        m.qtySupplier = Math.min(old.qtySupplier || 0, m.totalQty - m.qtyCikopo);
+        m.qtySupplier = Math.min(old.qtySupplier || 0, Math.max(0, m.totalQty - m.qtyCikopo));
         // preserve import status supaya tidak duplikat saat re-compute
         m.supplierImportedTo = old.supplierImportedTo || null;
       }
@@ -367,6 +368,11 @@ window.POBelanjaPasarModule = (() => {
         #bp-table .bp-item-name.is-overflow::-webkit-scrollbar-track{background:transparent}
         /* Sub-line di bawah nama: keterangan tanggal & shift (compact, italic) */
         #bp-table .bp-item-sub{font-size:10px;color:var(--text-3);margin-top:2px;font-weight:400;letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        /* Row STOK: dim + abu sampai user input BELI QTY > 0 */
+        #bp-table tr.bp-row-stok{opacity:.7}
+        #bp-table tr.bp-row-stok td{color:var(--text-3)}
+        #bp-table tr.bp-row-stok input[type="number"]{background:rgba(100,116,139,.06)}
+        #bp-table .bp-badge-stok{display:inline-block;font-size:9px;font-weight:700;color:#10b981;background:rgba(16,185,129,.12);padding:1px 5px;border-radius:9px;margin-left:6px;letter-spacing:.04em}
         /* Sticky thead — background SOLID supaya row di bawah tidak tembus saat scroll.
            Untuk th yang punya tint rgba (CIKOPO/SUPPLIER/KARAWANG/BELI QTY), tint
            dilayer di atas base solid via linear-gradient. */
@@ -400,11 +406,16 @@ window.POBelanjaPasarModule = (() => {
           <tbody>${items.map((it,i) => {
             const sisa = Math.round((it.totalQty - (it.qtyCikopo||0) - (it.qtySupplier||0)) * 100) / 100;
             const total = it.totalQty * (it.harga||0);
-            const bg = i%2 ? 'background:rgba(0,0,0,.012)' : '';
-            return `<tr style="border-bottom:1px solid var(--border);${bg}">
+            // Row STOK (stok cukup) → abu-abu, dim, sampai user input BELI QTY > 0.
+            // Saat user input > 0 → kembali normal (controlled via inline check totalQty > 0).
+            const isStok = it.sumber === 'STOK' && (Number(it.totalQty)||0) <= 0;
+            const bg = isStok
+              ? 'background:rgba(100,116,139,.06);color:var(--text-3)'
+              : (i%2 ? 'background:rgba(0,0,0,.012)' : '');
+            return `<tr data-row-idx="${i}" class="${isStok?'bp-row-stok':''}" style="border-bottom:1px solid var(--border);${bg}">
               <td style="padding:12px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
-              <td class="bp-item-cell" title="${(it.item||'').replace(/"/g,'&quot;')}${(()=>{const d=_fmtDateShifts(it.dateShifts);return d?'&#10;Kebutuhan: '+d.replace(/"/g,'&quot;'):'';})()}">
-                <div class="bp-item-name">${it.item}</div>
+              <td class="bp-item-cell" title="${(it.item||'').replace(/"/g,'&quot;')}${isStok?' — STOK CUKUP':''}${(()=>{const d=_fmtDateShifts(it.dateShifts);return d?'&#10;Kebutuhan: '+d.replace(/"/g,'&quot;'):'';})()}">
+                <div class="bp-item-name">${it.item}${isStok?'<span class="bp-badge-stok" title="Stok gudang cukup — opsional beli untuk tambah stok">STOK</span>':''}</div>
                 ${(()=>{const d=_fmtDateShifts(it.dateShifts);return d?`<div class="bp-item-sub">📅 ${d}</div>`:'';})()}
               </td>
               <td style="padding:12px 6px;text-align:right;font-family:var(--font-mono);color:${(it.stokGudang||0)>0?'#10b981':'var(--text-3)'};font-weight:600">${_n2(it.stokGudang||0)}</td>
@@ -503,6 +514,12 @@ window.POBelanjaPasarModule = (() => {
     it.qtyKarawang = Math.round((it.totalQty - (it.qtyCikopo || 0) - (it.qtySupplier || 0)) * 100) / 100;
     // Reset import status (item belum di-import ulang ke anggaran)
     if (it.supplierImportedTo) it.supplierImportedTo = null;
+    // Update class STOK row sesuai BELI QTY: kalau item STOK + user input qty > 0,
+    // dim/badge dilepas. Kalau qty kembali ke 0, dim/badge muncul lagi.
+    if (it.sumber === 'STOK') {
+      const tr = document.querySelector(`#bp-table tr[data-row-idx="${idx}"]`);
+      if (tr) tr.classList.toggle('bp-row-stok', it.totalQty <= 0);
+    }
     _updateBpRow(idx);
   }
 
@@ -617,8 +634,7 @@ window.POBelanjaPasarModule = (() => {
       const karawang = [];
       f.items.forEach(fi => {
         if (!fi.item) return;
-        // Sama dengan demand: fallback estQty → aktQty
-        const estQ = Number(fi.estQty) || Number(fi.aktQty) || 0;
+        const estQ = Number(fi.estQty) || 0;
         if (estQ <= 0) return;
         // Only include items that are in the merged pasar list
         const merged = (_doc.items||[]).find(m => m.item.toLowerCase().trim() === fi.item.toLowerCase().trim());
