@@ -218,7 +218,11 @@ window.POBelanjaPasarModule = (() => {
       if (!f || !f.items) return;
       f.items.forEach(it => {
         if (!it.item) return;
-        const estQ = Number(it.estQty) || 0;
+        // Fallback ke aktQty kalau estQty kosong/0 — beberapa form hanya diisi
+        // aktQty (qty aktual setelah produksi) tanpa estimasi awal. Sebelumnya
+        // item-item itu ke-skip dari Belanja Pasar (mis. cabe rawit merah,
+        // cabai hijau tw) padahal aktual mereka dipakai.
+        const estQ = Number(it.estQty) || Number(it.aktQty) || 0;
         if (estQ <= 0) return;
         const key = it.item.toLowerCase().trim();
         const _pH = v => { const s = String(v||0).replace(/[Rp\s]/g,''); return /^\d+\.\d{3}/.test(s) ? Number(s.replace(/\./g,'')) : Number(s.replace(/,/g,'.'))||0; };
@@ -345,7 +349,13 @@ window.POBelanjaPasarModule = (() => {
       <div style="font-size:14px;font-weight:700;margin-bottom:8px;color:var(--text)">Form Belanja Pasar — Pembagian Lokasi</div>
 
       <style>
-        #bp-table{table-layout:fixed}
+        /* Desktop ≥769px: table-layout:fixed dengan ITEM auto-flex ngambil sisa lebar.
+           Mobile <768px: scroll horizontal — table min-width supaya ITEM tetap memadai. */
+        #bp-table{table-layout:fixed;min-width:760px}
+        @media (max-width:768px){
+          #bp-table{table-layout:auto;min-width:980px}
+          #bp-table .bp-item-cell{min-width:170px;max-width:240px}
+        }
         /* Item cell: default tidak ada scroll/scrollbar.
            Class .is-overflow ditambah via JS hanya kalau scrollWidth > clientWidth
            (nama benar-benar lebih panjang dari kolom). */
@@ -366,7 +376,7 @@ window.POBelanjaPasarModule = (() => {
         #bp-table thead th.th-tint-supplier{background:linear-gradient(rgba(245,158,11,.18),rgba(245,158,11,.18)),var(--thead-bg)}
         #bp-table thead th.th-tint-karawang{background:linear-gradient(rgba(99,102,241,.15),rgba(99,102,241,.15)),var(--thead-bg)}
       </style>
-      <div style="border:1px solid var(--border);border-radius:10px;overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 260px)">
+      <div style="border:1px solid var(--border);border-radius:10px;overflow:auto;-webkit-overflow-scrolling:touch;max-height:calc(100vh - 260px)">
         <table style="width:100%;border-collapse:collapse;font-size:12px" id="bp-table">
           <colgroup>
             <col style="width:28px"><col><!-- ITEM flex -->
@@ -607,7 +617,8 @@ window.POBelanjaPasarModule = (() => {
       const karawang = [];
       f.items.forEach(fi => {
         if (!fi.item) return;
-        const estQ = Number(fi.estQty) || 0;
+        // Sama dengan demand: fallback estQty → aktQty
+        const estQ = Number(fi.estQty) || Number(fi.aktQty) || 0;
         if (estQ <= 0) return;
         // Only include items that are in the merged pasar list
         const merged = (_doc.items||[]).find(m => m.item.toLowerCase().trim() === fi.item.toLowerCase().trim());
