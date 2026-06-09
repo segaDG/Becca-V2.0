@@ -41,16 +41,27 @@ window.POBelanjaPasarModule = (() => {
         : `<div style="display:grid;gap:10px">${_data.map(d => {
             const n = (d.items||[]).filter(it=>it.item).length;
             const isSelesai = d.status==='selesai';
-            return `<div style="background:var(--surface);border:1px solid ${isSelesai?'rgba(100,116,139,.25)':'var(--border)'};border-radius:10px;padding:12px 16px;cursor:pointer;transition:.15s;position:relative;overflow:hidden;${isSelesai?'background:rgba(100,116,139,.06)':''}"
+            // Deteksi duplikat: doc lain yang punya overlap selectedForms (formId sama).
+            // Tandai card supaya admin tahu mana yang bisa dihapus.
+            const myFids = new Set((d.selectedForms||[]).map(sf => sf.formId).filter(Boolean));
+            const hasDup = !isSelesai && _data.some(other =>
+              other.id !== d.id &&
+              (other.selectedForms||[]).some(sf => myFids.has(sf.formId))
+            );
+            return `<div style="background:var(--surface);border:1px solid ${hasDup?'rgba(239,68,68,.4)':(isSelesai?'rgba(100,116,139,.25)':'var(--border)')};border-radius:10px;padding:12px 16px;cursor:pointer;transition:.15s;position:relative;overflow:hidden;${isSelesai?'background:rgba(100,116,139,.06)':(hasDup?'background:rgba(239,68,68,.04)':'')}"
               onclick="POBelanjaPasarModule.openDoc('${d.id}')"
               onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
               ${isSelesai?'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-25deg);font-size:28px;font-weight:900;color:rgba(100,116,139,.1);pointer-events:none;letter-spacing:6px;font-style:italic">SELESAI</div>':''}
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;position:relative;z-index:1">
-                <div style="display:flex;align-items:center;gap:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;position:relative;z-index:1;gap:8px">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <span style="font-size:12px;font-weight:700;color:#059669">🛒 ${d.periode||'-'}</span>
                   ${isSelesai?'<span style="font-size:9px;background:rgba(100,116,139,.15);color:#64748b;padding:1px 6px;border-radius:10px;font-weight:700">Selesai</span>':''}
+                  ${hasDup?'<span style="font-size:9px;background:rgba(239,68,68,.12);color:#dc2626;padding:1px 6px;border-radius:10px;font-weight:700" title="Form ini overlap dengan dokumen lain — pertimbangkan hapus salah satu">⚠ DUPLIKAT</span>':''}
                 </div>
-                <span style="font-size:11px;color:var(--text-3)">Oleh: ${d.namaPetugas||'-'}</span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:11px;color:var(--text-3)">Oleh: ${d.namaPetugas||'-'}</span>
+                  ${canEdit && !isSelesai ? `<button onclick="event.stopPropagation();POBelanjaPasarModule._deleteFromList('${d.id}')" title="Hapus form ini" style="background:transparent;border:none;cursor:pointer;font-size:14px;line-height:1;padding:2px 6px;border-radius:4px;color:#ef4444">✕</button>` : ''}
+                </div>
               </div>
               <div style="display:flex;gap:14px;font-size:12px;color:var(--text-2);position:relative;z-index:1">
                 <span>${(d.dates||[]).length} hari</span>
@@ -59,6 +70,22 @@ window.POBelanjaPasarModule = (() => {
               </div>
             </div>`;
           }).join('')}</div>`}`;
+  }
+
+  // Hapus doc dari list (admin/edit) — konfirmasi modal.
+  async function _deleteFromList(id) {
+    const d = _data.find(x => x.id === id);
+    if (!d) return;
+    const ok = await Modal.confirm({
+      title: 'Hapus Form Belanja Pasar',
+      message: `Hapus <strong>${d.periode||'-'}</strong> (Items: ${(d.items||[]).filter(it=>it.item).length}, Forms: ${(d.selectedForms||[]).length})?<br><span style="font-size:11px;color:var(--text-3)">Form yang ter-pilih akan available kembali untuk dipakai.</span>`,
+      danger: true, confirmText: 'Hapus',
+    });
+    if (!ok) return;
+    try { await DB.deleteBelanjaPasar(id); } catch (e) { console.warn('delete BP:', e); }
+    _data = _data.filter(x => x.id !== id);
+    _renderList();
+    Notify.success('Form belanja pasar dihapus');
   }
 
   /* ── New ────────────────────────────────────── */
@@ -184,6 +211,22 @@ window.POBelanjaPasarModule = (() => {
       if (f) { selected.push({ formId: f.id, tanggal, shift }); dateSet.add(tanggal); }
     });
     if (!selected.length) { Notify.warning('Pilih minimal satu form'); return; }
+    // Cek overlap dengan dokumen lain (selain _doc saat ini) — jangan biarkan
+    // duplikat selectedForms. Race condition: realtime sync mungkin telat,
+    // jadi safety net di sini SEBELUM save.
+    const selectedFids = new Set(selected.map(s => s.formId));
+    const conflict = _data.find(d => d.id !== _doc?.id && (d.selectedForms||[]).some(sf => selectedFids.has(sf.formId)));
+    if (conflict) {
+      const ok = await Modal.confirm({
+        title: '⚠ Form sudah dipakai di dokumen lain',
+        message: `Sebagian form yang dipilih sudah ada di:<br><strong>🛒 ${conflict.periode||'-'}</strong> (oleh ${conflict.namaPetugas||'-'})<br><br>Klik <strong>Buka yang ada</strong> untuk lanjut edit dokumen tsb, atau <strong>Batal</strong> untuk pilih form lain.`,
+        confirmText: 'Buka yang ada', cancelText: 'Batal',
+      });
+      if (ok) {
+        _doc = conflict; _step = 3; _renderStep3();
+      }
+      return;
+    }
     const dates = [...dateSet].sort();
     _doc.selectedForms = selected;
     _doc.dates = dates;
@@ -874,6 +917,6 @@ window.POBelanjaPasarModule = (() => {
 
   return { init, newDoc, openDoc, backToList, autoSave,
     _onDateToggle, _toggleAll, _updateCount, _onPickDone,
-    _onCikopoChange, _onCikopoKey, _onSupplierChange, _onSupplierKey, _onBeliQtyChange,
+    _onCikopoChange, _onCikopoKey, _onSupplierChange, _onSupplierKey, _onBeliQtyChange, _deleteFromList,
     _goStep, _printCikopo, _printKarawang, _saveDoc, _deleteDoc, _selesaikan, _reopen };
 })();
