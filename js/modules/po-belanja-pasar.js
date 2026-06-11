@@ -702,13 +702,18 @@ window.POBelanjaPasarModule = (() => {
     const dates = _doc.dates || [];
     const cikopoTotal = cikopo.reduce((s,it) => s + it.qty * (it.harga||0), 0);
 
+    const locked = _doc.status === 'selesai';
     let html = `
       <div style="margin-bottom:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <button onclick="POBelanjaPasarModule._goStep(3)" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">← Pembagian Lokasi</button>
         <span style="font-size:12px;font-weight:700;color:#059669">🛒 ${_doc.periode}</span>
-        <div style="margin-left:auto;display:flex;gap:6px">
+        ${locked ? '<span style="font-size:10px;font-weight:700;color:#64748b;background:rgba(100,116,139,.12);padding:2px 8px;border-radius:10px">Selesai</span>' : ''}
+        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
           <button onclick="POBelanjaPasarModule._printCikopo()" style="padding:6px 12px;border:1px solid rgba(5,150,105,.4);border-radius:7px;background:rgba(5,150,105,.08);color:#059669;font-size:12px;cursor:pointer;font-weight:600">Print Cikopo</button>
           <button onclick="POBelanjaPasarModule._printKarawang()" style="padding:6px 12px;border:1px solid rgba(99,102,241,.4);border-radius:7px;background:rgba(99,102,241,.08);color:#6366f1;font-size:12px;cursor:pointer;font-weight:600">Print PS. Karawang</button>
+          ${!locked
+            ? `<button onclick="POBelanjaPasarModule._selesaikan()" style="padding:6px 12px;border:1px solid rgba(100,116,139,.4);border-radius:7px;background:rgba(100,116,139,.08);color:#64748b;font-size:12px;cursor:pointer;font-weight:600">Selesaikan</button>`
+            : `<button onclick="POBelanjaPasarModule._reopen()" style="padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer">Buka Kembali</button>`}
         </div>
       </div>
 
