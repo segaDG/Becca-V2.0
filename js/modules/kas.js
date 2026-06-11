@@ -3079,15 +3079,22 @@ const KasModule = (() => {
       const bg = card.isConfirmed ? 'rgba(16,185,129,.08)' : col.bg;
       const bd = card.isConfirmed ? 'rgba(16,185,129,.3)' : col.bd;
       const dCode = _destCode(card.dest, d);
-      return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 11px;
-        border:1px solid ${bd};border-radius:8px;background:${bg};min-width:115px;position:relative;cursor:pointer;transition:.15s"
+      const dotColor = card.isConfirmed ? '#10b981' : col.c;
+      // Layout simpel — 2 baris saja: header (label + kode mono tipis) + footer (status dot + items)
+      return `<div style="display:flex;flex-direction:column;gap:3px;padding:8px 12px;
+        border:1px solid ${bd};border-radius:8px;background:${bg};min-width:130px;position:relative;cursor:pointer;transition:.15s"
         onclick="KasModule.openBPDetail('${d.id}','${card.dest.replace(/'/g,"\\'")}')"
+        title="${_destStyle(card.dest).label} · ${d.periode||'-'}"
         onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
-        <span style="font-size:9px;font-weight:700;color:${col.c}">🛒 ${_destShortLabel(card.dest)}</span>
-        ${dCode ? `<span style="font-size:8px;color:${col.c};font-family:var(--font-mono);font-weight:600;opacity:.85">${dCode}</span>` : ''}
-        <span style="font-size:8px;color:var(--text-3)">${d.periode||'-'}</span>
-        <span style="font-size:9px;font-weight:700;color:${statusColor}">${statusText}</span>
-        <span style="font-size:8px;color:var(--text-3)">${card.count} items</span>
+        <div style="display:flex;align-items:baseline;gap:5px;line-height:1.2">
+          <span style="font-size:11px;font-weight:700;color:${col.c}">${_destShortLabel(card.dest)}</span>
+          ${dCode ? `<span style="font-size:9px;color:${col.c};opacity:.55;font-weight:400;font-family:var(--font-mono);letter-spacing:.01em">${dCode}</span>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-3)">
+          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
+          <span style="color:${statusColor};font-weight:600">${statusText}</span>
+          <span style="margin-left:auto">${card.count} item</span>
+        </div>
       </div>`;
     }).join('');
 
@@ -3377,11 +3384,27 @@ const KasModule = (() => {
     }
     return { label:'Pasar', fg:'#0891b2', bg:'rgba(8,145,178,.14)' };
   }
-  // Badge HTML untuk kas row — destLabel + kode unik kecil
+  // Derive kode unik dari bpDest + tgl kalau bpDestCode tidak tersimpan (kas
+  // rows lama yang sudah masuk sebelum field bpDestCode ada).
+  function _bpCodeFallback(r) {
+    if (r.bpDestCode) return r.bpDestCode;
+    if (!r.bpDest || !r.tgl) return '';
+    const yy = r.tgl.slice(2,4), mm = r.tgl.slice(5,7), dd = r.tgl.slice(8,10);
+    if (r.bpDest === 'cikopo')   return `PC${yy}${mm}${dd.replace(/^0/,'')}`;
+    if (r.bpDest === 'supplier') return `SP${yy}${mm}${dd.replace(/^0/,'')}`;
+    if (r.bpDest === 'karawang') return `PK${yy}${mm}${dd.replace(/^0/,'')}`;
+    if (r.bpDest.startsWith('karawang|')) {
+      const [, t, shift] = r.bpDest.split('|');
+      return `PK${t.slice(2,4)}${t.slice(5,7)}${t.slice(8,10)}${shift||''}`;
+    }
+    return '';
+  }
+  // Badge HTML untuk kas row — destLabel (medium) + kode unik (lebih tipis & kecil)
+  // Warna sesuai destinasi (hijau Cikopo / indigo Karawang / amber Supplier).
   function _bpBadge(r) {
     const s = _destStyle(r.bpDest);
-    const code = r.bpDestCode || '';
-    return `<span style="font-size:8px;background:${s.bg};color:${s.fg};padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:700;vertical-align:middle;display:inline-flex;align-items:center;gap:3px">${s.label}${code?`<span style="font-size:7px;opacity:.85;font-weight:600;letter-spacing:.02em">·${code}</span>`:''}</span>`;
+    const code = _bpCodeFallback(r);
+    return `<span style="font-size:9px;background:${s.bg};color:${s.fg};padding:2px 6px;border-radius:5px;margin-left:5px;font-weight:700;vertical-align:middle;display:inline-flex;align-items:center;gap:4px;line-height:1.3">${s.label}${code?`<span style="font-size:8px;opacity:.7;font-weight:500;letter-spacing:.02em;font-family:var(--font-mono)">${code}</span>`:''}</span>`;
   }
 
   function _fmtTglShortDay(ymd) {
