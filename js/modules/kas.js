@@ -3293,13 +3293,11 @@ const KasModule = (() => {
           ${sortedGroupKeys.map(k => _renderSection(k, groups[k])).join('') || '<div style="padding:24px;text-align:center;color:var(--text-3);font-size:12px">Belum ada item di belanja pasar ini</div>'}
         </div>`,
       footer: (() => {
-        // Confirmed states:
-        //  - Global doc.kasStatus === 'confirmed' → semua section confirmed
-        //  - Per-section: doc.confirmedDests includes focusDest
-        if (isConfirmed) return ''; // sudah confirm global
+        const isAdmin = Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'admin';
+        // Mode SINGLE SECTION (klik card spesifik)
         if (singleSection) {
+          // destConfirmed = section ini confirmed (per-section atau via global kasStatus)
           if (destConfirmed) {
-            const isAdmin = Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'admin';
             return `<span style="font-size:11px;color:#10b981;font-weight:700;margin-right:auto">✓ Section ini sudah dikonfirmasi</span>
               ${isAdmin ? `<button class="btn" onclick="KasModule.resetBPSection('${doc.id}','${String(focusDest).replace(/'/g,"\\'")}')" style="border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.05);color:#dc2626">↻ Reset Konfirmasi</button>` : ''}
               <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`;
@@ -3308,7 +3306,11 @@ const KasModule = (() => {
           return `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
             <button class="btn btn-primary" onclick="KasModule.confirmBPSection('${doc.id}','${String(focusDest).replace(/'/g,"\\'")}')" style="background:#059669;border-color:#059669">Konfirmasi ${Utils.esc(lbl)}</button>`;
         }
-        // Mode global (no focusDest) — backward compat
+        // Mode GLOBAL (no focusDest) — backward compat
+        if (isConfirmed) {
+          return `<span style="font-size:11px;color:#10b981;font-weight:700;margin-right:auto">✓ Sudah dikonfirmasi global oleh ${Utils.esc(doc.kasConfirmedBy||'-')}</span>
+            <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`;
+        }
         return `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
           <button class="btn btn-primary" onclick="KasModule.confirmBelanjaPasar('${doc.id}')" style="background:#059669;border-color:#059669">Konfirmasi Semua</button>`;
       })(),
@@ -3577,7 +3579,15 @@ const KasModule = (() => {
     const doc = _bpDocs.find(d => d.id === docId);
     if (!doc) return;
     const sLabel = _destStyle(dest).label;
-    const linkedKas = _kas.filter(r => r.bpDocId === docId && r.bpDest === dest);
+    // Cari kas rows untuk section ini. Untuk doc lama yang confirm global tapi
+    // kas rows tidak punya bpDest field, fallback by bpDocId + name match.
+    let linkedKas = _kas.filter(r => r.bpDocId === docId && r.bpDest === dest);
+    if (!linkedKas.length && doc.kasStatus === 'confirmed') {
+      // Kas rows mungkin ada tapi tanpa bpDest (legacy confirm). Match by item name
+      // yang ada di section ini.
+      const sectionNames = new Set((doc.kasItems||[]).filter(it => it.dest === dest).map(it => (it.item||'').toLowerCase().trim()));
+      linkedKas = _kas.filter(r => r.bpDocId === docId && !r.bpDest && sectionNames.has((r.nama||'').toLowerCase().trim()));
+    }
     const ok = await Modal.confirm({
       title: 'Reset Konfirmasi Section',
       message: `<p>Reset <strong>${Utils.esc(sLabel)}</strong> ke "Belum Konfirmasi"?</p>
@@ -3589,16 +3599,18 @@ const KasModule = (() => {
     for (const r of linkedKas) {
       try { await DB.deleteKas(r.id); _kas = _kas.filter(k => k.id !== r.id); } catch {}
     }
-    // Remove dari confirmedDests
-    doc.confirmedDests = (doc.confirmedDests||[]).filter(d => d !== dest);
-    // Reset global kasStatus kalau tidak semua confirmed lagi
+    // Migrate dari global-confirm ke per-section: kalau kasStatus='confirmed'
+    // tapi confirmedDests kosong, isi confirmedDests dengan SEMUA dest dulu,
+    // lalu remove yang di-reset. Hasil: dest yang di-reset jadi pending,
+    // sisanya tetap confirmed via array.
     const allDests = [...new Set((doc.kasItems||[]).map(it => it.dest).filter(Boolean))];
-    const allConfirmed = allDests.length && allDests.every(d => (doc.confirmedDests||[]).includes(d));
-    if (!allConfirmed) {
-      doc.kasStatus = null;
-      doc.kasConfirmedAt = null;
-      // Keep kasConfirmedBy as audit trail
+    if (doc.kasStatus === 'confirmed' && !(doc.confirmedDests||[]).length) {
+      doc.confirmedDests = [...allDests];
     }
+    doc.confirmedDests = (doc.confirmedDests||[]).filter(d => d !== dest);
+    // Reset global kasStatus karena ada section yang sekarang pending
+    doc.kasStatus = null;
+    doc.kasConfirmedAt = null;
     try { await DB.saveBelanjaPasar(doc); } catch {}
     if (window._bpKasMid) Modal.close(window._bpKasMid);
     Notify.success(`Reset ${sLabel} · ${linkedKas.length} baris kas dihapus`);
@@ -3616,23 +3628,33 @@ const KasModule = (() => {
     const doc = _bpDocs.find(d => d.id === docId);
     if (!doc) { console.warn('Doc not found'); return; }
     const allDests = [...new Set((doc.kasItems||[]).map(it => it.dest).filter(Boolean))];
+    // Migrate global-confirm → per-section dulu
+    if (doc.kasStatus === 'confirmed' && !(doc.confirmedDests||[]).length) {
+      doc.confirmedDests = [...allDests];
+    }
     const toReset = allDests.filter(d => !keepDests.includes(d));
     console.log('Will reset:', toReset);
+    let totalDeleted = 0;
     for (const d of toReset) {
-      const linkedKas = _kas.filter(r => r.bpDocId === docId && r.bpDest === d);
+      let linkedKas = _kas.filter(r => r.bpDocId === docId && r.bpDest === d);
+      // Fallback by item name kalau bpDest field belum di-set di kas row lama
+      if (!linkedKas.length) {
+        const sectionNames = new Set((doc.kasItems||[]).filter(it => it.dest === d).map(it => (it.item||'').toLowerCase().trim()));
+        linkedKas = _kas.filter(r => r.bpDocId === docId && !r.bpDest && sectionNames.has((r.nama||'').toLowerCase().trim()));
+      }
       for (const r of linkedKas) {
-        try { await DB.deleteKas(r.id); _kas = _kas.filter(k => k.id !== r.id); } catch {}
+        try { await DB.deleteKas(r.id); _kas = _kas.filter(k => k.id !== r.id); totalDeleted++; } catch {}
       }
       doc.confirmedDests = (doc.confirmedDests||[]).filter(x => x !== d);
       console.log(`Reset ${d} — ${linkedKas.length} kas rows deleted`);
     }
-    const stillConfirmed = (doc.confirmedDests||[]);
-    const allStillConfirmed = allDests.length && allDests.every(d => stillConfirmed.includes(d));
-    if (!allStillConfirmed) { doc.kasStatus = null; doc.kasConfirmedAt = null; }
+    // Reset global kasStatus krn ada section pending
+    doc.kasStatus = null;
+    doc.kasConfirmedAt = null;
     try { await DB.saveBelanjaPasar(doc); } catch {}
     _renderBPDashboard();
     renderTransaksi();
-    Notify.success(`Reset ${toReset.length} section`);
+    Notify.success(`Reset ${toReset.length} section · ${totalDeleted} kas dihapus`);
   }
 
   async function deleteBPKas(docId) {
