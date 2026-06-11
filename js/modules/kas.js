@@ -411,6 +411,13 @@ const KasModule = (() => {
       .ks-tbl td{border:1px solid var(--border);padding:0;height:32px;background:var(--surface);vertical-align:middle;}
       .ks-tbl td .ks-cell{display:flex;align-items:center;padding:0 8px;height:32px;cursor:cell;
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
+      /* Kolom NAMA / KETERANGAN — kalau nama panjang, cell-nya scrollable horizontal
+         (scrollbar tipis 4px, muncul hanya kalau overflow). Badge tidak ikut scroll. */
+      .ks-tbl td .ks-nama-cell{overflow:hidden;text-overflow:clip}
+      .ks-tbl td .ks-nama-cell .ks-nama-text{overflow-x:auto;overflow-y:hidden;display:inline-block;max-width:100%;vertical-align:middle;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+      .ks-tbl td .ks-nama-cell .ks-nama-text::-webkit-scrollbar{height:3px}
+      .ks-tbl td .ks-nama-cell .ks-nama-text::-webkit-scrollbar-thumb{background:var(--text-3);border-radius:2px}
+      .ks-tbl td .ks-nama-cell .ks-nama-text::-webkit-scrollbar-track{background:transparent}
       .ks-tbl td .ks-cell[title]{cursor:cell;}
       .ks-tbl tr.ks-view:hover td{background:rgba(99,102,241,.1);cursor:pointer;}
       .ks-tbl tr.ks-editing td{background:rgba(99,102,241,.08)!important;outline:2px solid var(--primary);outline-offset:-1px;box-shadow:inset 0 0 0 1px rgba(99,102,241,.15);}
@@ -663,7 +670,7 @@ const KasModule = (() => {
         </div>
       </td>
       <td data-field="ks-tgl-${r.id}" style="white-space:nowrap"><div class="ks-cell">${r.tgl ? r.tgl.split('-').reverse().join('-') : ''}</div></td>
-      <td data-field="ks-nama-${r.id}"><div class="ks-cell" ${r.nama?`title="${(r.nama||'').replace(/"/g,'&quot;')}${r.penerima?' → '+r.penerima:''}"`:''}>${r.nama||''}${isBP?'<span style="font-size:8px;background:rgba(8,145,178,.15);color:#0891b2;padding:1px 4px;border-radius:3px;margin-left:4px;font-weight:700;vertical-align:middle">PASAR</span>':''}${canEdit?_renderAnggaranBadge(r):''}</div></td>
+      <td data-field="ks-nama-${r.id}"><div class="ks-cell ks-nama-cell" ${r.nama?`title="${(r.nama||'').replace(/"/g,'&quot;')}${r.penerima?' → '+r.penerima:''}${r.bpDestCode?' ['+r.bpDestCode+']':''}"`:''}><span class="ks-nama-text">${r.nama||''}</span>${isBP?_bpBadge(r):''}${canEdit?_renderAnggaranBadge(r):''}</div></td>
       <td data-field="ks-type-${r.id}"><div class="ks-cell"><span class="badge badge-neutral" style="font-size:10px">${r.type||''}</span></div></td>
       <td data-field="ks-vendor-${r.id}"><div class="ks-cell" ${r.vendor?`title="${(r.vendor||'').replace(/"/g,'&quot;')}"`:''}>${r.vendor||''}</div></td>
       <td data-field="ks-qty-${r.id}" class="ks-num"><div class="ks-cell">${(r.qty||0)%1===0?(r.qty||0):parseFloat((r.qty||0).toFixed(2))}</div></td>
@@ -3071,11 +3078,13 @@ const KasModule = (() => {
       const statusColor = card.isConfirmed ? '#10b981' : col.c;
       const bg = card.isConfirmed ? 'rgba(16,185,129,.08)' : col.bg;
       const bd = card.isConfirmed ? 'rgba(16,185,129,.3)' : col.bd;
+      const dCode = _destCode(card.dest, d);
       return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 11px;
-        border:1px solid ${bd};border-radius:8px;background:${bg};min-width:110px;position:relative;cursor:pointer;transition:.15s"
+        border:1px solid ${bd};border-radius:8px;background:${bg};min-width:115px;position:relative;cursor:pointer;transition:.15s"
         onclick="KasModule.openBPDetail('${d.id}','${card.dest.replace(/'/g,"\\'")}')"
         onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
         <span style="font-size:9px;font-weight:700;color:${col.c}">🛒 ${_destShortLabel(card.dest)}</span>
+        ${dCode ? `<span style="font-size:8px;color:${col.c};font-family:var(--font-mono);font-weight:600;opacity:.85">${dCode}</span>` : ''}
         <span style="font-size:8px;color:var(--text-3)">${d.periode||'-'}</span>
         <span style="font-size:9px;font-weight:700;color:${statusColor}">${statusText}</span>
         <span style="font-size:8px;color:var(--text-3)">${card.count} items</span>
@@ -3290,7 +3299,9 @@ const KasModule = (() => {
         if (isConfirmed) return ''; // sudah confirm global
         if (singleSection) {
           if (destConfirmed) {
+            const isAdmin = Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'admin';
             return `<span style="font-size:11px;color:#10b981;font-weight:700;margin-right:auto">✓ Section ini sudah dikonfirmasi</span>
+              ${isAdmin ? `<button class="btn" onclick="KasModule.resetBPSection('${doc.id}','${String(focusDest).replace(/'/g,"\\'")}')" style="border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.05);color:#dc2626">↻ Reset Konfirmasi</button>` : ''}
               <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`;
           }
           const lbl = groups[focusDest].label || focusDest;
@@ -3319,6 +3330,58 @@ const KasModule = (() => {
   }
 
   // Helper: format YYYY-MM-DD → "1 Jun" (short)
+  /**
+   * Kode unik per destinasi belanja pasar — supaya kas kecil & badge bisa
+   * dipersingkat tapi tetap traceable. Format:
+   *   PC<YY><MM><startD><endD>      → Pasar Cikopo (range tanggal)
+   *   PK<YY><MM><DD><Shift>         → PS Karawang per-shift
+   *   PK<YY><MM><startD><endD>      → PS Karawang merged (fallback)
+   *   SP<YY><MM><startD><endD>      → Supplier
+   *
+   * Contoh:
+   *   Cikopo 8-10 Jun 2026  → PC2606810
+   *   Karawang 8 Jun S1     → PK260608S1
+   *   Supplier 8-10 Jun     → SP2606810
+   */
+  function _destCode(dest, doc) {
+    if (!dest) return '';
+    const dates = (doc && doc.dates) || [];
+    const first = dates[0] || '';
+    const last = dates[dates.length - 1] || first;
+    const yy = first.slice(2,4);
+    const mm = first.slice(5,7);
+    const sd = first.slice(8,10).replace(/^0/, ''); // 08 → 8, tapi 10 tetap 10
+    const ed = last.slice(8,10).replace(/^0/, '');
+    if (dest === 'cikopo')   return `PC${yy}${mm}${sd}${sd!==ed?ed:''}`;
+    if (dest === 'supplier') return `SP${yy}${mm}${sd}${sd!==ed?ed:''}`;
+    if (dest === 'karawang') return `PK${yy}${mm}${sd}${sd!==ed?ed:''}`;
+    if (dest.startsWith('karawang|')) {
+      const [, tgl, shift] = dest.split('|');
+      return `PK${tgl.slice(2,4)}${tgl.slice(5,7)}${tgl.slice(8,10)}${shift||''}`;
+    }
+    return '';
+  }
+  // Warna per destinasi — dipakai untuk badge di kas row + section header
+  function _destStyle(dest) {
+    if (dest === 'cikopo')   return { label:'Pasar Cikopo', fg:'#059669', bg:'rgba(5,150,105,.14)' };
+    if (dest === 'supplier') return { label:'Supplier',     fg:'#d97706', bg:'rgba(245,158,11,.14)' };
+    if (dest && dest.startsWith('karawang')) {
+      let lbl = 'PS Karawang';
+      if (dest.startsWith('karawang|')) {
+        const [, tgl, shift] = dest.split('|');
+        lbl = `PS Karawang ${_fmtTglShortDay(tgl)} ${shift||''}`.trim();
+      }
+      return { label:lbl, fg:'#6366f1', bg:'rgba(99,102,241,.14)' };
+    }
+    return { label:'Pasar', fg:'#0891b2', bg:'rgba(8,145,178,.14)' };
+  }
+  // Badge HTML untuk kas row — destLabel + kode unik kecil
+  function _bpBadge(r) {
+    const s = _destStyle(r.bpDest);
+    const code = r.bpDestCode || '';
+    return `<span style="font-size:8px;background:${s.bg};color:${s.fg};padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:700;vertical-align:middle;display:inline-flex;align-items:center;gap:3px">${s.label}${code?`<span style="font-size:7px;opacity:.85;font-weight:600;letter-spacing:.02em">·${code}</span>`:''}</span>`;
+  }
+
   function _fmtTglShortDay(ymd) {
     if (!ymd) return '';
     const d = new Date(ymd);
@@ -3412,6 +3475,7 @@ const KasModule = (() => {
           penerima: doc.namaPetugas||'-', status: 'DONE',
           bpDocId: doc.id, // link back to belanja pasar
           bpDest: it.dest || null,
+          bpDestCode: _destCode(it.dest, doc),
         };
         try { await DB.saveKas(row); _kas.unshift(row); inserted++; } catch {}
       }
@@ -3482,6 +3546,7 @@ const KasModule = (() => {
       // Insert kas rows HANYA untuk section ini
       const today = new Date().toISOString().slice(0,10);
       let inserted = 0;
+      const destCode = _destCode(dest, doc);
       for (const it of sectionItems) {
         if (!it.aktQty || !it.aktHarga) continue;
         const row = {
@@ -3489,7 +3554,7 @@ const KasModule = (() => {
           vendor: _vendorOf(dest), qty: it.aktQty, satuan: it.satuan||'',
           hargaSatuan: it.aktHarga, jumlah: it.aktTotal,
           penerima: doc.namaPetugas||'-', status: 'DONE',
-          bpDocId: doc.id, bpDest: dest,
+          bpDocId: doc.id, bpDest: dest, bpDestCode: destCode,
         };
         try { await DB.saveKas(row); _kas.unshift(row); inserted++; } catch {}
       }
@@ -3499,6 +3564,75 @@ const KasModule = (() => {
       renderTransaksi();
       DB.logActivity({type:'confirm_belanja_pasar', detail:`Konfirmasi ${label} (${doc.periode}): ${inserted} item → kas`});
     } catch(e) { Notify.error('Gagal: '+(e.message||'')); }
+  }
+
+  /**
+   * Reset konfirmasi 1 section — hapus dari doc.confirmedDests +
+   * delete kas rows dengan bpDocId+bpDest matching.
+   * Admin only. Untuk recovery kalau konfirmasi salah / kas rows tidak masuk.
+   */
+  async function resetBPSection(docId, dest) {
+    const role = Auth.currentUser()?.role;
+    if (role !== 'superadmin' && role !== 'admin') { Notify.warning('Hanya Admin/Superadmin'); return; }
+    const doc = _bpDocs.find(d => d.id === docId);
+    if (!doc) return;
+    const sLabel = _destStyle(dest).label;
+    const linkedKas = _kas.filter(r => r.bpDocId === docId && r.bpDest === dest);
+    const ok = await Modal.confirm({
+      title: 'Reset Konfirmasi Section',
+      message: `<p>Reset <strong>${Utils.esc(sLabel)}</strong> ke "Belum Konfirmasi"?</p>
+        ${linkedKas.length ? `<p style="color:#ef4444;font-weight:600;margin-top:8px">⚠ ${linkedKas.length} baris kas terkait akan dihapus.</p>` : '<p style="margin-top:8px;color:var(--text-3);font-size:11px">Tidak ada baris kas yang terkait — hanya reset flag konfirmasi.</p>'}`,
+      danger: true, confirmText: 'Reset',
+    });
+    if (!ok) return;
+    // Delete kas rows untuk section ini
+    for (const r of linkedKas) {
+      try { await DB.deleteKas(r.id); _kas = _kas.filter(k => k.id !== r.id); } catch {}
+    }
+    // Remove dari confirmedDests
+    doc.confirmedDests = (doc.confirmedDests||[]).filter(d => d !== dest);
+    // Reset global kasStatus kalau tidak semua confirmed lagi
+    const allDests = [...new Set((doc.kasItems||[]).map(it => it.dest).filter(Boolean))];
+    const allConfirmed = allDests.length && allDests.every(d => (doc.confirmedDests||[]).includes(d));
+    if (!allConfirmed) {
+      doc.kasStatus = null;
+      doc.kasConfirmedAt = null;
+      // Keep kasConfirmedBy as audit trail
+    }
+    try { await DB.saveBelanjaPasar(doc); } catch {}
+    if (window._bpKasMid) Modal.close(window._bpKasMid);
+    Notify.success(`Reset ${sLabel} · ${linkedKas.length} baris kas dihapus`);
+    _renderBPDashboard();
+    renderTransaksi();
+    DB.logActivity({type:'reset_bp_section', detail:`Reset ${sLabel} (${doc.periode}): ${linkedKas.length} kas dihapus`});
+  }
+
+  /**
+   * Recovery helper — reset SEMUA section di doc kecuali yang di-keep.
+   * Dipakai untuk perbaikan batch dari console:
+   *   KasModule._resetSectionsExcept('<docId>', ['cikopo'])
+   */
+  async function _resetSectionsExcept(docId, keepDests = []) {
+    const doc = _bpDocs.find(d => d.id === docId);
+    if (!doc) { console.warn('Doc not found'); return; }
+    const allDests = [...new Set((doc.kasItems||[]).map(it => it.dest).filter(Boolean))];
+    const toReset = allDests.filter(d => !keepDests.includes(d));
+    console.log('Will reset:', toReset);
+    for (const d of toReset) {
+      const linkedKas = _kas.filter(r => r.bpDocId === docId && r.bpDest === d);
+      for (const r of linkedKas) {
+        try { await DB.deleteKas(r.id); _kas = _kas.filter(k => k.id !== r.id); } catch {}
+      }
+      doc.confirmedDests = (doc.confirmedDests||[]).filter(x => x !== d);
+      console.log(`Reset ${d} — ${linkedKas.length} kas rows deleted`);
+    }
+    const stillConfirmed = (doc.confirmedDests||[]);
+    const allStillConfirmed = allDests.length && allDests.every(d => stillConfirmed.includes(d));
+    if (!allStillConfirmed) { doc.kasStatus = null; doc.kasConfirmedAt = null; }
+    try { await DB.saveBelanjaPasar(doc); } catch {}
+    _renderBPDashboard();
+    renderTransaksi();
+    Notify.success(`Reset ${toReset.length} section`);
   }
 
   async function deleteBPKas(docId) {
@@ -3533,6 +3667,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
+  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, resetBPSection, _resetSectionsExcept, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
 })();
 window.KasModule = KasModule;
