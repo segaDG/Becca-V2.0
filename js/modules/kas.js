@@ -411,13 +411,21 @@ const KasModule = (() => {
       .ks-tbl td{border:1px solid var(--border);padding:0;height:32px;background:var(--surface);vertical-align:middle;}
       .ks-tbl td .ks-cell{display:flex;align-items:center;padding:0 8px;height:32px;cursor:cell;
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
-      /* Kolom NAMA / KETERANGAN — kalau nama panjang, cell-nya scrollable horizontal
-         (scrollbar tipis 4px, muncul hanya kalau overflow). Badge tidak ikut scroll. */
-      .ks-tbl td .ks-nama-cell{overflow:hidden;text-overflow:clip}
-      .ks-tbl td .ks-nama-cell .ks-nama-text{overflow-x:auto;overflow-y:hidden;display:inline-block;max-width:100%;vertical-align:middle;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
-      .ks-tbl td .ks-nama-cell .ks-nama-text::-webkit-scrollbar{height:3px}
-      .ks-tbl td .ks-nama-cell .ks-nama-text::-webkit-scrollbar-thumb{background:var(--text-3);border-radius:2px}
-      .ks-tbl td .ks-nama-cell .ks-nama-text::-webkit-scrollbar-track{background:transparent}
+      /* Kolom NAMA / KETERANGAN — single scrollable inner container.
+         Nama text + badge + link-anggaran SEMUA ikut scroll horizontal kalau
+         nama panjang → konten kelihatan lebih banyak per visible width. */
+      .ks-tbl td .ks-nama-cell{overflow:hidden;padding:0;display:block;max-width:none}
+      .ks-tbl td .ks-nama-cell .ks-nama-scroll{display:flex;align-items:center;gap:4px;height:32px;padding:0 8px;
+        overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:thin;-webkit-overflow-scrolling:touch;cursor:cell}
+      .ks-tbl td .ks-nama-cell .ks-nama-scroll::-webkit-scrollbar{height:3px}
+      .ks-tbl td .ks-nama-cell .ks-nama-scroll::-webkit-scrollbar-thumb{background:var(--text-3);border-radius:2px}
+      .ks-tbl td .ks-nama-cell .ks-nama-scroll::-webkit-scrollbar-track{background:transparent}
+      .ks-tbl td .ks-nama-cell .ks-nama-scroll > *{flex-shrink:0}
+      /* Column resize handle di th — drag horizontal untuk lebarkan kolom */
+      .ks-tbl th.ks-th-resizable{position:relative}
+      .ks-tbl th .ks-resize-handle{position:absolute;top:0;right:-3px;width:6px;height:100%;cursor:col-resize;z-index:5;user-select:none;background:transparent;transition:background .15s}
+      .ks-tbl th .ks-resize-handle:hover, .ks-tbl th .ks-resize-handle.dragging{background:rgba(99,102,241,.5)}
+      .ks-tbl.ks-col-resizing{cursor:col-resize!important;user-select:none}
       .ks-tbl td .ks-cell[title]{cursor:cell;}
       .ks-tbl tr.ks-view:hover td{background:rgba(99,102,241,.1);cursor:pointer;}
       .ks-tbl tr.ks-editing td{background:rgba(99,102,241,.08)!important;outline:2px solid var(--primary);outline-offset:-1px;box-shadow:inset 0 0 0 1px rgba(99,102,241,.15);}
@@ -620,7 +628,7 @@ const KasModule = (() => {
                 : '<span style=\"color:var(--text-3);font-size:11px\">#</span>'}
             </th>
             <th style="width:108px">Tanggal</th>
-            <th style="min-width:180px">Nama / Keterangan</th>
+            <th class="ks-th-resizable" data-col-key="nama" style="${(()=>{let w='';try{w=parseInt(localStorage.getItem('becca_kas_col_nama'))||0;}catch{}return w>0?`width:${w}px;min-width:${w}px`:'min-width:180px';})()}">Nama / Keterangan<div class="ks-resize-handle" data-col="nama"></div></th>
             <th style="width:130px">Type <span class="ks-ai-badge">AI</span>${Utils.helpTip('Klasifikasi pengeluaran (Raw Food, Gaji, Maintenance, dll). AI auto-suggest berdasarkan nama, bisa override manual.')}</th>
             <th style="width:110px">Vendor</th>
             <th style="width:55px" class="ks-num">Qty</th>
@@ -648,11 +656,47 @@ const KasModule = (() => {
       GridSelect.onFill('kas-grid', _onGridFill);
       GridSelect.onPaste('kas-grid', _onGridPaste);
     }
+    _setupColResize();
     // Toggle reset button animation — double rAF to ensure browser painted inactive state first
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const rb = document.getElementById('kas-reset-btn');
       if (rb) { if (_filter.dateFrom||_filter.dateTo||_filter.bulan||_filter.type||_filter.status||_filter.search) rb.classList.add('active'); else rb.classList.remove('active'); }
     }));
+  }
+
+  // Column resize — drag handle di kanan th → resize kolom + simpan ke localStorage.
+  // Min width 80px, max 800px supaya tidak overflow seluruh tabel.
+  function _setupColResize() {
+    const table = document.getElementById('kas-grid');
+    if (!table) return;
+    table.querySelectorAll('.ks-resize-handle').forEach(handle => {
+      if (handle.dataset.bound === '1') return;
+      handle.dataset.bound = '1';
+      handle.addEventListener('mousedown', (e) => {
+        const th = handle.closest('th'); if (!th) return;
+        const col = handle.dataset.col;
+        const startX = e.pageX;
+        const startW = th.offsetWidth;
+        e.preventDefault();
+        handle.classList.add('dragging');
+        table.classList.add('ks-col-resizing');
+        const onMove = (ev) => {
+          const w = Math.max(80, Math.min(800, startW + ev.pageX - startX));
+          th.style.width = w + 'px';
+          th.style.minWidth = w + 'px';
+        };
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          handle.classList.remove('dragging');
+          table.classList.remove('ks-col-resizing');
+          const finalW = th.offsetWidth;
+          try { localStorage.setItem('becca_kas_col_'+col, finalW); } catch {}
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
   }
 
   /* ---- VIEW ROW ---- */
@@ -670,7 +714,7 @@ const KasModule = (() => {
         </div>
       </td>
       <td data-field="ks-tgl-${r.id}" style="white-space:nowrap"><div class="ks-cell">${r.tgl ? r.tgl.split('-').reverse().join('-') : ''}</div></td>
-      <td data-field="ks-nama-${r.id}"><div class="ks-cell ks-nama-cell" ${r.nama?`title="${(r.nama||'').replace(/"/g,'&quot;')}${r.penerima?' → '+r.penerima:''}${r.bpDestCode?' ['+r.bpDestCode+']':''}"`:''}><span class="ks-nama-text">${r.nama||''}</span>${isBP?_bpBadge(r):''}${canEdit?_renderAnggaranBadge(r):''}</div></td>
+      <td data-field="ks-nama-${r.id}" class="ks-nama-cell" ${r.nama?`title="${(r.nama||'').replace(/"/g,'&quot;')}${r.penerima?' → '+r.penerima:''}${r.bpDestCode?' ['+r.bpDestCode+']':''}"`:''}><div class="ks-nama-scroll"><span>${r.nama||''}</span>${isBP?_bpBadge(r):''}${canEdit?_renderAnggaranBadge(r):''}</div></td>
       <td data-field="ks-type-${r.id}"><div class="ks-cell"><span class="badge badge-neutral" style="font-size:10px">${r.type||''}</span></div></td>
       <td data-field="ks-vendor-${r.id}"><div class="ks-cell" ${r.vendor?`title="${(r.vendor||'').replace(/"/g,'&quot;')}"`:''}>${r.vendor||''}</div></td>
       <td data-field="ks-qty-${r.id}" class="ks-num"><div class="ks-cell">${(r.qty||0)%1===0?(r.qty||0):parseFloat((r.qty||0).toFixed(2))}</div></td>
