@@ -309,27 +309,18 @@ const KasModule = (() => {
       if (restored.page) { const p = parseInt(restored.page); if (p > 0) _page = p; }
     }
 
-    // Progressive loading — fast first page, background load rest.
-    // BUG-FIX: kalau _kas sudah ada di session (user lagi edit/baru tambah row),
-    // jangan replace + sort lagi. Sort akan acak-acak urutan editing user.
-    // (User navigate ke dashboard lalu balik ke kas → tanpa guard ini, init
-    // re-fetch + sort → row yang user baru tambah pindah ke posisi sesuai
-    // tanggal.) Reload hanya kalau benar-benar belum ada data.
+    // Progressive loading — fast first page, background load rest
     const cachedKas   = DB.getCached('kas');
     const cachedMasuk = DB.getCached('kas_masuk');
-    if (cachedKas && !(_kasLoaded && _kas.length)) {
-      _kas = cachedKas;
-      _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
-      _kasLoaded = true;
-    }
-    if (cachedMasuk && !_masuk.length) _masuk = cachedMasuk;
+    if (cachedKas)   { _kas = cachedKas; _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); _kasLoaded = true; }
+    if (cachedMasuk) _masuk = cachedMasuk;
 
     switchTab('transaksi');
     _injectStyles();
 
     if (!cachedKas || !cachedMasuk) {
-      // Fast: fetch first page (50 rows) for instant render — only if _kas masih kosong
-      if (!cachedKas && !(_kasLoaded && _kas.length)) {
+      // Fast: fetch first page (50 rows) for instant render
+      if (!cachedKas) {
         const first = await DB.getPage('kas', { page:1, perPage:100, orderBy:'created_at', ascending:false });
         if (first.data.length) { _kas = first.data; _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')); _kasLoaded = true; renderTransaksi(); }
       }
@@ -338,14 +329,9 @@ const KasModule = (() => {
         cachedKas   ? Promise.resolve(cachedKas)   : DB.getKas(),
         cachedMasuk ? Promise.resolve(cachedMasuk) : DB.getKasMasuk(),
       ]);
-      // Replace + sort _kas HANYA kalau session belum punya data hasil edit user.
-      // Kalau user lagi editing (kasLoaded sudah true), skip replace — preserve
-      // urutan yang sudah dia tata.
-      if (!_kasLoaded || !_kas.length) {
-        _kas = freshKas;
-        _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
-      }
-      if (!_masuk.length) _masuk = freshMasuk;
+      _kas   = freshKas;
+      _kas.sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||''));
+      _masuk = freshMasuk;
       _kasLoaded = true;
       if (_activeTab === 'transaksi') renderTransaksi();
       else switchTab(_activeTab);
@@ -1068,13 +1054,12 @@ const KasModule = (() => {
     if (ok) _editingId = null;
   }
 
-  // Enter: save current row + open new row immediately TEPAT DI BAWAH row ini
-  // (preserve urutan input — tidak shuffling, tidak cumulative shift)
+  // Enter: save current row + open new row immediately
   async function commitAndAddRow(id) {
     if (_editingId !== id) return;
     document.removeEventListener('click', _handleOutsideClick);
     const ok = await _doCommit(id, true); // skipValidation
-    if (ok) { _editingId = null; addRow(id); /* pass id → row baru di bawah row ini */ }
+    if (ok) { _editingId = null; addRow(); }
   }
 
   // Esc: discard changes + close edit
@@ -1147,21 +1132,12 @@ const KasModule = (() => {
     startEdit(id);
   }
 
-  /**
-   * Tambah baris baru.
-   * @param {string} afterId Optional — kalau ada, baris baru disisipkan TEPAT
-   *   di bawah row dengan id ini (bukan di paling atas). Dipakai oleh
-   *   commitAndAddRow saat user pencet Enter berturut-turut supaya
-   *   urutan input stabil (tidak shuffling/cumulative shift).
-   */
-  async function addRow(afterId) {
+  async function addRow() {
     if (_editingId) {
       document.removeEventListener('click', _handleOutsideClick);
       const prevId = _editingId;
       _editingId = null;
       await _doCommit(prevId, true); // skipValidation
-      // Auto-resolve: kalau tidak dispecify, default ke row yang baru di-commit
-      if (!afterId) afterId = prevId;
     }
     const today = new Date().toISOString().split('T')[0];
     const mo    = parseInt(today.split('-')[1]) - 1;
@@ -1173,19 +1149,8 @@ const KasModule = (() => {
     try {
       const saved = await DB.saveKas(newRow);
       saved._isNew = true;
-      let insertedIdx = 0;
-      if (afterId) {
-        const idx = _kas.findIndex(r => r.id === afterId);
-        if (idx >= 0) { _kas.splice(idx + 1, 0, saved); insertedIdx = idx + 1; }
-        else { _kas.unshift(saved); insertedIdx = 0; }
-      } else {
-        _kas.unshift(saved); insertedIdx = 0;
-      }
-      // Hitung page yang berisi row yang baru disisipkan (sesuai filter)
-      const filtered = _applyFilter(_kas);
-      const fIdx = filtered.findIndex(r => r.id === saved.id);
-      if (fIdx >= 0) _page = Math.floor(fIdx / _perPage) + 1;
-      else _page = 1;
+      _kas.unshift(saved);
+      _page = 1;
       renderTransaksi();
       setTimeout(()=>startEdit(saved.id), 80);
     } catch(e) { Notify.error('Gagal', e.message); }
