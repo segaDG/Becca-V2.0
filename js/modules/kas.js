@@ -1169,15 +1169,77 @@ const KasModule = (() => {
       Object.keys(_anggaranCache).forEach(k => delete _anggaranCache[k]);
       (list || []).forEach(d => {
         const date = d.createdAt ? new Date(d.createdAt).toLocaleDateString('id', {day:'2-digit',month:'short'}) : '';
+        // Build item-name list for fuzzy matching (D5 auto-link suggestion)
+        const itemNames = (d.items||[])
+          .filter(it => it.namaBarang)
+          .map(it => String(it.namaBarang).toLowerCase().trim());
         _anggaranCache[d.id] = {
           label: (d.nomorEstimasi || d.id.slice(-6).toUpperCase()),
           date,
           status: d.status || '',
           petugas: d.namaPetugas || '',
+          createdAt: d.createdAt || '',
+          periode: d.periode || '',
+          itemNames,
         };
       });
       _anggaranCacheLoaded = true;
     } catch(e) { /* ignore — fallback to ID slice */ }
+  }
+
+  /**
+   * D5 — Saran link anggaran: untuk kas row yang belum di-link, cari anggaran
+   * AKTIF (bukan selesai/arsip) yang punya item dengan nama mirip + dibuat
+   * dalam window ±14 hari dari tgl kas. Return null kalau tidak ada match.
+   *
+   * Skor matching:
+   *   itemNameMatch (contains/included)        : +10
+   *   dateRange match (±14 hari createdAt)     : +5
+   *   recently created (createdAt < 7 hari)    : +2
+   * Threshold minimum 10 (harus ada item-match atau date+recent).
+   */
+  function _suggestAnggaranFor(r) {
+    if (!r || r.anggaranId) return null;
+    const rNama = (r.nama || '').toLowerCase().trim();
+    if (!rNama) return null;
+    if (!_anggaranCacheLoaded) return null;
+    const rTgl = r.tgl || '';
+    const candidates = [];
+    Object.entries(_anggaranCache).forEach(([id, meta]) => {
+      if (meta.status === 'selesai' || meta.status === 'arsip') return;
+      let score = 0;
+      // Item name match (fuzzy contains)
+      const itemMatch = (meta.itemNames||[]).some(n =>
+        (n.length >= 3 && rNama.includes(n)) || (rNama.length >= 3 && n.includes(rNama))
+      );
+      if (itemMatch) score += 10;
+      // Date proximity (createdAt ± 14d)
+      if (meta.createdAt && rTgl) {
+        try {
+          const diffDays = Math.abs((new Date(rTgl).getTime() - new Date(meta.createdAt).getTime()) / 86400000);
+          if (diffDays <= 14) score += 5;
+          if (diffDays <= 7) score += 2;
+        } catch {}
+      }
+      if (score >= 10) candidates.push({ id, meta, score });
+    });
+    if (!candidates.length) return null;
+    candidates.sort((a,b) => b.score - a.score || (b.meta.createdAt||'').localeCompare(a.meta.createdAt||''));
+    return candidates[0];
+  }
+
+  // Quick-apply saran link tanpa buka picker
+  async function _applySuggestedAnggaran(rowId, anggaranId) {
+    const r = _kas.find(x => x.id === rowId);
+    if (!r) return;
+    r.anggaranId = anggaranId;
+    try {
+      await DB.saveKas(r);
+      const meta = _anggaranCache[anggaranId];
+      Notify.success('Link diterapkan: ' + (meta?.label || anggaranId.slice(-6)));
+      DB.logActivity?.({type:'edit_kas', detail:'Auto-link ke anggaran: '+(meta?.label||''), rowId});
+      renderTransaksi();
+    } catch (e) { Notify.error('Gagal link', e.message); }
   }
   // Eager-load di background saat module init load
   setTimeout(() => _ensureAnggaranCache(), 100);
@@ -1208,6 +1270,20 @@ const KasModule = (() => {
         style="display:inline-block;font-size:9px;background:${bgCol};color:${fgCol};padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600;cursor:pointer;vertical-align:middle"
         onclick="event.stopPropagation();KasModule._openAnggaranPicker('${r.id}')"
         title="${Utils.esc(tip)}">🔗 ${Utils.esc(label)}${isSelesai?' ✓':''}</span>`;
+    }
+    // D5 — Auto-suggest anggaran. Kalau ada match score >=10, tampil tombol
+    // ungu "🤖 Saran: <label>" — klik langsung apply (1 step), atau klik kanan
+    // (right-click) buka picker manual kalau mau pilih lain.
+    const suggestion = _suggestAnggaranFor(r);
+    if (suggestion) {
+      const lbl = Utils.esc(suggestion.meta.label || '');
+      return `<button class="ks-anggaran-suggest-btn"
+        onclick="event.stopPropagation();KasModule._applySuggestedAnggaran('${r.id}','${suggestion.id}')"
+        oncontextmenu="event.preventDefault();event.stopPropagation();KasModule._openAnggaranPicker('${r.id}');return false"
+        title="Saran link ke ${lbl} (klik kanan untuk pilih manual)"
+        style="font-size:9px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.35);color:var(--primary-h);padding:1px 6px;border-radius:3px;margin-left:4px;cursor:pointer;font-weight:600;vertical-align:middle"
+        onmouseover="this.style.background='rgba(99,102,241,.22)'"
+        onmouseout="this.style.background='rgba(99,102,241,.12)'">🤖 ${lbl}</button>`;
     }
     return `<button class="ks-anggaran-link-btn"
       onclick="event.stopPropagation();KasModule._openAnggaranPicker('${r.id}')"
@@ -3787,6 +3863,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, resetBPSection, _resetSectionsExcept, _bpCellChange, _bpFocusNextAktHarga, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
+  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, resetBPSection, _resetSectionsExcept, _bpCellChange, _bpFocusNextAktHarga, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _applySuggestedAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
 })();
 window.KasModule = KasModule;

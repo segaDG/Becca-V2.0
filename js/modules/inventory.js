@@ -2442,42 +2442,103 @@ const InventoryModule = (() => {
   }
 
   /* ===================== TAB: STOK MENIPIS ===================== */
+  /**
+   * D1 — Saran PO untuk item low-stock.
+   * Hitung avg pemakaian harian 30 hari terakhir → reorder point + saran qty.
+   * Vendor + harga ambil dari kas/AP history terakhir untuk item ini.
+   *
+   * Reorder point = avg_daily × lead_time + safety_stock (stokMin)
+   * Suggested qty = max(reorder_point − current_stock, avg_daily × 7)
+   */
+  let _kasCacheForAutoPO = null;
+  async function _ensureKasCacheForAutoPO() {
+    if (_kasCacheForAutoPO) return;
+    try {
+      const cached = DB.getCached?.('kas') || await DB.getKas();
+      _kasCacheForAutoPO = cached || [];
+    } catch { _kasCacheForAutoPO = []; }
+  }
+  function _suggestRestock(item) {
+    const today = new Date();
+    const cutoff = new Date(today.getTime() - 30*86400000).toISOString().slice(0,10);
+    // Sum KELUAR 30 hari terakhir
+    const keluar = _logs.filter(l =>
+      String(l.itemId) === String(item.id) && l.jenis === 'KELUAR' && (l.tgl||'') >= cutoff
+    );
+    const usage = keluar.reduce((s,l) => s + (l.jumlah||0), 0);
+    const days = Math.max(1, Math.min(30, Math.ceil((today - new Date(cutoff)) / 86400000)));
+    const avgDaily = usage / days;
+    const leadTime = 3; // default 3 hari (bisa configurable lewat settings nanti)
+    const safety = item.stokMin || 0;
+    const reorderPoint = Math.ceil(avgDaily * leadTime + safety);
+    const currentStok = item._stok || 0;
+    const suggestedQty = Math.max(reorderPoint - currentStok, Math.ceil(avgDaily * 7), 1);
+    // Vendor + harga dari kas history (matching nama item, ambil yang paling baru)
+    const kasMatches = (_kasCacheForAutoPO||[])
+      .filter(k => (k.nama||'').toLowerCase().includes((item.nama||'').toLowerCase()))
+      .sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+    const lastKas = kasMatches[0];
+    return {
+      avgDaily: Math.round(avgDaily * 100) / 100,
+      reorderPoint,
+      suggestedQty,
+      vendor: lastKas?.vendor || '',
+      lastPrice: lastKas?.hargaSatuan || 0,
+      lastTgl: lastKas?.tgl || '',
+    };
+  }
+  function _fmtRp(n) { return n ? 'Rp ' + Math.round(n).toLocaleString('id') : '-'; }
+
   function renderAlert() {
     const low = _items.filter(i => (i.stokMin||0) > 0 && (i._stok||0) <= (i.stokMin||0))
                       .sort((a,b) => (a._stok||0) - (b._stok||0));
+    // Trigger background load kas history utk vendor/harga suggestion
+    _ensureKasCacheForAutoPO().then(() => {
+      // Re-render kalau alert tab masih aktif
+      if (_activeTab === 'alert' && _kasCacheForAutoPO) renderAlert();
+    });
     document.getElementById('inv-tab-alert').innerHTML = low.length === 0 ? `
       ${UI.empty({iconKey:'check', title:'Semua stok aman', desc:'Tidak ada barang yang perlu restock', height:'40vh'})}` : `
+      <div style="margin-bottom:12px;padding:10px 14px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.2);border-radius:8px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:16px">🤖</span>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:700;color:var(--primary-h)">Saran Restock Otomatis</div>
+          <div style="font-size:11px;color:var(--text-3)">Berdasarkan rata-rata pemakaian 30 hari terakhir + history vendor dari kas kecil. Lead time default 3 hari.</div>
+        </div>
+      </div>
       <div class="table-wrapper">
         <div class="table-scroll">
           <table class="table">
             <thead>
               <tr>
-                <th>#</th><th>Nama Barang</th><th>Kategori</th>
-                <th class="num">Stok Saat Ini</th><th class="num">Stok Min</th>
-                <th>Status</th>
+                <th>#</th><th>Nama Barang</th>
+                <th class="num">Stok / Min</th>
+                <th class="num" title="Rata-rata pemakaian harian (KELUAR 30 hari terakhir)">Pakai/hari</th>
+                <th class="num" title="Reorder point: avg × lead_time + safety">Saran Qty</th>
+                <th title="Vendor yang biasa dipakai (terakhir dari kas kecil)">Vendor</th>
+                <th class="num" title="Harga terakhir dari kas kecil">Harga</th>
                 ${Auth.can('inventory','edit') ? '<th>Aksi</th>' : ''}
               </tr>
             </thead>
             <tbody>
               ${low.map((item,i) => {
                 const stok = item._stok || 0;
+                const s = _suggestRestock(item);
+                const estimasi = s.suggestedQty * (s.lastPrice||0);
                 return `
                 <tr style="${stok<=0?'background:rgba(239,68,68,.05)':''}">
                   <td class="text-muted">${i+1}</td>
-                  <td class="font-semibold">${item.nama}</td>
-                  <td><span class="badge badge-neutral">${item.kategori||'-'}</span></td>
+                  <td class="font-semibold">${item.nama}<div style="font-size:10px;color:var(--text-3);font-weight:400">${item.kategori||''}</div></td>
                   <td class="num" style="color:${stok<=0?'var(--danger)':'var(--warning)'};font-weight:700">
-                    ${stok} ${item.satuan||''}
+                    ${stok}${item.stokMin?'<span style="color:var(--text-3);font-weight:400"> / '+item.stokMin+'</span>':''}<div style="font-size:9px;color:var(--text-3);font-weight:400">${item.satuan||''}</div>
                   </td>
-                  <td class="num text-muted">${item.stokMin||0} ${item.satuan||''}</td>
-                  <td>
-                    <span class="badge ${stok<=0?'badge-danger':'badge-warning'}">
-                      ${stok<=0?'❌ HABIS':'⚠️ MENIPIS'}
-                    </span>
-                  </td>
+                  <td class="num" style="font-family:var(--font-mono);color:var(--text-2)">${s.avgDaily ? s.avgDaily + ' '+(item.satuan||'') : '—'}<div style="font-size:9px;color:var(--text-3)">avg 30 hari</div></td>
+                  <td class="num" style="font-family:var(--font-mono);font-weight:700;color:var(--primary-h)">${s.suggestedQty} ${item.satuan||''}${s.reorderPoint?`<div style="font-size:9px;color:var(--text-3);font-weight:400">RP: ${s.reorderPoint}</div>`:''}</td>
+                  <td style="font-size:11px;color:var(--text-2)">${s.vendor||'<span style="color:var(--text-3);font-style:italic">—</span>'}${s.lastTgl?`<div style="font-size:9px;color:var(--text-3)">last: ${s.lastTgl}</div>`:''}</td>
+                  <td class="num" style="font-family:var(--font-mono);font-size:11px">${_fmtRp(s.lastPrice)}${estimasi?`<div style="font-size:9px;color:var(--text-3)">est: ${_fmtRp(estimasi)}</div>`:''}</td>
                   ${Auth.can('inventory','edit') ? `
                     <td>
-                      <button class="btn btn-sm btn-primary" onclick="InventoryModule.openTransaksiModal('${item.id}','MASUK')">
+                      <button class="btn btn-sm btn-primary" onclick="InventoryModule.openTransaksiModal('${item.id}','MASUK')" title="Catat masuk barang dari pembelian">
                         Restock
                       </button>
                     </td>` : ''}
