@@ -1219,6 +1219,9 @@ const KasModule = (() => {
 
   function _renderAnggaranBadge(r) {
     if (!r) return '';
+    // Skip tombol "+ link" untuk row kosong (baru ditambah belum diisi nama).
+    // Link ke anggaran baru relevan setelah ada nama transaksi.
+    if (!r.anggaranId && !(r.nama||'').trim()) return '';
     const id = r.anggaranId;
     if (id) {
       const meta = _anggaranCache[id];
