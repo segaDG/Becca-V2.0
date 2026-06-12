@@ -413,14 +413,16 @@ const KasModule = (() => {
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
       /* Kolom NAMA / KETERANGAN — single scrollable inner container.
          Nama text + badge + link-anggaran SEMUA ikut scroll horizontal kalau
-         nama panjang → konten kelihatan lebih banyak per visible width. */
-      .ks-tbl td .ks-nama-cell{overflow:hidden;padding:0;display:block;max-width:none}
-      .ks-tbl td .ks-nama-cell .ks-nama-scroll{display:flex;align-items:center;gap:4px;height:32px;padding:0 8px;
-        overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:thin;-webkit-overflow-scrolling:touch;cursor:cell}
-      .ks-tbl td .ks-nama-cell .ks-nama-scroll::-webkit-scrollbar{height:3px}
-      .ks-tbl td .ks-nama-cell .ks-nama-scroll::-webkit-scrollbar-thumb{background:var(--text-3);border-radius:2px}
-      .ks-tbl td .ks-nama-cell .ks-nama-scroll::-webkit-scrollbar-track{background:transparent}
-      .ks-tbl td .ks-nama-cell .ks-nama-scroll > *{flex-shrink:0}
+         nama panjang → konten kelihatan lebih banyak per visible width.
+         IMPORTANT: tanpa space sebelum .ks-nama-cell karena td.ks-nama-cell
+         (class langsung di td), bukan descendant. */
+      .ks-tbl td.ks-nama-cell{overflow:hidden;padding:0;max-width:none;height:32px}
+      .ks-tbl td.ks-nama-cell .ks-nama-scroll{display:flex;align-items:center;gap:5px;height:32px;padding:0 8px;
+        overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:thin;-webkit-overflow-scrolling:touch;cursor:cell;width:100%;box-sizing:border-box}
+      .ks-tbl td.ks-nama-cell .ks-nama-scroll::-webkit-scrollbar{height:3px}
+      .ks-tbl td.ks-nama-cell .ks-nama-scroll::-webkit-scrollbar-thumb{background:var(--text-3);border-radius:2px}
+      .ks-tbl td.ks-nama-cell .ks-nama-scroll::-webkit-scrollbar-track{background:transparent}
+      .ks-tbl td.ks-nama-cell .ks-nama-scroll > *{flex:0 0 auto;white-space:nowrap}
       /* Column resize handle di th — drag horizontal untuk lebarkan kolom */
       .ks-tbl th.ks-th-resizable{position:relative}
       .ks-tbl th .ks-resize-handle{position:absolute;top:0;right:-3px;width:6px;height:100%;cursor:col-resize;z-index:5;user-select:none;background:transparent;transition:background .15s}
