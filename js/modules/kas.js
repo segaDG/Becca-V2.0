@@ -3319,6 +3319,7 @@ const KasModule = (() => {
                   : `<input type="text" value="${rp(it.aktHarga||0)}" data-doc="${doc.id}" data-idx="${i}" data-field="aktHarga"
                       onfocus="this.value=this.dataset.raw||${it.aktHarga||0};this.type='number';this.select()"
                       onblur="this.dataset.raw=this.value;this.type='text';this.value='Rp '+Number(this.dataset.raw||0).toLocaleString('id');KasModule._bpCellChange('${doc.id}',${i})"
+                      onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();KasModule._bpFocusNextAktHarga(this);}"
                       style="width:90px;border:1px solid var(--border);border-radius:4px;padding:4px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)">`}</td>
                 <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);font-weight:700;color:${c.text};background:${c.bg}" id="bp-kas-total-${doc.id}-${i}">${aktT?rp(aktT):'-'}</td>
               </tr>`;
@@ -3647,6 +3648,29 @@ const KasModule = (() => {
    * delete kas rows dengan bpDocId+bpDest matching.
    * Admin only. Untuk recovery kalau konfirmasi salah / kas rows tidak masuk.
    */
+  /**
+   * Enter pada AKT HARGA → fokus ke AKT HARGA baris berikutnya di SECTION
+   * yang sama. Speed up entry banyak baris berturut-turut (mode admin
+   * input harga aktual setelah belanja).
+   * Pakai querySelector all dari semua input aktHarga visible di modal,
+   * cari yang current → fokus index+1. Wrap-around tidak (di akhir →
+   * blur saja, tidak loncat ke section lain).
+   */
+  function _bpFocusNextAktHarga(curInput) {
+    if (!curInput) return;
+    const modal = curInput.closest('.modal');
+    if (!modal) return;
+    // Ambil semua aktHarga input di MODAL (semua section yang sedang tampil)
+    const all = Array.from(modal.querySelectorAll('input[data-field="aktHarga"]'));
+    const i = all.indexOf(curInput);
+    if (i < 0 || i >= all.length - 1) return; // tidak ada next
+    const next = all[i + 1];
+    if (next) {
+      next.focus();
+      // .select() akan otomatis jalan via onfocus handler yg ada
+    }
+  }
+
   async function resetBPSection(docId, dest) {
     const role = Auth.currentUser()?.role;
     if (role !== 'superadmin' && role !== 'admin') { Notify.warning('Hanya Admin/Superadmin'); return; }
@@ -3763,6 +3787,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, resetBPSection, _resetSectionsExcept, _bpCellChange, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
+  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, resetBPSection, _resetSectionsExcept, _bpCellChange, _bpFocusNextAktHarga, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
 })();
 window.KasModule = KasModule;
