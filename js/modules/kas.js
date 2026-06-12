@@ -3445,12 +3445,14 @@ const KasModule = (() => {
     }
     return '';
   }
-  // Badge HTML untuk kas row — destLabel (medium) + kode unik (lebih tipis & kecil)
-  // Warna sesuai destinasi (hijau Cikopo / indigo Karawang / amber Supplier).
+  // Badge HTML untuk kas row — kode unik bold + warna sesuai destinasi.
+  // Label lengkap (mis. "PS Karawang 12 Jun S1") di-pindah ke title tooltip
+  // supaya cell tidak terlalu ramai. Hover badge → tampil destLabel.
   function _bpBadge(r) {
     const s = _destStyle(r.bpDest);
     const code = _bpCodeFallback(r);
-    return `<span style="font-size:9px;background:${s.bg};color:${s.fg};padding:2px 6px;border-radius:5px;margin-left:5px;font-weight:700;vertical-align:middle;display:inline-flex;align-items:center;gap:4px;line-height:1.3">${s.label}${code?`<span style="font-size:8px;opacity:.7;font-weight:500;letter-spacing:.02em;font-family:var(--font-mono)">${code}</span>`:''}</span>`;
+    if (!code) return ''; // tanpa kode tidak usah render badge sama sekali
+    return `<span title="${s.label}" style="font-size:9px;background:${s.bg};color:${s.fg};padding:2px 7px;border-radius:5px;margin-left:5px;font-weight:700;letter-spacing:.02em;font-family:var(--font-mono);vertical-align:middle;line-height:1.3">${code}</span>`;
   }
 
   function _fmtTglShortDay(ymd) {
