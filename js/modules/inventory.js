@@ -2488,6 +2488,12 @@ const InventoryModule = (() => {
     };
   }
   function _fmtRp(n) { return n ? 'Rp ' + Math.round(n).toLocaleString('id') : '-'; }
+  // Format angka stok/qty: max 2 desimal, hilangkan trailing zero (3.30000001 → "3.3", 533 → "533")
+  function _fmtNum(n) {
+    if (n == null || isNaN(n)) return '0';
+    const r = Math.round(Number(n) * 100) / 100;
+    return Number.isInteger(r) ? String(r) : String(r).replace(/\.?0+$/, '');
+  }
 
   function renderAlert() {
     const low = _items.filter(i => (i.stokMin||0) > 0 && (i._stok||0) <= (i.stokMin||0))
@@ -2534,10 +2540,10 @@ const InventoryModule = (() => {
                   <td class="text-muted">${i+1}</td>
                   <td class="font-semibold">${item.nama}<div style="font-size:10px;color:var(--text-3);font-weight:400">${item.kategori||''}</div></td>
                   <td class="num" style="color:${stok<=0?'var(--danger)':'var(--warning)'};font-weight:700">
-                    ${stok}${item.stokMin?'<span style="color:var(--text-3);font-weight:400"> / '+item.stokMin+'</span>':''}<div style="font-size:9px;color:var(--text-3);font-weight:400">${item.satuan||''}</div>
+                    ${_fmtNum(stok)}${item.stokMin?'<span style="color:var(--text-3);font-weight:400"> / '+_fmtNum(item.stokMin)+'</span>':''}<div style="font-size:9px;color:var(--text-3);font-weight:400">${item.satuan||''}</div>
                   </td>
-                  <td class="num" style="font-family:var(--font-mono);color:var(--text-2)">${s.avgDaily ? s.avgDaily + ' '+(item.satuan||'') : '—'}<div style="font-size:9px;color:var(--text-3)">avg 30 hari</div></td>
-                  <td class="num" style="font-family:var(--font-mono);font-weight:700;color:var(--primary-h)">${s.suggestedQty} ${item.satuan||''}${s.reorderPoint?`<div style="font-size:9px;color:var(--text-3);font-weight:400">RP: ${s.reorderPoint}</div>`:''}</td>
+                  <td class="num" style="font-family:var(--font-mono);color:var(--text-2)">${s.avgDaily ? _fmtNum(s.avgDaily) + ' '+(item.satuan||'') : '—'}<div style="font-size:9px;color:var(--text-3)">avg 30 hari</div></td>
+                  <td class="num" style="font-family:var(--font-mono);font-weight:700;color:var(--primary-h)">${_fmtNum(s.suggestedQty)} ${item.satuan||''}${s.reorderPoint?`<div style="font-size:9px;color:var(--text-3);font-weight:400">RP: ${_fmtNum(s.reorderPoint)}</div>`:''}</td>
                   <td style="font-size:11px;color:var(--text-2)">${s.vendor||'<span style="color:var(--text-3);font-style:italic">—</span>'}${s.lastTgl?`<div style="font-size:9px;color:var(--text-3)">last: ${s.lastTgl}</div>`:''}</td>
                   <td class="num" style="font-family:var(--font-mono);font-size:11px">${_fmtRp(s.lastPrice)}${estimasi?`<div style="font-size:9px;color:var(--text-3)">est: ${_fmtRp(estimasi)}</div>`:''}</td>
                   ${Auth.can('inventory','edit') ? `
