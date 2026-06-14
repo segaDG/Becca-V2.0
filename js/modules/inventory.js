@@ -2492,11 +2492,15 @@ const InventoryModule = (() => {
   function renderAlert() {
     const low = _items.filter(i => (i.stokMin||0) > 0 && (i._stok||0) <= (i.stokMin||0))
                       .sort((a,b) => (a._stok||0) - (b._stok||0));
-    // Trigger background load kas history utk vendor/harga suggestion
-    _ensureKasCacheForAutoPO().then(() => {
-      // Re-render kalau alert tab masih aktif
-      if (_activeTab === 'alert' && _kasCacheForAutoPO) renderAlert();
-    });
+    // Trigger background load kas history utk vendor/harga suggestion — TAPI
+    // hanya re-render saat cache BARU pertama kali ter-load. Sebelumnya selalu
+    // re-render → infinite loop karena _ensureKasCacheForAutoPO langsung return
+    // saat cache sudah ada → renderAlert dipanggil lagi → terus berulang.
+    if (!_kasCacheForAutoPO) {
+      _ensureKasCacheForAutoPO().then(() => {
+        if (_activeTab === 'alert' && _kasCacheForAutoPO) renderAlert();
+      });
+    }
     document.getElementById('inv-tab-alert').innerHTML = low.length === 0 ? `
       ${UI.empty({iconKey:'check', title:'Semua stok aman', desc:'Tidak ada barang yang perlu restock', height:'40vh'})}` : `
       <div style="margin-bottom:12px;padding:10px 14px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.2);border-radius:8px;display:flex;align-items:center;gap:8px">
