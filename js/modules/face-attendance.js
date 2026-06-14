@@ -307,7 +307,7 @@ const FaceAttendanceModule = (() => {
           <canvas id="fr-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none"></canvas>
           <div id="fr-overlay" style="display:none;position:absolute;inset:0;border-radius:inherit"></div>
           <div id="fr-loader" style="position:absolute;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;gap:10px;border-radius:inherit">
-            <div style="font-size:30px">🤖</div>
+            <div style="font-size:30px">⚡</div>
             <div style="font-weight:600;font-size:14px">Memuat AI Model...</div>
             <div style="font-size:11px;opacity:.5">Model di-cache setelah loading pertama</div>
           </div>
@@ -506,7 +506,7 @@ const FaceAttendanceModule = (() => {
           <canvas id="kiosk-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1)"></canvas>
           <div id="kiosk-overlay" style="display:none;position:absolute;inset:0;border-radius:inherit"></div>
           <div id="kiosk-loader" style="position:absolute;inset:0;background:rgba(0,0,0,.8);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;gap:8px;border-radius:inherit">
-            <div style="font-size:36px">🤖</div>
+            <div style="font-size:36px">⚡</div>
             <div style="font-weight:600">Memuat AI...</div>
             <div style="font-size:11px;opacity:.6">Pertama kali ~15 detik</div>
           </div>

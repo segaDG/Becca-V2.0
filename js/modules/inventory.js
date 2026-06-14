@@ -2500,7 +2500,7 @@ const InventoryModule = (() => {
     document.getElementById('inv-tab-alert').innerHTML = low.length === 0 ? `
       ${UI.empty({iconKey:'check', title:'Semua stok aman', desc:'Tidak ada barang yang perlu restock', height:'40vh'})}` : `
       <div style="margin-bottom:12px;padding:10px 14px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.2);border-radius:8px;display:flex;align-items:center;gap:8px">
-        <span style="font-size:16px">🤖</span>
+        <span style="font-size:16px">✨</span>
         <div style="flex:1">
           <div style="font-size:12px;font-weight:700;color:var(--primary-h)">Saran Restock Otomatis</div>
           <div style="font-size:11px;color:var(--text-3)">Berdasarkan rata-rata pemakaian 30 hari terakhir + history vendor dari kas kecil. Lead time default 3 hari.</div>
@@ -3349,7 +3349,7 @@ const InventoryModule = (() => {
 
     const mid = Utils.uid();
     Modal.open({ id: mid,
-      title: '🤖 AI HPP — Learning Stats',
+      title: 'AI HPP — Learning Stats',
       size: 'modal-md',
       body: '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s3);margin-bottom:var(--s4)">'
         + statsCards + '</div>'

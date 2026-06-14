@@ -1272,8 +1272,8 @@ const KasModule = (() => {
         title="${Utils.esc(tip)}">🔗 ${Utils.esc(label)}${isSelesai?' ✓':''}</span>`;
     }
     // D5 — Auto-suggest anggaran. Kalau ada match score >=10, tampil tombol
-    // ungu "🤖 Saran: <label>" — klik langsung apply (1 step), atau klik kanan
-    // (right-click) buka picker manual kalau mau pilih lain.
+    // ungu dengan indikator "✨" — klik langsung apply (1 step), atau klik
+    // kanan (right-click) buka picker manual kalau mau pilih lain.
     const suggestion = _suggestAnggaranFor(r);
     if (suggestion) {
       const lbl = Utils.esc(suggestion.meta.label || '');
@@ -1283,7 +1283,7 @@ const KasModule = (() => {
         title="Saran link ke ${lbl} (klik kanan untuk pilih manual)"
         style="font-size:9px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.35);color:var(--primary-h);padding:1px 6px;border-radius:3px;margin-left:4px;cursor:pointer;font-weight:600;vertical-align:middle"
         onmouseover="this.style.background='rgba(99,102,241,.22)'"
-        onmouseout="this.style.background='rgba(99,102,241,.12)'">🤖 ${lbl}</button>`;
+        onmouseout="this.style.background='rgba(99,102,241,.12)'">✨ ${lbl}</button>`;
     }
     return `<button class="ks-anggaran-link-btn"
       onclick="event.stopPropagation();KasModule._openAnggaranPicker('${r.id}')"
@@ -1957,7 +1957,7 @@ const KasModule = (() => {
     const analysisHtml=analyses.map(a=>'<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start"><div style="font-size:20px;flex-shrink:0">'+a.icon+'</div><div><div style="font-size:12px;font-weight:800;color:'+a.color+';margin-bottom:3px">'+a.title+'</div><div style="font-size:12px;color:var(--text-2);line-height:1.6">'+a.desc+'</div></div></div>').join('');
     el.innerHTML='<div style="display:flex;gap:var(--s3);margin-bottom:var(--s4)">'+cards+'</div>'
       +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:var(--s4)"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><div style="font-size:14px;font-weight:800;color:var(--heading)">Perbandingan per Kategori</div><div style="font-size:11px;color:var(--text-3);margin-top:2px">'+bulan.join(' · ')+' — ▲▼ delta vs bulan sebelumnya</div></div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--surface2)"><th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);position:sticky;left:0;background:var(--surface2);z-index:2;min-width:130px">Kategori</th>'+mHeaders+'</tr></thead><tbody>'+tblRows+'<tr style="background:var(--surface2);border-top:2px solid var(--border)"><td style="padding:10px 12px;font-size:12px;font-weight:800;position:sticky;left:0;background:var(--surface2);z-index:1">TOTAL</td>'+totalCells+'</tr></tbody></table></div></div>'
-      +'<div><div style="font-size:13px;font-weight:800;color:var(--heading);margin-bottom:var(--s3)">🤖 Analisa & Rekomendasi</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s3)">'+analysisHtml+'</div></div>';
+      +'<div><div style="font-size:13px;font-weight:800;color:var(--heading);margin-bottom:var(--s3)">✨ Analisa & Rekomendasi</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s3)">'+analysisHtml+'</div></div>';
   }
   function renderMonthly() {
     // Group by YYYY-MM from tgl (tanggal transaksi), not r.bulan

@@ -307,7 +307,7 @@ const WeeklyDigest = (() => {
       s.lines.forEach(l => { msg += `• ${l}\n`; });
       msg += '\n';
     });
-    msg += `${SEP}\n🤖 _Auto-generated · BECCA V2.0_\n_Lihat detail: ${location.host || 'becca-catering.vercel.app'}_`;
+    msg += `${SEP}\n_Auto-generated · BECCA V2.0_\n_Lihat detail: ${location.host || 'becca-catering.vercel.app'}_`;
     return msg;
   }
 

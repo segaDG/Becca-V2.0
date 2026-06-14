@@ -2543,7 +2543,7 @@ else { window.SettingsModule = (() => {
         const aiItems = items.filter(it => it._aiSuggested);
         Modal.open({
           id: revId,
-          title: `🤖 Review Kategori AI`,
+          title: `✨ Review Kategori AI`,
           body: `
             <div style="margin-bottom:var(--s3);font-size:13px;color:var(--text-muted);line-height:1.5">
               <strong>${items.length} produk</strong> siap diimpor dari <em>${file.name}</em>.<br>

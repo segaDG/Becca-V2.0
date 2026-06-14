@@ -6,7 +6,7 @@ const App = {
   // Global cache buster — bump SEKALI saat deploy, applies ke semua modul lazy-load.
   // index.html eager scripts (utils, db, ui/*, dll) tetap per-file karena
   // HTML loads dulu sebelum JS constant ini bisa diakses.
-  BUILD_VERSION: '20260612i',
+  BUILD_VERSION: '20260614a',
   _currentPage: 'dashboard',
   _loadedModules: new Set(),
 
@@ -863,7 +863,7 @@ const App = {
       },
       {
         selector: '#ai-fab',
-        title: '🤖 AI Assistant',
+        title: 'AI Assistant',
         message: 'Tombol AI di pojok kanan-bawah bisa ditanya soal data BECCA (kas, stok, customer, dll). Bisa di-drag ke posisi favorit.',
       },
       {
