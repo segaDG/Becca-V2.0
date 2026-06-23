@@ -404,18 +404,14 @@ else { window.POModule = (() => {
 
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
-          <div class="form-group"><label class="form-label">Nomor Estimasi</label>
-            <input class="form-control" value="${doc.nomorEstimasi||''}" onchange="POModule._saveMeta('${id}','nomorEstimasi',this.value)" style="font-family:var(--font-mono);font-weight:700" ${locked?'disabled':''}></div>
+          <div class="form-group"><label class="form-label">Nomor Estimasi / Nama File PDF</label>
+            <input class="form-control" id="po-nomor-estimasi-${id}" value="${doc.nomorEstimasi||''}" onchange="POModule._saveMeta('${id}','nomorEstimasi',this.value)" style="font-family:var(--font-mono);font-weight:700" ${locked?'disabled':''}></div>
           <div class="form-group"><label class="form-label">Dibuat oleh</label>
             <input class="form-control" value="${doc.namaPetugas||''}" disabled style="background:var(--surface2)"></div>
           <div class="form-group"><label class="form-label">Tanggal Awal Periode</label>
             <input class="form-control" type="date" value="${doc.periodeAwal||''}" onchange="POModule._saveMeta('${id}','periodeAwal',this.value)" ${locked?'disabled':''}></div>
           <div class="form-group"><label class="form-label">Tanggal Akhir Periode</label>
             <input class="form-control" type="date" value="${doc.periodeAkhir||''}" onchange="POModule._saveMeta('${id}','periodeAkhir',this.value)" ${locked?'disabled':''}></div>
-        </div>
-        <div style="margin-top:8px">
-          <label class="form-label">Nama File PDF</label>
-          <input class="form-control" value="${_buildFilename(doc, chainIdx+1)}" disabled style="background:var(--surface2);font-family:var(--font-mono);font-size:11px;color:var(--text-2)">
         </div>
       </div>
 
@@ -892,7 +888,7 @@ else { window.POModule = (() => {
     const oldVal = doc[key];
     if (String(oldVal ?? '') === String(val ?? '')) return; // no change → skip log & save
     doc[key] = val;
-    // Auto-generate periode (teks) dan tahun dari date picker
+    // Auto-generate nomorEstimasi, periode, dan tahun dari date picker
     if (key === 'periodeAwal' || key === 'periodeAkhir') {
       const awal  = key === 'periodeAwal'  ? val : doc.periodeAwal;
       const akhir = key === 'periodeAkhir' ? val : doc.periodeAkhir;
@@ -901,6 +897,11 @@ else { window.POModule = (() => {
         doc.tahun = d1.getFullYear();
         const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
         doc.periode = akhir ? `${fmt(awal)} - ${fmt(akhir)}` : fmt(awal);
+        const sorted = _sortedChain();
+        const seqNum = sorted.findIndex(s => s.id === doc.id) + 1 || 1;
+        doc.nomorEstimasi = _buildFilename(doc, seqNum);
+        const nEl = document.getElementById(`po-nomor-estimasi-${doc.id}`);
+        if (nEl) nEl.value = doc.nomorEstimasi;
       }
     }
     DB.savePO(doc).catch(() => {});
@@ -1253,7 +1254,7 @@ else { window.POModule = (() => {
       </tr>`;
     }).join('');
 
-    const filename = _buildFilename(doc, chainIdx+1);
+    const filename = doc.nomorEstimasi || _buildFilename(doc, chainIdx+1);
     const periodeLengkap = _formatPeriodeLengkap(doc);
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${filename}</title>
     <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:11px;padding:16px}
