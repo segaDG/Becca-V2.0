@@ -106,7 +106,7 @@ else { window.POModule = (() => {
     el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)">Memuat...</div>';
     await new Promise((resolve, reject) => {
       const base = 'js/modules/po-belanja-pasar.js';
-      const ver = '?v=20260508b';
+      const ver = '?v=20260622a';
       // Remove old script tag if exists (force reload fresh version)
       const old = document.querySelector(`script[src^="${base}"]`);
       if (old) old.remove();
@@ -408,10 +408,14 @@ else { window.POModule = (() => {
             <input class="form-control" value="${doc.nomorEstimasi||''}" onchange="POModule._saveMeta('${id}','nomorEstimasi',this.value)" style="font-family:var(--font-mono);font-weight:700" ${locked?'disabled':''}></div>
           <div class="form-group"><label class="form-label">Dibuat oleh</label>
             <input class="form-control" value="${doc.namaPetugas||''}" disabled style="background:var(--surface2)"></div>
-          <div class="form-group"><label class="form-label">Periode</label>
-            <input class="form-control" value="${doc.periode||''}" placeholder="2 Apr - 5 Apr" onchange="POModule._saveMeta('${id}','periode',this.value)" ${locked?'disabled':''}></div>
-          <div class="form-group"><label class="form-label">Tahun</label>
-            <input class="form-control" type="number" value="${doc.tahun||2026}" onchange="POModule._saveMeta('${id}','tahun',+this.value)" ${locked?'disabled':''}></div>
+          <div class="form-group"><label class="form-label">Tanggal Awal Periode</label>
+            <input class="form-control" type="date" value="${doc.periodeAwal||''}" onchange="POModule._saveMeta('${id}','periodeAwal',this.value)" ${locked?'disabled':''}></div>
+          <div class="form-group"><label class="form-label">Tanggal Akhir Periode</label>
+            <input class="form-control" type="date" value="${doc.periodeAkhir||''}" onchange="POModule._saveMeta('${id}','periodeAkhir',this.value)" ${locked?'disabled':''}></div>
+        </div>
+        <div style="margin-top:8px">
+          <label class="form-label">Nama File PDF</label>
+          <input class="form-control" value="${_buildFilename(doc, chainIdx+1)}" disabled style="background:var(--surface2);font-family:var(--font-mono);font-size:11px;color:var(--text-2)">
         </div>
       </div>
 
@@ -888,6 +892,17 @@ else { window.POModule = (() => {
     const oldVal = doc[key];
     if (String(oldVal ?? '') === String(val ?? '')) return; // no change → skip log & save
     doc[key] = val;
+    // Auto-generate periode (teks) dan tahun dari date picker
+    if (key === 'periodeAwal' || key === 'periodeAkhir') {
+      const awal  = key === 'periodeAwal'  ? val : doc.periodeAwal;
+      const akhir = key === 'periodeAkhir' ? val : doc.periodeAkhir;
+      if (awal) {
+        const d1 = new Date(awal + 'T00:00:00');
+        doc.tahun = d1.getFullYear();
+        const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        doc.periode = akhir ? `${fmt(awal)} - ${fmt(akhir)}` : fmt(awal);
+      }
+    }
     DB.savePO(doc).catch(() => {});
     DB.logActivity?.({ type: 'edit_po', detail: `${key}: ${oldVal||'∅'} → ${val||'∅'} (${doc.nomorEstimasi||''})`, rowId: docId });
   }
@@ -1172,6 +1187,30 @@ else { window.POModule = (() => {
     if (typeof POBelanjaPasarModule !== 'undefined') POBelanjaPasarModule.autoSave?.();
   }
 
+  /* ── Filename builder ──────────────────────── */
+  function _buildFilename(doc, seqNum) {
+    if (!doc.periodeAwal || !doc.periodeAkhir) return `BPS-EAM-???????? #${seqNum||'?'}`;
+    const d1 = new Date(doc.periodeAwal);
+    const d2 = new Date(doc.periodeAkhir);
+    const dd1 = String(d1.getDate()).padStart(2,'0');
+    const dd2 = String(d2.getDate()).padStart(2,'0');
+    const yy  = String(d1.getFullYear()).slice(-2);
+    const mm  = String(d1.getMonth()+1).padStart(2,'0');
+    return `BPS-EAM-${dd1}${dd2}${yy}${mm} #${seqNum||'?'}`;
+  }
+
+  function _formatPeriodeLengkap(doc) {
+    if (!doc.periodeAwal || !doc.periodeAkhir) return doc.periode || '';
+    const opt = { day:'numeric', month:'long', year:'numeric' };
+    const loc = 'id-ID';
+    const d1 = new Date(doc.periodeAwal);
+    const d2 = new Date(doc.periodeAkhir);
+    if (d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear()) {
+      return `${d1.getDate()} – ${d2.toLocaleDateString(loc, opt)}`;
+    }
+    return `${d1.toLocaleDateString(loc, opt)} – ${d2.toLocaleDateString(loc, opt)}`;
+  }
+
   /* ── Print ─────────────────────────────────── */
   function printAnggaran(id) {
     if (_editState) _commitEdit();
@@ -1214,20 +1253,28 @@ else { window.POModule = (() => {
       </tr>`;
     }).join('');
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Anggaran #${chainIdx+1} ${doc.nomorEstimasi}</title>
+    const filename = _buildFilename(doc, chainIdx+1);
+    const periodeLengkap = _formatPeriodeLengkap(doc);
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${filename}</title>
     <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:11px;padding:16px}
     @page{size:A4 portrait;margin:10mm}@media print{.no-print{display:none!important}}table{width:100%;border-collapse:collapse}</style></head><body>
-    <button class="no-print" onclick="window.print()" style="position:fixed;top:10px;right:10px;padding:8px 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;z-index:99">Print</button>
+    <button class="no-print" onclick="window.print()" style="position:fixed;top:10px;right:10px;padding:8px 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;z-index:99">Print / Save PDF</button>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
       <div><div style="font-size:11px;font-weight:700;color:#dc2626;background:#fef2f2;display:inline-block;padding:2px 8px;border-radius:3px">BPS</div>
         <div style="font-size:22px;font-weight:900;color:#1a1a2e;margin-top:4px">Estimasi Anggaran Mingguan</div>
         <div style="font-size:10px;color:#666;margin-top:2px">Anggaran #${chainIdx+1}</div></div>
-      <div style="text-align:right"><div style="font-size:9px;color:#666;background:#f5f5f5;padding:3px 8px;border-radius:3px">Estimation Number #${doc.nomorEstimasi||''}</div>
+      <div style="text-align:right">
+        <div style="font-size:10px;font-weight:700;color:#1a1a2e;background:#f5f5f5;padding:4px 10px;border-radius:5px;font-family:monospace;letter-spacing:.5px">${filename}</div>
+        <div style="font-size:9px;color:#666;margin-top:3px">Estimation Number #${doc.nomorEstimasi||''}</div>
         <div style="font-size:10px;margin-top:4px"><span style="color:#666">Nama Petugas:</span> <strong style="font-size:18px;color:#dc2626">${doc.namaPetugas||''}</strong></div>
         ${doc.confirmedBy?`<div style="font-size:9px;color:#10b981;margin-top:2px">✓ Confirmed by ${doc.confirmedBy}</div>`:''}</div>
     </div>
     <div style="font-size:10px;color:#666;margin-bottom:8px;padding:6px 10px;background:#fafafa;border:1px solid #eee;border-radius:4px"><strong>Tujuan</strong><br>Lembaran estimasi anggaran ini di buat untuk menghitung anggaran yang akan dikeluarkan untuk keperluan operasional dan gaji pada periode yang bersangkutan.</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px;font-size:11px"><span style="color:#dc2626;font-weight:700">Periode ${doc.tahun||''}</span><span style="font-weight:700">${doc.periode||''}</span></div>
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;padding:7px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px">
+      <span style="font-size:11px;color:#dc2626;font-weight:700">Periode</span>
+      <span style="font-size:13px;font-weight:800;color:#1a1a2e">${periodeLengkap}</span>
+      ${doc.periode && doc.periodeAwal ? `<span style="font-size:10px;color:#999">(${doc.periode})</span>` : ''}
+    </div>
     <div style="position:relative">
       ${isSelesai ? `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:64px;font-weight:900;color:rgba(100,116,139,.08);pointer-events:none;white-space:nowrap;letter-spacing:10px;font-style:italic;z-index:2">SELESAI</div>` : ''}
       <table><thead><tr style="background:#dc2626;color:#fff">

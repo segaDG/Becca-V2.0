@@ -211,9 +211,8 @@ window.POBelanjaPasarModule = (() => {
       if (f) { selected.push({ formId: f.id, tanggal, shift }); dateSet.add(tanggal); }
     });
     if (!selected.length) { Notify.warning('Pilih minimal satu form'); return; }
-    // Cek overlap dengan dokumen lain (selain _doc saat ini) — jangan biarkan
-    // duplikat selectedForms. Race condition: realtime sync mungkin telat,
-    // jadi safety net di sini SEBELUM save.
+    // Refresh dari DB sebelum cek konflik — cegah race condition antar pengguna
+    try { _data = await DB.getBelanjaPasar(); } catch {}
     const selectedFids = new Set(selected.map(s => s.formId));
     const conflict = _data.find(d => d.id !== _doc?.id && (d.selectedForms||[]).some(sf => selectedFids.has(sf.formId)));
     if (conflict) {
