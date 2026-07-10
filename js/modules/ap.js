@@ -2077,15 +2077,49 @@ const APModule = (() => {
       periodeLabel = (f.dateFrom ? fmtTgl(f.dateFrom) : '—') + ' s/d ' + (f.dateTo ? fmtTgl(f.dateTo) : '—');
     }
 
-    // Group by vendor for summary section
+    // Group by vendor and by vendor×month
     const vMap = {};
+    const vmMap = {}; // vmMap[vendor][YYYY-MM] = total
+    const monthSet = new Set();
     rows.forEach(r => {
-      const v = String(r.vendor||r.supplier_nama||r.supplier||'(Tanpa Vendor)').trim();
+      const v   = String(r.vendor||r.supplier_nama||r.supplier||'(Tanpa Vendor)').trim();
+      const bln = (r.tgl_transaksi||r.tgl||'').substring(0,7);
       if (!vMap[v]) vMap[v] = { total:0, lunas:0, count:0 };
       vMap[v].total  += r.total||0;
       vMap[v].lunas  += (r.status||'').toUpperCase()==='LUNAS' ? (r.total||0) : 0;
       vMap[v].count++;
+      if (bln) {
+        monthSet.add(bln);
+        if (!vmMap[v]) vmMap[v] = {};
+        vmMap[v][bln] = (vmMap[v][bln]||0) + (r.total||0);
+      }
     });
+    const months = [...monthSet].sort();
+    const fmtBln = b => { const [y,m]=b.split('-'); return (MONTHS_ID[parseInt(m)]||m).substring(0,3)+' '+y.slice(-2); };
+
+    // Pivot: vendor × month table
+    const vendorsSorted = Object.entries(vMap).sort((a,b)=>b[1].total-a[1].total).map(([v])=>v);
+    const monthTotals   = months.map(m => vendorsSorted.reduce((s,v)=>s+(vmMap[v]?.[m]||0),0));
+    const landscape     = months.length > 5;
+
+    const pivotHeaderCols = months.map(m => `<th style="padding:5px 6px;font-size:8px;text-align:right;white-space:nowrap">${fmtBln(m)}</th>`).join('');
+    const pivotRows = vendorsSorted.map((v,vi) => {
+      const bg = vi%2 ? 'background:#f9fafb' : '';
+      const cells = months.map(m => {
+        const val = vmMap[v]?.[m]||0;
+        return `<td style="padding:4px 5px;text-align:right;font-family:monospace;font-size:9px;${bg}">${val ? 'Rp '+Number(val).toLocaleString('id-ID') : '<span style="color:#d1d5db">—</span>'}</td>`;
+      }).join('');
+      return `<tr style="${bg};border-bottom:.5px solid #e5e7eb">
+        <td style="padding:4px 6px;font-size:9px;font-weight:600;${bg}">${Utils.esc(v)}</td>
+        ${cells}
+        <td style="padding:4px 6px;text-align:right;font-family:monospace;font-size:9px;font-weight:700;color:#4f46e5;${bg}">Rp ${Number(vMap[v].total).toLocaleString('id-ID')}</td>
+      </tr>`;
+    }).join('');
+    const pivotFooter = `<tr style="background:#eef2ff;font-weight:700;border-top:2px solid #6366f1">
+      <td style="padding:5px 6px;font-size:9px">TOTAL</td>
+      ${monthTotals.map(t=>`<td style="padding:5px 6px;text-align:right;font-family:monospace;font-size:9px">Rp ${Number(t).toLocaleString('id-ID')}</td>`).join('')}
+      <td style="padding:5px 6px;text-align:right;font-family:monospace;font-size:9px;color:#4f46e5">Rp ${Number(totalAll).toLocaleString('id-ID')}</td>
+    </tr>`;
 
     const detailRows = rows.map((r,i) => {
       const isL = (r.status||'').toUpperCase()==='LUNAS';
@@ -2117,7 +2151,7 @@ const APModule = (() => {
       <style>
         *{box-sizing:border-box;margin:0;padding:0}
         body{font-family:Arial,sans-serif;font-size:11px;padding:20px;color:#1a1a2e}
-        @page{size:A4 portrait;margin:10mm}
+        @page{size:${landscape?'A4 landscape':'A4 portrait'};margin:10mm}
         @media print{.no-print{display:none!important}}
         table{width:100%;border-collapse:collapse}
         h2{font-size:18px;font-weight:900;color:#1a1a2e;margin:4px 0}
@@ -2176,6 +2210,22 @@ const APModule = (() => {
           </tr></tfoot>
         </table>
       </div>
+      <!-- Total per Bulan per Supplier -->
+      ${months.length > 1 ? `
+      <div style="margin-bottom:16px;page-break-inside:avoid">
+        <div style="font-size:11px;font-weight:700;margin-bottom:8px;color:#1a1a2e">Total per Bulan per Supplier</div>
+        <div style="overflow-x:auto">
+        <table style="min-width:400px">
+          <thead><tr style="background:#1a1a2e;color:#fff">
+            <th style="padding:5px 6px;font-size:8px;text-align:left;white-space:nowrap">Vendor / Supplier</th>
+            ${pivotHeaderCols}
+            <th style="padding:5px 6px;font-size:8px;text-align:right;background:rgba(99,102,241,.3)">TOTAL</th>
+          </tr></thead>
+          <tbody>${pivotRows}</tbody>
+          <tfoot>${pivotFooter}</tfoot>
+        </table>
+        </div>
+      </div>` : ''}
       <!-- Detail Transaksi -->
       <div style="font-size:11px;font-weight:700;margin-bottom:8px;color:#1a1a2e">Detail Transaksi</div>
       <table>
@@ -2202,9 +2252,11 @@ const APModule = (() => {
     const rows = _apDlFilterData(f);
     if (!rows.length) { Notify.warning('Tidak ada data untuk filter yang dipilih'); return; }
 
+    const MONTHS_CSV = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
     const fmtTgl = s => { if(!s) return ''; const d=new Date(s+'T00:00:00'); return d.toLocaleDateString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric'}); };
     const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
 
+    // Detail transaksi
     const header = ['Tanggal','Vendor','Keterangan','Item','Qty','Satuan','Harga Satuan','Total','Jatuh Tempo','Tgl Bayar','Status'];
     const csvRows = rows.map(r => [
       fmtTgl(r.tgl_transaksi||r.tgl),
@@ -2220,13 +2272,42 @@ const APModule = (() => {
       (r.status||'').toUpperCase()||'BELUM LUNAS',
     ].map(esc).join(','));
 
-    const csv = '﻿' + [header.map(esc).join(','), ...csvRows].join('\r\n');
+    // Pivot: Total per Bulan per Supplier
+    const pvVMap = {}, pvMonthSet = new Set();
+    rows.forEach(r => {
+      const v   = String(r.vendor||r.supplier_nama||r.supplier||'(Tanpa Vendor)').trim();
+      const bln = (r.tgl_transaksi||r.tgl||'').substring(0,7);
+      if (!pvVMap[v]) pvVMap[v] = {};
+      pvVMap[v][bln] = (pvVMap[v][bln]||0) + (r.total||0);
+      if (bln) pvMonthSet.add(bln);
+    });
+    const pvMonths = [...pvMonthSet].sort();
+    const pvFmtBln = b => { const [y,m]=b.split('-'); return (MONTHS_CSV[parseInt(m)]||m)+' '+y; };
+    const pvVendors = Object.keys(pvVMap).sort((a,b) =>
+      Object.values(pvVMap[b]).reduce((s,v)=>s+v,0) - Object.values(pvVMap[a]).reduce((s,v)=>s+v,0));
+
+    const pvHeader  = ['Vendor / Supplier', ...pvMonths.map(pvFmtBln), 'TOTAL'].map(esc).join(',');
+    const pvRows    = pvVendors.map(v => {
+      const rowTotals = pvMonths.map(m => pvVMap[v][m]||0);
+      const rowTotal  = rowTotals.reduce((s,x)=>s+x,0);
+      return [v, ...rowTotals, rowTotal].map(esc).join(',');
+    });
+    const pvFooter  = ['TOTAL', ...pvMonths.map(m => pvVendors.reduce((s,v)=>s+(pvVMap[v][m]||0),0)),
+      pvVendors.reduce((s,v)=>s+Object.values(pvVMap[v]).reduce((ss,x)=>ss+x,0),0)].map(esc).join(',');
+
+    const csv = '﻿' + [
+      // Section 1: Detail
+      esc('DETAIL TRANSAKSI'), '',
+      header.map(esc).join(','), ...csvRows,
+      // Section 2: Pivot
+      '', esc('TOTAL PER BULAN PER SUPPLIER'), '',
+      pvHeader, ...pvRows, pvFooter,
+    ].join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    const MONTHS_ID = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
     let fname = 'Laporan-AP';
-    if (f.type==='bulanan') { const [y,m]=(document.getElementById('ap-dl-month')?.value||'').split('-'); fname+=`-${MONTHS_ID[parseInt(m)]||m}-${y}`; }
+    if (f.type==='bulanan') { const [y,m]=(document.getElementById('ap-dl-month')?.value||'').split('-'); fname+=`-${MONTHS_CSV[parseInt(m)]||m}-${y}`; }
     else if (f.type==='tahunan') { fname+=`-${document.getElementById('ap-dl-year')?.value||''}`; }
     else { if(f.dateFrom) fname+=`-${f.dateFrom}`; if(f.dateTo) fname+=`_sd_${f.dateTo}`; }
     a.href = url; a.download = fname + '.csv';
