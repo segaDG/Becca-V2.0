@@ -1592,6 +1592,13 @@ const APModule = (() => {
           .ap-summary-grid{grid-template-columns:1fr !important}
         }
       </style>
+      <!-- Download Button -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+        <button onclick="APModule.openDownloadModal()" style="display:flex;align-items:center;gap:8px;padding:9px 18px;border-radius:10px;border:1.5px solid var(--primary);background:var(--primary);color:#fff;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s"
+          onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+          &#8595; Download Laporan
+        </button>
+      </div>
       <!-- Summary Header Cards -->
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:24px">
         <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:16px;padding:20px;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08)">
@@ -1885,7 +1892,352 @@ const APModule = (() => {
     });
   }
 
+  /* ── Download Laporan AP ─────────────────────────── */
+  function openDownloadModal() {
+    const data = (_ap||[]).map(r => { const f={...r}; if(r.data&&typeof r.data==='object') Object.assign(f,r.data); return f; });
+    const allVendors = [...new Set(data.map(r => String(r.vendor||r.supplier_nama||r.supplier||'').trim()).filter(Boolean))].sort();
+    const allYears   = [...new Set(data.map(r => (r.tgl_transaksi||r.tgl||'').substring(0,4)).filter(Boolean))].sort((a,b)=>b-a);
+    const allMonths  = [...new Set(data.map(r => (r.tgl_transaksi||r.tgl||'').substring(0,7)).filter(Boolean))].sort((a,b)=>b.localeCompare(a));
+    const MONTHS_ID  = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const mid = 'ap-download-modal';
+
+    const vendorChks = allVendors.map(v =>
+      `<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;border-bottom:.5px solid var(--border-light)">
+        <input type="checkbox" class="ap-dl-vendor" value="${Utils.esc(v)}" checked style="width:14px;height:14px;accent-color:var(--primary)">
+        <span style="font-size:12px">${Utils.esc(v)}</span>
+      </label>`
+    ).join('');
+
+    const yearOpts  = allYears.map(y  => `<option value="${y}">${y}</option>`).join('');
+    const monthOpts = allMonths.map(b => {
+      const [y,m] = b.split('-');
+      return `<option value="${b}">${MONTHS_ID[parseInt(m)]||m} ${y}</option>`;
+    }).join('');
+
+    Modal.open({ id: mid, title: 'Download Laporan AP', size: 'modal-lg', body: `
+      <div style="display:flex;flex-direction:column;gap:20px">
+
+        <!-- Tipe Laporan -->
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Tipe Laporan</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${[['bulanan','Bulanan'],['tahunan','Tahunan'],['custom','Custom']].map(([v,l]) =>
+              `<label style="display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:1.5px solid var(--border);cursor:pointer;font-size:12px;font-weight:600;transition:all .15s"
+                id="ap-dl-lbl-${v}" onclick="APModule._apDlSetType('${v}')">
+                <input type="radio" name="ap-dl-type" value="${v}" ${v==='custom'?'checked':''} style="accent-color:var(--primary)"> ${l}
+              </label>`
+            ).join('')}
+          </div>
+        </div>
+
+        <!-- Periode Selector (dynamic) -->
+        <div id="ap-dl-periode-wrap">
+          <!-- Bulanan -->
+          <div id="ap-dl-p-bulanan" style="display:none">
+            <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Pilih Bulan</div>
+            <select id="ap-dl-month" class="form-control" style="max-width:240px">
+              ${monthOpts || '<option>Tidak ada data</option>'}
+            </select>
+          </div>
+          <!-- Tahunan -->
+          <div id="ap-dl-p-tahunan" style="display:none">
+            <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Pilih Tahun</div>
+            <select id="ap-dl-year" class="form-control" style="max-width:160px">
+              ${yearOpts || '<option>Tidak ada data</option>'}
+            </select>
+          </div>
+          <!-- Custom -->
+          <div id="ap-dl-p-custom">
+            <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Rentang Tanggal</div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <input type="date" id="ap-dl-from" class="form-control" style="max-width:160px">
+              <span style="color:var(--text-3);font-size:12px">s/d</span>
+              <input type="date" id="ap-dl-to"   class="form-control" style="max-width:160px">
+            </div>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Status Pembayaran</div>
+          <div style="display:flex;gap:16px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="ap-dl-st-belum" checked style="accent-color:var(--primary)"> Belum Lunas
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="ap-dl-st-lunas" checked style="accent-color:var(--primary)"> Lunas
+            </label>
+          </div>
+        </div>
+
+        <!-- Vendor Checkboxes -->
+        ${allVendors.length ? `
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em">Vendor / Supplier</div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;color:var(--primary);font-weight:600">
+              <input type="checkbox" id="ap-dl-all-vendor" checked onchange="document.querySelectorAll('.ap-dl-vendor').forEach(c=>c.checked=this.checked)">
+              Pilih Semua
+            </label>
+          </div>
+          <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+            ${vendorChks}
+          </div>
+        </div>` : ''}
+
+        <!-- Sertakan transaksi tanpa vendor -->
+        ${data.some(r=>!String(r.vendor||r.supplier_nama||r.supplier||'').trim()) ? `
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="ap-dl-no-vendor" checked style="accent-color:var(--primary)">
+          Sertakan transaksi tanpa vendor (utilities, dll)
+        </label>` : ''}
+
+      </div>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn" onclick="APModule._apDownloadCSV('${mid}')"
+          style="border:1.5px solid #10b981;color:#10b981;background:rgba(16,185,129,.06);font-weight:700">
+          CSV / Excel
+        </button>
+        <button class="btn btn-primary" onclick="APModule._apDownloadPDF('${mid}')">
+          Download PDF
+        </button>`,
+    });
+    // Set default type = custom, style active tab
+    setTimeout(() => APModule._apDlSetType('custom'), 50);
+  }
+
+  function _apDlSetType(type) {
+    ['bulanan','tahunan','custom'].forEach(t => {
+      const lbl = document.getElementById(`ap-dl-lbl-${t}`);
+      const sec = document.getElementById(`ap-dl-p-${t}`);
+      const radio = document.querySelector(`input[name="ap-dl-type"][value="${t}"]`);
+      if (lbl) { lbl.style.borderColor = t===type ? 'var(--primary)' : 'var(--border)'; lbl.style.background = t===type ? 'rgba(99,102,241,.08)' : ''; lbl.style.color = t===type ? 'var(--primary)' : 'var(--text)'; }
+      if (sec) sec.style.display = t===type ? 'block' : 'none';
+      if (radio) radio.checked = t===type;
+    });
+  }
+
+  function _apDlGetFilter() {
+    const type = document.querySelector('input[name="ap-dl-type"]:checked')?.value || 'custom';
+    let dateFrom = '', dateTo = '';
+    if (type === 'bulanan') {
+      const m = document.getElementById('ap-dl-month')?.value;
+      if (m) { dateFrom = m + '-01'; dateTo = m + '-31'; }
+    } else if (type === 'tahunan') {
+      const y = document.getElementById('ap-dl-year')?.value;
+      if (y) { dateFrom = y + '-01-01'; dateTo = y + '-12-31'; }
+    } else {
+      dateFrom = document.getElementById('ap-dl-from')?.value || '';
+      dateTo   = document.getElementById('ap-dl-to')?.value   || '';
+    }
+    const stBelum = document.getElementById('ap-dl-st-belum')?.checked ?? true;
+    const stLunas = document.getElementById('ap-dl-st-lunas')?.checked ?? true;
+    const checkedVendors = new Set([...document.querySelectorAll('.ap-dl-vendor:checked')].map(c=>c.value));
+    const inclNoVendor   = document.getElementById('ap-dl-no-vendor')?.checked ?? true;
+    return { type, dateFrom, dateTo, stBelum, stLunas, checkedVendors, inclNoVendor };
+  }
+
+  function _apDlFilterData(f) {
+    const raw = (_ap||[]).map(r => { const d={...r}; if(r.data&&typeof r.data==='object') Object.assign(d,r.data); return d; });
+    return raw.filter(r => {
+      const tgl = r.tgl_transaksi || r.tgl || '';
+      if (f.dateFrom && tgl < f.dateFrom) return false;
+      if (f.dateTo   && tgl > f.dateTo)   return false;
+      const status = (r.status||'').toUpperCase();
+      const isLunas = status === 'LUNAS';
+      if (!f.stBelum && !isLunas) return false;
+      if (!f.stLunas && isLunas)  return false;
+      const vName = String(r.vendor||r.supplier_nama||r.supplier||'').trim();
+      if (vName) { if (!f.checkedVendors.has(vName)) return false; }
+      else { if (!f.inclNoVendor) return false; }
+      return true;
+    }).sort((a,b) => (a.tgl_transaksi||a.tgl||'').localeCompare(b.tgl_transaksi||b.tgl||''));
+  }
+
+  function _apDownloadPDF(mid) {
+    const f = _apDlGetFilter();
+    const rows = _apDlFilterData(f);
+    if (!rows.length) { Notify.warning('Tidak ada data untuk filter yang dipilih'); return; }
+
+    const MONTHS_ID = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const fmtRp = v => 'Rp ' + Number(v||0).toLocaleString('id-ID');
+    const fmtTgl = s => { if (!s) return '-'; const d = new Date(s+'T00:00:00'); return d.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}); };
+    const totalAll = rows.reduce((s,r)=>s+(r.total||0),0);
+    const totalLunas = rows.filter(r=>(r.status||'').toUpperCase()==='LUNAS').reduce((s,r)=>s+(r.total||0),0);
+
+    const typeLabels = { bulanan: 'Laporan Bulanan', tahunan: 'Laporan Tahunan', custom: 'Laporan Custom' };
+    let periodeLabel = '';
+    if (f.type === 'bulanan') {
+      const [y,m] = (document.getElementById('ap-dl-month')?.value||'').split('-');
+      periodeLabel = (MONTHS_ID[parseInt(m)]||m) + ' ' + y;
+    } else if (f.type === 'tahunan') {
+      periodeLabel = 'Tahun ' + (document.getElementById('ap-dl-year')?.value||'');
+    } else {
+      periodeLabel = (f.dateFrom ? fmtTgl(f.dateFrom) : '—') + ' s/d ' + (f.dateTo ? fmtTgl(f.dateTo) : '—');
+    }
+
+    // Group by vendor for summary section
+    const vMap = {};
+    rows.forEach(r => {
+      const v = String(r.vendor||r.supplier_nama||r.supplier||'(Tanpa Vendor)').trim();
+      if (!vMap[v]) vMap[v] = { total:0, lunas:0, count:0 };
+      vMap[v].total  += r.total||0;
+      vMap[v].lunas  += (r.status||'').toUpperCase()==='LUNAS' ? (r.total||0) : 0;
+      vMap[v].count++;
+    });
+
+    const detailRows = rows.map((r,i) => {
+      const isL = (r.status||'').toUpperCase()==='LUNAS';
+      return `<tr style="border-bottom:.5px solid #e5e7eb;${i%2?'background:#f9fafb':''}">
+        <td style="padding:4px 6px;font-size:9px;color:#6b7280">${fmtTgl(r.tgl_transaksi||r.tgl)}</td>
+        <td style="padding:4px 6px;font-size:10px;font-weight:600">${Utils.esc(r.vendor||r.supplier_nama||r.supplier||'-')}</td>
+        <td style="padding:4px 6px;font-size:9px;color:#6b7280;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${Utils.esc(r.keterangan||r.item||'-')}</td>
+        <td style="padding:4px 6px;font-size:9px;text-align:right;font-family:monospace">${fmtTgl(r.tgl_bayar||r.jatuhTempo)}</td>
+        <td style="padding:4px 6px;font-size:10px;text-align:right;font-family:monospace;font-weight:600">${fmtRp(r.total)}</td>
+        <td style="padding:4px 6px;font-size:9px;text-align:center">
+          <span style="padding:1px 7px;border-radius:10px;font-size:8px;font-weight:700;${isL?'background:#dcfce7;color:#15803d':'background:#fef2f2;color:#dc2626'}">${isL?'LUNAS':'BELUM'}</span>
+        </td>
+      </tr>`;
+    }).join('');
+
+    const summaryRows = Object.entries(vMap).sort((a,b)=>b[1].total-a[1].total).map(([v,s]) =>
+      `<tr style="border-bottom:.5px solid #e5e7eb">
+        <td style="padding:5px 8px;font-size:10px;font-weight:600">${Utils.esc(v)}</td>
+        <td style="padding:5px 8px;font-size:10px;text-align:center;color:#6b7280">${s.count}</td>
+        <td style="padding:5px 8px;font-size:10px;text-align:right;font-family:monospace;font-weight:700">${fmtRp(s.total)}</td>
+        <td style="padding:5px 8px;font-size:10px;text-align:right;font-family:monospace;color:#15803d">${fmtRp(s.lunas)}</td>
+        <td style="padding:5px 8px;font-size:10px;text-align:right;font-family:monospace;color:#dc2626">${fmtRp(s.total-s.lunas)}</td>
+      </tr>`
+    ).join('');
+
+    const printDate = new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Laporan AP — ${periodeLabel}</title>
+      <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:Arial,sans-serif;font-size:11px;padding:20px;color:#1a1a2e}
+        @page{size:A4 portrait;margin:10mm}
+        @media print{.no-print{display:none!important}}
+        table{width:100%;border-collapse:collapse}
+        h2{font-size:18px;font-weight:900;color:#1a1a2e;margin:4px 0}
+        .badge-lunas{background:#dcfce7;color:#15803d;padding:1px 7px;border-radius:10px;font-size:8px;font-weight:700}
+        .badge-belum{background:#fef2f2;color:#dc2626;padding:1px 7px;border-radius:10px;font-size:8px;font-weight:700}
+      </style></head><body>
+      <button class="no-print" onclick="window.print()" style="position:fixed;top:10px;right:10px;padding:8px 20px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;z-index:99">Print / Save PDF</button>
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #6366f1">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#6366f1;background:#eef2ff;display:inline-block;padding:2px 8px;border-radius:3px;margin-bottom:4px">BPS</div>
+          <h2>Laporan Account Payable</h2>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px">${typeLabels[f.type]} · ${periodeLabel}</div>
+        </div>
+        <div style="text-align:right;font-size:9px;color:#9ca3af">
+          <div>Dicetak: ${printDate}</div>
+          <div>${rows.length} transaksi</div>
+        </div>
+      </div>
+      <!-- Summary Cards -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+        <div style="background:#eef2ff;border-radius:8px;padding:10px 14px">
+          <div style="font-size:9px;color:#6366f1;font-weight:700;text-transform:uppercase">Total AP</div>
+          <div style="font-size:16px;font-weight:900;color:#4f46e5;margin-top:2px">Rp ${Number(totalAll).toLocaleString('id-ID')}</div>
+          <div style="font-size:9px;color:#6b7280">${rows.length} transaksi</div>
+        </div>
+        <div style="background:#f0fdf4;border-radius:8px;padding:10px 14px">
+          <div style="font-size:9px;color:#15803d;font-weight:700;text-transform:uppercase">Sudah Dibayar</div>
+          <div style="font-size:16px;font-weight:900;color:#15803d;margin-top:2px">Rp ${Number(totalLunas).toLocaleString('id-ID')}</div>
+          <div style="font-size:9px;color:#6b7280">${rows.filter(r=>(r.status||'').toUpperCase()==='LUNAS').length} transaksi lunas</div>
+        </div>
+        <div style="background:#fef2f2;border-radius:8px;padding:10px 14px">
+          <div style="font-size:9px;color:#dc2626;font-weight:700;text-transform:uppercase">Sisa Hutang</div>
+          <div style="font-size:16px;font-weight:900;color:#dc2626;margin-top:2px">Rp ${Number(totalAll-totalLunas).toLocaleString('id-ID')}</div>
+          <div style="font-size:9px;color:#6b7280">${rows.filter(r=>(r.status||'').toUpperCase()!=='LUNAS').length} belum lunas</div>
+        </div>
+      </div>
+      <!-- Ringkasan per Vendor -->
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;margin-bottom:8px;color:#1a1a2e">Ringkasan per Vendor</div>
+        <table>
+          <thead><tr style="background:#6366f1;color:#fff">
+            <th style="padding:6px 8px;font-size:9px;text-align:left">Vendor</th>
+            <th style="padding:6px 8px;font-size:9px;text-align:center">Transaksi</th>
+            <th style="padding:6px 8px;font-size:9px;text-align:right">Total AP</th>
+            <th style="padding:6px 8px;font-size:9px;text-align:right">Lunas</th>
+            <th style="padding:6px 8px;font-size:9px;text-align:right">Sisa</th>
+          </tr></thead>
+          <tbody>${summaryRows}</tbody>
+          <tfoot><tr style="background:#eef2ff;font-weight:700">
+            <td style="padding:6px 8px;font-size:10px">TOTAL</td>
+            <td style="padding:6px 8px;font-size:10px;text-align:center">${rows.length}</td>
+            <td style="padding:6px 8px;font-size:10px;text-align:right;font-family:monospace">${fmtRp(totalAll)}</td>
+            <td style="padding:6px 8px;font-size:10px;text-align:right;font-family:monospace;color:#15803d">${fmtRp(totalLunas)}</td>
+            <td style="padding:6px 8px;font-size:10px;text-align:right;font-family:monospace;color:#dc2626">${fmtRp(totalAll-totalLunas)}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+      <!-- Detail Transaksi -->
+      <div style="font-size:11px;font-weight:700;margin-bottom:8px;color:#1a1a2e">Detail Transaksi</div>
+      <table>
+        <thead><tr style="background:#1a1a2e;color:#fff">
+          <th style="padding:5px 6px;font-size:9px;text-align:left">Tanggal</th>
+          <th style="padding:5px 6px;font-size:9px;text-align:left">Vendor</th>
+          <th style="padding:5px 6px;font-size:9px;text-align:left">Keterangan</th>
+          <th style="padding:5px 6px;font-size:9px;text-align:right">Jatuh Tempo</th>
+          <th style="padding:5px 6px;font-size:9px;text-align:right">Total</th>
+          <th style="padding:5px 6px;font-size:9px;text-align:center">Status</th>
+        </tr></thead>
+        <tbody>${detailRows}</tbody>
+      </table>
+      <script>setTimeout(()=>window.print(),400)<\/script>
+      </body></html>`;
+
+    Modal.close(mid);
+    const w = window.open('','_blank','width=900,height=900');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+
+  function _apDownloadCSV(mid) {
+    const f = _apDlGetFilter();
+    const rows = _apDlFilterData(f);
+    if (!rows.length) { Notify.warning('Tidak ada data untuk filter yang dipilih'); return; }
+
+    const fmtTgl = s => { if(!s) return ''; const d=new Date(s+'T00:00:00'); return d.toLocaleDateString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric'}); };
+    const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
+
+    const header = ['Tanggal','Vendor','Keterangan','Item','Qty','Satuan','Harga Satuan','Total','Jatuh Tempo','Tgl Bayar','Status'];
+    const csvRows = rows.map(r => [
+      fmtTgl(r.tgl_transaksi||r.tgl),
+      r.vendor||r.supplier_nama||r.supplier||'',
+      r.keterangan||'',
+      r.item||'',
+      r.qty||'',
+      r.satuan||'',
+      r.hargaSatuan||'',
+      r.total||0,
+      fmtTgl(r.jatuhTempo),
+      fmtTgl(r.tgl_bayar),
+      (r.status||'').toUpperCase()||'BELUM LUNAS',
+    ].map(esc).join(','));
+
+    const csv = '﻿' + [header.map(esc).join(','), ...csvRows].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const MONTHS_ID = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+    let fname = 'Laporan-AP';
+    if (f.type==='bulanan') { const [y,m]=(document.getElementById('ap-dl-month')?.value||'').split('-'); fname+=`-${MONTHS_ID[parseInt(m)]||m}-${y}`; }
+    else if (f.type==='tahunan') { fname+=`-${document.getElementById('ap-dl-year')?.value||''}`; }
+    else { if(f.dateFrom) fname+=`-${f.dateFrom}`; if(f.dateTo) fname+=`_sd_${f.dateTo}`; }
+    a.href = url; a.download = fname + '.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
+    Modal.close(mid);
+    Notify.success('CSV berhasil didownload');
+  }
+
   return { init, render, filterBelum, applyFilter, resetFilter, reArrangeAP, goApPage, setApPerPage, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _openSummaryDetail, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, apAddRow, _apKey,
+    openDownloadModal, _apDlSetType, _apDownloadPDF, _apDownloadCSV,
     get _apEditId() { return _apEditId; } };
 })();
 window.APModule = APModule;
