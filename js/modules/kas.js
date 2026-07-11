@@ -3113,7 +3113,7 @@ const KasModule = (() => {
   }
 
   // Render cards from cached _bpDocs (sync, no DB call)
-  let _bpFilterPending = false; // state filter badge merah
+  let _bpFilterPending = false;
 
   function _renderBPDashboard() {
     const el = document.getElementById('kas-bp-dash');
@@ -3123,7 +3123,6 @@ const KasModule = (() => {
     if (!docs.length) { el.innerHTML = ''; return; }
 
     const isAdmin = Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'admin';
-
     const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
     const _fmtShort = (ymd) => { const d=new Date(ymd); return isNaN(d)?ymd:`${d.getDate()} ${months[d.getMonth()]}`; };
     const _destColor = (dest) => {
@@ -3143,8 +3142,8 @@ const KasModule = (() => {
       return dest || '';
     };
 
-    // Build { doc, cards[] } per periode
-    const groups = []; // [{ doc, cards:[{dest,count,isConfirmed}] }]
+    // Build flat allCards list
+    const allCards = [];
     docs.forEach(d => {
       const confirmedDests = Array.isArray(d.confirmedDests) ? d.confirmedDests : [];
       const globalConfirmed = d.kasStatus === 'confirmed';
@@ -3168,99 +3167,61 @@ const KasModule = (() => {
         Object.entries(ps).forEach(([k, list]) => {
           if (!Array.isArray(list) || !list.length) return;
           const [tgl, shift] = k.split('_');
-          buckets[`karawang|${tgl}|${shift}`] = { dest: `karawang|${tgl}|${shift}`, count: list.length };
+          buckets[`karawang|${tgl}|${shift}`] = { dest:`karawang|${tgl}|${shift}`, count:list.length };
         });
         if (!Object.keys(ps).length) {
           (d.items||[]).forEach(it => {
-            const qK = (it.totalQty||0) - (it.qtyCikopo||0) - (it.qtySupplier||0);
-            if (qK > 0) { buckets.karawang = buckets.karawang || { dest:'karawang', count:0 }; buckets.karawang.count++; }
+            const qK = (it.totalQty||0)-(it.qtyCikopo||0)-(it.qtySupplier||0);
+            if (qK > 0) { buckets.karawang = buckets.karawang||{dest:'karawang',count:0}; buckets.karawang.count++; }
           });
         }
       }
-      const order = (k) => k==='cikopo' ? 0 : k.startsWith('karawang') ? 1 : k==='supplier' ? 2 : 3;
-      const cards = Object.keys(buckets).sort((a,b) => order(a)-order(b) || a.localeCompare(b)).map(k => ({
-        dest: buckets[k].dest,
-        count: buckets[k].count,
-        isConfirmed: globalConfirmed || confirmedDests.includes(buckets[k].dest),
-      }));
-      if (cards.length) groups.push({ doc: d, cards });
+      const order = k => k==='cikopo'?0:k.startsWith('karawang')?1:k==='supplier'?2:3;
+      Object.keys(buckets).sort((a,b)=>order(a)-order(b)||a.localeCompare(b)).forEach(k => {
+        allCards.push({ doc:d, dest:buckets[k].dest, count:buckets[k].count,
+          isConfirmed: globalConfirmed || confirmedDests.includes(buckets[k].dest) });
+      });
     });
 
-    const totalPending = groups.reduce((s,g) => s + g.cards.filter(c=>!c.isConfirmed).length, 0);
+    const totalPending = allCards.filter(c => !c.isConfirmed).length;
+    const visibleCards = _bpFilterPending ? allCards.filter(c => !c.isConfirmed) : allCards;
 
-    // Filter mode: hanya tampilkan group yang punya pending card
-    const visibleGroups = _bpFilterPending
-      ? groups.filter(g => g.cards.some(c => !c.isConfirmed))
-      : groups;
-
-    // Render card chips
-    const _chipHtml = (card, doc) => {
+    const cards = visibleCards.map(card => {
+      const d = card.doc;
       const col = _destColor(card.dest);
       const isConf = card.isConfirmed;
-      const dCode = _destCode(card.dest, doc);
-      return `<div style="display:flex;flex-direction:column;gap:3px;padding:7px 11px;
+      const dCode = _destCode(card.dest, d);
+      return `<div style="display:flex;flex-direction:column;gap:3px;padding:8px 12px;
         border:1px solid ${isConf?'rgba(16,185,129,.3)':col.bd};border-radius:8px;
-        background:${isConf?'rgba(16,185,129,.07)':col.bg};min-width:120px;cursor:pointer;transition:.15s;flex-shrink:0"
-        onclick="KasModule.openBPDetail('${doc.id}','${card.dest.replace(/'/g,"\\'")}')"
-        onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
+        background:${isConf?'rgba(16,185,129,.08)':col.bg};min-width:130px;flex-shrink:0;cursor:pointer;transition:.15s"
+        onclick="KasModule.openBPDetail('${d.id}','${card.dest.replace(/'/g,"\\'")}')"
+        title="${_destStyle(card.dest).label} · ${d.periode||'-'}"
+        onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
         <div style="display:flex;align-items:baseline;gap:5px;line-height:1.2">
           <span style="font-size:11px;font-weight:700;color:${isConf?'#059669':col.c}">${_destShortLabel(card.dest)}</span>
-          ${dCode?`<span style="font-size:8px;color:${isConf?'#059669':col.c};opacity:.5;font-family:var(--font-mono)">${dCode}</span>`:''}
+          ${dCode?`<span style="font-size:9px;color:${isConf?'#059669':col.c};opacity:.5;font-weight:400;font-family:var(--font-mono)">${dCode}</span>`:''}
         </div>
-        <div style="display:flex;align-items:center;gap:4px;font-size:10px;margin-top:1px">
-          <span style="width:6px;height:6px;border-radius:50%;background:${isConf?'#10b981':col.c};flex-shrink:0;display:inline-block"></span>
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-3)">
+          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${isConf?'#10b981':col.c};flex-shrink:0"></span>
           <span style="color:${isConf?'#10b981':col.c};font-weight:600">${isConf?'Terkonfirmasi':'Belum'}</span>
-          <span style="margin-left:auto;color:var(--text-3)">${card.count} item</span>
-        </div>
-      </div>`;
-    };
-
-    // Render per-period group rows
-    const groupsHtml = visibleGroups.map((g, gi) => {
-      const { doc, cards } = g;
-      const confCount = cards.filter(c=>c.isConfirmed).length;
-      const allConf = confCount === cards.length;
-      const hasPending = cards.some(c=>!c.isConfirmed);
-      // Auto-expand: periode paling baru (gi===0) atau yang punya pending, collapse yang sudah selesai
-      const openByDefault = gi === 0 || hasPending;
-      const collapseId = `bp-group-${doc.id}`;
-      const chipsHtml = cards.map(c => _chipHtml(c, doc)).join('');
-
-      return `<div style="border:1px solid ${hasPending?'rgba(239,68,68,.2)':'var(--border)'};border-radius:10px;overflow:hidden;${hasPending?'':'opacity:.85'}">
-        <!-- Period header (clickable, toggle collapse) -->
-        <div onclick="(()=>{const b=document.getElementById('${collapseId}');const arr=this.querySelector('.bp-arr');if(b.style.display==='none'){b.style.display='flex';arr.textContent='▲'}else{b.style.display='none';arr.textContent='▼'}})()"
-          style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;background:${hasPending?'rgba(239,68,68,.04)':'var(--surface2)'};user-select:none"
-          onmouseover="this.style.background='${hasPending?'rgba(239,68,68,.08)':'var(--surface3)'}'" onmouseout="this.style.background='${hasPending?'rgba(239,68,68,.04)':'var(--surface2)'}'">
-          <span style="font-size:12px;font-weight:700;color:var(--text)">${doc.periode||'-'}</span>
-          <span style="font-size:10px;color:var(--text-3);margin-left:2px">${doc.tahun||''}</span>
-          <span style="margin-left:auto;font-size:10px;font-weight:700;color:${allConf?'#10b981':'#ef4444'}">
-            ${allConf ? '✓ Semua terkonfirmasi' : `${confCount}/${cards.length} terkonfirmasi`}
-          </span>
-          <span class="bp-arr" style="font-size:9px;color:var(--text-3)">${openByDefault?'▲':'▼'}</span>
-        </div>
-        <!-- Cards row (collapsible) -->
-        <div id="${collapseId}" style="display:${openByDefault?'flex':'none'};gap:8px;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--border)">
-          ${chipsHtml}
-          ${isAdmin ? `<button onclick="event.stopPropagation();KasModule.deleteBPKas('${doc.id}')"
-            style="align-self:flex-end;margin-left:auto;font-size:9px;padding:4px 10px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.06);color:#dc2626;border-radius:6px;cursor:pointer;font-weight:600;flex-shrink:0">
-            Hapus Periode
-          </button>` : ''}
+          <span style="margin-left:auto">${card.count} item</span>
         </div>
       </div>`;
     }).join('');
 
     el.innerHTML = `
       <div style="background:var(--surface);border:1px solid rgba(8,145,178,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#0891b2">🛒 Belanja Pasar</span>
-          ${totalPending > 0 ? `<button onclick="KasModule._bpToggleFilter()" style="
-            border:none;padding:3px 10px;border-radius:10px;font-size:9px;font-weight:700;cursor:pointer;transition:all .15s;
-            background:${_bpFilterPending?'#dc2626':'rgba(220,38,38,.1)'};color:${_bpFilterPending?'#fff':'#dc2626'};"
-            title="${_bpFilterPending?'Tampilkan semua periode':'Filter: tampilkan hanya yang belum terkonfirmasi'}">
-            ${totalPending} belum konfirmasi${_bpFilterPending?' ✕':''}
-          </button>` : `<span style="font-size:9px;color:#10b981;font-weight:700">✓ Semua terkonfirmasi</span>`}
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#0891b2;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          🛒 Belanja Pasar
+          ${totalPending > 0
+            ? `<button onclick="KasModule._bpToggleFilter()" style="border:none;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;cursor:pointer;
+                background:${_bpFilterPending?'#dc2626':'rgba(220,38,38,.12)'};color:${_bpFilterPending?'#fff':'#dc2626'}"
+                title="${_bpFilterPending?'Tampilkan semua':'Filter: hanya belum terkonfirmasi'}">
+                ${totalPending} belum konfirmasi${_bpFilterPending?' ✕':''}
+              </button>`
+            : `<span style="font-size:9px;color:#10b981;font-weight:700">✓ Semua terkonfirmasi</span>`}
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px">${groupsHtml}</div>
+        <div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px">${cards||'<span style="font-size:11px;color:var(--text-3);padding:4px">Semua sudah terkonfirmasi</span>'}</div>
       </div>`;
   }
 
