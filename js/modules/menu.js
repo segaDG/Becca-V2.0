@@ -276,7 +276,7 @@ const MenuModule = (() => {
   /* ═══════════════════════════════════════════
      MENU GENERATOR
      ═══════════════════════════════════════════ */
-  let _genWeekStart = '', _genCustomers = []; // selected customer IDs
+  let _genWeekStart = '', _genCustomers = [], _weekCustomers = []; // selected customer IDs
 
   function _getMonday() {
     const dt = new Date(); dt.setHours(12,0,0,0);
@@ -303,9 +303,11 @@ const MenuModule = (() => {
       _orders.filter(o => o.tglOrder >= _genWeekStart && o.tglOrder <= weekEndStr)
              .map(o => (o.namaPerusahaan||'').toLowerCase())
     );
-    const weekCustomers = weekOrderNames.size
+    _weekCustomers = weekOrderNames.size
       ? _customers.filter(c => weekOrderNames.has((c.nama||'').toLowerCase()) || weekOrderNames.has((c.namaShort||'').toLowerCase()))
       : _customers;
+    // Tutup dropdown lama jika ada (misal saat ganti minggu)
+    document.getElementById('gen-cust-drop')?.remove();
 
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
@@ -323,29 +325,12 @@ const MenuModule = (() => {
       <div class="card" style="margin-bottom:var(--s4);padding:var(--s3)">
         <div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap">
           <span style="font-size:12px;font-weight:600;color:var(--text-2)">Customer:</span>
-          <!-- Custom multi-select dropdown -->
-          <div style="position:relative;flex-shrink:0">
-            <button id="gen-cust-toggle" onclick="MenuModule._genToggleDrop(event)"
-              style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;min-width:240px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);cursor:pointer;font-size:12px;color:var(--text);text-align:left">
-              <span id="gen-cust-label" style="flex:1">Pilih customer${weekCustomers.length < _customers.length ? ' ('+weekCustomers.length+' ada order)' : ''}...</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12" style="flex-shrink:0;opacity:.5"><path d="M6 9l6 6 6-6"/></svg>
-            </button>
-            <div id="gen-cust-drop" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:6px;min-width:280px;max-height:300px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.15)">
-              <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-2);border-bottom:1px solid var(--border);margin-bottom:4px"
-                onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-                <input type="checkbox" id="gen-cust-all" onchange="MenuModule._genToggleAllCust(this.checked)" style="width:14px;height:14px;cursor:pointer">
-                Pilih Semua (${weekCustomers.length})
-              </label>
-              ${weekCustomers.map(c=>`
-                <label class="gen-cust-item" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;transition:.1s"
-                  onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-                  <input type="checkbox" class="gen-cust-cb" value="${c.id}" onchange="MenuModule._genUpdateDropLabel()"
-                    ${_genCustomers.includes(c.id)?'disabled title="Sudah ditambahkan"':''} style="width:14px;height:14px;cursor:pointer;flex-shrink:0">
-                  <span style="font-size:12px;font-weight:600;color:${_genCustomers.includes(c.id)?'var(--text-3)':'var(--text)'}">${_esc(c.namaShort||c.nama)}</span>
-                  ${_genCustomers.includes(c.id)?'<span style="font-size:9px;color:var(--text-3);margin-left:auto">\u2713 Aktif</span>':''}
-                </label>`).join('')}
-            </div>
-          </div>
+          <!-- Custom multi-select dropdown (panel di-render ke body agar bisa menembus container) -->
+          <button id="gen-cust-toggle" onclick="MenuModule._genToggleDrop(event)"
+            style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;min-width:240px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);cursor:pointer;font-size:12px;color:var(--text);text-align:left">
+            <span id="gen-cust-label" style="flex:1">Pilih customer${_weekCustomers.length < _customers.length ? ' ('+_weekCustomers.length+' ada order)' : ''}...</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12" style="flex-shrink:0;opacity:.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
           <button class="btn btn-primary btn-sm" onclick="MenuModule._genAddCustomer()">Tambah</button>
           <div style="flex:1"></div>
           ${canEdit?`<button class="btn btn-primary btn-sm" onclick="MenuModule._genSave()">\ud83d\udcbe Simpan</button>`:''}
@@ -478,24 +463,46 @@ const MenuModule = (() => {
   let _genDropClickHandler = null;
   function _genToggleDrop(e) {
     e.stopPropagation();
-    const drop = document.getElementById('gen-cust-drop');
     const toggle = document.getElementById('gen-cust-toggle');
-    if (!drop) return;
-    const isOpen = drop.style.display !== 'none';
-    drop.style.display = isOpen ? 'none' : 'block';
-    toggle && (toggle.style.borderColor = isOpen ? 'var(--border)' : 'var(--primary)');
-    if (!isOpen) {
-      if (_genDropClickHandler) document.removeEventListener('click', _genDropClickHandler);
-      _genDropClickHandler = (ev) => {
-        if (!drop.contains(ev.target) && !toggle?.contains(ev.target)) {
-          drop.style.display = 'none';
-          if (toggle) toggle.style.borderColor = 'var(--border)';
-          document.removeEventListener('click', _genDropClickHandler);
-          _genDropClickHandler = null;
-        }
-      };
-      setTimeout(() => document.addEventListener('click', _genDropClickHandler), 10);
+    const existing = document.getElementById('gen-cust-drop');
+    if (existing) {
+      existing.remove();
+      if (toggle) toggle.style.borderColor = 'var(--border)';
+      if (_genDropClickHandler) { document.removeEventListener('click', _genDropClickHandler); _genDropClickHandler = null; }
+      return;
     }
+    const rect = toggle.getBoundingClientRect();
+    const drop = document.createElement('div');
+    drop.id = 'gen-cust-drop';
+    drop.style.cssText = `position:fixed;top:${rect.bottom+4}px;left:${rect.left}px;z-index:9999;
+      background:var(--surface);border:1px solid var(--border2);border-radius:var(--r-md);
+      padding:6px;min-width:${Math.max(280, rect.width)}px;max-height:300px;overflow-y:auto;
+      box-shadow:0 8px 24px rgba(0,0,0,.18)`;
+    drop.innerHTML = `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-2);border-bottom:1px solid var(--border);margin-bottom:4px"
+        onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <input type="checkbox" id="gen-cust-all" onchange="MenuModule._genToggleAllCust(this.checked)" style="width:14px;height:14px;cursor:pointer">
+        Pilih Semua (${_weekCustomers.length})
+      </label>
+      ${_weekCustomers.map(c=>`
+        <label class="gen-cust-item" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;transition:.1s"
+          onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+          <input type="checkbox" class="gen-cust-cb" value="${_esc(c.id)}" onchange="MenuModule._genUpdateDropLabel()"
+            ${_genCustomers.includes(c.id)?'disabled title="Sudah ditambahkan"':''} style="width:14px;height:14px;cursor:pointer;flex-shrink:0">
+          <span style="font-size:12px;font-weight:600;color:${_genCustomers.includes(c.id)?'var(--text-3)':'var(--text)'}">${_esc(c.namaShort||c.nama)}</span>
+          ${_genCustomers.includes(c.id)?'<span style="font-size:9px;color:var(--text-3);margin-left:auto">✓ Aktif</span>':''}
+        </label>`).join('')}`;
+    document.body.appendChild(drop);
+    if (toggle) toggle.style.borderColor = 'var(--primary)';
+    _genDropClickHandler = (ev) => {
+      if (!drop.contains(ev.target) && !toggle?.contains(ev.target)) {
+        drop.remove();
+        if (toggle) toggle.style.borderColor = 'var(--border)';
+        document.removeEventListener('click', _genDropClickHandler);
+        _genDropClickHandler = null;
+      }
+    };
+    setTimeout(() => document.addEventListener('click', _genDropClickHandler), 10);
   }
   function _genToggleAllCust(checked) {
     document.querySelectorAll('.gen-cust-cb:not(:disabled)').forEach(cb => { cb.checked = checked; });
