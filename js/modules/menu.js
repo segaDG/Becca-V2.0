@@ -323,10 +323,29 @@ const MenuModule = (() => {
       <div class="card" style="margin-bottom:var(--s4);padding:var(--s3)">
         <div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap">
           <span style="font-size:12px;font-weight:600;color:var(--text-2)">Customer:</span>
-          <select id="gen-add-cust" class="form-control" style="width:250px;min-height:32px;font-size:12px">
-            <option value="">+ Tambah Customer${weekCustomers.length < _customers.length ? ' ('+weekCustomers.length+' ada order)' : ''}</option>
-            ${weekCustomers.map(c=>`<option value="${c.id}">${c.namaShort||c.nama}</option>`).join('')}
-          </select>
+          <!-- Custom multi-select dropdown -->
+          <div style="position:relative;flex-shrink:0">
+            <button id="gen-cust-toggle" onclick="MenuModule._genToggleDrop(event)"
+              style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;min-width:240px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);cursor:pointer;font-size:12px;color:var(--text);text-align:left">
+              <span id="gen-cust-label" style="flex:1">Pilih customer${weekCustomers.length < _customers.length ? ' ('+weekCustomers.length+' ada order)' : ''}...</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12" style="flex-shrink:0;opacity:.5"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div id="gen-cust-drop" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:6px;min-width:280px;max-height:300px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.15)">
+              <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-2);border-bottom:1px solid var(--border);margin-bottom:4px"
+                onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+                <input type="checkbox" id="gen-cust-all" onchange="MenuModule._genToggleAllCust(this.checked)" style="width:14px;height:14px;cursor:pointer">
+                Pilih Semua (${weekCustomers.length})
+              </label>
+              ${weekCustomers.map(c=>`
+                <label class="gen-cust-item" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;transition:.1s"
+                  onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+                  <input type="checkbox" class="gen-cust-cb" value="${c.id}" onchange="MenuModule._genUpdateDropLabel()"
+                    ${_genCustomers.includes(c.id)?'disabled title="Sudah ditambahkan"':''} style="width:14px;height:14px;cursor:pointer;flex-shrink:0">
+                  <span style="font-size:12px;font-weight:600;color:${_genCustomers.includes(c.id)?'var(--text-3)':'var(--text)'}">${_esc(c.namaShort||c.nama)}</span>
+                  ${_genCustomers.includes(c.id)?'<span style="font-size:9px;color:var(--text-3);margin-left:auto">\u2713 Aktif</span>':''}
+                </label>`).join('')}
+            </div>
+          </div>
           <button class="btn btn-primary btn-sm" onclick="MenuModule._genAddCustomer()">Tambah</button>
           <div style="flex:1"></div>
           ${canEdit?`<button class="btn btn-primary btn-sm" onclick="MenuModule._genSave()">\ud83d\udcbe Simpan</button>`:''}
@@ -456,12 +475,45 @@ const MenuModule = (() => {
     } catch(e) { Notify.error('Gagal: '+e.message); }
   }
 
+  let _genDropClickHandler = null;
+  function _genToggleDrop(e) {
+    e.stopPropagation();
+    const drop = document.getElementById('gen-cust-drop');
+    const toggle = document.getElementById('gen-cust-toggle');
+    if (!drop) return;
+    const isOpen = drop.style.display !== 'none';
+    drop.style.display = isOpen ? 'none' : 'block';
+    toggle && (toggle.style.borderColor = isOpen ? 'var(--border)' : 'var(--primary)');
+    if (!isOpen) {
+      if (_genDropClickHandler) document.removeEventListener('click', _genDropClickHandler);
+      _genDropClickHandler = (ev) => {
+        if (!drop.contains(ev.target) && !toggle?.contains(ev.target)) {
+          drop.style.display = 'none';
+          if (toggle) toggle.style.borderColor = 'var(--border)';
+          document.removeEventListener('click', _genDropClickHandler);
+          _genDropClickHandler = null;
+        }
+      };
+      setTimeout(() => document.addEventListener('click', _genDropClickHandler), 10);
+    }
+  }
+  function _genToggleAllCust(checked) {
+    document.querySelectorAll('.gen-cust-cb:not(:disabled)').forEach(cb => { cb.checked = checked; });
+    _genUpdateDropLabel();
+  }
+  function _genUpdateDropLabel() {
+    const n = document.querySelectorAll('.gen-cust-cb:checked').length;
+    const lbl = document.getElementById('gen-cust-label');
+    if (lbl) lbl.textContent = n ? n + ' customer dipilih' : 'Pilih customer...';
+    const all = document.getElementById('gen-cust-all');
+    if (all) { const total = document.querySelectorAll('.gen-cust-cb:not(:disabled)').length; all.checked = n > 0 && n === total; all.indeterminate = n > 0 && n < total; }
+  }
   function _genAddCustomer() {
-    const sel = document.getElementById('gen-add-cust');
-    const cid = sel?.value;
-    if (!cid || _genCustomers.includes(cid)) return;
-    _genCustomers.push(cid);
-    _renderGenerator();
+    const checked = [...document.querySelectorAll('.gen-cust-cb:checked')].map(cb => cb.value);
+    if (!checked.length) return;
+    let added = 0;
+    checked.forEach(cid => { if (!_genCustomers.includes(cid)) { _genCustomers.push(cid); added++; } });
+    if (added) _renderGenerator();
   }
   function _genRemoveCustomer(cid) {
     _genCustomers = _genCustomers.filter(c=>c!==cid);
@@ -1162,6 +1214,7 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     _libFilter, openMenuDetail, openMenuForm, _saveMenu, deleteMenu,
     _genAddCustomer, _genRemoveCustomer, _genSetCell, _genSave,
     _genPrevWeek, _genNextWeek, _genThisWeek,
+    _genToggleDrop, _genToggleAllCust, _genUpdateDropLabel,
     _printMenuPDF, _openCopyModal, _copyCheckAll, _doCopyMenu,
     _editKomposisi, _saveKomposisi,
     _kompDragStart, _kompDragOver, _kompDrop, _kompDragEnd, _kompAdd,
