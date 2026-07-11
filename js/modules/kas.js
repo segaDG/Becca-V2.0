@@ -3113,6 +3113,8 @@ const KasModule = (() => {
   }
 
   // Render cards from cached _bpDocs (sync, no DB call)
+  let _bpFilterPending = false; // state filter badge merah
+
   function _renderBPDashboard() {
     const el = document.getElementById('kas-bp-dash');
     if (!el) return;
@@ -3122,8 +3124,6 @@ const KasModule = (() => {
 
     const isAdmin = Auth.currentUser()?.role === 'superadmin' || Auth.currentUser()?.role === 'admin';
 
-    // Pisah jadi 1 card per destinasi (cikopo / karawang per tanggal+shift / supplier)
-    // Status confirm per-dest tersimpan di doc.confirmedDests array.
     const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
     const _fmtShort = (ymd) => { const d=new Date(ymd); return isNaN(d)?ymd:`${d.getDate()} ${months[d.getMonth()]}`; };
     const _destColor = (dest) => {
@@ -3143,12 +3143,11 @@ const KasModule = (() => {
       return dest || '';
     };
 
-    // Build flat list { doc, dest, label, items, isConfirmed }
-    const allCards = [];
+    // Build { doc, cards[] } per periode
+    const groups = []; // [{ doc, cards:[{dest,count,isConfirmed}] }]
     docs.forEach(d => {
       const confirmedDests = Array.isArray(d.confirmedDests) ? d.confirmedDests : [];
       const globalConfirmed = d.kasStatus === 'confirmed';
-      // Kalau kasItems sudah per-dest
       const ki = d.kasItems || [];
       const hasPerDest = ki.some(it => !!it.dest);
       const buckets = {};
@@ -3160,21 +3159,17 @@ const KasModule = (() => {
           buckets[k].count++;
         });
       } else {
-        // Belum punya kasItems → derive dari doc.items
         (d.items||[]).forEach(it => {
           if (!it.item) return;
           if ((it.qtyCikopo||0) > 0) { buckets.cikopo = buckets.cikopo || { dest:'cikopo', count:0 }; buckets.cikopo.count++; }
           if ((it.qtySupplier||0) > 0) { buckets.supplier = buckets.supplier || { dest:'supplier', count:0 }; buckets.supplier.count++; }
         });
-        // Karawang per shift dari perShiftKarawang kalau ada
         const ps = d.perShiftKarawang || {};
         Object.entries(ps).forEach(([k, list]) => {
           if (!Array.isArray(list) || !list.length) return;
           const [tgl, shift] = k.split('_');
-          const destKey = `karawang|${tgl}|${shift}`;
-          buckets[destKey] = { dest: destKey, count: list.length };
+          buckets[`karawang|${tgl}|${shift}`] = { dest: `karawang|${tgl}|${shift}`, count: list.length };
         });
-        // Fallback karawang kalau ps kosong tapi ada qtyKarawang
         if (!Object.keys(ps).length) {
           (d.items||[]).forEach(it => {
             const qK = (it.totalQty||0) - (it.qtyCikopo||0) - (it.qtySupplier||0);
@@ -3182,61 +3177,96 @@ const KasModule = (() => {
           });
         }
       }
-      // Sort: cikopo → karawang* → supplier
       const order = (k) => k==='cikopo' ? 0 : k.startsWith('karawang') ? 1 : k==='supplier' ? 2 : 3;
-      const sortedKeys = Object.keys(buckets).sort((a,b) => order(a)-order(b) || a.localeCompare(b));
-      sortedKeys.forEach(k => {
-        const b = buckets[k];
-        allCards.push({
-          doc: d,
-          dest: b.dest,
-          count: b.count,
-          isConfirmed: globalConfirmed || confirmedDests.includes(b.dest),
-        });
-      });
+      const cards = Object.keys(buckets).sort((a,b) => order(a)-order(b) || a.localeCompare(b)).map(k => ({
+        dest: buckets[k].dest,
+        count: buckets[k].count,
+        isConfirmed: globalConfirmed || confirmedDests.includes(buckets[k].dest),
+      }));
+      if (cards.length) groups.push({ doc: d, cards });
     });
 
-    let firstPendingCardId = null;
-    const cards = allCards.map((card, ci) => {
-      const d = card.doc;
+    const totalPending = groups.reduce((s,g) => s + g.cards.filter(c=>!c.isConfirmed).length, 0);
+
+    // Filter mode: hanya tampilkan group yang punya pending card
+    const visibleGroups = _bpFilterPending
+      ? groups.filter(g => g.cards.some(c => !c.isConfirmed))
+      : groups;
+
+    // Render card chips
+    const _chipHtml = (card, doc) => {
       const col = _destColor(card.dest);
-      const statusText = card.isConfirmed ? 'Terkonfirmasi' : 'Belum Konfirmasi';
-      const statusColor = card.isConfirmed ? '#10b981' : col.c;
-      const bg = card.isConfirmed ? 'rgba(16,185,129,.08)' : col.bg;
-      const bd = card.isConfirmed ? 'rgba(16,185,129,.3)' : col.bd;
-      const dCode = _destCode(card.dest, d);
-      const dotColor = card.isConfirmed ? '#10b981' : col.c;
-      const cardId = `bp-card-${d.id}-${ci}`;
-      if (!card.isConfirmed && !firstPendingCardId) firstPendingCardId = cardId;
-      return `<div id="${cardId}" style="display:flex;flex-direction:column;gap:3px;padding:8px 12px;
-        border:1px solid ${bd};border-radius:8px;background:${bg};min-width:130px;position:relative;cursor:pointer;transition:.15s"
-        onclick="KasModule.openBPDetail('${d.id}','${card.dest.replace(/'/g,"\\'")}')"
-        title="${_destStyle(card.dest).label} · ${d.periode||'-'}"
-        onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
+      const isConf = card.isConfirmed;
+      const dCode = _destCode(card.dest, doc);
+      return `<div style="display:flex;flex-direction:column;gap:3px;padding:7px 11px;
+        border:1px solid ${isConf?'rgba(16,185,129,.3)':col.bd};border-radius:8px;
+        background:${isConf?'rgba(16,185,129,.07)':col.bg};min-width:120px;cursor:pointer;transition:.15s;flex-shrink:0"
+        onclick="KasModule.openBPDetail('${doc.id}','${card.dest.replace(/'/g,"\\'")}')"
+        onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
         <div style="display:flex;align-items:baseline;gap:5px;line-height:1.2">
-          <span style="font-size:11px;font-weight:700;color:${col.c}">${_destShortLabel(card.dest)}</span>
-          ${dCode ? `<span style="font-size:9px;color:${col.c};opacity:.55;font-weight:400;font-family:var(--font-mono);letter-spacing:.01em">${dCode}</span>` : ''}
+          <span style="font-size:11px;font-weight:700;color:${isConf?'#059669':col.c}">${_destShortLabel(card.dest)}</span>
+          ${dCode?`<span style="font-size:8px;color:${isConf?'#059669':col.c};opacity:.5;font-family:var(--font-mono)">${dCode}</span>`:''}
         </div>
-        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-3)">
-          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
-          <span style="color:${statusColor};font-weight:600">${statusText}</span>
-          <span style="margin-left:auto">${card.count} item</span>
+        <div style="display:flex;align-items:center;gap:4px;font-size:10px;margin-top:1px">
+          <span style="width:6px;height:6px;border-radius:50%;background:${isConf?'#10b981':col.c};flex-shrink:0;display:inline-block"></span>
+          <span style="color:${isConf?'#10b981':col.c};font-weight:600">${isConf?'Terkonfirmasi':'Belum'}</span>
+          <span style="margin-left:auto;color:var(--text-3)">${card.count} item</span>
+        </div>
+      </div>`;
+    };
+
+    // Render per-period group rows
+    const groupsHtml = visibleGroups.map((g, gi) => {
+      const { doc, cards } = g;
+      const confCount = cards.filter(c=>c.isConfirmed).length;
+      const allConf = confCount === cards.length;
+      const hasPending = cards.some(c=>!c.isConfirmed);
+      // Auto-expand: periode paling baru (gi===0) atau yang punya pending, collapse yang sudah selesai
+      const openByDefault = gi === 0 || hasPending;
+      const collapseId = `bp-group-${doc.id}`;
+      const chipsHtml = cards.map(c => _chipHtml(c, doc)).join('');
+
+      return `<div style="border:1px solid ${hasPending?'rgba(239,68,68,.2)':'var(--border)'};border-radius:10px;overflow:hidden;${hasPending?'':'opacity:.85'}">
+        <!-- Period header (clickable, toggle collapse) -->
+        <div onclick="(()=>{const b=document.getElementById('${collapseId}');const arr=this.querySelector('.bp-arr');if(b.style.display==='none'){b.style.display='flex';arr.textContent='▲'}else{b.style.display='none';arr.textContent='▼'}})()"
+          style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;background:${hasPending?'rgba(239,68,68,.04)':'var(--surface2)'};user-select:none"
+          onmouseover="this.style.background='${hasPending?'rgba(239,68,68,.08)':'var(--surface3)'}'" onmouseout="this.style.background='${hasPending?'rgba(239,68,68,.04)':'var(--surface2)'}'">
+          <span style="font-size:12px;font-weight:700;color:var(--text)">${doc.periode||'-'}</span>
+          <span style="font-size:10px;color:var(--text-3);margin-left:2px">${doc.tahun||''}</span>
+          <span style="margin-left:auto;font-size:10px;font-weight:700;color:${allConf?'#10b981':'#ef4444'}">
+            ${allConf ? '✓ Semua terkonfirmasi' : `${confCount}/${cards.length} terkonfirmasi`}
+          </span>
+          <span class="bp-arr" style="font-size:9px;color:var(--text-3)">${openByDefault?'▲':'▼'}</span>
+        </div>
+        <!-- Cards row (collapsible) -->
+        <div id="${collapseId}" style="display:${openByDefault?'flex':'none'};gap:8px;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--border)">
+          ${chipsHtml}
+          ${isAdmin ? `<button onclick="event.stopPropagation();KasModule.deleteBPKas('${doc.id}')"
+            style="align-self:flex-end;margin-left:auto;font-size:9px;padding:4px 10px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.06);color:#dc2626;border-radius:6px;cursor:pointer;font-weight:600;flex-shrink:0">
+            Hapus Periode
+          </button>` : ''}
         </div>
       </div>`;
     }).join('');
 
-    const pendingCount = allCards.filter(c => !c.isConfirmed).length;
-    const scrollToPending = firstPendingCardId
-      ? `const t=document.getElementById('${firstPendingCardId}');if(t){t.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});t.style.outline='2px solid #f59e0b';setTimeout(()=>t.style.outline='',1200);}`
-      : '';
     el.innerHTML = `
       <div style="background:var(--surface);border:1px solid rgba(8,145,178,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#0891b2;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          🛒 Belanja Pasar
-          ${pendingCount>0?`<span onclick="${scrollToPending}" style="background:#f59e0b;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700;cursor:pointer" title="Klik untuk gulir ke card yang belum dikonfirmasi">${pendingCount} belum konfirmasi</span>`:''}
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#0891b2">🛒 Belanja Pasar</span>
+          ${totalPending > 0 ? `<button onclick="KasModule._bpToggleFilter()" style="
+            border:none;padding:3px 10px;border-radius:10px;font-size:9px;font-weight:700;cursor:pointer;transition:all .15s;
+            background:${_bpFilterPending?'#dc2626':'rgba(220,38,38,.1)'};color:${_bpFilterPending?'#fff':'#dc2626'};"
+            title="${_bpFilterPending?'Tampilkan semua periode':'Filter: tampilkan hanya yang belum terkonfirmasi'}">
+            ${totalPending} belum konfirmasi${_bpFilterPending?' ✕':''}
+          </button>` : `<span style="font-size:9px;color:#10b981;font-weight:700">✓ Semua terkonfirmasi</span>`}
         </div>
-        <div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px">${cards}</div>
+        <div style="display:flex;flex-direction:column;gap:8px">${groupsHtml}</div>
       </div>`;
+  }
+
+  function _bpToggleFilter() {
+    _bpFilterPending = !_bpFilterPending;
+    _renderBPDashboard();
   }
 
   async function openBPDetail(docId, focusDest) {
@@ -3862,6 +3892,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, resetBPSection, _resetSectionsExcept, _bpCellChange, _bpFocusNextAktHarga, deleteBPKas, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _applySuggestedAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
+  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, resetBPSection, _resetSectionsExcept, _bpCellChange, _bpFocusNextAktHarga, deleteBPKas, _bpToggleFilter, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _applySuggestedAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
 })();
 window.KasModule = KasModule;
