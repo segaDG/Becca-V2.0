@@ -276,9 +276,16 @@ const MenuModule = (() => {
   /* ═══════════════════════════════════════════
      MENU GENERATOR
      ═══════════════════════════════════════════ */
-  let _genWeekStart = '', _genCustomers = [], _weekCustomers = [];
-  let _genActiveCustomer = null; // tab yang sedang aktif
-  let _genPendingCusts = [];    // pilihan sementara di dropdown sebelum diklik Tambah
+  let _genWeekStart = '', _weekCustomers = [];
+  let _genGroups = [];      // [[custId,...], ...] — tiap inner array = 1 tab
+  let _genActiveGroup = 0;  // index tab aktif
+  let _genPendingCusts = []; // pilihan sementara di dropdown sebelum diklik Tambah
+
+  function _genAllCusts() { return _genGroups.flat(); }
+  function _genGroupLabel(gi) {
+    return (_genGroups[gi]||[]).map(id => { const c=_customers.find(x=>x.id===id); return c?.namaShort||c?.nama||id; }).join(', ');
+  }
+  function _genGroupPrimary(gi) { return _genGroups[gi]?.[0] || null; }
 
   function _getMonday() {
     const dt = new Date(); dt.setHours(12,0,0,0);
@@ -325,7 +332,7 @@ const MenuModule = (() => {
 
       <!-- Customer selector + tabs -->
       <div class="card" style="margin-bottom:var(--s4);padding:var(--s3)">
-        <div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;margin-bottom:${_genCustomers.length?'var(--s3)':'0'}">
+        <div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;margin-bottom:${_genGroups.length?'var(--s3)':'0'}">
           <span style="font-size:12px;font-weight:600;color:var(--text-2)">Customer:</span>
           <button id="gen-cust-toggle" type="button" onclick="MenuModule._genToggleDrop(event)"
             style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;min-width:220px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);cursor:pointer;font-size:12px;color:var(--text);text-align:left">
@@ -336,54 +343,59 @@ const MenuModule = (() => {
           <div style="flex:1"></div>
           ${canEdit?`<button type="button" class="btn btn-primary btn-sm" onclick="MenuModule._genSave()">\ud83d\udcbe Simpan</button>`:''}
         </div>
-        ${_genCustomers.length ? `
-          <!-- Tab row -->
+        ${_genGroups.length ? `
+          <!-- Tab row \u2014 tiap group = 1 tab, nama dipisah koma -->
           <div style="display:flex;gap:0;flex-wrap:wrap;border-bottom:2px solid var(--border)">
-            ${_genCustomers.map(cid => {
-              const c = _customers.find(x=>x.id===cid);
-              if (!c) return '';
-              const isActive = cid === _genActiveCustomer;
+            ${_genGroups.map((group, gi) => {
+              const label = _genGroupLabel(gi);
+              const isActive = gi === _genActiveGroup;
               return `<div style="display:inline-flex;align-items:center;gap:5px;padding:7px 16px 6px;cursor:pointer;border-bottom:2px solid ${isActive?'var(--primary)':'transparent'};margin-bottom:-2px;transition:.15s;background:${isActive?'var(--primary-bg)':'transparent'}">
-                <span onclick="MenuModule._genSwitchTab('${cid}')" style="font-size:12px;font-weight:${isActive?'700':'500'};color:${isActive?'var(--primary-h)':'var(--text-2)'}">
-                  ${_esc(c.namaShort||c.nama)}
+                <span onclick="MenuModule._genSwitchTab(${gi})" style="font-size:12px;font-weight:${isActive?'700':'500'};color:${isActive?'var(--primary-h)':'var(--text-2)'}">
+                  ${_esc(label)}
                 </span>
-                <span onclick="MenuModule._genRemoveCustomer('${cid}')" style="font-size:11px;color:var(--text-3);cursor:pointer;line-height:1;padding:1px 2px;border-radius:3px" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--danger)'" onmouseout="this.style.background='';this.style.color='var(--text-3)'">\u00d7</span>
+                <span onclick="MenuModule._genRemoveGroup(${gi})" style="font-size:11px;color:var(--text-3);cursor:pointer;line-height:1;padding:1px 2px;border-radius:3px" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--danger)'" onmouseout="this.style.background='';this.style.color='var(--text-3)'">\u00d7</span>
               </div>`;
             }).join('')}
           </div>` : ''}
       </div>
 
-      <!-- Weekly grid \u2014 hanya customer aktif -->
+      <!-- Weekly grid \u2014 hanya group aktif -->
       <div id="gen-content">
-        ${!_genCustomers.length
+        ${!_genGroups.length
           ? '<div style="text-align:center;padding:var(--s8);color:var(--text-3)">Pilih customer untuk mulai membuat menu mingguan</div>'
-          : (_genActiveCustomer ? _genCustomerBlock(_genActiveCustomer, plan) : '')}
+          : _genCustomerBlock(_genGroupPrimary(_genActiveGroup), plan, _genGroupLabel(_genActiveGroup))}
       </div>
     `;
 
-    // Set active tab: pastikan ada customer aktif
-    if (_genCustomers.length && !_genActiveCustomer) _genActiveCustomer = _genCustomers[0];
-    if (_genActiveCustomer && !_genCustomers.includes(_genActiveCustomer)) _genActiveCustomer = _genCustomers[0] || null;
+    // Clamp active group index
+    if (_genGroups.length && _genActiveGroup >= _genGroups.length) _genActiveGroup = _genGroups.length - 1;
+    if (_genActiveGroup < 0) _genActiveGroup = 0;
 
-    // Load saved customer selection + plan (hanya sekali saat pertama kali)
-    if (plan?.customers?.length && !_genCustomers.length) {
-      _genCustomers = plan.customers;
-      _genActiveCustomer = _genCustomers[0] || null;
+    // Load saved selection + plan (hanya sekali saat pertama kali)
+    if (!_genGroups.length && (plan?.groups?.length || plan?.customers?.length)) {
+      if (plan.groups?.length) {
+        _genGroups = plan.groups;
+      } else {
+        // legacy: tiap customer jadi solo group
+        _genGroups = plan.customers.map(cid => [cid]);
+      }
+      _genActiveGroup = 0;
       _renderGenerator();
     }
   }
 
-  function _genCustomerBlock(custId, plan) {
+  function _genCustomerBlock(custId, plan, groupLabel) {
+    if (!custId) return '';
     const cust = _customers.find(c=>c.id===custId);
     if (!cust) return '';
-    const custName = cust.namaShort || cust.nama;
+    const displayName = groupLabel || cust.namaShort || cust.nama;
     // Customer-specific komposisi (default or custom)
     const komposisi = cust.menuKomposisi || [...DEFAULT_KOMPOSISI];
     const planData = plan?.data?.[custId] || {};
 
     return `<div class="card" style="margin-bottom:var(--s4);padding:0;overflow:hidden">
       <div style="padding:var(--s3) var(--s4);background:var(--thead-bg);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
-        <span style="font-size:14px;font-weight:700;color:var(--thead-text)">${_esc(custName)}</span>
+        <span style="font-size:14px;font-weight:700;color:var(--thead-text)">${_esc(displayName)}</span>
         <div style="display:flex;gap:var(--s2);flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._editKomposisi('${custId}')">Komposisi: ${komposisi.join(', ')}</button>
           <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._openCopyModal('${custId}')">Salin ke...</button>
@@ -452,18 +464,31 @@ const MenuModule = (() => {
   function _genSetCell(custId, shift, dayIdx, field, value) {
     if (!_pendingPlan) {
       const existing = _plans.find(p=>p.weekStart===_genWeekStart);
-      _pendingPlan = existing ? {...existing, data:{...existing.data}} : {id:Utils.uid(), weekStart:_genWeekStart, customers:_genCustomers, data:{}};
+      _pendingPlan = existing ? {...existing, data:{...existing.data}} : {id:Utils.uid(), weekStart:_genWeekStart, groups:_genGroups, customers:_genAllCusts(), data:{}};
     }
     if (!_pendingPlan.data[custId]) _pendingPlan.data[custId] = {};
     if (!_pendingPlan.data[custId][shift]) _pendingPlan.data[custId][shift] = {};
     if (!_pendingPlan.data[custId][shift][dayIdx]) _pendingPlan.data[custId][shift][dayIdx] = {tema:'',menu:{}};
     if (field==='tema') _pendingPlan.data[custId][shift][dayIdx].tema = value;
     else _pendingPlan.data[custId][shift][dayIdx].menu[field] = value;
-    _pendingPlan.customers = _genCustomers;
+    _pendingPlan.groups = _genGroups;
+    _pendingPlan.customers = _genAllCusts();
   }
 
   async function _genSave() {
     if (!_pendingPlan) { Notify.info('Belum ada perubahan'); return; }
+    // Copy data dari primary ke semua anggota group yang sama
+    _genGroups.forEach(group => {
+      const primary = group[0];
+      if (!primary || group.length < 2) return;
+      const src = _pendingPlan.data[primary];
+      if (!src) return;
+      group.slice(1).forEach(otherId => {
+        _pendingPlan.data[otherId] = JSON.parse(JSON.stringify(src));
+      });
+    });
+    _pendingPlan.groups = _genGroups;
+    _pendingPlan.customers = _genAllCusts();
     _pendingPlan.updatedAt = new Date().toISOString();
     _pendingPlan.updatedBy = Auth.currentUser()?.nama||'';
     try {
@@ -500,17 +525,19 @@ const MenuModule = (() => {
         <input type="checkbox" id="gen-cust-all" onchange="MenuModule._genToggleAllCust(this.checked)" style="width:14px;height:14px;cursor:pointer">
         Pilih Semua (${_weekCustomers.length})
       </label>
-      ${_weekCustomers.map(c=>`
-        <label class="gen-cust-item" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;transition:.1s"
+      ${_weekCustomers.map(c => {
+        const inUse = _genAllCusts().includes(c.id);
+        return `<label class="gen-cust-item" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;transition:.1s"
           onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
           <input type="checkbox" class="gen-cust-cb" value="${_esc(c.id)}"
-            ${_genCustomers.includes(c.id)?'disabled title="Sudah ditambahkan"':''}
+            ${inUse?'disabled title="Sudah di tab"':''}
             ${_genPendingCusts.includes(c.id)?'checked':''}
             onchange="MenuModule._genCbChange(this)"
             style="width:14px;height:14px;cursor:pointer;flex-shrink:0">
-          <span style="font-size:12px;font-weight:600;color:${_genCustomers.includes(c.id)?'var(--text-3)':'var(--text)'}">${_esc(c.namaShort||c.nama)}</span>
-          ${_genCustomers.includes(c.id)?'<span style="font-size:9px;color:var(--text-3);margin-left:auto">✓ Aktif</span>':''}
-        </label>`).join('')}`;
+          <span style="font-size:12px;font-weight:600;color:${inUse?'var(--text-3)':'var(--text)'}">${_esc(c.namaShort||c.nama)}</span>
+          ${inUse?'<span style="font-size:9px;color:var(--text-3);margin-left:auto">✓ Aktif</span>':''}
+        </label>`;
+      }).join('')}`;
     document.body.appendChild(drop);
     if (toggle) toggle.style.borderColor = 'var(--primary)';
     _genDropClickHandler = (ev) => {
@@ -549,32 +576,31 @@ const MenuModule = (() => {
     const lbl = document.getElementById('gen-cust-label');
     if (lbl) lbl.textContent = n ? n+' dipilih' : 'Pilih customer'+(_weekCustomers.length<_customers.length?' ('+_weekCustomers.length+' ada order)':'')+'...';
     const all = document.getElementById('gen-cust-all');
-    const total = _weekCustomers.filter(c=>!_genCustomers.includes(c.id)).length;
+    const total = _weekCustomers.filter(c=>!_genAllCusts().includes(c.id)).length;
     if (all) { all.checked = n>0 && n===total; all.indeterminate = n>0 && n<total; }
   }
 
   function _genAddCustomer() {
     if (!_genPendingCusts.length) return;
-    let firstNew = null;
-    _genPendingCusts.forEach(cid => {
-      if (!_genCustomers.includes(cid)) { _genCustomers.push(cid); if (!firstNew) firstNew = cid; }
-    });
+    const allExisting = _genAllCusts();
+    const newCusts = _genPendingCusts.filter(id => !allExisting.includes(id));
     _genPendingCusts = [];
     document.getElementById('gen-cust-drop')?.remove();
     if (_genDropClickHandler) { document.removeEventListener('click', _genDropClickHandler); _genDropClickHandler = null; }
-    if (firstNew && !_genActiveCustomer) _genActiveCustomer = firstNew;
-    else if (firstNew) _genActiveCustomer = firstNew; // switch ke customer baru yang pertama ditambah
+    if (!newCusts.length) return;
+    _genGroups.push(newCusts); // semua yang dipilih bersamaan = 1 group = 1 tab
+    _genActiveGroup = _genGroups.length - 1;
     _renderGenerator();
   }
 
-  function _genRemoveCustomer(cid) {
-    _genCustomers = _genCustomers.filter(c=>c!==cid);
-    if (_genActiveCustomer === cid) _genActiveCustomer = _genCustomers[0] || null;
+  function _genRemoveGroup(gi) {
+    _genGroups.splice(gi, 1);
+    if (_genActiveGroup >= _genGroups.length) _genActiveGroup = Math.max(0, _genGroups.length - 1);
     _renderGenerator();
   }
 
-  function _genSwitchTab(cid) {
-    _genActiveCustomer = cid;
+  function _genSwitchTab(gi) {
+    _genActiveGroup = gi;
     _renderGenerator();
   }
   function _genPrevWeek() { const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()-7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _renderGenerator(); }
@@ -735,15 +761,16 @@ const MenuModule = (() => {
     if (!_pendingPlan) {
       _pendingPlan = activePlan
         ? {...activePlan, data:{...activePlan.data}}
-        : {id:Utils.uid(), weekStart:_genWeekStart, customers:_genCustomers, data:{}};
+        : {id:Utils.uid(), weekStart:_genWeekStart, groups:_genGroups, customers:_genAllCusts(), data:{}};
     }
 
+    const allExisting = _genAllCusts();
     destIds.forEach(dId => {
-      // Deep copy srcData so each customer gets independent data
       _pendingPlan.data[dId] = JSON.parse(JSON.stringify(srcData));
-      if (!_genCustomers.includes(dId)) _genCustomers.push(dId);
+      if (!allExisting.includes(dId)) { _genGroups.push([dId]); } // tambah sebagai solo group
     });
-    _pendingPlan.customers = _genCustomers;
+    _pendingPlan.groups = _genGroups;
+    _pendingPlan.customers = _genAllCusts();
 
     Modal.close(modalId);
     _renderGenerator();
@@ -895,10 +922,11 @@ Key hari: 0=Senin, 1=Selasa, ..., 6=Minggu.`;
       const parsed = JSON.parse(jsonStr);
       if (!_pendingPlan) {
         const existing = _plans.find(p=>p.weekStart===_genWeekStart);
-        _pendingPlan = existing ? {...existing, data:{...existing.data}} : {id:Utils.uid(), weekStart:_genWeekStart, customers:_genCustomers, data:{}};
+        _pendingPlan = existing ? {...existing, data:{...existing.data}} : {id:Utils.uid(), weekStart:_genWeekStart, groups:_genGroups, customers:_genAllCusts(), data:{}};
       }
       _pendingPlan.data[custId] = parsed;
-      _pendingPlan.customers = _genCustomers;
+      _pendingPlan.groups = _genGroups;
+      _pendingPlan.customers = _genAllCusts();
       _renderGenerator();
       Notify.success('\u2713 Menu AI diterapkan! Klik Simpan untuk menyimpan.');
     } catch(e) { Notify.error('AI response bukan JSON valid: '+e.message); if(window.BECCA_DEBUG) console.log('Raw AI:', result); }
@@ -1270,7 +1298,7 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
   return {
     init, switchTab,
     _libFilter, openMenuDetail, openMenuForm, _saveMenu, deleteMenu,
-    _genAddCustomer, _genRemoveCustomer, _genSetCell, _genSave,
+    _genAddCustomer, _genRemoveGroup, _genSetCell, _genSave,
     _genPrevWeek, _genNextWeek, _genThisWeek, _genSwitchTab,
     _genToggleDrop, _genToggleAllCust, _genUpdateDropLabel, _genCbChange,
     _printMenuPDF, _openCopyModal, _copyCheckAll, _doCopyMenu,
