@@ -276,7 +276,9 @@ const MenuModule = (() => {
   /* ═══════════════════════════════════════════
      MENU GENERATOR
      ═══════════════════════════════════════════ */
-  let _genWeekStart = '', _genCustomers = [], _weekCustomers = []; // selected customer IDs
+  let _genWeekStart = '', _genCustomers = [], _weekCustomers = [];
+  let _genActiveCustomer = null; // tab yang sedang aktif
+  let _genPendingCusts = [];    // pilihan sementara di dropdown sebelum diklik Tambah
 
   function _getMonday() {
     const dt = new Date(); dt.setHours(12,0,0,0);
@@ -321,39 +323,52 @@ const MenuModule = (() => {
         </span>
       </div>
 
-      <!-- Customer selector -->
+      <!-- Customer selector + tabs -->
       <div class="card" style="margin-bottom:var(--s4);padding:var(--s3)">
-        <div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;margin-bottom:${_genCustomers.length?'var(--s3)':'0'}">
           <span style="font-size:12px;font-weight:600;color:var(--text-2)">Customer:</span>
-          <!-- Custom multi-select dropdown (panel di-render ke body agar bisa menembus container) -->
-          <button id="gen-cust-toggle" onclick="MenuModule._genToggleDrop(event)"
-            style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;min-width:240px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);cursor:pointer;font-size:12px;color:var(--text);text-align:left">
-            <span id="gen-cust-label" style="flex:1">Pilih customer${_weekCustomers.length < _customers.length ? ' ('+_weekCustomers.length+' ada order)' : ''}...</span>
+          <button id="gen-cust-toggle" type="button" onclick="MenuModule._genToggleDrop(event)"
+            style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;min-width:220px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);cursor:pointer;font-size:12px;color:var(--text);text-align:left">
+            <span id="gen-cust-label" style="flex:1">${_genPendingCusts.length ? _genPendingCusts.length+' dipilih' : 'Pilih customer'+(_weekCustomers.length<_customers.length?' ('+_weekCustomers.length+' ada order)':'')+'...'}</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12" style="flex-shrink:0;opacity:.5"><path d="M6 9l6 6 6-6"/></svg>
           </button>
-          <button class="btn btn-primary btn-sm" onclick="MenuModule._genAddCustomer()">Tambah</button>
+          <button type="button" data-gen-tambah class="btn btn-primary btn-sm" onclick="MenuModule._genAddCustomer()">Tambah</button>
           <div style="flex:1"></div>
-          ${canEdit?`<button class="btn btn-primary btn-sm" onclick="MenuModule._genSave()">\ud83d\udcbe Simpan</button>`:''}
+          ${canEdit?`<button type="button" class="btn btn-primary btn-sm" onclick="MenuModule._genSave()">\ud83d\udcbe Simpan</button>`:''}
         </div>
-        ${_genCustomers.length?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:var(--s2)">
-          ${_genCustomers.map(cid=>{
-            const c=_customers.find(x=>x.id===cid);
-            return c?`<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:var(--r-full);background:var(--primary-bg);color:var(--primary-h);font-size:11px;font-weight:600">
-              ${_esc(c.namaShort||c.nama)} <span onclick="MenuModule._genRemoveCustomer('${cid}')" style="cursor:pointer;font-size:13px">\u00d7</span>
-            </span>`:'';
-          }).join('')}
-        </div>`:''}
+        ${_genCustomers.length ? `
+          <!-- Tab row -->
+          <div style="display:flex;gap:0;flex-wrap:wrap;border-bottom:2px solid var(--border)">
+            ${_genCustomers.map(cid => {
+              const c = _customers.find(x=>x.id===cid);
+              if (!c) return '';
+              const isActive = cid === _genActiveCustomer;
+              return `<div style="display:inline-flex;align-items:center;gap:5px;padding:7px 16px 6px;cursor:pointer;border-bottom:2px solid ${isActive?'var(--primary)':'transparent'};margin-bottom:-2px;transition:.15s;background:${isActive?'var(--primary-bg)':'transparent'}">
+                <span onclick="MenuModule._genSwitchTab('${cid}')" style="font-size:12px;font-weight:${isActive?'700':'500'};color:${isActive?'var(--primary-h)':'var(--text-2)'}">
+                  ${_esc(c.namaShort||c.nama)}
+                </span>
+                <span onclick="MenuModule._genRemoveCustomer('${cid}')" style="font-size:11px;color:var(--text-3);cursor:pointer;line-height:1;padding:1px 2px;border-radius:3px" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--danger)'" onmouseout="this.style.background='';this.style.color='var(--text-3)'">\u00d7</span>
+              </div>`;
+            }).join('')}
+          </div>` : ''}
       </div>
 
-      <!-- Weekly grid per customer -->
+      <!-- Weekly grid \u2014 hanya customer aktif -->
       <div id="gen-content">
-        ${_genCustomers.length ? _genCustomers.map(cid=>_genCustomerBlock(cid, plan)).join('') : '<div style="text-align:center;padding:var(--s8);color:var(--text-3)">Pilih customer untuk mulai membuat menu mingguan</div>'}
+        ${!_genCustomers.length
+          ? '<div style="text-align:center;padding:var(--s8);color:var(--text-3)">Pilih customer untuk mulai membuat menu mingguan</div>'
+          : (_genActiveCustomer ? _genCustomerBlock(_genActiveCustomer, plan) : '')}
       </div>
     `;
 
-    // Load saved customer selection + plan
+    // Set active tab: pastikan ada customer aktif
+    if (_genCustomers.length && !_genActiveCustomer) _genActiveCustomer = _genCustomers[0];
+    if (_genActiveCustomer && !_genCustomers.includes(_genActiveCustomer)) _genActiveCustomer = _genCustomers[0] || null;
+
+    // Load saved customer selection + plan (hanya sekali saat pertama kali)
     if (plan?.customers?.length && !_genCustomers.length) {
       _genCustomers = plan.customers;
+      _genActiveCustomer = _genCustomers[0] || null;
       _renderGenerator();
     }
   }
@@ -461,6 +476,7 @@ const MenuModule = (() => {
   }
 
   let _genDropClickHandler = null;
+
   function _genToggleDrop(e) {
     e.stopPropagation();
     const toggle = document.getElementById('gen-cust-toggle');
@@ -487,14 +503,20 @@ const MenuModule = (() => {
       ${_weekCustomers.map(c=>`
         <label class="gen-cust-item" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;transition:.1s"
           onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-          <input type="checkbox" class="gen-cust-cb" value="${_esc(c.id)}" onchange="MenuModule._genUpdateDropLabel()"
-            ${_genCustomers.includes(c.id)?'disabled title="Sudah ditambahkan"':''} style="width:14px;height:14px;cursor:pointer;flex-shrink:0">
+          <input type="checkbox" class="gen-cust-cb" value="${_esc(c.id)}"
+            ${_genCustomers.includes(c.id)?'disabled title="Sudah ditambahkan"':''}
+            ${_genPendingCusts.includes(c.id)?'checked':''}
+            onchange="MenuModule._genCbChange(this)"
+            style="width:14px;height:14px;cursor:pointer;flex-shrink:0">
           <span style="font-size:12px;font-weight:600;color:${_genCustomers.includes(c.id)?'var(--text-3)':'var(--text)'}">${_esc(c.namaShort||c.nama)}</span>
           ${_genCustomers.includes(c.id)?'<span style="font-size:9px;color:var(--text-3);margin-left:auto">✓ Aktif</span>':''}
         </label>`).join('')}`;
     document.body.appendChild(drop);
     if (toggle) toggle.style.borderColor = 'var(--primary)';
     _genDropClickHandler = (ev) => {
+      // Jangan tutup dropdown saat klik Tambah — cek apakah target adalah tombol Tambah
+      const tambahBtn = document.querySelector('[data-gen-tambah]');
+      if (tambahBtn?.contains(ev.target)) return;
       if (!drop.contains(ev.target) && !toggle?.contains(ev.target)) {
         drop.remove();
         if (toggle) toggle.style.borderColor = 'var(--border)';
@@ -504,26 +526,55 @@ const MenuModule = (() => {
     };
     setTimeout(() => document.addEventListener('click', _genDropClickHandler), 10);
   }
-  function _genToggleAllCust(checked) {
-    document.querySelectorAll('.gen-cust-cb:not(:disabled)').forEach(cb => { cb.checked = checked; });
+
+  function _genCbChange(cb) {
+    const cid = cb.value;
+    if (cb.checked) { if (!_genPendingCusts.includes(cid)) _genPendingCusts.push(cid); }
+    else { _genPendingCusts = _genPendingCusts.filter(x=>x!==cid); }
     _genUpdateDropLabel();
   }
+
+  function _genToggleAllCust(checked) {
+    document.querySelectorAll('.gen-cust-cb:not(:disabled)').forEach(cb => {
+      cb.checked = checked;
+      const cid = cb.value;
+      if (checked && !_genPendingCusts.includes(cid)) _genPendingCusts.push(cid);
+    });
+    if (!checked) _genPendingCusts = [];
+    _genUpdateDropLabel();
+  }
+
   function _genUpdateDropLabel() {
-    const n = document.querySelectorAll('.gen-cust-cb:checked').length;
+    const n = _genPendingCusts.length;
     const lbl = document.getElementById('gen-cust-label');
-    if (lbl) lbl.textContent = n ? n + ' customer dipilih' : 'Pilih customer...';
+    if (lbl) lbl.textContent = n ? n+' dipilih' : 'Pilih customer'+(_weekCustomers.length<_customers.length?' ('+_weekCustomers.length+' ada order)':'')+'...';
     const all = document.getElementById('gen-cust-all');
-    if (all) { const total = document.querySelectorAll('.gen-cust-cb:not(:disabled)').length; all.checked = n > 0 && n === total; all.indeterminate = n > 0 && n < total; }
+    const total = _weekCustomers.filter(c=>!_genCustomers.includes(c.id)).length;
+    if (all) { all.checked = n>0 && n===total; all.indeterminate = n>0 && n<total; }
   }
+
   function _genAddCustomer() {
-    const checked = [...document.querySelectorAll('.gen-cust-cb:checked')].map(cb => cb.value);
-    if (!checked.length) return;
-    let added = 0;
-    checked.forEach(cid => { if (!_genCustomers.includes(cid)) { _genCustomers.push(cid); added++; } });
-    if (added) _renderGenerator();
+    if (!_genPendingCusts.length) return;
+    let firstNew = null;
+    _genPendingCusts.forEach(cid => {
+      if (!_genCustomers.includes(cid)) { _genCustomers.push(cid); if (!firstNew) firstNew = cid; }
+    });
+    _genPendingCusts = [];
+    document.getElementById('gen-cust-drop')?.remove();
+    if (_genDropClickHandler) { document.removeEventListener('click', _genDropClickHandler); _genDropClickHandler = null; }
+    if (firstNew && !_genActiveCustomer) _genActiveCustomer = firstNew;
+    else if (firstNew) _genActiveCustomer = firstNew; // switch ke customer baru yang pertama ditambah
+    _renderGenerator();
   }
+
   function _genRemoveCustomer(cid) {
     _genCustomers = _genCustomers.filter(c=>c!==cid);
+    if (_genActiveCustomer === cid) _genActiveCustomer = _genCustomers[0] || null;
+    _renderGenerator();
+  }
+
+  function _genSwitchTab(cid) {
+    _genActiveCustomer = cid;
     _renderGenerator();
   }
   function _genPrevWeek() { const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()-7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _renderGenerator(); }
@@ -1220,8 +1271,8 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     init, switchTab,
     _libFilter, openMenuDetail, openMenuForm, _saveMenu, deleteMenu,
     _genAddCustomer, _genRemoveCustomer, _genSetCell, _genSave,
-    _genPrevWeek, _genNextWeek, _genThisWeek,
-    _genToggleDrop, _genToggleAllCust, _genUpdateDropLabel,
+    _genPrevWeek, _genNextWeek, _genThisWeek, _genSwitchTab,
+    _genToggleDrop, _genToggleAllCust, _genUpdateDropLabel, _genCbChange,
     _printMenuPDF, _openCopyModal, _copyCheckAll, _doCopyMenu,
     _editKomposisi, _saveKomposisi,
     _kompDragStart, _kompDragOver, _kompDrop, _kompDragEnd, _kompAdd,
