@@ -7,7 +7,7 @@ if(window.BECCA_DEBUG) console.log('[BECCA] MenuModule v20260404a loaded');
 
 const MenuModule = (() => {
   'use strict';
-  let _library = [], _plans = [], _customers = [];
+  let _library = [], _plans = [], _customers = [], _orders = [];
   let _activeTab = 'generator';
 
   const DAYS = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
@@ -26,12 +26,13 @@ const MenuModule = (() => {
     const page = document.getElementById('page-menu');
     if (!page) return;
     page.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:40vh;color:var(--text-3)">Memuat menu...</div>';
-    const [library, plans, customers] = await Promise.all([
+    const [library, plans, customers, orders] = await Promise.all([
       DB.getMenuLibrary().catch(()=>[]),
       DB.getMenuPlans().catch(()=>[]),
       DB.getCustomers().catch(()=>[]),
+      DB.getOrders().catch(()=>[]),
     ]);
-    _library = library; _plans = plans;
+    _library = library; _plans = plans; _orders = orders;
     _customers = customers.filter(c=>(c.status||'AKTIF')==='AKTIF').sort((a,b)=>(a.nama||'').localeCompare(b.nama||''));
     // Seed library if empty
     // Seed v2: adds new items not yet in library (checks by name, skips existing)
@@ -297,6 +298,15 @@ const MenuModule = (() => {
     const _fmtPeriod = (s) => { const d=new Date(s+'T12:00:00'); return d.getDate()+' '+['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][d.getMonth()]+' '+d.getFullYear(); };
     const weekEndStr = _weekEnd.getFullYear()+'-'+String(_weekEnd.getMonth()+1).padStart(2,'0')+'-'+String(_weekEnd.getDate()).padStart(2,'0');
 
+    // Hanya tampilkan customer yang punya order di minggu ini
+    const weekOrderNames = new Set(
+      _orders.filter(o => o.tglOrder >= _genWeekStart && o.tglOrder <= weekEndStr)
+             .map(o => (o.namaPerusahaan||'').toLowerCase())
+    );
+    const weekCustomers = weekOrderNames.size
+      ? _customers.filter(c => weekOrderNames.has((c.nama||'').toLowerCase()) || weekOrderNames.has((c.namaShort||'').toLowerCase()))
+      : _customers;
+
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="MenuModule._genPrevWeek()">\u2039 Minggu Lalu</button>
@@ -314,8 +324,8 @@ const MenuModule = (() => {
         <div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap">
           <span style="font-size:12px;font-weight:600;color:var(--text-2)">Customer:</span>
           <select id="gen-add-cust" class="form-control" style="width:250px;min-height:32px;font-size:12px">
-            <option value="">+ Tambah Customer</option>
-            ${_customers.map(c=>`<option value="${c.id}">${c.namaShort||c.nama}</option>`).join('')}
+            <option value="">+ Tambah Customer${weekCustomers.length < _customers.length ? ' ('+weekCustomers.length+' ada order)' : ''}</option>
+            ${weekCustomers.map(c=>`<option value="${c.id}">${c.namaShort||c.nama}</option>`).join('')}
           </select>
           <button class="btn btn-primary btn-sm" onclick="MenuModule._genAddCustomer()">Tambah</button>
           <div style="flex:1"></div>
@@ -353,10 +363,12 @@ const MenuModule = (() => {
     const planData = plan?.data?.[custId] || {};
 
     return `<div class="card" style="margin-bottom:var(--s4);padding:0;overflow:hidden">
-      <div style="padding:var(--s3) var(--s4);background:var(--thead-bg);display:flex;align-items:center;justify-content:space-between">
+      <div style="padding:var(--s3) var(--s4);background:var(--thead-bg);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
         <span style="font-size:14px;font-weight:700;color:var(--thead-text)">${_esc(custName)}</span>
-        <div style="display:flex;gap:var(--s2)">
+        <div style="display:flex;gap:var(--s2);flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._editKomposisi('${custId}')">Komposisi: ${komposisi.join(', ')}</button>
+          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._openCopyModal('${custId}')">Salin ke...</button>
+          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._printMenuPDF('${custId}')">PDF</button>
           <button class="btn btn-primary btn-sm" style="font-size:10px" onclick="MenuModule._aiGenerateMenu('${custId}')">AI Generate</button>
         </div>
       </div>
@@ -458,6 +470,176 @@ const MenuModule = (() => {
   function _genPrevWeek() { const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()-7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _renderGenerator(); }
   function _genNextWeek() { const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()+7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _renderGenerator(); }
   function _genThisWeek() { _genWeekStart=_getMonday(); _pendingPlan=null; _renderGenerator(); }
+
+  /* ═══ PDF PRINT ═══ */
+  function _printMenuPDF(custId) {
+    const cust = _customers.find(c=>c.id===custId);
+    if (!cust) return;
+    const custName = cust.namaShort || cust.nama;
+    const komposisi = cust.menuKomposisi || [...DEFAULT_KOMPOSISI];
+    const savedPlan = _plans.find(p=>p.weekStart===_genWeekStart);
+    const activePlan = (_pendingPlan?.weekStart===_genWeekStart) ? _pendingPlan : savedPlan;
+    const planData = activePlan?.data?.[custId] || {};
+
+    const MONTHS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+    const _fmtDate = (s) => { const d=new Date(s+'T12:00:00'); return d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear(); };
+    const weekEnd = new Date(new Date(_genWeekStart+'T12:00:00').getTime()+6*86400000);
+    const weekEndStr = weekEnd.getFullYear()+'-'+String(weekEnd.getMonth()+1).padStart(2,'0')+'-'+String(weekEnd.getDate()).padStart(2,'0');
+    const period = _fmtDate(_genWeekStart)+' — '+_fmtDate(weekEndStr);
+
+    const shiftColors = { S1:'#6366f1', S2:'#0891b2', S3:'#059669' };
+
+    const tableRows = SHIFTS.map(shift => {
+      const shiftData = planData[shift] || {};
+      const temaRow = `<tr>
+        <td rowspan="${komposisi.length+1}" style="padding:6px 10px;font-weight:800;font-size:13px;color:${shiftColors[shift]||'#374151'};vertical-align:top;border-right:1px solid #e5e7eb;border-top:2px solid #d1d5db;white-space:nowrap">${shift}</td>
+        ${DAYS.map((_,di) => {
+          const tema = (shiftData[di]||{}).tema || '';
+          return `<td style="padding:5px 8px;border-right:1px solid #e5e7eb;border-top:2px solid #d1d5db;text-align:center;font-size:10px;font-weight:700;color:${shiftColors[shift]||'#374151'};background:#f8fafc">${_esc(tema)}</td>`;
+        }).join('')}
+      </tr>`;
+      const kompRows = komposisi.map(komp => `<tr>
+        ${DAYS.map((_,di) => {
+          const val = ((shiftData[di]||{}).menu||{})[komp] || '';
+          return `<td style="padding:4px 8px;border-right:1px solid #e5e7eb;border-bottom:1px solid #f3f4f6;font-size:11px;vertical-align:top">
+            <div style="font-size:9px;color:#9ca3af;margin-bottom:2px">${_esc(komp)}</div>
+            <div style="color:#1f2937">${_esc(val)||'<span style="color:#d1d5db">—</span>'}</div>
+          </td>`;
+        }).join('')}
+      </tr>`).join('');
+      return temaRow + kompRows;
+    }).join('');
+
+    const dayHeaders = DAYS.map((d,di) => {
+      const dt = new Date(new Date(_genWeekStart+'T12:00:00').getTime()+di*86400000);
+      return `<th style="padding:8px;text-align:center;font-size:11px;font-weight:700;color:#374151;border-right:1px solid #e5e7eb;min-width:90px">
+        <div>${d}</div>
+        <div style="font-size:10px;font-weight:400;color:#6b7280">${dt.getDate()}/${dt.getMonth()+1}</div>
+      </th>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8">
+      <title>Menu ${custName} — ${period}</title>
+      <style>
+        @page { size: A3 landscape; margin: 12mm; }
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #1f2937; background: #fff; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f1f5f9; }
+        td, th { border: none; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      </style>
+    </head><body>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #6366f1">
+        <div>
+          <div style="font-size:22px;font-weight:900;color:#6366f1">MENU MINGGUAN</div>
+          <div style="font-size:16px;font-weight:700;color:#1f2937;margin-top:2px">${_esc(custName)}</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px">${period}</div>
+        </div>
+        <div style="text-align:right;font-size:11px;color:#9ca3af">
+          <div>BECCA Catering Management</div>
+          <div>Dicetak: ${new Date().toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})}</div>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="padding:8px;text-align:left;font-size:11px;font-weight:700;color:#374151;border-right:1px solid #e5e7eb;width:48px">SHIFT</th>
+            ${dayHeaders}
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </body></html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) { Notify.warning('Pop-up diblokir browser. Izinkan pop-up lalu coba lagi.'); return; }
+    w.document.write(html);
+    w.document.close();
+    w.onload = () => { w.focus(); w.print(); };
+  }
+
+  /* ═══ COPY TO OTHER CUSTOMERS ═══ */
+  function _openCopyModal(srcId) {
+    const src = _customers.find(c=>c.id===srcId);
+    if (!src) return;
+    const srcName = src.namaShort || src.nama;
+    const savedPlan = _plans.find(p=>p.weekStart===_genWeekStart);
+    const activePlan = (_pendingPlan?.weekStart===_genWeekStart) ? _pendingPlan : savedPlan;
+    const srcData = activePlan?.data?.[srcId];
+    if (!srcData) { Notify.warning('Menu '+srcName+' belum ada isi. Isi dulu sebelum menyalin.'); return; }
+
+    const others = _customers.filter(c=>c.id!==srcId);
+    if (!others.length) { Notify.info('Tidak ada customer lain.'); return; }
+
+    const mid = 'copy-menu-'+Date.now();
+    Modal.open({ id:mid, title:'Salin Menu '+_esc(srcName)+' ke Customer Lain', size:'modal-md',
+      body:`
+        <p style="font-size:12px;color:var(--text-2);margin-bottom:var(--s3)">Menu <strong>${_esc(srcName)}</strong> minggu ini akan disalin ke customer yang dipilih di bawah.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s2)">
+          <span style="font-size:11px;font-weight:600;color:var(--text-2)">${others.length} customer tersedia</span>
+          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._copyCheckAll('${mid}',true)">Pilih Semua</button>
+          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._copyCheckAll('${mid}',false)">Batal Semua</button>
+        </div>
+        <div id="copy-cust-list" style="display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto">
+          ${others.map(c=>`
+            <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;transition:.1s"
+              onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+              <input type="checkbox" class="copy-cust-cb" value="${c.id}" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
+              <span style="font-size:13px;font-weight:600;color:var(--text)">${_esc(c.namaShort||c.nama)}</span>
+              ${c.namaShort&&c.nama!==c.namaShort?`<span style="font-size:10px;color:var(--text-3)">${_esc(c.nama)}</span>`:''}
+            </label>`).join('')}
+        </div>`,
+      footer:`<span id="copy-count" style="font-size:11px;color:var(--text-3)">0 dipilih</span>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="MenuModule._doCopyMenu('${srcId}','${mid}')">Salin</button>`,
+      onOpen: () => {
+        document.querySelectorAll('.copy-cust-cb').forEach(cb => {
+          cb.addEventListener('change', () => {
+            const n = document.querySelectorAll('.copy-cust-cb:checked').length;
+            const el = document.getElementById('copy-count');
+            if (el) el.textContent = n + ' dipilih';
+          });
+        });
+      },
+    });
+  }
+
+  function _copyCheckAll(mid, check) {
+    document.querySelectorAll('.copy-cust-cb').forEach(cb => { cb.checked = check; });
+    const n = check ? document.querySelectorAll('.copy-cust-cb').length : 0;
+    const el = document.getElementById('copy-count');
+    if (el) el.textContent = n + ' dipilih';
+  }
+
+  async function _doCopyMenu(srcId, modalId) {
+    const destIds = [...document.querySelectorAll('.copy-cust-cb:checked')].map(cb=>cb.value);
+    if (!destIds.length) { Notify.warning('Pilih minimal satu customer tujuan.'); return; }
+
+    const savedPlan = _plans.find(p=>p.weekStart===_genWeekStart);
+    const activePlan = (_pendingPlan?.weekStart===_genWeekStart) ? _pendingPlan : savedPlan;
+    const srcData = activePlan?.data?.[srcId];
+    if (!srcData) { Notify.warning('Data menu sumber tidak ditemukan.'); return; }
+
+    if (!_pendingPlan) {
+      _pendingPlan = activePlan
+        ? {...activePlan, data:{...activePlan.data}}
+        : {id:Utils.uid(), weekStart:_genWeekStart, customers:_genCustomers, data:{}};
+    }
+
+    destIds.forEach(dId => {
+      // Deep copy srcData so each customer gets independent data
+      _pendingPlan.data[dId] = JSON.parse(JSON.stringify(srcData));
+      if (!_genCustomers.includes(dId)) _genCustomers.push(dId);
+    });
+    _pendingPlan.customers = _genCustomers;
+
+    Modal.close(modalId);
+    _renderGenerator();
+    const names = destIds.map(id=>{ const c=_customers.find(x=>x.id===id); return c?.namaShort||c?.nama||id; }).join(', ');
+    Notify.success('Menu disalin ke: '+names+'. Klik Simpan untuk menyimpan.');
+  }
 
   function _editKomposisi(custId) {
     const cust = _customers.find(c=>c.id===custId);
@@ -980,6 +1162,7 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     _libFilter, openMenuDetail, openMenuForm, _saveMenu, deleteMenu,
     _genAddCustomer, _genRemoveCustomer, _genSetCell, _genSave,
     _genPrevWeek, _genNextWeek, _genThisWeek,
+    _printMenuPDF, _openCopyModal, _copyCheckAll, _doCopyMenu,
     _editKomposisi, _saveKomposisi,
     _kompDragStart, _kompDragOver, _kompDrop, _kompDragEnd, _kompAdd,
     _aiGenerateMenu, _aiResep,
