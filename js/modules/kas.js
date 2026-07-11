@@ -3196,7 +3196,8 @@ const KasModule = (() => {
       });
     });
 
-    const cards = allCards.map(card => {
+    let firstPendingCardId = null;
+    const cards = allCards.map((card, ci) => {
       const d = card.doc;
       const col = _destColor(card.dest);
       const statusText = card.isConfirmed ? 'Terkonfirmasi' : 'Belum Konfirmasi';
@@ -3205,8 +3206,9 @@ const KasModule = (() => {
       const bd = card.isConfirmed ? 'rgba(16,185,129,.3)' : col.bd;
       const dCode = _destCode(card.dest, d);
       const dotColor = card.isConfirmed ? '#10b981' : col.c;
-      // Layout simpel — 2 baris saja: header (label + kode mono tipis) + footer (status dot + items)
-      return `<div style="display:flex;flex-direction:column;gap:3px;padding:8px 12px;
+      const cardId = `bp-card-${d.id}-${ci}`;
+      if (!card.isConfirmed && !firstPendingCardId) firstPendingCardId = cardId;
+      return `<div id="${cardId}" style="display:flex;flex-direction:column;gap:3px;padding:8px 12px;
         border:1px solid ${bd};border-radius:8px;background:${bg};min-width:130px;position:relative;cursor:pointer;transition:.15s"
         onclick="KasModule.openBPDetail('${d.id}','${card.dest.replace(/'/g,"\\'")}')"
         title="${_destStyle(card.dest).label} · ${d.periode||'-'}"
@@ -3223,23 +3225,15 @@ const KasModule = (() => {
       </div>`;
     }).join('');
 
-    // Delete button per doc (one for the whole period)
-    const docManageRow = isAdmin ? docs.map(d => {
-      const allDestsForDoc = allCards.filter(c => c.doc.id === d.id).length;
-      if (!allDestsForDoc) return '';
-      return `<button onclick="KasModule.deleteBPKas('${d.id}')" title="Hapus semua belanja pasar periode ini"
-        style="font-size:9px;padding:3px 8px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.06);color:#ef4444;border-radius:5px;cursor:pointer;font-weight:600">
-        ✕ ${d.periode||'-'}
-      </button>`;
-    }).join('') : '';
-
     const pendingCount = allCards.filter(c => !c.isConfirmed).length;
+    const scrollToPending = firstPendingCardId
+      ? `const t=document.getElementById('${firstPendingCardId}');if(t){t.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});t.style.outline='2px solid #f59e0b';setTimeout(()=>t.style.outline='',1200);}`
+      : '';
     el.innerHTML = `
       <div style="background:var(--surface);border:1px solid rgba(8,145,178,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#0891b2;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           🛒 Belanja Pasar
-          ${pendingCount>0?`<span style="background:#f59e0b;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700">${pendingCount} belum konfirmasi</span>`:''}
-          ${isAdmin && docManageRow ? `<span style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap">${docManageRow}</span>` : ''}
+          ${pendingCount>0?`<span onclick="${scrollToPending}" style="background:#f59e0b;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700;cursor:pointer" title="Klik untuk gulir ke card yang belum dikonfirmasi">${pendingCount} belum konfirmasi</span>`:''}
         </div>
         <div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px">${cards}</div>
       </div>`;
@@ -3440,11 +3434,16 @@ const KasModule = (() => {
             <button class="btn btn-primary" onclick="KasModule.confirmBPSection('${doc.id}','${String(focusDest).replace(/'/g,"\\'")}')" style="background:#059669;border-color:#059669">Konfirmasi ${Utils.esc(lbl)}</button>`;
         }
         // Mode GLOBAL (no focusDest) — backward compat
+        const hapusBtn = isAdmin
+          ? `<button class="btn" onclick="Modal.close('${mid}');KasModule.deleteBPKas('${doc.id}')"
+              style="border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.05);color:#dc2626;margin-right:auto">
+              Hapus dari Kas
+            </button>` : '';
         if (isConfirmed) {
-          return `<span style="font-size:11px;color:#10b981;font-weight:700;margin-right:auto">✓ Sudah dikonfirmasi global oleh ${Utils.esc(doc.kasConfirmedBy||'-')}</span>
+          return `${hapusBtn}<span style="font-size:11px;color:#10b981;font-weight:700">✓ Dikonfirmasi oleh ${Utils.esc(doc.kasConfirmedBy||'-')}</span>
             <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`;
         }
-        return `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
+        return `${hapusBtn}<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>
           <button class="btn btn-primary" onclick="KasModule.confirmBelanjaPasar('${doc.id}')" style="background:#059669;border-color:#059669">Konfirmasi Semua</button>`;
       })(),
       onOpen: () => {
@@ -3485,8 +3484,8 @@ const KasModule = (() => {
     const last = dates[dates.length - 1] || first;
     const yy = first.slice(2,4);
     const mm = first.slice(5,7);
-    const sd = first.slice(8,10).replace(/^0/, ''); // 08 → 8, tapi 10 tetap 10
-    const ed = last.slice(8,10).replace(/^0/, '');
+    const sd = first.slice(8,10); // 2-digit zero-padded: 02, 05, 10
+    const ed = last.slice(8,10);
     if (dest === 'cikopo')   return `PC${yy}${mm}${sd}${sd!==ed?ed:''}`;
     if (dest === 'supplier') return `SP${yy}${mm}${sd}${sd!==ed?ed:''}`;
     if (dest === 'karawang') return `PK${yy}${mm}${sd}${sd!==ed?ed:''}`;
@@ -3516,9 +3515,9 @@ const KasModule = (() => {
     if (r.bpDestCode) return r.bpDestCode;
     if (!r.bpDest || !r.tgl) return '';
     const yy = r.tgl.slice(2,4), mm = r.tgl.slice(5,7), dd = r.tgl.slice(8,10);
-    if (r.bpDest === 'cikopo')   return `PC${yy}${mm}${dd.replace(/^0/,'')}`;
-    if (r.bpDest === 'supplier') return `SP${yy}${mm}${dd.replace(/^0/,'')}`;
-    if (r.bpDest === 'karawang') return `PK${yy}${mm}${dd.replace(/^0/,'')}`;
+    if (r.bpDest === 'cikopo')   return `PC${yy}${mm}${dd}`;
+    if (r.bpDest === 'supplier') return `SP${yy}${mm}${dd}`;
+    if (r.bpDest === 'karawang') return `PK${yy}${mm}${dd}`;
     if (r.bpDest.startsWith('karawang|')) {
       const [, t, shift] = r.bpDest.split('|');
       return `PK${t.slice(2,4)}${t.slice(5,7)}${t.slice(8,10)}${shift||''}`;
