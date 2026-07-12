@@ -149,8 +149,10 @@ const EmployeeModule = (() => {
     let filtered = active;
     if (_filterStatus) filtered = filtered.filter(e=>e.status===_filterStatus);
     if (_filterDept)   filtered = filtered.filter(e=>(e.divisi||e.departemen)===_filterDept);
-    if (_filterKtp==='missing') filtered = filtered.filter(e=>!e.ktpUrl);
-    if (_filterFace==='missing') filtered = filtered.filter(e=>!e.faceDescriptors?.length);
+    if (_filterKtp==='missing')    filtered = filtered.filter(e=>!e.ktpUrl);
+    else if (_filterKtp==='has')   filtered = filtered.filter(e=>!!e.ktpUrl);
+    if (_filterFace==='missing')   filtered = filtered.filter(e=>!e.faceDescriptors?.length);
+    else if (_filterFace==='has')  filtered = filtered.filter(e=>!!(e.faceDescriptors?.length));
     if (_filterGrup === '__none__') filtered = filtered.filter(e => !e.grupGajian);
     else if (_filterGrup) filtered = filtered.filter(e => e.grupGajian === _filterGrup);
     if (_searchQ) {
@@ -216,22 +218,32 @@ const EmployeeModule = (() => {
           const total = active.length;
           return `
           ${(()=>{
-            const ktpActive = _filterKtp === 'missing';
+            const ktpMode = _filterKtp; // '' | 'missing' | 'has'
             const ktpColor = hasKtp<total ? '#f59e0b' : '#10b981';
-            const ktpBorder = hasKtp<total ? 'rgba(245,158,11,.35)' : 'rgba(16,185,129,.35)';
-            return `<div style="background:${ktpActive?'rgba(245,158,11,.1)':'var(--surface)'};border:2px solid ${ktpActive?'#f59e0b':ktpBorder};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:${ktpActive?'0 0 0 3px rgba(245,158,11,.15)':'0 1px 4px rgba(0,0,0,.08)'};transition:all .15s"
-              onclick="EmployeeModule.setFilter('ktp','missing')" title="Filter: belum punya KTP">
-              <div style="font-size:11px;color:${ktpActive?ktpColor:'var(--text-3)'};margin-bottom:4px;font-weight:${ktpActive?'700':'400'}">🪪 KTP</div>
+            const ktpBorderDefault = hasKtp<total ? 'rgba(245,158,11,.35)' : 'rgba(16,185,129,.35)';
+            const ktpBg    = ktpMode==='missing' ? 'rgba(245,158,11,.1)' : ktpMode==='has' ? 'rgba(16,185,129,.1)' : 'var(--surface)';
+            const ktpBdr   = ktpMode==='missing' ? '#f59e0b' : ktpMode==='has' ? '#10b981' : ktpBorderDefault;
+            const ktpShadow= ktpMode==='missing' ? '0 0 0 3px rgba(245,158,11,.15)' : ktpMode==='has' ? '0 0 0 3px rgba(16,185,129,.15)' : '0 1px 4px rgba(0,0,0,.08)';
+            const ktpLabel = ktpMode==='missing' ? '🪪 Belum KTP' : ktpMode==='has' ? '🪪 Ada KTP' : '🪪 KTP';
+            const ktpLabelColor = ktpMode==='missing' ? '#f59e0b' : ktpMode==='has' ? '#10b981' : 'var(--text-3)';
+            return `<div style="background:${ktpBg};border:2px solid ${ktpBdr};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:${ktpShadow};transition:all .15s"
+              onclick="EmployeeModule.setFilter('ktp')" title="Klik untuk filter KTP (belum → sudah → off)">
+              <div style="font-size:11px;color:${ktpLabelColor};margin-bottom:4px;font-weight:${ktpMode?'700':'400'}">${ktpLabel}</div>
               <div style="font-size:18px;font-weight:700;color:${ktpColor};font-family:var(--font-mono)">${hasKtp}/${total}</div>
             </div>`;
           })()}
           ${(()=>{
-            const faceActive = _filterFace === 'missing';
+            const faceMode = _filterFace; // '' | 'missing' | 'has'
             const faceColor = hasFace<total ? '#f59e0b' : '#6366f1';
-            const faceBorder = hasFace<total ? 'rgba(245,158,11,.35)' : 'rgba(99,102,241,.35)';
-            return `<div style="background:${faceActive?'rgba(245,158,11,.1)':'var(--surface)'};border:2px solid ${faceActive?'#f59e0b':faceBorder};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:${faceActive?'0 0 0 3px rgba(245,158,11,.15)':'0 1px 4px rgba(0,0,0,.08)'};transition:all .15s"
-              onclick="EmployeeModule.setFilter('face','missing')" title="Filter: belum daftar wajah">
-              <div style="font-size:11px;color:${faceActive?faceColor:'var(--text-3)'};margin-bottom:4px;font-weight:${faceActive?'700':'400'}">📷 Face</div>
+            const faceBorderDefault = hasFace<total ? 'rgba(245,158,11,.35)' : 'rgba(99,102,241,.35)';
+            const faceBg    = faceMode==='missing' ? 'rgba(245,158,11,.1)' : faceMode==='has' ? 'rgba(99,102,241,.1)' : 'var(--surface)';
+            const faceBdr   = faceMode==='missing' ? '#f59e0b' : faceMode==='has' ? '#6366f1' : faceBorderDefault;
+            const faceShadow= faceMode==='missing' ? '0 0 0 3px rgba(245,158,11,.15)' : faceMode==='has' ? '0 0 0 3px rgba(99,102,241,.15)' : '0 1px 4px rgba(0,0,0,.08)';
+            const faceLabel = faceMode==='missing' ? '📷 Belum Face' : faceMode==='has' ? '📷 Ada Face' : '📷 Face';
+            const faceLabelColor = faceMode==='missing' ? '#f59e0b' : faceMode==='has' ? '#6366f1' : 'var(--text-3)';
+            return `<div style="background:${faceBg};border:2px solid ${faceBdr};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:${faceShadow};transition:all .15s"
+              onclick="EmployeeModule.setFilter('face')" title="Klik untuk filter Face (belum → sudah → off)">
+              <div style="font-size:11px;color:${faceLabelColor};margin-bottom:4px;font-weight:${faceMode?'700':'400'}">${faceLabel}</div>
               <div style="font-size:18px;font-weight:700;color:${faceColor};font-family:var(--font-mono)">${hasFace}/${total}</div>
             </div>`;
           })()}`;
@@ -371,8 +383,8 @@ const EmployeeModule = (() => {
     if (key==='status') _filterStatus = val;
     else if (key==='dept') _filterDept = _filterDept===val ? '' : val;
     else if (key==='grup') _filterGrup = val;
-    else if (key==='ktp') _filterKtp = _filterKtp===val ? '' : val;
-    else if (key==='face') _filterFace = _filterFace===val ? '' : val;
+    else if (key==='ktp')  _filterKtp  = _filterKtp===''  ? 'missing' : _filterKtp==='missing'  ? 'has' : '';
+    else if (key==='face') _filterFace = _filterFace==='' ? 'missing' : _filterFace==='missing' ? 'has' : '';
     else if (key==='reset') { _filterStatus=''; _filterDept=''; _filterGrup=''; _filterKtp=''; _filterFace=''; }
     renderData();
   }
@@ -1509,8 +1521,10 @@ const EmployeeModule = (() => {
     let filtered = active;
     if (_filterStatus) filtered = filtered.filter(e=>e.status===_filterStatus);
     if (_filterDept)              filtered = filtered.filter(e=>(e.divisi||e.departemen)===_filterDept);
-    if (_filterKtp==='missing')   filtered = filtered.filter(e=>!e.ktpUrl);
-    if (_filterFace==='missing')  filtered = filtered.filter(e=>!e.faceDescriptors?.length);
+    if (_filterKtp==='missing')    filtered = filtered.filter(e=>!e.ktpUrl);
+    else if (_filterKtp==='has')   filtered = filtered.filter(e=>!!e.ktpUrl);
+    if (_filterFace==='missing')   filtered = filtered.filter(e=>!e.faceDescriptors?.length);
+    else if (_filterFace==='has')  filtered = filtered.filter(e=>!!(e.faceDescriptors?.length));
     if (_filterGrup === '__none__') filtered = filtered.filter(e => !e.grupGajian);
     else if (_filterGrup) filtered = filtered.filter(e => e.grupGajian === _filterGrup);
     if (_searchQ) {
