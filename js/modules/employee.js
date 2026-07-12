@@ -369,7 +369,7 @@ const EmployeeModule = (() => {
   let _filterFace = '';
   function setFilter(key, val) {
     if (key==='status') _filterStatus = val;
-    else if (key==='dept') _filterDept = val;
+    else if (key==='dept') _filterDept = _filterDept===val ? '' : val;
     else if (key==='grup') _filterGrup = val;
     else if (key==='ktp') _filterKtp = _filterKtp===val ? '' : val;
     else if (key==='face') _filterFace = _filterFace===val ? '' : val;
@@ -1508,7 +1508,9 @@ const EmployeeModule = (() => {
 
     let filtered = active;
     if (_filterStatus) filtered = filtered.filter(e=>e.status===_filterStatus);
-    if (_filterDept)   filtered = filtered.filter(e=>(e.divisi||e.departemen)===_filterDept);
+    if (_filterDept)              filtered = filtered.filter(e=>(e.divisi||e.departemen)===_filterDept);
+    if (_filterKtp==='missing')   filtered = filtered.filter(e=>!e.ktpUrl);
+    if (_filterFace==='missing')  filtered = filtered.filter(e=>!e.faceDescriptors?.length);
     if (_filterGrup === '__none__') filtered = filtered.filter(e => !e.grupGajian);
     else if (_filterGrup) filtered = filtered.filter(e => e.grupGajian === _filterGrup);
     if (_searchQ) {
