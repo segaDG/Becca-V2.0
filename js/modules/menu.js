@@ -623,9 +623,37 @@ const MenuModule = (() => {
   }
 
   function _genRemoveGroup(gi) {
+    const group = _genGroups[gi];
+    if (!group) return;
+    const label = _genGroupLabel(gi);
+    const mid = 'rm-tab-' + Date.now();
+    Modal.open({
+      id: mid,
+      title: 'Hapus Tab?',
+      size: 'modal-sm',
+      body: `<p style="font-size:13px;color:var(--text)">Hapus tab <strong>${_esc(label)}</strong>?</p>
+        <p style="font-size:12px;color:var(--text-3);margin-top:6px">Data menu yang belum disimpan pada tab ini akan hilang. Aksi ini dapat dibatalkan sesaat setelah penghapusan.</p>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-danger" onclick="Modal.close('${mid}');MenuModule._doRemoveGroup(${gi})">Hapus</button>`,
+    });
+  }
+
+  function _doRemoveGroup(gi) {
+    const group = _genGroups[gi];
+    if (!group) return;
+    const label = _genGroupLabel(gi);
+    const prevActiveGroup = _genActiveGroup;
+    // Simpan snapshot untuk undo
+    const snapshot = { group: [...group], gi, prevActiveGroup };
     _genGroups.splice(gi, 1);
     if (_genActiveGroup >= _genGroups.length) _genActiveGroup = Math.max(0, _genGroups.length - 1);
     _renderGenerator();
+    Notify.undo('Tab "' + label + '" dihapus', () => {
+      // Restore group ke posisi semula
+      _genGroups.splice(snapshot.gi, 0, snapshot.group);
+      _genActiveGroup = snapshot.prevActiveGroup;
+      _renderGenerator();
+    });
   }
 
   function _genSwitchTab(gi) {
@@ -1352,7 +1380,7 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
   return {
     init, switchTab,
     _libFilter, openMenuDetail, openMenuForm, _saveMenu, deleteMenu,
-    _genAddCustomer, _genRemoveGroup, _genSetCell, _genSave, _genAutoSave,
+    _genAddCustomer, _genRemoveGroup, _doRemoveGroup, _genSetCell, _genSave, _genAutoSave,
     _genPrevWeek, _genNextWeek, _genThisWeek, _genSwitchTab,
     _genToggleDrop, _genToggleAllCust, _genUpdateDropLabel, _genCbChange,
     _printMenuPDF, _openCopyModal, _copyCheckAll, _doCopyMenu,
