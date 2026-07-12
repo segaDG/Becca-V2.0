@@ -726,17 +726,26 @@ const MenuModule = (() => {
               ${c.namaShort&&c.nama!==c.namaShort?`<span style="font-size:10px;color:var(--text-3)">${_esc(c.nama)}</span>`:''}
             </label>`).join('')}
         </div>`,
-      footer:`<span id="copy-count" style="font-size:11px;color:var(--text-3)">0 dipilih</span>
+      footer:`<div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;width:100%">
+        <span id="copy-count" style="font-size:11px;color:var(--text-3)">0 dipilih</span>
+        <label id="copy-merge-wrap" style="display:none;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text-2);padding:4px 10px;border:1px solid var(--border);border-radius:var(--r-full);background:var(--surface2)">
+          <input type="checkbox" id="copy-merge" style="width:13px;height:13px;cursor:pointer">
+          Gabungkan jadi 1 tab
+        </label>
         <div style="flex:1"></div>
         <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
-        <button class="btn btn-primary" onclick="MenuModule._doCopyMenu('${srcId}','${mid}')">Salin</button>`,
+        <button class="btn btn-primary" onclick="MenuModule._doCopyMenu('${srcId}','${mid}')">Salin</button>
+      </div>`,
       onOpen: () => {
+        const _updateCopyFooter = () => {
+          const n = document.querySelectorAll('.copy-cust-cb:checked').length;
+          const countEl = document.getElementById('copy-count');
+          const mergeWrap = document.getElementById('copy-merge-wrap');
+          if (countEl) countEl.textContent = n + ' dipilih';
+          if (mergeWrap) mergeWrap.style.display = n >= 2 ? 'flex' : 'none';
+        };
         document.querySelectorAll('.copy-cust-cb').forEach(cb => {
-          cb.addEventListener('change', () => {
-            const n = document.querySelectorAll('.copy-cust-cb:checked').length;
-            const el = document.getElementById('copy-count');
-            if (el) el.textContent = n + ' dipilih';
-          });
+          cb.addEventListener('change', _updateCopyFooter);
         });
       },
     });
@@ -747,6 +756,8 @@ const MenuModule = (() => {
     const n = check ? document.querySelectorAll('.copy-cust-cb').length : 0;
     const el = document.getElementById('copy-count');
     if (el) el.textContent = n + ' dipilih';
+    const mergeWrap = document.getElementById('copy-merge-wrap');
+    if (mergeWrap) mergeWrap.style.display = n >= 2 ? 'flex' : 'none';
   }
 
   async function _doCopyMenu(srcId, modalId) {
@@ -764,18 +775,30 @@ const MenuModule = (() => {
         : {id:Utils.uid(), weekStart:_genWeekStart, groups:_genGroups, customers:_genAllCusts(), data:{}};
     }
 
+    const gabung = document.getElementById('copy-merge')?.checked && destIds.length >= 2;
     const allExisting = _genAllCusts();
+    const newIds = destIds.filter(id => !allExisting.includes(id));
+
     destIds.forEach(dId => {
       _pendingPlan.data[dId] = JSON.parse(JSON.stringify(srcData));
-      if (!allExisting.includes(dId)) { _genGroups.push([dId]); } // tambah sebagai solo group
     });
+
+    if (gabung) {
+      // Semua customer tujuan yang baru digabung jadi 1 group
+      if (newIds.length) _genGroups.push(newIds);
+      // Customer tujuan yang sudah ada di group lain — biarkan di group masing-masing
+    } else {
+      // Tiap customer tujuan yang baru jadi solo group
+      newIds.forEach(dId => _genGroups.push([dId]));
+    }
     _pendingPlan.groups = _genGroups;
     _pendingPlan.customers = _genAllCusts();
 
     Modal.close(modalId);
     _renderGenerator();
     const names = destIds.map(id=>{ const c=_customers.find(x=>x.id===id); return c?.namaShort||c?.nama||id; }).join(', ');
-    Notify.success('Menu disalin ke: '+names+'. Klik Simpan untuk menyimpan.');
+    const info = gabung && newIds.length >= 2 ? ' (digabung 1 tab)' : '';
+    Notify.success('Menu disalin ke: '+names+info+'. Klik Simpan untuk menyimpan.');
   }
 
   function _editKomposisi(custId) {
