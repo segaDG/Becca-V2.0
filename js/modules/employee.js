@@ -199,9 +199,10 @@ const EmployeeModule = (() => {
         ${depts.map(dept => {
           const count = active.filter(e=>(e.divisi||e.departemen)===dept).length;
           const deptEsc = dept.replace(/'/g,"\'");
-          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.08)"
+          const isActive = _filterDept === dept;
+          return `<div style="background:${isActive?'var(--primary-bg)':'var(--surface)'};border:2px solid ${isActive?'var(--primary)':'var(--border)'};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:${isActive?'0 0 0 3px rgba(99,102,241,.15)':'0 1px 4px rgba(0,0,0,.08)'};transition:all .15s"
             onclick="EmployeeModule.setFilter('dept','${deptEsc}')" title="Filter: ${dept}">
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">${dept}</div>
+            <div style="font-size:11px;color:${isActive?'var(--primary-h)':'var(--text-3)'};margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;font-weight:${isActive?'700':'400'}">${dept}</div>
             <div style="font-size:18px;font-weight:700;color:var(--primary-h);font-family:var(--font-mono)">${count}</div>
           </div>`;
         }).join('')}
@@ -214,16 +215,26 @@ const EmployeeModule = (() => {
           const hasFace = active.filter(e=>e.faceDescriptors?.length).length;
           const total = active.length;
           return `
-          <div style="background:var(--surface);border:1px solid ${hasKtp<total?'rgba(245,158,11,.3)':'rgba(16,185,129,.3)'};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.08)"
-            onclick="EmployeeModule.setFilter('ktp','missing')" title="Filter: belum punya KTP">
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">🪪 KTP</div>
-            <div style="font-size:18px;font-weight:700;color:${hasKtp<total?'#f59e0b':'#10b981'};font-family:var(--font-mono)">${hasKtp}/${total}</div>
-          </div>
-          <div style="background:var(--surface);border:1px solid ${hasFace<total?'rgba(245,158,11,.3)':'rgba(99,102,241,.3)'};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.08)"
-            onclick="EmployeeModule.setFilter('face','missing')" title="Filter: belum daftar wajah">
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">📷 Face</div>
-            <div style="font-size:18px;font-weight:700;color:${hasFace<total?'#f59e0b':'#6366f1'};font-family:var(--font-mono)">${hasFace}/${total}</div>
-          </div>`;
+          ${(()=>{
+            const ktpActive = _filterKtp === 'missing';
+            const ktpColor = hasKtp<total ? '#f59e0b' : '#10b981';
+            const ktpBorder = hasKtp<total ? 'rgba(245,158,11,.35)' : 'rgba(16,185,129,.35)';
+            return `<div style="background:${ktpActive?'rgba(245,158,11,.1)':'var(--surface)'};border:2px solid ${ktpActive?'#f59e0b':ktpBorder};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:${ktpActive?'0 0 0 3px rgba(245,158,11,.15)':'0 1px 4px rgba(0,0,0,.08)'};transition:all .15s"
+              onclick="EmployeeModule.setFilter('ktp','missing')" title="Filter: belum punya KTP">
+              <div style="font-size:11px;color:${ktpActive?ktpColor:'var(--text-3)'};margin-bottom:4px;font-weight:${ktpActive?'700':'400'}">🪪 KTP</div>
+              <div style="font-size:18px;font-weight:700;color:${ktpColor};font-family:var(--font-mono)">${hasKtp}/${total}</div>
+            </div>`;
+          })()}
+          ${(()=>{
+            const faceActive = _filterFace === 'missing';
+            const faceColor = hasFace<total ? '#f59e0b' : '#6366f1';
+            const faceBorder = hasFace<total ? 'rgba(245,158,11,.35)' : 'rgba(99,102,241,.35)';
+            return `<div style="background:${faceActive?'rgba(245,158,11,.1)':'var(--surface)'};border:2px solid ${faceActive?'#f59e0b':faceBorder};border-radius:var(--r-md);padding:12px 18px;min-width:120px;cursor:pointer;box-shadow:${faceActive?'0 0 0 3px rgba(245,158,11,.15)':'0 1px 4px rgba(0,0,0,.08)'};transition:all .15s"
+              onclick="EmployeeModule.setFilter('face','missing')" title="Filter: belum daftar wajah">
+              <div style="font-size:11px;color:${faceActive?faceColor:'var(--text-3)'};margin-bottom:4px;font-weight:${faceActive?'700':'400'}">📷 Face</div>
+              <div style="font-size:18px;font-weight:700;color:${faceColor};font-family:var(--font-mono)">${hasFace}/${total}</div>
+            </div>`;
+          })()}`;
         })()}
       </div>
 
