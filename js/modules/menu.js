@@ -341,7 +341,7 @@ const MenuModule = (() => {
           </button>
           <button type="button" data-gen-tambah class="btn btn-primary btn-sm" onclick="MenuModule._genAddCustomer()">Tambah</button>
           <div style="flex:1"></div>
-          ${canEdit?`<button type="button" class="btn btn-primary btn-sm" onclick="MenuModule._genSave()">\ud83d\udcbe Simpan</button>`:''}
+          ${canEdit?`<span id="gen-save-status" style="font-size:11px;color:var(--text-3)"></span>`:''}
         </div>
         ${_genGroups.length ? `
           <!-- Tab row \u2014 tiap group = 1 tab, nama dipisah koma -->
@@ -459,8 +459,11 @@ const MenuModule = (() => {
     </div>`;
   }
 
-  // Cell edit
+  // Cell edit + auto-save
   let _pendingPlan = null;
+  let _autoSaveTimer = null;
+  let _autoSaving = false;
+
   function _genSetCell(custId, shift, dayIdx, field, value) {
     if (!_pendingPlan) {
       const existing = _plans.find(p=>p.weekStart===_genWeekStart);
@@ -473,31 +476,57 @@ const MenuModule = (() => {
     else _pendingPlan.data[custId][shift][dayIdx].menu[field] = value;
     _pendingPlan.groups = _genGroups;
     _pendingPlan.customers = _genAllCusts();
+    // Auto-save 1.5s setelah berhenti mengetik
+    _genSetSaveStatus('...');
+    clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = setTimeout(_genAutoSave, 1500);
   }
 
-  async function _genSave() {
-    if (!_pendingPlan) { Notify.info('Belum ada perubahan'); return; }
-    // Copy data dari primary ke semua anggota group yang sama
+  function _genSetSaveStatus(msg, color) {
+    const el = document.getElementById('gen-save-status');
+    if (el) { el.textContent = msg; el.style.color = color || 'var(--text-3)'; }
+  }
+
+  async function _doSavePlan() {
+    if (!_pendingPlan) return;
     _genGroups.forEach(group => {
       const primary = group[0];
       if (!primary || group.length < 2) return;
       const src = _pendingPlan.data[primary];
       if (!src) return;
-      group.slice(1).forEach(otherId => {
-        _pendingPlan.data[otherId] = JSON.parse(JSON.stringify(src));
-      });
+      group.slice(1).forEach(id => { _pendingPlan.data[id] = JSON.parse(JSON.stringify(src)); });
     });
     _pendingPlan.groups = _genGroups;
     _pendingPlan.customers = _genAllCusts();
     _pendingPlan.updatedAt = new Date().toISOString();
     _pendingPlan.updatedBy = Auth.currentUser()?.nama||'';
+    await DB.saveMenuPlan(_pendingPlan);
+    const idx = _plans.findIndex(p=>p.id===_pendingPlan.id);
+    if (idx>=0) _plans[idx]=_pendingPlan; else _plans.push(_pendingPlan);
+  }
+
+  async function _genAutoSave() {
+    if (!_pendingPlan || _autoSaving) return;
+    _autoSaving = true;
+    _genSetSaveStatus('Menyimpan...');
     try {
-      await DB.saveMenuPlan(_pendingPlan);
-      const idx = _plans.findIndex(p=>p.id===_pendingPlan.id);
-      if (idx>=0) _plans[idx]=_pendingPlan; else _plans.push(_pendingPlan);
+      await _doSavePlan();
+      _genSetSaveStatus('✓ Tersimpan', 'var(--success)');
+    } catch(e) {
+      _genSetSaveStatus('⚠ Gagal simpan', 'var(--danger)');
+      console.error('[Menu] auto-save error:', e);
+    } finally { _autoSaving = false; }
+  }
+
+  async function _genSave() {
+    if (!_pendingPlan) { Notify.info('Belum ada perubahan'); return; }
+    clearTimeout(_autoSaveTimer);
+    _genSetSaveStatus('Menyimpan...');
+    try {
+      await _doSavePlan();
       Notify.success('Menu plan disimpan');
-      _pendingPlan = null;
-    } catch(e) { Notify.error('Gagal: '+e.message); }
+      _genSetSaveStatus('✓ Tersimpan', 'var(--success)');
+    } catch(e) { Notify.error('Gagal: '+e.message); _genSetSaveStatus('⚠ Gagal', 'var(--danger)'); }
   }
 
   let _genDropClickHandler = null;
@@ -603,15 +632,17 @@ const MenuModule = (() => {
     _genActiveGroup = gi;
     _renderGenerator();
   }
-  function _genPrevWeek() { const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()-7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _renderGenerator(); }
-  function _genNextWeek() { const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()+7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _renderGenerator(); }
-  function _genThisWeek() { _genWeekStart=_getMonday(); _pendingPlan=null; _renderGenerator(); }
+  function _genPrevWeek() { clearTimeout(_autoSaveTimer); const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()-7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _renderGenerator(); }
+  function _genNextWeek() { clearTimeout(_autoSaveTimer); const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()+7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _renderGenerator(); }
+  function _genThisWeek() { clearTimeout(_autoSaveTimer); _genWeekStart=_getMonday(); _pendingPlan=null; _renderGenerator(); }
 
   /* ═══ PDF PRINT ═══ */
   function _printMenuPDF(custId) {
     const cust = _customers.find(c=>c.id===custId);
     if (!cust) return;
-    const custName = cust.namaShort || cust.nama;
+    // Cari label group (bisa berisi nama banyak customer jika tab gabungan)
+    const groupIdx = _genGroups.findIndex(g => g[0] === custId);
+    const custName = groupIdx >= 0 ? _genGroupLabel(groupIdx) : (cust.namaShort || cust.nama);
     const komposisi = cust.menuKomposisi || [...DEFAULT_KOMPOSISI];
     const savedPlan = _plans.find(p=>p.weekStart===_genWeekStart);
     const activePlan = (_pendingPlan?.weekStart===_genWeekStart) ? _pendingPlan : savedPlan;
@@ -1321,7 +1352,7 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
   return {
     init, switchTab,
     _libFilter, openMenuDetail, openMenuForm, _saveMenu, deleteMenu,
-    _genAddCustomer, _genRemoveGroup, _genSetCell, _genSave,
+    _genAddCustomer, _genRemoveGroup, _genSetCell, _genSave, _genAutoSave,
     _genPrevWeek, _genNextWeek, _genThisWeek, _genSwitchTab,
     _genToggleDrop, _genToggleAllCust, _genUpdateDropLabel, _genCbChange,
     _printMenuPDF, _openCopyModal, _copyCheckAll, _doCopyMenu,
