@@ -1284,7 +1284,9 @@ else { window.POModule = (() => {
         <th style="padding:6px;font-size:9px;text-align:right;width:100px;background:rgba(0,0,0,.1)">Total Harga</th>
         <th style="padding:6px;font-size:9px;text-align:right;width:100px;background:rgba(255,255,255,.1)">Alokasi Dana Real</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot>
+      </table>
+      <table style="width:100%;border-collapse:collapse;page-break-inside:avoid;break-inside:avoid;margin-top:0">
+      <tbody>
         <tr style="background:#fef2f2"><td colspan="4"></td><td style="padding:5px;text-align:right;font-size:10px;font-weight:600;color:#dc2626">Total Kebutuhan</td><td style="padding:5px;text-align:right;font-size:10px;font-weight:600;color:#dc2626">${rpP(itemsTotal)}</td><td style="padding:5px;text-align:right;font-size:10px;color:#dc2626;background:rgba(244,63,94,.06)">${hasReal?'<span style="font-weight:400;color:#999">Total Alokasi</span> '+rpP(alokasiTotal):''}</td></tr>
         <tr><td colspan="4"></td><td style="padding:4px 6px;text-align:right;font-size:10px;color:#666">Sisa Periode Sebelumnya</td><td style="padding:4px 6px;text-align:right;font-size:10px;color:#10b981;font-weight:600">${rpP(sisaPeriode)}</td><td style="background:rgba(244,63,94,.06)"></td></tr>
         <tr style="background:#eef2ff"><td colspan="4"></td><td style="padding:8px 6px;text-align:right;font-size:13px;font-weight:800;color:#4f46e5">Request Dana</td><td style="padding:8px 6px;text-align:right;font-size:17px;font-weight:900;color:#4f46e5;letter-spacing:.01em">${requestDana>0?rpP(requestDana):'0,- (surplus)'}</td><td style="padding:8px 6px;text-align:right;font-size:10px;color:#666;background:rgba(244,63,94,.06)">${hasReal?'<span style="color:#999">Dana Diterima</span> '+rpP(danaDiterima):''}</td></tr>
@@ -1293,7 +1295,7 @@ else { window.POModule = (() => {
         <tr><td colspan="5"></td><td style="padding:3px 6px;text-align:right;font-size:10px;color:#666">Total Dana ${rpP(totalDana)}</td><td style="padding:3px 6px;text-align:right;font-size:10px;color:#666;font-weight:600;background:rgba(244,63,94,.06)">${hasReal?'<span style="color:#999;font-weight:400">Total Cash+ATM</span> '+rpP(totalDanaReal):''}</td></tr>
         <tr><td colspan="5"></td><td style="padding:4px 6px;text-align:right;font-size:11px;font-weight:700;color:${sisaUang>=0?'#10b981':'#dc2626'}">SISA ${sisaUang<0?'- ':''}${rpP(Math.abs(sisaUang))}</td><td style="padding:4px 6px;text-align:right;font-size:11px;font-weight:700;color:#7c3aed;background:rgba(244,63,94,.06)">${hasReal?'<span style="color:#999;font-weight:400">SISA (Real)</span> '+(sisaReal<0?'- ':'')+rpP(Math.abs(sisaReal)):''}</td></tr>
         ${hasReal?`<tr><td colspan="5"></td><td></td><td style="padding:5px 6px;text-align:right;font-size:11px;font-weight:700;color:${selisihReal===0?'#10b981':selisihReal>0?'#f59e0b':'#dc2626'};background:${selisihReal===0?'rgba(16,185,129,.1)':selisihReal>0?'rgba(245,158,11,.1)':'rgba(239,68,68,.1)'}"><span style="color:#999;font-weight:400">SELISIH</span> ${selisihReal===0?'Rp 0 ✓':(selisihReal>0?'+':'-')+rpP(Math.abs(selisihReal))}</td></tr>`:''}
-      </tfoot></table>
+      </tbody></table>
     </div></body></html>`;
     const w = window.open('','_blank','width=800,height=900');
     if (w) { w.document.write(html); w.document.close(); }
