@@ -969,6 +969,49 @@ Utils.closeActivityDrawer = function() {
   setTimeout(() => { overlay?.remove(); drawer?.remove(); }, 280);
 };
 
+/**
+ * TABLE ROW ARROW NAVIGATION
+ * Saat input/select di dalam <td> aktif:
+ * - Left/Right di batas kursor → pindah ke input prev/next dalam baris yang sama
+ * - Ctrl+Left/Right → paksa pindah tanpa cek posisi kursor
+ * Tidak mempengaruhi date/time/checkbox/radio (punya perilaku arrow sendiri).
+ */
+;(function() {
+  const SKIP = new Set(['date','time','datetime-local','month','week','checkbox','radio','color','range','file']);
+  document.addEventListener('keydown', function(e) {
+    const tag = (e.target.tagName||'').toLowerCase();
+    if (tag !== 'input' && tag !== 'select') return;
+    const isLeft = e.key === 'ArrowLeft', isRight = e.key === 'ArrowRight';
+    if (!isLeft && !isRight) return;
+    if (e.shiftKey) return; // Shift+Arrow = text selection, biarkan browser handle
+
+    const td = e.target.closest('td'); if (!td) return;
+    const tr = td.closest('tr'); const tbody = tr?.closest('tbody'); if (!tbody) return;
+    if (!tr.closest('#content, .content')) return;
+    if (tr.closest('.modal-overlay, #modal-root, .sidebar')) return;
+
+    const meta = e.ctrlKey || e.metaKey;
+    // Date/time input: punya arrow navigation sendiri di dalam field, skip
+    if (tag === 'input' && SKIP.has(e.target.type || 'text')) return;
+
+    if (tag === 'input' && !meta) {
+      const start = e.target.selectionStart, end = e.target.selectionEnd, len = (e.target.value||'').length;
+      if (isLeft  && !(start === 0   && end === 0))   return;
+      if (isRight && !(start === len && end === len)) return;
+    }
+
+    const inputs = Array.from(tr.querySelectorAll(
+      'input:not([type=hidden]):not([disabled]):not([readonly]), select:not([disabled])'
+    )).filter(el => el.offsetParent !== null);
+    const idx = inputs.indexOf(e.target); if (idx < 0) return;
+    const next = isLeft ? inputs[idx - 1] : inputs[idx + 1]; if (!next) return;
+
+    e.preventDefault();
+    next.focus();
+    if (tag === 'input' && typeof next.select === 'function') next.select();
+  }, true);
+})();
+
 /** Returns HTML button `🕐` yg buka activity drawer untuk module-nya */
 Utils.activityButton = function(moduleKey, opts = {}) {
   const style = opts.style || `padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text-2);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px`;

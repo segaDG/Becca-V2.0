@@ -355,6 +355,7 @@ else { window.POModule = (() => {
   /* ── Detail view ───────────────────────────── */
   function openAnggaran(id) {
     if (_editState) _commitEdit();
+    if (window.UndoRedo) UndoRedo.setActive('po');
     const doc = _data.find(d => d.id === id);
     if (!doc) return;
     const el = document.getElementById('po-content');
@@ -501,9 +502,13 @@ else { window.POModule = (() => {
         </table>
         </div>
       </div>
-      ${!locked ? `<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+      ${!locked ? `<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:11px;color:var(--text-3);font-style:italic">Double-click baris untuk edit · Enter simpan & lanjut · Esc batal · Drag handle untuk copy</span>
-        <button onclick="POModule._addRows('${id}')" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text-3);font-size:11px;cursor:pointer">+ Tambah 10 Baris</button>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button onclick="UndoRedo.undo('po')" title="Undo (Ctrl+Z)" style="height:28px;width:28px;min-width:28px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px">↩</button>
+          <button onclick="UndoRedo.redo('po')" title="Redo (Ctrl+Y)" style="height:28px;width:28px;min-width:28px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px">↪</button>
+          <button onclick="POModule._addRows('${id}')" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text-3);font-size:11px;cursor:pointer">+ Tambah 10 Baris</button>
+        </div>
       </div>` : ''}
 
       <div id="po-realisasi-kas" style="margin-top:16px">
@@ -693,6 +698,7 @@ else { window.POModule = (() => {
     if (!tr) { _editState = null; return; }
 
     const item = doc.items[idx];
+    const _before = { ...item };
     tr.querySelectorAll('td[data-key]').forEach(td => {
       const key = td.dataset.key;
       const input = td.querySelector('input');
@@ -704,6 +710,15 @@ else { window.POModule = (() => {
       }
     });
     item.totalHarga = (Number(item.qty)||0) * (Number(item.harga)||0);
+    const _after = { ...item };
+    if (window.UndoRedo && JSON.stringify(_before) !== JSON.stringify(_after)) {
+      const _docId = docId, _idx = idx;
+      UndoRedo.push('po', {
+        before: _before, after: _after,
+        save: (state) => { const d=_data.find(x=>x.id===_docId); if(d&&d.items[_idx]){Object.assign(d.items[_idx],state); d.items[_idx].totalHarga=(Number(d.items[_idx].qty)||0)*(Number(d.items[_idx].harga)||0); DB.savePO(d).catch(()=>{}); _updateFooter(_docId);} },
+        render: () => { const d=_data.find(x=>x.id===_docId); if(d) openAnggaran(_docId); },
+      });
+    }
     DB.savePO(doc).catch(() => {});
     DB.logActivity?.({ type: 'edit_po', detail: `Edit baris #${idx+1}: ${item.namaBarang||'(kosong)'} — ${doc.nomorEstimasi||''}`, rowId: docId });
 
