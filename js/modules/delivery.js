@@ -79,10 +79,16 @@ const DeliveryModule = (() => {
     });
     return Object.values(map).sort((a,b) => a.label.localeCompare(b.label));
   }
-  function _calcPax(name, date) {
+  function _calcPaxSplit(name, date) {
     const n = v => Number(v)||0;
     return _orders.filter(o => o.namaPerusahaan===name && o.tglOrder===date)
-      .reduce((s,o) => s+n(o.breakfast)+n(o.shift1)+n(o.spare1)+n(o.ot1)+n(o.snack1)+n(o.shift2)+n(o.spare2)+n(o.ot2)+n(o.snack2)+n(o.shift3)+n(o.spare3)+n(o.ot3)+n(o.snack3)+n(o.snackBerat), 0);
+      .reduce((s,o) => ({
+        makanan: s.makanan + n(o.breakfast)+n(o.shift1)+n(o.spare1)+n(o.ot1)+n(o.shift2)+n(o.spare2)+n(o.ot2)+n(o.shift3)+n(o.spare3)+n(o.ot3),
+        snack:   s.snack   + n(o.snack1)+n(o.snack2)+n(o.snack3)+n(o.snackBerat)
+      }), {makanan:0, snack:0});
+  }
+  function _calcPax(name, date) {
+    const {makanan, snack} = _calcPaxSplit(name, date); return makanan + snack;
   }
   function _custShort(name) {
     const c = _customers.find(x => (x.nama||'').toLowerCase()===(name||'').toLowerCase());
@@ -261,7 +267,7 @@ const DeliveryModule = (() => {
         ${(entry.picNames||[]).map(name=>`<span style="font-size:8px;font-weight:600;padding:0 4px;border-radius:var(--r-full);background:${conflict?'var(--danger-bg)':'rgba(148,163,184,.12)'};color:${conflict?'var(--danger)':'var(--text-2)'}">${name}</span>`).join('')}
         ${conflict?'<span style="font-size:9px;color:var(--danger)">\u26a0</span>':''}
       </div>`:''}
-      ${entry.totalPax?`<div style="font-size:9px;color:var(--text-3)">${entry.totalPax} pax${entry.deliveryTime?' \u00b7 '+entry.deliveryTime:''}</div>`:''}
+      ${(entry.paxMakanan||entry.paxSnack||entry.totalPax)?`<div style="font-size:9px;color:var(--text-3)">${(entry.paxMakanan!=null&&entry.paxSnack!=null)?`Mkn ${entry.paxMakanan} \u00b7 Snk ${entry.paxSnack}`:`${entry.totalPax} pax`}${entry.deliveryTime?' \u00b7 '+entry.deliveryTime:''}</div>`:''}
     </div>`;
   }
 
@@ -331,8 +337,11 @@ const DeliveryModule = (() => {
           <div class="form-group"><label class="form-label">Waktu Kirim</label>
             <input type="time" id="dlv-time" class="form-control" value="${existing?.deliveryTime||''}">
           </div>
-          <div class="form-group"><label class="form-label">Total Pax</label>
-            <input type="number" id="dlv-pax" class="form-control" value="${existing?.totalPax||''}" placeholder="Auto">
+          <div class="form-group"><label class="form-label">Pax Makanan</label>
+            <input type="number" id="dlv-pax-mkn" class="form-control" min="0" value="${existing?.paxMakanan??''}" placeholder="Auto">
+          </div>
+          <div class="form-group"><label class="form-label">Pax Snack</label>
+            <input type="number" id="dlv-pax-snk" class="form-control" min="0" value="${existing?.paxSnack??''}" placeholder="Auto">
           </div>
         </div>
         <div class="form-group"><label class="form-label">Status</label>
@@ -355,8 +364,12 @@ const DeliveryModule = (() => {
     const ci = document.getElementById('dlv-customer');
     if (ci) Utils.initCombo(ci, custOpts, { onSelect(item) {
       ci.value = item.value;
-      const p = document.getElementById('dlv-pax');
-      if (p && !existing) { const x = _calcPax(item.value, date); if(x>0) p.value=x; }
+      if (!existing) {
+        const split = _calcPaxSplit(item.value, date);
+        const pm = document.getElementById('dlv-pax-mkn'), ps = document.getElementById('dlv-pax-snk');
+        if (pm && split.makanan>0) pm.value = split.makanan;
+        if (ps && split.snack>0)   ps.value = split.snack;
+      }
       if (!existing) {
         const def = _custDefaults[item.value];
         if (def) {
@@ -397,14 +410,16 @@ const DeliveryModule = (() => {
     const status = (document.querySelector('input[name="dlv-status"]:checked')||{}).value||'pending';
     const shift = document.getElementById('dlv-shift').value;
     const deliveryTime = document.getElementById('dlv-time').value;
-    const totalPax = parseInt(document.getElementById('dlv-pax').value)||0;
+    const paxMakanan = parseInt(document.getElementById('dlv-pax-mkn')?.value)||0;
+    const paxSnack   = parseInt(document.getElementById('dlv-pax-snk')?.value)||0;
+    const totalPax   = paxMakanan + paxSnack;
     const notes = document.getElementById('dlv-notes').value.trim();
 
     let sc = _currentSchedule();
     if (!sc) { const days=_weekDays(_weekStart); sc={id:Utils.uid(),weekStart:_weekStart,weekEnd:days[6],entries:[],createdBy:Auth.currentUser()?.nama||'',createdAt:new Date().toISOString()}; _schedules.push(sc); }
     if (!sc.entries) sc.entries=[];
     const cust = _customers.find(c=>(c.nama||'').toLowerCase()===customerName.toLowerCase());
-    const data = { id:entryId||Utils.uid(), date, customerId:cust?.id||'', customerName, driverId, driverName, picIds, picNames, shift, status, deliveryTime, totalPax, notes, updatedBy:Auth.currentUser()?.nama||'', updatedAt:new Date().toISOString() };
+    const data = { id:entryId||Utils.uid(), date, customerId:cust?.id||'', customerName, driverId, driverName, picIds, picNames, shift, status, deliveryTime, paxMakanan, paxSnack, totalPax, notes, updatedBy:Auth.currentUser()?.nama||'', updatedAt:new Date().toISOString() };
     if (entryId) { const idx=sc.entries.findIndex(e=>e.id===entryId); if(idx>=0)sc.entries[idx]=data; else sc.entries.push(data); } else sc.entries.push(data);
     try { await DB.saveDeliverySchedule(sc); _saveDefaults(customerName, driverId, driverName, picIds, picNames); Notify.success(entryId?'Diperbarui':'Ditambahkan'); } catch(e) { Notify.error('Gagal: '+e.message); }
     Modal.close(modalId); _renderWeekGrid();
@@ -438,21 +453,26 @@ const DeliveryModule = (() => {
     let added=0;
     days.forEach(date => {
       // Aggregate per customer per shift
-      const map = {}; // key: "custName::shift" → pax
+      const map = {}; // key: "custName::shift" → {makanan, snack}
       _orders.filter(o=>o.tglOrder===date).forEach(o => {
         const name=o.namaPerusahaan; if(!name) return;
-        const s1 = n(o.breakfast)+n(o.shift1)+n(o.spare1)+n(o.ot1)+n(o.snack1);
-        const s2 = n(o.shift2)+n(o.spare2)+n(o.ot2)+n(o.snack2);
-        const s3 = n(o.shift3)+n(o.spare3)+n(o.ot3)+n(o.snack3);
-        if (s1>0) { const k=name+'::S1'; map[k]=(map[k]||0)+s1; }
-        if (s2>0) { const k=name+'::S2'; map[k]=(map[k]||0)+s2; }
-        if (s3>0) { const k=name+'::S3'; map[k]=(map[k]||0)+s3; }
+        const pairs = [
+          ['S1', n(o.breakfast)+n(o.shift1)+n(o.spare1)+n(o.ot1), n(o.snack1)],
+          ['S2', n(o.shift2)+n(o.spare2)+n(o.ot2),                n(o.snack2)],
+          ['S3', n(o.shift3)+n(o.spare3)+n(o.ot3),                n(o.snack3)+n(o.snackBerat)],
+        ];
+        pairs.forEach(([sh,food,snack]) => {
+          if (food+snack<=0) return;
+          const k=name+'::'+sh;
+          if (!map[k]) map[k]={makanan:0,snack:0};
+          map[k].makanan+=food; map[k].snack+=snack;
+        });
       });
-      Object.entries(map).forEach(([key,pax]) => {
+      Object.entries(map).forEach(([key,{makanan,snack}]) => {
         const [cn,shift] = key.split('::');
         if (sc.entries.some(e=>e.date===date&&e.customerName===cn&&e.shift===shift)) return;
         const c=_customers.find(x=>(x.nama||'').toLowerCase()===cn.toLowerCase());
-        sc.entries.push({id:Utils.uid(),date,customerId:c?.id||'',customerName:cn,driverId:'',driverName:'',picIds:[],picNames:[],shift,status:'pending',deliveryTime:'',totalPax:pax,notes:'',updatedBy:Auth.currentUser()?.nama||'',updatedAt:new Date().toISOString()});
+        sc.entries.push({id:Utils.uid(),date,customerId:c?.id||'',customerName:cn,driverId:'',driverName:'',picIds:[],picNames:[],shift,status:'pending',deliveryTime:'',paxMakanan:makanan,paxSnack:snack,totalPax:makanan+snack,notes:'',updatedBy:Auth.currentUser()?.nama||'',updatedAt:new Date().toISOString()});
         added++;
       });
     });

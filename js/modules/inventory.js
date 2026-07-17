@@ -161,6 +161,7 @@ const InventoryModule = (() => {
         <button id="inv-tab-btn-opname" class="tab-btn" data-tab="opname"    onclick="InventoryModule.switchTab('opname')">🔢 Stok Opname</button>
         <button id="inv-tab-btn-laporan" class="tab-btn" data-tab="laporan"  onclick="InventoryModule.switchTab('laporan')">📊 Laporan Bulanan</button>
         <button id="inv-tab-btn-summary" class="tab-btn" data-tab="summary"  onclick="InventoryModule.switchTab('summary')">📈 Summary</button>
+        <button id="inv-tab-btn-request" class="tab-btn" data-tab="request"  onclick="InventoryModule.switchTab('request')">📬 Request Barang</button>
       </div>
 
       <div id="inv-tab-stok"></div>
@@ -169,6 +170,7 @@ const InventoryModule = (() => {
       <div id="inv-tab-opname"    class="hidden"></div>
       <div id="inv-tab-laporan"   class="hidden"></div>
       <div id="inv-tab-summary"   class="hidden"></div>
+      <div id="inv-tab-request"   class="hidden"></div>
     `;
 
     // Level 4 — gunakan cache jika warm, render segera lalu background-load jika cold
@@ -389,13 +391,13 @@ const InventoryModule = (() => {
     if (hdrBtns && Auth.can('inventory','edit')) {
       if (tab === 'transaksi') {
         hdrBtns.innerHTML = ''; // Button is above table in renderTransaksi
-      } else if (tab === 'opname' || tab === 'laporan' || tab === 'summary') {
+      } else if (tab === 'opname' || tab === 'laporan' || tab === 'summary' || tab === 'request') {
         hdrBtns.innerHTML = '';
       } else {
         hdrBtns.innerHTML = '<button class="btn btn-primary" onclick="InventoryModule.openItemModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d=\"M12 5v14M5 12h14\"/></svg> Barang Baru</button>';
       }
     }
-    ['stok','transaksi','alert','opname','laporan','summary'].forEach(t => {
+    ['stok','transaksi','alert','opname','laporan','summary','request'].forEach(t => {
       const tabContent = document.getElementById('inv-tab-'+t);
       if (tabContent) tabContent.classList.toggle('hidden', t !== tab);
       const tabBtn = document.getElementById('inv-tab-btn-'+t);
@@ -428,6 +430,8 @@ const InventoryModule = (() => {
       renderLaporanBulanan();
     } else if (tab === 'summary') {
       renderSummary();
+    } else if (tab === 'request') {
+      renderRequestTab();
     } else {
       const renders = { stok: renderStok, alert: renderAlert };
       renders[tab]?.();
@@ -467,7 +471,7 @@ const InventoryModule = (() => {
           { l:'Total Jenis Barang', v: _items.length, c:'var(--primary-h)' },
           { l:'Ditampilkan',        v: filtered.length, c:'var(--text-1)' },
           { l:'Nilai Stok',         v: Utils.formatRupiah(totalNilai, true), c:'var(--success)' },
-          { l:'Stok Menipis',       v: _items.filter(i => (i.stokMin||0) > 0 && (i._stok||0) <= (i.stokMin||0)).length, c:'var(--warning)' },
+          { l:'Stok Menipis',       v: _items.filter(i => i.aktif!==false && (i.stokMin||0) > 0 && (i._stok||0) <= (i.stokMin||0)).length, c:'var(--warning)' },
         ].map(s => `
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 18px;flex:1 1 160px;min-width:0;max-width:220px">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">${s.l}</div>
@@ -559,9 +563,9 @@ const InventoryModule = (() => {
                     })()}">${Utils.formatRupiah(item._weightedAvgPrice||item.hargaSatuan||0)}</td>
                     <td class="num text-small">${Utils.formatRupiah(nilai)}</td>
                     <td>
-                      <span class="badge ${isEmpty?'badge-danger':isLow?'badge-warning':'badge-success'}">
-                        ${isEmpty ? '❌ Habis' : isLow ? '⚠️ Menipis' : '✅ Aman'}
-                      </span>
+                      ${item.aktif===false
+                        ? '<span class="badge badge-neutral">Non-aktif</span>'
+                        : `<span class="badge ${isEmpty?'badge-danger':isLow?'badge-warning':'badge-success'}">${isEmpty ? '❌ Habis' : isLow ? '⚠️ Menipis' : '✅ Aman'}</span>`}
                     </td>
                     ${Auth.can('inventory','edit') ? `
                       <td class="actions" style="white-space:nowrap">
@@ -1302,7 +1306,7 @@ const InventoryModule = (() => {
   function renderTransaksi() {
     const canEdit = Auth.can('inventory','edit');
     const sorted  = [..._logs]
-      .filter(l => l.jenis !== 'OPNAME')
+      .filter(l => l.jenis !== 'OPNAME' && l.jenis !== 'REQUEST')
       .filter(l => !_logFilterNama || (l.itemNama||'').toLowerCase().includes(_logFilterNama))
       .filter(l => !_logFilterTgl  || (l.tgl||'') === _logFilterTgl);
 
@@ -1958,17 +1962,21 @@ const InventoryModule = (() => {
   async function commitLogEdit(id) {
     if (_invEditId !== id) return;
     document.removeEventListener('click', _ivOutsideClick);
-    const ok = _invCommit(id);
-    if (ok) _invEditId = null;
+    const ok = await _invCommit(id);
+    if (ok) {
+      _invEditId = null;
+      _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+      renderTransaksi();
+    }
     // if !ok: _invEditId stays, listener re-attached in _invCommit
   }
 
   // Enter: save current row + open new row immediately
-  function commitAndAddLogRow(id) {
+  async function commitAndAddLogRow(id) {
     if (_invEditId !== id) return;
     document.removeEventListener('click', _ivOutsideClick);
-    const ok = _invCommit(id);
-    if (ok) { _invEditId = null; addLogRow(); }
+    const ok = await _invCommit(id);
+    if (ok) { _invEditId = null; _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||'')); addLogRow(); }
   }
 
   // Esc: discard changes + close edit (no new row)
@@ -2291,6 +2299,14 @@ const InventoryModule = (() => {
             <label class="form-label">Keterangan</label>
             <input name="keterangan" class="form-control" value="${d.keterangan||d.ket||''}" placeholder="Opsional">
           </div>
+          <div class="form-group">
+            <label class="form-label">Status Barang</label>
+            <label class="form-check" style="cursor:pointer;display:flex;align-items:center;gap:8px">
+              <input name="aktif" type="checkbox" value="1" ${d.aktif!==false?'checked':''} style="accent-color:var(--primary);width:16px;height:16px">
+              <span style="font-size:13px">Aktif</span>
+            </label>
+            <div style="font-size:11px;color:var(--text-3);margin-top:2px">Non-aktif: tidak masuk stok opname dan notif low stok</div>
+          </div>
         </form>
         ${isEdit ? _renderHppTrendSection(editId) : ''}`,
       footer: `
@@ -2308,6 +2324,7 @@ const InventoryModule = (() => {
     if (!data.nama || !data.satuan) { Notify.warning('Nama dan Satuan wajib diisi'); return; }
     data.stokMin      = parseInt(data.stokMin)     || 0;
     data.hargaSatuan  = Utils.parseNum(data.hargaSatuan);
+    data.aktif        = data.aktif === '1';
     if (editId) {
       data.id = editId;
       const existing = _items.find(i => String(i.id) === String(editId));
@@ -2496,7 +2513,7 @@ const InventoryModule = (() => {
   }
 
   function renderAlert() {
-    const low = _items.filter(i => (i.stokMin||0) > 0 && (i._stok||0) <= (i.stokMin||0))
+    const low = _items.filter(i => i.aktif!==false && (i.stokMin||0) > 0 && (i._stok||0) <= (i.stokMin||0))
                       .sort((a,b) => (a._stok||0) - (b._stok||0));
     // Trigger background load kas history utk vendor/harga suggestion — TAPI
     // hanya re-render saat cache BARU pertama kali ter-load. Sebelumnya selalu
@@ -2563,8 +2580,9 @@ const InventoryModule = (() => {
 
   /* ===================== STOK OPNAME TAB ===================== */
   function renderOpnameTab() {
-    // Filter: show if stok > 0 OR has transactions in selected period
+    // Filter: exclude non-aktif, show if stok > 0 OR has transactions in selected period
     const periodItems = _items.filter(item => {
+      if (item.aktif === false) return false;
       if ((item._stok || 0) > 0) return true;
       return _logs.some(l => String(l.itemId) === String(item.id) && (l.tgl||'').startsWith(_opnamePeriod));
     }).sort((a,b) => {
@@ -3251,11 +3269,12 @@ const InventoryModule = (() => {
       ? `<tr><td colspan="3" style="padding:4px 8px;font-size:11px;color:var(--text-3)">...dan ${toSave.length - 15} item lainnya</td></tr>`
       : '';
 
+    const adjCount = toSave.filter(({item,jumlah}) => Math.abs(jumlah-(item._stok||0)) >= 0.001).length;
     const ok = await Modal.confirm({
       title   : `Simpan Stok Opname — ${_opnameTgl}`,
       message : `
         <p style="margin-bottom:8px;font-size:13px">Pastikan jumlah berikut sudah benar sebelum disimpan:</p>
-        <div style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
+        <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
           <table style="width:100%;border-collapse:collapse">
             <thead style="background:var(--surface2);position:sticky;top:0">
               <tr>
@@ -3267,13 +3286,14 @@ const InventoryModule = (() => {
             <tbody>${rowsHtml}${moreHtml}</tbody>
           </table>
         </div>
-        <p style="margin-top:8px;font-size:12px;color:var(--text-3)">${toSave.length} item akan disimpan ke riwayat opname.</p>`,
-      confirmText: 'Simpan Sekarang',
+        <p style="margin-top:8px;font-size:12px;color:var(--text-3)">${toSave.length} item akan disimpan ke riwayat opname.</p>
+        ${adjCount>0?`<p style="margin-top:4px;font-size:12px;font-weight:600;color:var(--info)">${adjCount} item memiliki selisih — stok aktual akan disesuaikan otomatis (transaksi MASUK/KELUAR).</p>`:'<p style="margin-top:4px;font-size:12px;color:var(--text-3)">Tidak ada selisih — stok tidak berubah.</p>'}`,
+      confirmText: adjCount > 0 ? 'Simpan & Terapkan ke Stok' : 'Simpan Sekarang',
       danger: false,
     });
     if (!ok) return;
 
-    let saved = 0;
+    let savedCount = 0;
     for (const { item, jumlah } of toSave) {
       const log = {
         tgl       : _opnameTgl,
@@ -3284,18 +3304,165 @@ const InventoryModule = (() => {
         selisih   : jumlah - (item._stok || 0),
         catatan   : 'Stok Opname ' + _opnamePeriod,
       };
-      try {
-        const s = await DB.saveOpnameLog(log);
-        _opnameLogs.unshift(s);
-        saved++;
-      } catch(e) { console.error('[Opname] save error:', e); }
+      try { const s = await DB.saveOpnameLog(log); _opnameLogs.unshift(s); savedCount++; }
+      catch(e) { console.error('[Opname] save error:', e); }
+    }
+
+    // Buat transaksi penyesuaian untuk item yang ada selisih
+    const _user = (typeof Auth!=='undefined'&&Auth.currentUser()) ? (Auth.currentUser().nama||Auth.currentUser().username||'') : '';
+    let adjSaved = 0;
+    for (const { item, jumlah } of toSave) {
+      const stokSis = item._stok || 0;
+      const selisih = jumlah - stokSis;
+      if (Math.abs(selisih) < 0.001) continue;
+      const adjLog = {
+        tgl: _opnameTgl, itemId: item.id, itemNama: item.nama,
+        jenis: selisih > 0 ? 'MASUK' : 'KELUAR',
+        jumlah: Math.abs(selisih), harga: 0, kodeAktivitas: 'OPNAME', hpp: 0,
+        pengambil: _user, penanggungJawab: _user,
+        catatan: 'Penyesuaian Opname ' + _opnamePeriod,
+      };
+      try { const s = await DB.saveInventoryLog(adjLog); _logs.unshift(s); adjSaved++; }
+      catch(e) { console.error('[Opname adj] error:', e); }
+    }
+    if (adjSaved > 0) {
+      _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+      _recalcStok();
     }
 
     _opnameDraft = {};
     await _clearOpnameDraft();
     renderOpnameTab();
-    Notify.success('Stok Opname tersimpan: ' + saved + ' item ✓');
-    DB.logActivity({ type:'opname_bulk', detail:'Opname massal: '+saved+' item pada '+_opnameTgl });
+    const msg = adjSaved > 0 ? `${savedCount} opname tersimpan, ${adjSaved} penyesuaian stok dibuat ✓` : `Stok Opname tersimpan: ${savedCount} item ✓`;
+    Notify.success(msg);
+    DB.logActivity({ type:'opname_bulk', detail:`Opname: ${savedCount} item, ${adjSaved} adj pada ${_opnameTgl}` });
+  }
+
+  /* ===================== TAB: REQUEST BARANG ===================== */
+  function renderRequestTab() {
+    const el = document.getElementById('inv-tab-request');
+    if (!el) return;
+    const requests = _logs.filter(l => l.jenis === 'REQUEST').sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+    const canEdit  = Auth.can('inventory','edit');
+    const canApprove = Auth.isSuperAdmin?.() || Auth.currentUser()?.role === 'admin' || Auth.currentUser()?.role === 'purchaser';
+    const statusMap = { pending:{label:'Pending',bg:'var(--warning-bg)',color:'var(--warning)'}, fulfilled:{label:'Terpenuhi',bg:'var(--success-bg)',color:'var(--success)'}, rejected:{label:'Ditolak',bg:'var(--danger-bg)',color:'var(--danger)'} };
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);margin-bottom:var(--s4);align-items:start">
+        <!-- Form Request -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Ajukan Request Barang</span></div>
+          <div class="form-group">
+            <label class="form-label">Nama Barang <span class="req">*</span></label>
+            <input id="req-item-txt" class="form-control" placeholder="Ketik nama barang..." autocomplete="off">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Jumlah <span class="req">*</span></label>
+              <input id="req-jumlah" type="number" min="0.01" step="0.5" class="form-control" placeholder="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Satuan</label>
+              <input id="req-satuan" class="form-control" placeholder="kg, pcs, ltr..." list="inv-sat-list">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Alasan / Keterangan</label>
+            <textarea id="req-catatan" class="form-control" rows="2" placeholder="Misal: stok habis, untuk produksi tanggal..."></textarea>
+          </div>
+          <button class="btn btn-primary" style="width:100%" onclick="InventoryModule.submitRequest()">Kirim Request</button>
+        </div>
+        <!-- Stats -->
+        <div style="display:flex;flex-direction:column;gap:var(--s3)">
+          ${[{k:'pending',label:'Pending'},{k:'fulfilled',label:'Terpenuhi'},{k:'rejected',label:'Ditolak'}].map(s=>{
+            const cnt = requests.filter(r=>(r.reqStatus||'pending')===s.k).length;
+            const st = statusMap[s.k];
+            return `<div style="background:${st.bg};border:1px solid ${st.color}30;border-radius:var(--r-md);padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:12px;font-weight:600;color:${st.color}">${s.label}</span>
+              <span style="font-size:20px;font-weight:700;color:${st.color};font-family:var(--font-mono)">${cnt}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+      <!-- Request List -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Daftar Request (${requests.length})</span></div>
+        <div class="table-scroll"><table class="table" style="font-size:12px">
+          <thead><tr>
+            <th>#</th><th>Tgl</th><th>Item</th><th class="num">Jumlah</th><th>Oleh</th><th>Keterangan</th><th>Status</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${requests.length === 0 ? '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-3)">Belum ada request</td></tr>' :
+              requests.map((r,i) => {
+                const st = statusMap[r.reqStatus||'pending']||statusMap.pending;
+                return `<tr>
+                  <td class="text-muted text-small">${i+1}</td>
+                  <td style="white-space:nowrap">${r.tgl||'-'}</td>
+                  <td style="font-weight:600">${Utils.esc(r.itemNama||r.catatan?.split('|')[0]||'-')}</td>
+                  <td class="num" style="font-family:var(--font-mono)">${r.jumlah||'-'} ${r.kodeAktivitas||''}</td>
+                  <td style="color:var(--text-3);font-size:11px">${Utils.esc(r.pengambil||'-')}</td>
+                  <td style="color:var(--text-3);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${Utils.esc(r.catatan||'-')}</td>
+                  <td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:var(--r-full);background:${st.bg};color:${st.color}">${st.label}</span></td>
+                  <td style="white-space:nowrap">
+                    ${(r.reqStatus||'pending')==='pending' && canApprove ? `
+                      <button class="btn-icon" title="Tandai Terpenuhi" style="color:var(--success)" onclick="InventoryModule._updateReqStatus('${r.id}','fulfilled')">✓</button>
+                      <button class="btn-icon" title="Tolak" style="color:var(--danger)" onclick="InventoryModule._updateReqStatus('${r.id}','rejected')">✕</button>` : ''}
+                    ${canEdit ? `<button class="btn-icon" title="Hapus" style="color:var(--text-3)" onclick="InventoryModule._deleteRequest('${r.id}')">🗑</button>` : ''}
+                  </td>
+                </tr>`;
+              }).join('')}
+          </tbody>
+        </table></div>
+      </div>`;
+    // Init item combobox
+    const inp = document.getElementById('req-item-txt');
+    if (inp) {
+      const opts = _items.filter(i=>i.aktif!==false).map(it => ({ label:`${it.nama} (${it.satuan||''})`, value:it.id, nama:it.nama, satuan:it.satuan||'' }));
+      inp._reqItemId = ''; inp._reqItemSatuan = '';
+      Utils.initCombo(inp, opts, { onSelect(item){ inp.value=item.nama; inp._reqItemId=item.value; inp._reqItemSatuan=item.satuan; const s=document.getElementById('req-satuan'); if(s&&!s.value)s.value=item.satuan; } });
+    }
+  }
+
+  async function submitRequest() {
+    const inp    = document.getElementById('req-item-txt');
+    const jumlah = parseFloat(document.getElementById('req-jumlah')?.value)||0;
+    const catatan= (document.getElementById('req-catatan')?.value||'').trim();
+    const satuan = (document.getElementById('req-satuan')?.value||'').trim();
+    const itemNama = (inp?.value||'').trim();
+    if (!itemNama) { Notify.warning('Nama barang wajib diisi'); return; }
+    if (jumlah <= 0) { Notify.warning('Jumlah wajib diisi'); return; }
+    const _user = (typeof Auth!=='undefined'&&Auth.currentUser()) ? (Auth.currentUser().nama||Auth.currentUser().username||'') : '';
+    const req = {
+      tgl: new Date().toISOString().split('T')[0],
+      itemId: inp?._reqItemId||'', itemNama,
+      jenis: 'REQUEST', jumlah, harga:0, hpp:0,
+      kodeAktivitas: satuan,
+      catatan, pengambil: _user, penanggungJawab: '',
+      reqStatus: 'pending',
+    };
+    try {
+      const saved = await DB.saveInventoryLog(req);
+      _logs.unshift(saved);
+      renderRequestTab();
+      Notify.success('Request terkirim');
+      DB.logActivity({ type:'request_barang', detail:`Request: ${itemNama} ${jumlah} ${satuan}`, snapshot:{req} });
+    } catch(e) { Notify.error('Gagal: '+e.message); }
+  }
+
+  async function _updateReqStatus(id, status) {
+    const r = _logs.find(l => l.id === id); if (!r) return;
+    r.reqStatus = status;
+    r.penanggungJawab = (typeof Auth!=='undefined'&&Auth.currentUser()) ? (Auth.currentUser().nama||Auth.currentUser().username||'') : '';
+    try { await DB.saveInventoryLog(r); renderRequestTab(); Notify.success(status==='fulfilled'?'Request ditandai terpenuhi':'Request ditolak'); }
+    catch(e) { Notify.error('Gagal: '+e.message); }
+  }
+
+  async function _deleteRequest(id) {
+    if (!confirm('Hapus request ini?')) return;
+    try {
+      await DB.deleteInventoryLog(id);
+      _logs = _logs.filter(l => l.id !== id);
+      renderRequestTab();
+    } catch(e) { Notify.error('Gagal: '+e.message); }
   }
 
   // ============ AI Helpers ============
@@ -4218,6 +4385,7 @@ const InventoryModule = (() => {
     _showHPPAIInfo,
     renderLaporanBulanan,
     renderSummary,
+    renderRequestTab, submitRequest, _updateReqStatus, _deleteRequest,
     setLogFilterNama, setLogFilterTgl, clearLogFilter, reArrangeInv,
     syncFormProduksi, _toggleSyncCheck, _confirmSync, _updateSyncTotals,
     syncBelanjaPasar, _toggleBPSyncCheck, _confirmBPSync, deleteBPSync,

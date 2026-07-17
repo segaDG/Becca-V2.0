@@ -3346,7 +3346,10 @@ const KasModule = (() => {
       return `
         <div id="bp-kas-section-${doc.id}-${key.replace(/[|]/g,'_')}" style="margin-bottom:14px;border:1px solid ${c.border};border-radius:8px;overflow:hidden;scroll-margin-top:8px">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:${c.bg};border-bottom:1px solid ${c.border}">
-            <div style="font-size:12px;font-weight:700;color:${c.text}">📍 ${group.label}</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:12px;font-weight:700;color:${c.text}">📍 ${group.label}</div>
+              ${(!isConfirmed && !confirmedDests.includes(key)) ? `<button onclick="KasModule._bpAddItem('${doc.id}','${key}')" style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:10px;border:1px solid ${c.text}40;background:transparent;color:${c.text};cursor:pointer">+ Item</button>` : ''}
+            </div>
             <div style="font-size:11px;color:${c.text};font-weight:700;font-family:var(--font-mono)" id="bp-kas-sub-${doc.id}-${key.replace(/[|]/g,'_')}">${rp(sectionSubtotal)}</div>
           </div>
           <table style="width:100%;border-collapse:collapse;font-size:11.5px">
@@ -3364,9 +3367,21 @@ const KasModule = (() => {
               const i = it._gi; // global index in doc.kasItems
               const aktT = (Number(it.aktQty)||0)*(Number(it.aktHarga)||0);
               const estH = Number(it.estHarga)||0;
+              const editable = !isConfirmed && !confirmedDests.includes(key);
               return `<tr style="border-bottom:1px solid var(--border);${locI%2?'background:rgba(0,0,0,.012)':''}">
                 <td style="padding:8px 6px;text-align:center;color:var(--text-3);font-size:10px">${locI+1}</td>
-                <td style="padding:8px 6px;font-weight:600">${it.item}</td>
+                <td style="padding:5px 4px">${editable
+                  ? `<div style="display:flex;align-items:center;gap:3px">
+                      <input type="text" value="${Utils.esc(it.item)}"
+                        onfocus="this.style.borderColor='var(--primary)'"
+                        onblur="this.style.borderColor='transparent';KasModule._bpItemChange('${doc.id}',${i},this.value)"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"
+                        style="flex:1;min-width:0;border:1px solid transparent;border-radius:4px;padding:3px 4px;font-weight:600;font-size:11.5px;background:transparent;color:var(--text)">
+                      <button onclick="KasModule._bpDeleteItem('${doc.id}',${i})" title="Hapus item"
+                        style="flex-shrink:0;width:18px;height:18px;border:none;background:transparent;color:var(--text-3);cursor:pointer;font-size:13px;padding:0;line-height:1;border-radius:3px"
+                        onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-3)'">×</button>
+                    </div>`
+                  : `<span style="font-weight:600">${Utils.esc(it.item)}</span>`}</td>
                 <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${it.estQty||'-'}</td>
                 <td style="padding:8px 6px;color:var(--text-3)">${it.satuan}</td>
                 <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);color:var(--text-3)">${estH?rp(estH):'-'}</td>
@@ -3562,6 +3577,39 @@ const KasModule = (() => {
       }
     }
     DB.saveBelanjaPasar(doc).catch(()=>{});
+  }
+
+  function _bpItemChange(docId, idx, value) {
+    const doc = _bpDocs.find(d => d.id === docId); if (!doc) return;
+    const it = doc.kasItems?.[idx]; if (!it) return;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === it.item) return;
+    it.item = trimmed;
+    DB.saveBelanjaPasar(doc).catch(()=>{});
+  }
+
+  async function _bpAddItem(docId, dest) {
+    const doc = _bpDocs.find(d => d.id === docId); if (!doc) return;
+    if (!doc.kasItems) doc.kasItems = [];
+    const destLabel = dest.startsWith('karawang') ? 'Karawang' : dest === 'cikopo' ? 'Cikopo' : dest === 'supplier' ? 'Supplier' : dest;
+    doc.kasItems.push({ item: 'Item Baru', satuan: 'pcs', estQty: 0, estHarga: 0, aktQty: 0, aktHarga: 0, aktTotal: 0, dest, destLabel });
+    try {
+      await DB.saveBelanjaPasar(doc);
+      Modal.close(window._bpKasMid);
+      openBPDetail(docId, dest);
+    } catch(e) { Notify.error('Gagal tambah item: ' + e.message); }
+  }
+
+  async function _bpDeleteItem(docId, idx) {
+    const doc = _bpDocs.find(d => d.id === docId); if (!doc) return;
+    const it = doc.kasItems?.[idx]; if (!it) return;
+    if (!confirm(`Hapus item "${it.item}"?`)) return;
+    doc.kasItems.splice(idx, 1);
+    try {
+      await DB.saveBelanjaPasar(doc);
+      Modal.close(window._bpKasMid);
+      openBPDetail(docId);
+    } catch(e) { Notify.error('Gagal hapus item: ' + e.message); }
   }
 
   async function confirmBelanjaPasar(docId) {
@@ -3853,6 +3901,6 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, resetBPSection, _resetSectionsExcept, _bpCellChange, _bpFocusNextAktHarga, deleteBPKas, _bpToggleFilter, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _applySuggestedAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
+  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, resetBPSection, _resetSectionsExcept, _bpCellChange, _bpFocusNextAktHarga, _bpItemChange, _bpAddItem, _bpDeleteItem, deleteBPKas, _bpToggleFilter, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _applySuggestedAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
 })();
 window.KasModule = KasModule;

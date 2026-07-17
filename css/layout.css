@@ -636,6 +636,40 @@
   .page-header-right .btn { flex: 1 1 auto; min-width: 0; }
 }
 
+/* Mobile Landscape — max-height kecil, orientasi horizontal */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* Header lebih tipis */
+  #header { height: 44px; padding: 0 var(--s3); }
+  #header h2 { font-size: 14px; }
+
+  /* Konten tidak reserve ruang bottom-nav — nav hilang di landscape */
+  body.has-bottom-nav #content { padding-bottom: var(--s3); }
+  body.has-bottom-nav #bottom-nav { display: none; }
+
+  /* Content padding lebih kecil agar layar sempit lebih efisien */
+  #content { padding: var(--s2) var(--s3); }
+
+  /* Sidebar selalu overlay di landscape, tidak dorong konten */
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    transform: translateX(-100%);
+    z-index: 200;
+  }
+  #sidebar.mobile-open { transform: translateX(0); }
+  .main-area { width: 100vw; }
+
+  /* Touch target sedikit lebih kecil di landscape karena layar terbatas */
+  .btn:not(.btn-sm) { min-height: 36px; }
+  .btn-icon { min-width: 36px; min-height: 36px; }
+  .form-control:not(textarea):not(select) { min-height: 36px; }
+
+  /* Card padding minimal */
+  .card { padding: var(--s3); }
+}
+
 /* Sticky first column for wide tables on narrow viewport (improves scroll context) */
 @media (max-width: 1024px) {
   .table-scroll table th:first-child:not(.no-stick),
