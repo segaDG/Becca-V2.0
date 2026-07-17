@@ -106,7 +106,7 @@ else { window.POModule = (() => {
     el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)">Memuat...</div>';
     await new Promise((resolve, reject) => {
       const base = 'js/modules/po-belanja-pasar.js';
-      const ver = '?v=20260622a';
+      const ver = '?v=20260717e';
       // Remove old script tag if exists (force reload fresh version)
       const old = document.querySelector(`script[src^="${base}"]`);
       if (old) old.remove();
@@ -116,6 +116,141 @@ else { window.POModule = (() => {
       document.head.appendChild(s);
     });
     if (typeof POBelanjaPasarModule !== 'undefined') POBelanjaPasarModule.init(el);
+    // Prepend request cards for admin/superadmin/purchaser
+    const reqWrap = document.createElement('div');
+    reqWrap.id = 'po-req-cards';
+    reqWrap.style.marginBottom = '14px';
+    el.prepend(reqWrap);
+    _renderRequestCards();
+  }
+
+  async function _renderRequestCards() {
+    const wrap = document.getElementById('po-req-cards');
+    if (!wrap) return;
+    const role = Auth.currentUser()?.role;
+    const canApprove = role === 'superadmin' || role === 'admin' || role === 'purchaser';
+    if (!canApprove) { wrap.innerHTML = ''; return; }
+    let logs = [];
+    try { logs = await DB.getInventory(); } catch {}
+    const reqs = (logs || []).filter(l => l.jenis === 'REQUEST' && (l.reqStatus || 'pending') === 'pending');
+    if (!reqs.length) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:var(--text)">📬 Request Barang</span>
+        <span style="font-size:11px;background:rgba(99,102,241,.12);color:#6366f1;padding:2px 8px;border-radius:10px;font-weight:700">${reqs.length} pending</span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${reqs.map(r => `
+          <div style="background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(99,102,241,.04));border:1px solid rgba(99,102,241,.3);border-radius:10px;padding:10px 14px;min-width:200px;max-width:240px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+              <span style="font-size:9px;font-weight:700;color:#6366f1;background:rgba(99,102,241,.12);padding:1px 6px;border-radius:8px;letter-spacing:.04em">REQUEST</span>
+              <span style="font-size:10px;color:var(--text-3)">${r.tgl||'-'}</span>
+            </div>
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px">${Utils.esc(r.itemNama||'-')}</div>
+            <div style="font-size:12px;color:var(--text-2);margin-bottom:4px">${r.jumlah||0} ${r.kodeAktivitas||''}</div>
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${Utils.esc(r.catatan||'')}${r.catatan&&r.pengambil?' · ':''}${Utils.esc(r.pengambil||'-')}</div>
+            <button onclick="POModule._approveRequestModal('${r.id}')"
+              style="width:100%;padding:5px;border:1px solid rgba(99,102,241,.5);border-radius:7px;background:rgba(99,102,241,.08);color:#6366f1;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s"
+              onmouseover="this.style.background='rgba(99,102,241,.18)'" onmouseout="this.style.background='rgba(99,102,241,.08)'">
+              ✓ Setujui → Belanja Pasar
+            </button>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  async function _approveRequestModal(reqId) {
+    let logs = [];
+    try { logs = await DB.getInventory(); } catch {}
+    const req = (logs || []).find(l => l.id === reqId);
+    if (!req) { Notify.warning('Request tidak ditemukan'); return; }
+    let bpDocs = [];
+    try { bpDocs = await DB.getBelanjaPasar(); } catch {}
+    const targets = (bpDocs || [])
+      .filter(d => d.kasStatus !== 'confirmed')
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    const mid = 'req-approve-' + Utils.uid();
+    window._reqApproveMid = mid;
+    Modal.open({
+      id: mid,
+      title: '✓ Setujui Request ke Belanja Pasar',
+      size: 'modal-sm',
+      body: `
+        <div style="margin-bottom:12px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:10px 12px">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">${Utils.esc(req.itemNama || '-')}</div>
+          <div style="font-size:12px;color:var(--text-2);margin-top:2px">${req.jumlah || 0} ${req.kodeAktivitas || ''} · oleh ${Utils.esc(req.pengambil || '-')}</div>
+          ${req.catatan ? `<div style="font-size:11px;color:var(--text-3);margin-top:2px">${Utils.esc(req.catatan)}</div>` : ''}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tambahkan ke Belanja Pasar <span class="req">*</span></label>
+          <select id="req-bp-target" class="form-control">
+            <option value="__new__" style="font-weight:700;color:var(--primary)">+ Buat Belanja Pasar Baru</option>
+            ${targets.map(t => `<option value="${t.id}">${t.periode || '-'} (${(t.items || []).filter(i => i.item).length} item)</option>`).join('')}
+          </select>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:4px">Qty akan masuk ke kolom <strong>Supplier</strong> secara otomatis.</div>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close(window._reqApproveMid)">Batal</button>
+        <button class="btn btn-primary" onclick="POModule._approveRequestDo('${reqId}')">Tambahkan ke Belanja Pasar</button>`,
+    });
+  }
+
+  async function _approveRequestDo(reqId) {
+    const targetId = document.getElementById('req-bp-target')?.value;
+    if (!targetId) { Notify.error('Pilih Belanja Pasar terlebih dahulu'); return; }
+    let logs = [];
+    try { logs = await DB.getInventory(); } catch {}
+    const req = (logs || []).find(l => l.id === reqId);
+    if (!req) { Notify.error('Request tidak ditemukan'); return; }
+    const jumlah = Number(req.jumlah) || 0;
+    const newItem = {
+      item: req.itemNama || '',
+      totalQty: jumlah,
+      qtySupplier: jumlah,
+      qtyCikopo: 0,
+      qtyKarawang: 0,
+      harga: 0,
+      satuan: req.kodeAktivitas || '',
+      sumber: 'REQUEST',
+      fromRequest: true,
+      reqId: req.id,
+      stokGudang: 0,
+      totalDemand: 0,
+    };
+    let bp;
+    if (targetId === '__new__') {
+      const cu = Auth.currentUser();
+      const today = new Date().toISOString().slice(0, 10);
+      bp = {
+        id: Utils.uid(),
+        periode: today,
+        dates: [today],
+        dayLabels: {},
+        selectedForms: [],
+        items: [],
+        cikopo: [],
+        perShiftKarawang: {},
+        status: 'draft',
+        namaPetugas: cu?.nama || cu?.username || '',
+        createdAt: new Date().toISOString(),
+      };
+    } else {
+      let bpDocs = [];
+      try { bpDocs = await DB.getBelanjaPasar(); } catch {}
+      bp = (bpDocs || []).find(d => d.id === targetId);
+      if (!bp) { Notify.error('Belanja Pasar tidak ditemukan'); return; }
+    }
+    bp.items = bp.items || [];
+    bp.items.push(newItem);
+    try {
+      await DB.saveBelanjaPasar(bp);
+      req.reqStatus = 'fulfilled';
+      req.penanggungJawab = Auth.currentUser()?.nama || Auth.currentUser()?.username || '';
+      await DB.saveInventoryLog(req);
+      Modal.close(window._reqApproveMid);
+      Notify.success(`${Utils.esc(req.itemNama)} ditambahkan ke Belanja Pasar (kolom Supplier)`);
+      _renderRequestCards();
+      DB.logActivity?.({ type: 'approve_request', detail: `Approve request: ${req.itemNama} ${jumlah} ${req.kodeAktivitas || ''} → BP ${bp.periode || ''}`, rowId: req.id });
+    } catch(e) { Notify.error('Gagal: ' + e.message); }
   }
 
   /* ── Card list ─────────────────────────────── */
@@ -1367,5 +1502,6 @@ else { window.POModule = (() => {
     duplikatAnggaran, deleteAnggaran,
     printAnggaran, kirimWA, _startEdit, _onEditKey, _liveCalc, _saveMeta, _addRows, _copyRow, _pasteRow, _deleteRow, _updateFooter,
     flushPendingEdit,
-    _openSupplierImport, _supImpToggleAll, _supImpConfirm };
+    _openSupplierImport, _supImpToggleAll, _supImpConfirm,
+    _renderRequestCards, _approveRequestModal, _approveRequestDo };
 })(); }

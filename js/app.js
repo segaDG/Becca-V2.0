@@ -6,7 +6,7 @@ const App = {
   // Global cache buster — bump SEKALI saat deploy, applies ke semua modul lazy-load.
   // index.html eager scripts (utils, db, ui/*, dll) tetap per-file karena
   // HTML loads dulu sebelum JS constant ini bisa diakses.
-  BUILD_VERSION: '20260717b',
+  BUILD_VERSION: '20260717e',
   _currentPage: 'dashboard',
   _loadedModules: new Set(),
 
@@ -157,7 +157,7 @@ const App = {
     this._initFabDrag('chat-fab', '.cfab-btn', 'becca_fab_chat_pos');
     // Start checking unread messages
     this._checkChatUnread();
-    this._chatUnreadInterval = setInterval(() => this._checkChatUnread(), 30000);
+    this._chatUnreadInterval = setInterval(() => this._checkChatUnread(), 60000);
   },
 
   async _checkChatUnread() {
@@ -346,25 +346,6 @@ const App = {
     setTimeout(() => {
       if (typeof DBExtensions !== 'undefined') DBExtensions.init();
     }, 1500);
-    // Pre-warm modul umum saat browser idle — user merasakan instant nav.
-    // requestIdleCallback fallback ke setTimeout di Safari/iOS.
-    const _idle = window.requestIdleCallback || (cb => setTimeout(cb, 3000));
-    _idle(() => {
-      const currentRole = Auth.currentUser()?.role || '';
-      const warmList = (currentRole === 'finance' || currentRole === 'admin')
-        ? ['kas', 'ap', 'po', 'invoice']
-        : (currentRole === 'operator')
-          ? ['daily-order', 'order', 'inventory']
-          : (currentRole === 'viewer')
-            ? ['order', 'customer']
-            : ['kas', 'daily-order', 'inventory', 'order']; // superadmin/default
-      warmList.forEach((mod, i) => {
-        if (mod === this._currentPage) return;
-        if (this._loadedModules.has(mod)) return;
-        // Stagger by 200ms supaya tidak burst network sekaligus
-        setTimeout(() => this._loadModule(mod).catch(()=>{}), i * 200);
-      });
-    }, { timeout: 5000 });
     // Refresh user role (light — 1 cached call)
     if (DB.isReady()) {
       DB.getUsers().then(users => {
@@ -403,14 +384,14 @@ const App = {
     }, 4000);
     // Low stock push notification check (once per session)
     if (!sessionStorage.getItem('becca_stock_checked')) {
-      setTimeout(() => this._checkLowStock(), 5000);
+      setTimeout(() => this._checkLowStock(), 12000);
     }
     // Badges — use whatever is cached, don't force new fetches
-    setTimeout(() => this._updateAllBadges(), 2000);
-    // Auth sync — defer even further (not critical)
-    setTimeout(async () => {
+    setTimeout(() => this._updateAllBadges(), 5000);
+    // Auth sync — hanya jika user sudah buka Settings (modul sudah di-load)
+    setTimeout(() => {
       if (!DB.isReady()) return;
-      await this._loadModule('settings').catch(()=>{});
+      if (!this._loadedModules.has('settings')) return;
       if (typeof SettingsModule!=='undefined') SettingsModule._syncAuthJs().catch(()=>{});
     }, 8000);
   },
@@ -941,10 +922,10 @@ const App = {
       });
     };
     update();
-    this._presenceInterval = setInterval(update, 15000); // update every 15s
+    this._presenceInterval = setInterval(update, 30000); // update every 30s
     // Render online users every 20s (store ref untuk cleanup)
     this._renderOnlineUsers();
-    this._onlineUsersInterval = setInterval(() => this._renderOnlineUsers(), 20000);
+    this._onlineUsersInterval = setInterval(() => this._renderOnlineUsers(), 60000);
     // Saat tab kembali aktif → refresh segera (tidak menunggu interval)
     if (!this._visBound) {
       this._visBound = true;

@@ -1743,6 +1743,15 @@ else { window.SettingsModule = (() => {
     if (btn) { btn.disabled = true; btn.textContent = '🧪 Running...'; }
     if (el) el.innerHTML = '<div style="color:var(--text-3);font-size:12px">Running tests...</div>';
     try {
+      if (typeof BeccaTests === 'undefined') {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'js/tests.js?v=20260516x';
+          s.onload = resolve;
+          s.onerror = () => reject(new Error('Gagal memuat tests.js'));
+          document.head.appendChild(s);
+        });
+      }
       const result = await BeccaTests.runAll();
       if (el) el.innerHTML = BeccaTests.getHtmlReport();
       if (result.failed === 0) Notify.success(`Tests: ${result.passed} passed, 0 failed`);

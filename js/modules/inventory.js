@@ -1298,6 +1298,7 @@ const InventoryModule = (() => {
   function _n(v) { return Number(v)||0; }
 
   function reArrangeInv() {
+    _invLogPage = 1;
     _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
     renderTransaksi();
     Notify.success('Data diurutkan berdasarkan tanggal');

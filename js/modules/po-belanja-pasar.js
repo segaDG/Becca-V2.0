@@ -415,6 +415,7 @@ window.POBelanjaPasarModule = (() => {
         #bp-table tr.bp-row-stok td{color:var(--text-3)}
         #bp-table tr.bp-row-stok input[type="number"]{background:rgba(100,116,139,.06)}
         #bp-table .bp-badge-stok{display:inline-block;font-size:9px;font-weight:700;color:#10b981;background:rgba(16,185,129,.12);padding:1px 5px;border-radius:9px;margin-left:6px;letter-spacing:.04em}
+        #bp-table .bp-badge-req{display:inline-block;font-size:9px;font-weight:700;color:#6366f1;background:rgba(99,102,241,.12);padding:1px 5px;border-radius:9px;margin-left:6px;letter-spacing:.04em}
         /* Sticky thead — background SOLID supaya row di bawah tidak tembus saat scroll.
            Untuk th yang punya tint rgba (CIKOPO/SUPPLIER/KARAWANG/BELI QTY), tint
            dilayer di atas base solid via linear-gradient. */
@@ -457,7 +458,7 @@ window.POBelanjaPasarModule = (() => {
             return `<tr data-row-idx="${i}" class="${isStok?'bp-row-stok':''}" style="border-bottom:1px solid var(--border);${bg}">
               <td style="padding:12px 6px;text-align:center;color:var(--text-3);font-size:10px">${i+1}</td>
               <td class="bp-item-cell" title="${(it.item||'').replace(/"/g,'&quot;')}${isStok?' — STOK CUKUP':''}${(()=>{const d=_fmtDateShifts(it.dateShifts);return d?'&#10;Kebutuhan: '+d.replace(/"/g,'&quot;'):'';})()}">
-                <div class="bp-item-name">${it.item}${isStok?'<span class="bp-badge-stok" title="Stok gudang cukup — opsional beli untuk tambah stok">STOK</span>':''}</div>
+                <div class="bp-item-name">${it.item}${isStok?'<span class="bp-badge-stok" title="Stok gudang cukup — opsional beli untuk tambah stok">STOK</span>':''}${it.fromRequest?'<span class="bp-badge-req" title="Dari Request Barang">REQUEST</span>':''}</div>
                 ${(()=>{const d=_fmtDateShifts(it.dateShifts);return d?`<div class="bp-item-sub">📅 ${d}</div>`:'';})()}
               </td>
               <td style="padding:12px 6px;text-align:right;font-family:var(--font-mono);color:${(it.stokGudang||0)>0?'#10b981':'var(--text-3)'};font-weight:600">${_n2(it.stokGudang||0)}</td>
