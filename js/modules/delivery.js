@@ -10,6 +10,7 @@ const DeliveryModule = (() => {
 
   let _schedules = [], _orders = [], _customers = [], _employees = [];
   let _weekStart = '';
+  let _custDefaults = {}; // { [customerName]: {driverId, driverName, picIds, picNames} }
   const DAYS = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
   const DAYS_SHORT = ['Sen','Sel','Rab','Kam','Jum','Sab','Min'];
   const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
@@ -88,6 +89,16 @@ const DeliveryModule = (() => {
     return c?.namaShort || name || '-';
   }
 
+  /* ═══ CUSTOMER DEFAULTS (localStorage) ═══ */
+  function _loadDefaults() {
+    try { _custDefaults = JSON.parse(Utils.ls.get('dlv_cust_defaults') || '{}'); } catch { _custDefaults = {}; }
+  }
+  function _saveDefaults(custName, driverId, driverName, picIds, picNames) {
+    if (!custName) return;
+    _custDefaults[custName] = { driverId, driverName, picIds: picIds||[], picNames: picNames||[] };
+    Utils.ls.set('dlv_cust_defaults', JSON.stringify(_custDefaults));
+  }
+
   /* ═══ PIC CONFLICT ═══ */
   function _buildConflictMap(entries) {
     const map = {};
@@ -109,6 +120,7 @@ const DeliveryModule = (() => {
   async function init() {
     const page = document.getElementById('page-delivery');
     if (!page) return;
+    _loadDefaults();
     _weekStart = _getMonday(new Date());
     page.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:40vh;color:var(--text-3)">Memuat jadwal delivery...</div>';
     const [schedules, orders, customers, employees] = await Promise.all([
@@ -131,6 +143,9 @@ const DeliveryModule = (() => {
           ${canEdit?`<button class="btn btn-danger btn-sm" onclick="DeliveryModule.resetWeek()" title="Hapus semua jadwal minggu ini">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
             Reset</button>
+          <button class="btn btn-ghost" onclick="DeliveryModule.copyFromLastWeek()" title="Salin semua entry dari minggu sebelumnya">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M8 17l4 4 4-4M12 21V7M3 10V7a4 4 0 014-4h10a4 4 0 014 4v3"/></svg>
+            Salin Minggu Lalu</button>
           <button class="btn btn-ghost" onclick="DeliveryModule.autoPopulate()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9"/></svg>
             Auto dari Order</button>`:''}
@@ -236,10 +251,11 @@ const DeliveryModule = (() => {
     return `<div onclick="${canEdit?`DeliveryModule.openModal('${entry.id}','${entry.date}')`:'void(0)'}"
       style="background:${bg};border:1px solid ${bdr};border-radius:var(--r-sm);padding:var(--s2) var(--s3);margin-bottom:4px;cursor:${canEdit?'pointer':'default'};transition:all var(--t-fast)"
       onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-      <div style="display:flex;align-items:center;gap:4px;margin-bottom:1px">
-        <span onclick="event.stopPropagation();DeliveryModule.cycleStatus('${entry.id}')" title="${st.label}"
-          style="width:8px;height:8px;border-radius:50%;background:${st.color};cursor:pointer;flex-shrink:0"></span>
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">
         <div style="font-size:11px;font-weight:700;color:var(--heading);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${_custShort(entry.customerName)}</div>
+        <span onclick="event.stopPropagation();DeliveryModule.cycleStatus('${entry.id}')"
+          title="Klik untuk ganti status"
+          style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:var(--r-full);background:${st.bg};color:${st.color};cursor:pointer;flex-shrink:0;border:1px solid ${st.color}40;white-space:nowrap">${st.label} ›</span>
       </div>
       ${(entry.picNames||[]).length?`<div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:1px">
         ${(entry.picNames||[]).map(name=>`<span style="font-size:8px;font-weight:600;padding:0 4px;border-radius:var(--r-full);background:${conflict?'var(--danger-bg)':'rgba(148,163,184,.12)'};color:${conflict?'var(--danger)':'var(--text-2)'}">${name}</span>`).join('')}
@@ -337,7 +353,21 @@ const DeliveryModule = (() => {
     });
     // Init combos
     const ci = document.getElementById('dlv-customer');
-    if (ci) Utils.initCombo(ci, custOpts, { onSelect(item) { ci.value=item.value; const p=document.getElementById('dlv-pax'); if(p&&!existing){const x=_calcPax(item.value,date);if(x>0)p.value=x;} } });
+    if (ci) Utils.initCombo(ci, custOpts, { onSelect(item) {
+      ci.value = item.value;
+      const p = document.getElementById('dlv-pax');
+      if (p && !existing) { const x = _calcPax(item.value, date); if(x>0) p.value=x; }
+      if (!existing) {
+        const def = _custDefaults[item.value];
+        if (def) {
+          const di2 = document.getElementById('dlv-driver');
+          if (di2) { di2.value = def.driverName||''; di2.dataset.id = def.driverId||''; }
+          document.querySelectorAll('#dlv-pic-list input[type="checkbox"]').forEach(cb => {
+            cb.checked = (def.picIds||[]).includes(cb.value);
+          });
+        }
+      }
+    }});
     // Driver — dropdown with usage badge in label
     const di = document.getElementById('dlv-driver');
     if (di) {
@@ -376,7 +406,7 @@ const DeliveryModule = (() => {
     const cust = _customers.find(c=>(c.nama||'').toLowerCase()===customerName.toLowerCase());
     const data = { id:entryId||Utils.uid(), date, customerId:cust?.id||'', customerName, driverId, driverName, picIds, picNames, shift, status, deliveryTime, totalPax, notes, updatedBy:Auth.currentUser()?.nama||'', updatedAt:new Date().toISOString() };
     if (entryId) { const idx=sc.entries.findIndex(e=>e.id===entryId); if(idx>=0)sc.entries[idx]=data; else sc.entries.push(data); } else sc.entries.push(data);
-    try { await DB.saveDeliverySchedule(sc); Notify.success(entryId?'Diperbarui':'Ditambahkan'); } catch(e) { Notify.error('Gagal: '+e.message); }
+    try { await DB.saveDeliverySchedule(sc); _saveDefaults(customerName, driverId, driverName, picIds, picNames); Notify.success(entryId?'Diperbarui':'Ditambahkan'); } catch(e) { Notify.error('Gagal: '+e.message); }
     Modal.close(modalId); _renderWeekGrid();
   }
 
@@ -438,6 +468,35 @@ const DeliveryModule = (() => {
     if (!confirm('Hapus SEMUA jadwal delivery minggu ini? (' + sc.entries.length + ' entry)')) return;
     sc.entries = [];
     try { await DB.saveDeliverySchedule(sc); Notify.success('Jadwal minggu ini direset'); } catch(e) { Notify.error('Gagal: '+e.message); }
+    _renderWeekGrid();
+  }
+
+  /* ═══ COPY FROM LAST WEEK ═══ */
+  async function copyFromLastWeek() {
+    if (!Auth.can('delivery','edit')) return;
+    const prevMon = new Date(_weekStart+'T12:00:00'); prevMon.setDate(prevMon.getDate()-7);
+    const prevStart = _toStr(prevMon);
+    let prevSc = _schedules.find(sc => sc.weekStart === prevStart);
+    if (!prevSc) {
+      // Try loading from DB in case not yet in memory
+      const all = await DB.getDeliverySchedules().catch(()=>[]);
+      prevSc = all.find(sc => sc.weekStart === prevStart);
+      if (prevSc) _schedules = all;
+    }
+    if (!prevSc || !(prevSc.entries||[]).length) { Notify.warning('Tidak ada jadwal minggu lalu'); return; }
+    const days = _weekDays(_weekStart);
+    let sc = _currentSchedule();
+    if (!sc) { sc={id:Utils.uid(),weekStart:_weekStart,weekEnd:days[6],entries:[],createdBy:Auth.currentUser()?.nama||'',createdAt:new Date().toISOString()}; _schedules.push(sc); }
+    if (!sc.entries) sc.entries=[];
+    let added = 0;
+    (prevSc.entries||[]).forEach(e => {
+      const newDate = _toStr(new Date((new Date(e.date+'T12:00:00')).setDate(new Date(e.date+'T12:00:00').getDate()+7)));
+      if (sc.entries.some(x => x.date===newDate && x.customerName===e.customerName && x.shift===e.shift)) return;
+      sc.entries.push({...e, id:Utils.uid(), date:newDate, status:'pending', updatedBy:Auth.currentUser()?.nama||'', updatedAt:new Date().toISOString()});
+      added++;
+    });
+    if (!added) { Notify.info('Semua jadwal minggu lalu sudah ada di minggu ini'); return; }
+    try { await DB.saveDeliverySchedule(sc); Notify.success(added+' jadwal disalin dari minggu lalu'); } catch(e) { Notify.error('Gagal: '+e.message); }
     _renderWeekGrid();
   }
 
@@ -866,6 +925,6 @@ const DeliveryModule = (() => {
     openCheckpointManager();
   }
 
-  return { init, prevWeek, nextWeek, goToday, openModal, saveEntry, deleteEntry, cycleStatus, autoPopulate, resetWeek, switchTab, startTracking, stopTracking, openCheckpointManager, addCheckpoint, deleteCheckpoint, _filterPIC };
+  return { init, prevWeek, nextWeek, goToday, openModal, saveEntry, deleteEntry, cycleStatus, autoPopulate, resetWeek, copyFromLastWeek, switchTab, startTracking, stopTracking, openCheckpointManager, addCheckpoint, deleteCheckpoint, _filterPIC };
 })();
 window.DeliveryModule = DeliveryModule;
