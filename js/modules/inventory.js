@@ -3416,10 +3416,12 @@ const InventoryModule = (() => {
           </tbody>
         </table></div>
       </div>`;
-    // Populate select dropdown dari _items
-    const sel = document.getElementById('req-item-sel');
-    if (sel) {
-      _items.filter(i => i.aktif !== false)
+    // Populate select dropdown dari _items (fetch jika belum ada)
+    const _fillReqSel = (items) => {
+      const sel = document.getElementById('req-item-sel');
+      if (!sel) return;
+      while (sel.options.length > 1) sel.remove(1); // hapus opsi lama kecuali placeholder
+      items.filter(i => i.aktif !== false)
         .sort((a, b) => (a.nama||'').localeCompare(b.nama||'', 'id'))
         .forEach(it => {
           const opt = document.createElement('option');
@@ -3429,6 +3431,14 @@ const InventoryModule = (() => {
           opt.dataset.satuan = it.satuan || '';
           sel.appendChild(opt);
         });
+    };
+    if (_items.length) {
+      _fillReqSel(_items);
+    } else {
+      DB.getInventoryItems().then(fresh => {
+        if (fresh?.length) { _items = fresh; _itemLookup = new Map(_items.map(i=>[String(i.id),i])); }
+        _fillReqSel(_items);
+      }).catch(() => {});
     }
   }
 
