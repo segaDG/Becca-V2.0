@@ -3354,7 +3354,9 @@ const InventoryModule = (() => {
           <div class="card-header"><span class="card-title">Ajukan Request Barang</span></div>
           <div class="form-group">
             <label class="form-label">Nama Barang <span class="req">*</span></label>
-            <input id="req-item-txt" class="form-control" placeholder="Ketik nama barang..." autocomplete="off">
+            <select id="req-item-sel" class="form-control" onchange="InventoryModule._reqItemSelect(this)">
+              <option value="">— Pilih Barang —</option>
+            </select>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -3363,7 +3365,7 @@ const InventoryModule = (() => {
             </div>
             <div class="form-group">
               <label class="form-label">Satuan</label>
-              <input id="req-satuan" class="form-control" placeholder="kg, pcs, ltr..." list="inv-sat-list">
+              <input id="req-satuan" class="form-control" placeholder="kg, pcs, ltr..." list="inv-sat-list" readonly>
             </div>
           </div>
           <div class="form-group">
@@ -3414,27 +3416,43 @@ const InventoryModule = (() => {
           </tbody>
         </table></div>
       </div>`;
-    // Init item combobox
-    const inp = document.getElementById('req-item-txt');
-    if (inp) {
-      const opts = _items.filter(i=>i.aktif!==false).map(it => ({ label:`${it.nama} (${it.satuan||''})`, value:it.id, nama:it.nama, satuan:it.satuan||'' }));
-      inp._reqItemId = ''; inp._reqItemSatuan = '';
-      Utils.initCombo(inp, opts, { onSelect(item){ inp.value=item.nama; inp._reqItemId=item.value; inp._reqItemSatuan=item.satuan; const s=document.getElementById('req-satuan'); if(s&&!s.value)s.value=item.satuan; } });
+    // Populate select dropdown dari _items
+    const sel = document.getElementById('req-item-sel');
+    if (sel) {
+      _items.filter(i => i.aktif !== false)
+        .sort((a, b) => (a.nama||'').localeCompare(b.nama||'', 'id'))
+        .forEach(it => {
+          const opt = document.createElement('option');
+          opt.value = it.id;
+          opt.textContent = it.nama + (it.satuan ? ' (' + it.satuan + ')' : '');
+          opt.dataset.nama   = it.nama;
+          opt.dataset.satuan = it.satuan || '';
+          sel.appendChild(opt);
+        });
     }
   }
 
+  function _reqItemSelect(sel) {
+    const opt = sel.options[sel.selectedIndex];
+    const satuan = opt?.dataset?.satuan || '';
+    const satuanEl = document.getElementById('req-satuan');
+    if (satuanEl) satuanEl.value = satuan;
+  }
+
   async function submitRequest() {
-    const inp    = document.getElementById('req-item-txt');
+    const sel    = document.getElementById('req-item-sel');
+    const itemId = sel?.value || '';
+    const opt    = sel?.options[sel?.selectedIndex];
+    const itemNama = opt?.dataset?.nama || '';
     const jumlah = parseFloat(document.getElementById('req-jumlah')?.value)||0;
     const catatan= (document.getElementById('req-catatan')?.value||'').trim();
     const satuan = (document.getElementById('req-satuan')?.value||'').trim();
-    const itemNama = (inp?.value||'').trim();
-    if (!itemNama) { Notify.warning('Nama barang wajib diisi'); return; }
+    if (!itemId) { Notify.warning('Nama barang wajib dipilih'); return; }
     if (jumlah <= 0) { Notify.warning('Jumlah wajib diisi'); return; }
     const _user = (typeof Auth!=='undefined'&&Auth.currentUser()) ? (Auth.currentUser().nama||Auth.currentUser().username||'') : '';
     const req = {
       tgl: new Date().toISOString().split('T')[0],
-      itemId: inp?._reqItemId||'', itemNama,
+      itemId, itemNama,
       jenis: 'REQUEST', jumlah, harga:0, hpp:0,
       kodeAktivitas: satuan,
       catatan, pengambil: _user, penanggungJawab: '',
@@ -4386,7 +4404,7 @@ const InventoryModule = (() => {
     _showHPPAIInfo,
     renderLaporanBulanan,
     renderSummary,
-    renderRequestTab, submitRequest, _updateReqStatus, _deleteRequest,
+    renderRequestTab, submitRequest, _reqItemSelect, _updateReqStatus, _deleteRequest,
     setLogFilterNama, setLogFilterTgl, clearLogFilter, reArrangeInv,
     syncFormProduksi, _toggleSyncCheck, _confirmSync, _updateSyncTotals,
     syncBelanjaPasar, _toggleBPSyncCheck, _confirmBPSync, deleteBPSync,
