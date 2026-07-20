@@ -106,7 +106,7 @@ else { window.POModule = (() => {
     el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-3)">Memuat...</div>';
     await new Promise((resolve, reject) => {
       const base = 'js/modules/po-belanja-pasar.js';
-      const ver = '?v=20260717e';
+      const ver = '?v=20260720a';
       // Remove old script tag if exists (force reload fresh version)
       const old = document.querySelector(`script[src^="${base}"]`);
       if (old) old.remove();
@@ -116,12 +116,6 @@ else { window.POModule = (() => {
       document.head.appendChild(s);
     });
     if (typeof POBelanjaPasarModule !== 'undefined') POBelanjaPasarModule.init(el);
-    // Prepend request cards for admin/superadmin/purchaser
-    const reqWrap = document.createElement('div');
-    reqWrap.id = 'po-req-cards';
-    reqWrap.style.marginBottom = '14px';
-    el.prepend(reqWrap);
-    _renderRequestCards();
   }
 
   async function _renderRequestCards() {

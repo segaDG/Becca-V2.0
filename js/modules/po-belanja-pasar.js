@@ -33,6 +33,7 @@ window.POBelanjaPasarModule = (() => {
     if (!_el) return;
     const canEdit = Auth.can('po','edit');
     _el.innerHTML = `
+      <div id="po-req-cards" style="margin-bottom:14px"></div>
       ${canEdit ? `<div style="margin-bottom:12px;text-align:right">
         <button class="btn btn-primary" onclick="POBelanjaPasarModule.newDoc()">+ Buat Form Belanja Pasar</button>
       </div>` : ''}
@@ -70,6 +71,7 @@ window.POBelanjaPasarModule = (() => {
               </div>
             </div>`;
           }).join('')}</div>`}`;
+    window.POModule?._renderRequestCards?.();
   }
 
   // Hapus doc dari list (admin/edit) — konfirmasi modal.
