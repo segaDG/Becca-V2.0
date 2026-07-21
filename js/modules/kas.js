@@ -3730,8 +3730,9 @@ const KasModule = (() => {
     const ok = await Modal.confirm({
       title: 'Konfirmasi ' + label,
       message: `<p>Data <strong>AKT QTY</strong> dan <strong>AKT Harga</strong> untuk <strong>${Utils.esc(label)}</strong> sudah benar?</p>
-        <p style="margin-top:8px;color:#f59e0b;font-weight:600">⚠ Section ini akan dibuat baris kas kecil terpisah. Section lain tetap pending.</p>
-        ${dest==='supplier'?`<p style="margin-top:6px;color:#d97706;font-weight:600">Item yang dicentang AP akan masuk ke Account Payable (Hutang Supplier).</p>`:''}`,
+        ${dest === 'supplier'
+          ? `<p style="margin-top:8px;color:#d97706;font-weight:600">Item yang dicentang AP + dipilih nama supplier akan masuk ke Account Payable (status Belum Bayar). Item tidak dicentang tidak diproses ke mana pun.</p>`
+          : `<p style="margin-top:8px;color:#f59e0b;font-weight:600">⚠ Section ini akan dibuat baris kas kecil terpisah. Section lain tetap pending.</p>`}`,
       confirmText: 'Ya, Konfirmasi',
     });
     if (!ok) return;
@@ -3766,20 +3767,22 @@ const KasModule = (() => {
     }
     try {
       await DB.saveBelanjaPasar(doc);
-      // Insert kas rows HANYA untuk section ini
+      // Insert kas rows HANYA untuk section ini (supplier → AP saja, bukan kas)
       const today = new Date().toISOString().slice(0,10);
       let inserted = 0;
       const destCode = _destCode(dest, doc);
-      for (const it of sectionItems) {
-        if (!it.aktQty || !it.aktHarga) continue;
-        const row = {
-          tgl: today, nama: it.item, type: 'Belanja Pasar',
-          vendor: _vendorOf(dest), qty: it.aktQty, satuan: it.satuan||'',
-          hargaSatuan: it.aktHarga, jumlah: it.aktTotal,
-          penerima: doc.namaPetugas||'-', status: 'DONE',
-          bpDocId: doc.id, bpDest: dest, bpDestCode: destCode,
-        };
-        try { await DB.saveKas(row); _kas.unshift(row); inserted++; } catch {}
+      if (dest !== 'supplier') {
+        for (const it of sectionItems) {
+          if (!it.aktQty || !it.aktHarga) continue;
+          const row = {
+            tgl: today, nama: it.item, type: 'Belanja Pasar',
+            vendor: _vendorOf(dest), qty: it.aktQty, satuan: it.satuan||'',
+            hargaSatuan: it.aktHarga, jumlah: it.aktTotal,
+            penerima: doc.namaPetugas||'-', status: 'DONE',
+            bpDocId: doc.id, bpDest: dest, bpDestCode: destCode,
+          };
+          try { await DB.saveKas(row); _kas.unshift(row); inserted++; } catch {}
+        }
       }
       // Buat AP entries untuk supplier items yang dicentang
       let apInserted = 0;
@@ -3807,7 +3810,9 @@ const KasModule = (() => {
         }
       }
       if (window._bpKasMid) Modal.close(window._bpKasMid);
-      Notify.success(`${label} dikonfirmasi · ${inserted} item → kas${apInserted?' · '+apInserted+' item → AP':''}`);
+      const _kasMsg = inserted > 0 ? ` · ${inserted} item → kas` : '';
+      const _apMsg  = apInserted > 0 ? ` · ${apInserted} item → AP` : '';
+      Notify.success(`${label} dikonfirmasi${_kasMsg}${_apMsg}`);
       _renderBPDashboard();
       renderTransaksi();
       DB.logActivity({type:'confirm_belanja_pasar', detail:`Konfirmasi ${label} (${doc.periode}): ${inserted} item → kas${apInserted?' · '+apInserted+' → AP':''}`});

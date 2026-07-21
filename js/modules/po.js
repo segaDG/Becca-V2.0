@@ -148,6 +148,11 @@ else { window.POModule = (() => {
               onmouseover="this.style.background='rgba(99,102,241,.18)'" onmouseout="this.style.background='rgba(99,102,241,.08)'">
               ✓ Setujui → Belanja Pasar
             </button>
+            <button onclick="POModule._rejectRequestModal('${r.id}')"
+              style="width:100%;padding:5px;border:1px solid rgba(239,68,68,.3);border-radius:7px;background:rgba(239,68,68,.05);color:#ef4444;font-size:11px;font-weight:600;cursor:pointer;margin-top:5px;transition:background .15s"
+              onmouseover="this.style.background='rgba(239,68,68,.12)'" onmouseout="this.style.background='rgba(239,68,68,.05)'">
+              ✕ Tolak
+            </button>
           </div>`).join('')}
       </div>`;
   }
@@ -160,7 +165,7 @@ else { window.POModule = (() => {
     let bpDocs = [];
     try { bpDocs = await DB.getBelanjaPasar(); } catch {}
     const targets = (bpDocs || [])
-      .filter(d => d.kasStatus !== 'confirmed')
+      .filter(d => d.kasStatus !== 'confirmed' && d.status !== 'selesai')
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     const mid = 'req-approve-' + Utils.uid();
     window._reqApproveMid = mid;
@@ -244,6 +249,54 @@ else { window.POModule = (() => {
       Notify.success(`${Utils.esc(req.itemNama)} ditambahkan ke Belanja Pasar (kolom Supplier)`);
       _renderRequestCards();
       DB.logActivity?.({ type: 'approve_request', detail: `Approve request: ${req.itemNama} ${jumlah} ${req.kodeAktivitas || ''} → BP ${bp.periode || ''}`, rowId: req.id });
+    } catch(e) { Notify.error('Gagal: ' + e.message); }
+  }
+
+  async function _rejectRequestModal(reqId) {
+    let logs = [];
+    try { logs = await DB.getInventory(); } catch {}
+    const req = (logs || []).find(l => l.id === reqId);
+    if (!req) { Notify.warning('Request tidak ditemukan'); return; }
+    const mid = 'req-reject-' + Utils.uid();
+    window._reqRejectMid = mid;
+    Modal.open({
+      id: mid,
+      title: '✕ Tolak Request Barang',
+      size: 'modal-sm',
+      body: `
+        <div style="margin-bottom:12px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:10px 12px">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">${Utils.esc(req.itemNama || '-')}</div>
+          <div style="font-size:12px;color:var(--text-2);margin-top:2px">${req.jumlah || 0} ${req.kodeAktivitas || ''} · oleh ${Utils.esc(req.pengambil || '-')}</div>
+          ${req.catatan ? `<div style="font-size:11px;color:var(--text-3);margin-top:2px">${Utils.esc(req.catatan)}</div>` : ''}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Alasan penolakan <span style="color:var(--danger)">*</span></label>
+          <textarea id="req-reject-alasan" class="form-control" rows="3" placeholder="Tulis alasan penolakan..." style="resize:vertical"></textarea>
+        </div>`,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close(window._reqRejectMid)">Batal</button>
+        <button class="btn btn-danger" onclick="POModule._rejectRequestDo('${reqId}')" style="background:#ef4444;border-color:#ef4444;color:#fff">Tolak Request</button>`,
+    });
+    setTimeout(() => document.getElementById('req-reject-alasan')?.focus(), 100);
+  }
+
+  async function _rejectRequestDo(reqId) {
+    const alasan = document.getElementById('req-reject-alasan')?.value?.trim();
+    if (!alasan) { Notify.warning('Isi alasan penolakan terlebih dahulu'); return; }
+    let logs = [];
+    try { logs = await DB.getInventory(); } catch {}
+    const req = (logs || []).find(l => l.id === reqId);
+    if (!req) { Notify.error('Request tidak ditemukan'); return; }
+    try {
+      req.reqStatus = 'rejected';
+      req.reqRejectAlasan = alasan;
+      req.rejectedBy = Auth.currentUser()?.nama || Auth.currentUser()?.username || '';
+      req.rejectedAt = new Date().toISOString();
+      await DB.saveInventoryLog(req);
+      Modal.close(window._reqRejectMid);
+      Notify.success(`Request ${Utils.esc(req.itemNama)} ditolak`);
+      _renderRequestCards();
+      DB.logActivity?.({ type: 'reject_request', detail: `Tolak request: ${req.itemNama} — ${alasan}`, rowId: req.id });
     } catch(e) { Notify.error('Gagal: ' + e.message); }
   }
 
@@ -1497,5 +1550,6 @@ else { window.POModule = (() => {
     printAnggaran, kirimWA, _startEdit, _onEditKey, _liveCalc, _saveMeta, _addRows, _copyRow, _pasteRow, _deleteRow, _updateFooter,
     flushPendingEdit,
     _openSupplierImport, _supImpToggleAll, _supImpConfirm,
-    _renderRequestCards, _approveRequestModal, _approveRequestDo };
+    _renderRequestCards, _approveRequestModal, _approveRequestDo,
+    _rejectRequestModal, _rejectRequestDo };
 })(); }
