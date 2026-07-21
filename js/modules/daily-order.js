@@ -319,6 +319,7 @@ const DailyOrderModule = (() => {
         const sel = strip?.querySelector('button[style*="border:2px solid #374151"]');
         if (sel && strip) sel.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
       });
+      _renderRejectedCards();
     }
   }
 
@@ -435,6 +436,7 @@ const DailyOrderModule = (() => {
     }).join('');
 
     return `
+      <div id="do-rejected-cards" style="margin-bottom:var(--s4)"></div>
       <!-- Month nav + mini date cards -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:var(--s4)">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch">
@@ -3145,6 +3147,59 @@ const DailyOrderModule = (() => {
   }
 
   /* ─── PUBLIC API ─── */
+  /* ─── REJECTED REQUEST CARDS (Form Produksi) ─── */
+  async function _renderRejectedCards() {
+    const wrap = document.getElementById('do-rejected-cards');
+    if (!wrap) return;
+    let logs = [];
+    try { logs = await DB.getInventory(); } catch {}
+    const rejected = (logs || []).filter(l =>
+      l.jenis === 'REQUEST' && l.reqStatus === 'rejected' && !l.reqAcknowledged
+    );
+    if (!rejected.length) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:#ef4444">Request Ditolak</span>
+        <span style="font-size:11px;background:rgba(239,68,68,.12);color:#ef4444;padding:2px 8px;border-radius:10px;font-weight:700">${rejected.length} item</span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${rejected.map(r => `
+          <div data-rej-id="${r.id}" style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:10px 14px;min-width:200px;max-width:240px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+              <span style="font-size:9px;font-weight:700;color:#ef4444;background:rgba(239,68,68,.12);padding:1px 6px;border-radius:8px;letter-spacing:.04em">DITOLAK</span>
+              <span style="font-size:10px;color:var(--text-3)">${r.tgl||'-'}</span>
+            </div>
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px">${Utils.esc(r.itemNama||'-')}</div>
+            <div style="font-size:12px;color:var(--text-2);margin-bottom:4px">${r.jumlah||0} ${r.kodeAktivitas||''}</div>
+            ${r.reqRejectAlasan ? `<div style="font-size:11px;color:#ef4444;margin-bottom:6px;font-style:italic">"${Utils.esc(r.reqRejectAlasan)}"</div>` : ''}
+            ${r.rejectedBy ? `<div style="font-size:10px;color:var(--text-3);margin-bottom:6px">Ditolak oleh: ${Utils.esc(r.rejectedBy)}</div>` : ''}
+            <button onclick="DailyOrderModule._acknowledgeRejection('${r.id}')"
+              style="width:100%;padding:5px;border:1px solid rgba(239,68,68,.4);border-radius:7px;background:rgba(239,68,68,.08);color:#ef4444;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s"
+              onmouseover="this.style.background='rgba(239,68,68,.18)'" onmouseout="this.style.background='rgba(239,68,68,.08)'">
+              Mengerti
+            </button>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  async function _acknowledgeRejection(id) {
+    let logs = [];
+    try { logs = await DB.getInventory(); } catch {}
+    const req = (logs || []).find(l => l.id === id);
+    if (!req) {
+      document.querySelector(`[data-rej-id="${id}"]`)?.remove();
+      return;
+    }
+    req.reqAcknowledged = true;
+    req.reqAcknowledgedAt = new Date().toISOString();
+    try {
+      await DB.saveInventoryLog(req);
+      document.querySelector(`[data-rej-id="${id}"]`)?.remove();
+      const wrap = document.getElementById('do-rejected-cards');
+      if (wrap && !wrap.querySelector('[data-rej-id]')) wrap.innerHTML = '';
+    } catch(e) { Notify.error('Gagal: ' + e.message); }
+  }
+
   return {
     init, setView, setDate, setShift, setMonth, _setCekSelisihPeriode, _openShiftDetail,
     setFormMonth, prevFormMonth, nextFormMonth,
@@ -3153,6 +3208,7 @@ const DailyOrderModule = (() => {
     _saveEditRow, _cancelEdit, _itemKeyDown, _showItemSuggest, _pickSuggest, _onItemBlur, _editKeyDown, _estQtyKeyDown, _estQtyBlur, _cancelEstBlur, _aktQtyKeyDown,
     _liveCompute, _autoFillFromInventory,
     openBasicItemsModal, addSelectedBasicItems, _basicCheckAll,
+    _renderRejectedCards, _acknowledgeRejection,
   };
 })();
 

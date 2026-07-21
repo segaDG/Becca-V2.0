@@ -3347,7 +3347,33 @@ const InventoryModule = (() => {
     const canEdit  = Auth.can('inventory','edit');
     const canApprove = Auth.isSuperAdmin?.() || Auth.currentUser()?.role === 'admin' || Auth.currentUser()?.role === 'purchaser';
     const statusMap = { pending:{label:'Pending',bg:'var(--warning-bg)',color:'var(--warning)'}, fulfilled:{label:'Terpenuhi',bg:'var(--success-bg)',color:'var(--success)'}, rejected:{label:'Ditolak',bg:'var(--danger-bg)',color:'var(--danger)'} };
+    const rejectedUnack = requests.filter(r => r.reqStatus === 'rejected' && !r.reqAcknowledged);
     el.innerHTML = `
+      ${rejectedUnack.length ? `
+      <div style="margin-bottom:var(--s4)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:13px;font-weight:700;color:#ef4444">Request Ditolak</span>
+          <span style="font-size:11px;background:rgba(239,68,68,.12);color:#ef4444;padding:2px 8px;border-radius:10px;font-weight:700">${rejectedUnack.length} item</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          ${rejectedUnack.map(r => `
+            <div data-rej-id="${r.id}" style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:10px 14px;min-width:200px;max-width:240px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                <span style="font-size:9px;font-weight:700;color:#ef4444;background:rgba(239,68,68,.12);padding:1px 6px;border-radius:8px;letter-spacing:.04em">DITOLAK</span>
+                <span style="font-size:10px;color:var(--text-3)">${r.tgl||'-'}</span>
+              </div>
+              <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px">${Utils.esc(r.itemNama||'-')}</div>
+              <div style="font-size:12px;color:var(--text-2);margin-bottom:4px">${r.jumlah||0} ${r.kodeAktivitas||''}</div>
+              ${r.reqRejectAlasan ? `<div style="font-size:11px;color:#ef4444;margin-bottom:6px;font-style:italic">"${Utils.esc(r.reqRejectAlasan)}"</div>` : ''}
+              ${r.rejectedBy ? `<div style="font-size:10px;color:var(--text-3);margin-bottom:6px">Ditolak oleh: ${Utils.esc(r.rejectedBy)}</div>` : ''}
+              <button onclick="InventoryModule._acknowledgeRejection('${r.id}')"
+                style="width:100%;padding:5px;border:1px solid rgba(239,68,68,.4);border-radius:7px;background:rgba(239,68,68,.08);color:#ef4444;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s"
+                onmouseover="this.style.background='rgba(239,68,68,.18)'" onmouseout="this.style.background='rgba(239,68,68,.08)'">
+                Mengerti
+              </button>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);margin-bottom:var(--s4);align-items:start">
         <!-- Form Request -->
         <div class="card">
@@ -3492,6 +3518,20 @@ const InventoryModule = (() => {
       _logs = _logs.filter(l => l.id !== id);
       renderRequestTab();
     } catch(e) { Notify.error('Gagal: '+e.message); }
+  }
+
+  async function _acknowledgeRejection(id) {
+    const req = _logs.find(l => l.id === id);
+    if (!req) {
+      document.querySelector(`[data-rej-id="${id}"]`)?.remove();
+      return;
+    }
+    req.reqAcknowledged = true;
+    req.reqAcknowledgedAt = new Date().toISOString();
+    try {
+      await DB.saveInventoryLog(req);
+      renderRequestTab();
+    } catch(e) { Notify.error('Gagal: ' + e.message); }
   }
 
   // ============ AI Helpers ============
@@ -4414,7 +4454,7 @@ const InventoryModule = (() => {
     _showHPPAIInfo,
     renderLaporanBulanan,
     renderSummary,
-    renderRequestTab, submitRequest, _reqItemSelect, _updateReqStatus, _deleteRequest,
+    renderRequestTab, submitRequest, _reqItemSelect, _updateReqStatus, _deleteRequest, _acknowledgeRejection,
     setLogFilterNama, setLogFilterTgl, clearLogFilter, reArrangeInv,
     syncFormProduksi, _toggleSyncCheck, _confirmSync, _updateSyncTotals,
     syncBelanjaPasar, _toggleBPSyncCheck, _confirmBPSync, deleteBPSync,
