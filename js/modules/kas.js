@@ -3235,6 +3235,7 @@ const KasModule = (() => {
     if (!doc) return;
     const isConfirmed = doc.kasStatus === 'confirmed';
     const rp = n => n ? 'Rp '+Math.round(Number(n)).toLocaleString('id') : '-';
+    const _suppliers = await DB.getSuppliers().catch(() => []);
 
     // ── Generate / migrate kasItems jadi per-destinasi ──
     // Struktur baru per entry: { item, satuan, dest, destLabel, estQty, estHarga, aktQty, aktHarga, aktTotal }
@@ -3362,6 +3363,7 @@ const KasModule = (() => {
               <th style="padding:6px 6px;font-size:9px;text-align:right;width:70px;color:${c.text}">AKT QTY</th>
               <th style="padding:6px 6px;font-size:9px;text-align:right;width:95px;color:${c.text}">AKT HARGA</th>
               <th style="padding:6px 6px;font-size:9px;text-align:right;width:100px;color:${c.text};background:${c.bg}">TOTAL</th>
+              ${key==='supplier'?`<th style="padding:6px 6px;font-size:9px;text-align:center;width:55px;color:#d97706">AP</th><th style="padding:6px 6px;font-size:9px;text-align:left;min-width:130px;color:#d97706">SUPPLIER</th>`:''}
             </tr></thead>
             <tbody>${group.items.map((it, locI) => {
               const i = it._gi; // global index in doc.kasItems
@@ -3398,6 +3400,23 @@ const KasModule = (() => {
                       onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();KasModule._bpFocusNextAktHarga(this);}"
                       style="width:90px;border:1px solid var(--border);border-radius:4px;padding:4px;text-align:right;font-family:var(--font-mono);font-size:11px;background:var(--surface)">`}</td>
                 <td style="padding:8px 6px;text-align:right;font-family:var(--font-mono);font-weight:700;color:${c.text};background:${c.bg}" id="bp-kas-total-${doc.id}-${i}">${aktT?rp(aktT):'-'}</td>
+                ${key==='supplier'?`
+                <td style="padding:4px 6px;text-align:center">
+                  ${editable
+                    ? `<input type="checkbox" data-doc="${doc.id}" data-idx="${i}" data-field="toAP"
+                         ${it.toAP!==false&&(Number(it.aktQty)||0)>0?'checked':''}
+                         style="width:16px;height:16px;cursor:pointer;accent-color:#d97706">`
+                    : (it.toAP?'<span style="color:#d97706;font-weight:700">✓</span>':'-')}
+                </td>
+                <td style="padding:4px 6px">
+                  ${editable
+                    ? `<select data-doc="${doc.id}" data-idx="${i}" data-field="supplierId"
+                         style="width:100%;border:1px solid var(--border);border-radius:4px;padding:3px 5px;font-size:11px;background:var(--surface);color:var(--text)">
+                         <option value="">— Pilih —</option>
+                         ${_suppliers.map(s=>`<option value="${s.id}" ${it.supplierId===s.id?'selected':''}>${Utils.esc(s.nama||'')}</option>`).join('')}
+                       </select>`
+                    : `<span style="font-size:11px;font-weight:600">${Utils.esc(it.supplierNama||'-')}</span>`}
+                </td>`:``}
               </tr>`;
             }).join('')}</tbody>
           </table>
@@ -3696,10 +3715,23 @@ const KasModule = (() => {
     const sectionItems = (doc.kasItems||[]).filter(it => it.dest === dest);
     if (!sectionItems.length) { Notify.warning('Section ini tidak punya item'); return; }
     const label = sectionItems[0].destLabel || dest;
+    // ── Supplier: baca checkbox + dropdown, validasi sebelum confirm dialog ──
+    if (dest === 'supplier') {
+      sectionItems.forEach(it => {
+        const i = doc.kasItems.indexOf(it);
+        const chk = document.querySelector(`input[data-doc="${docId}"][data-idx="${i}"][data-field="toAP"]`);
+        const sel = document.querySelector(`select[data-doc="${docId}"][data-idx="${i}"][data-field="supplierId"]`);
+        if (chk) it.toAP = chk.checked;
+        if (sel) { it.supplierId = sel.value; it.supplierNama = sel.value ? (sel.options[sel.selectedIndex]?.textContent||'').trim() : ''; }
+      });
+      const missing = sectionItems.filter(it => it.toAP && !it.supplierId);
+      if (missing.length) { Notify.warning(`${missing.length} item dicentang AP tapi belum pilih nama supplier`); return; }
+    }
     const ok = await Modal.confirm({
       title: 'Konfirmasi ' + label,
       message: `<p>Data <strong>AKT QTY</strong> dan <strong>AKT Harga</strong> untuk <strong>${Utils.esc(label)}</strong> sudah benar?</p>
-        <p style="margin-top:8px;color:#f59e0b;font-weight:600">⚠ Section ini akan dibuat baris kas kecil terpisah. Section lain tetap pending.</p>`,
+        <p style="margin-top:8px;color:#f59e0b;font-weight:600">⚠ Section ini akan dibuat baris kas kecil terpisah. Section lain tetap pending.</p>
+        ${dest==='supplier'?`<p style="margin-top:6px;color:#d97706;font-weight:600">Item yang dicentang AP akan masuk ke Account Payable (Hutang Supplier).</p>`:''}`,
       confirmText: 'Ya, Konfirmasi',
     });
     if (!ok) return;
@@ -3749,11 +3781,36 @@ const KasModule = (() => {
         };
         try { await DB.saveKas(row); _kas.unshift(row); inserted++; } catch {}
       }
+      // Buat AP entries untuk supplier items yang dicentang
+      let apInserted = 0;
+      if (dest === 'supplier') {
+        const toAP = sectionItems.filter(it => it.toAP && it.supplierId && (Number(it.aktQty)||0) > 0);
+        for (const it of toAP) {
+          try {
+            await DB.saveAP({
+              tgl: today,
+              supplier: it.supplierNama,
+              supplier_id: it.supplierId,
+              keterangan: it.item,
+              qty: Number(it.aktQty)||0,
+              satuan: it.satuan||'',
+              hargaSatuan: Number(it.aktHarga)||0,
+              total: Number(it.aktTotal)||0,
+              terbayar: 0,
+              status: 'BELUM',
+              bpDocId: doc.id,
+              bpDest: 'supplier',
+              penerima: doc.namaPetugas||'',
+            });
+            apInserted++;
+          } catch {}
+        }
+      }
       if (window._bpKasMid) Modal.close(window._bpKasMid);
-      Notify.success(`${label} dikonfirmasi · ${inserted} item masuk kas`);
+      Notify.success(`${label} dikonfirmasi · ${inserted} item → kas${apInserted?' · '+apInserted+' item → AP':''}`);
       _renderBPDashboard();
       renderTransaksi();
-      DB.logActivity({type:'confirm_belanja_pasar', detail:`Konfirmasi ${label} (${doc.periode}): ${inserted} item → kas`});
+      DB.logActivity({type:'confirm_belanja_pasar', detail:`Konfirmasi ${label} (${doc.periode}): ${inserted} item → kas${apInserted?' · '+apInserted+' → AP':''}`});
     } catch(e) { Notify.error('Gagal: '+(e.message||'')); }
   }
 
