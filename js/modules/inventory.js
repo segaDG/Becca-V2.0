@@ -3344,9 +3344,18 @@ const InventoryModule = (() => {
   }
 
   /* ===================== TAB: REQUEST BARANG ===================== */
-  function renderRequestTab() {
+  async function renderRequestTab() {
     const el = document.getElementById('inv-tab-request');
     if (!el) return;
+    // Fetch fresh dari DB agar request dari semua user (termasuk superadmin) selalu tampil
+    try {
+      DB.invalidateCache?.('inv_activities');
+      const fresh = await DB.getInventory();
+      if (fresh?.length) {
+        _logs = fresh;
+        _logs.sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
+      }
+    } catch {}
     const requests = _logs.filter(l => l.jenis === 'REQUEST').sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
     const canEdit  = Auth.can('inventory','edit');
     const canApprove = Auth.isSuperAdmin?.() || Auth.currentUser()?.role === 'admin' || Auth.currentUser()?.role === 'purchaser';
