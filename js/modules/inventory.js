@@ -3384,9 +3384,11 @@ const InventoryModule = (() => {
           <div class="card-header"><span class="card-title">Ajukan Request Barang</span></div>
           <div class="form-group">
             <label class="form-label">Nama Barang <span class="req">*</span></label>
-            <select id="req-item-sel" class="form-control" onchange="InventoryModule._reqItemSelect(this)">
-              <option value="">— Pilih Barang —</option>
-            </select>
+            <input id="req-item-txt" type="text" class="form-control"
+              placeholder="Ketik atau pilih nama barang..."
+              list="req-item-dl" autocomplete="off"
+              oninput="InventoryModule._reqItemInput(this)">
+            <datalist id="req-item-dl"></datalist>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -3395,7 +3397,7 @@ const InventoryModule = (() => {
             </div>
             <div class="form-group">
               <label class="form-label">Satuan</label>
-              <input id="req-satuan" class="form-control" placeholder="kg, pcs, ltr..." list="inv-sat-list" readonly>
+              <input id="req-satuan" class="form-control" placeholder="kg, pcs, ltr..." list="inv-sat-list">
             </div>
           </div>
           <div class="form-group">
@@ -3446,48 +3448,46 @@ const InventoryModule = (() => {
           </tbody>
         </table></div>
       </div>`;
-    // Populate select dropdown dari _items (fetch jika belum ada)
-    const _fillReqSel = (items) => {
-      const sel = document.getElementById('req-item-sel');
-      if (!sel) return;
-      while (sel.options.length > 1) sel.remove(1); // hapus opsi lama kecuali placeholder
+    // Populate datalist dari _items (fetch jika belum ada)
+    const _fillReqDl = (items) => {
+      const dl = document.getElementById('req-item-dl');
+      if (!dl) return;
+      dl.innerHTML = '';
       items.filter(i => i.aktif !== false)
         .sort((a, b) => (a.nama||'').localeCompare(b.nama||'', 'id'))
         .forEach(it => {
           const opt = document.createElement('option');
-          opt.value = it.id;
-          opt.textContent = it.nama + (it.satuan ? ' (' + it.satuan + ')' : '');
-          opt.dataset.nama   = it.nama;
-          opt.dataset.satuan = it.satuan || '';
-          sel.appendChild(opt);
+          opt.value = it.nama;
+          dl.appendChild(opt);
         });
     };
     if (_items.length) {
-      _fillReqSel(_items);
+      _fillReqDl(_items);
     } else {
       DB.getInventoryItems().then(fresh => {
         if (fresh?.length) { _items = fresh; _itemLookup = new Map(_items.map(i=>[String(i.id),i])); }
-        _fillReqSel(_items);
+        _fillReqDl(_items);
       }).catch(() => {});
     }
   }
 
-  function _reqItemSelect(sel) {
-    const opt = sel.options[sel.selectedIndex];
-    const satuan = opt?.dataset?.satuan || '';
+  function _reqItemInput(inp) {
+    const nama = (inp.value || '').trim().toLowerCase();
+    const item = _items.find(i => (i.nama||'').toLowerCase() === nama);
     const satuanEl = document.getElementById('req-satuan');
-    if (satuanEl) satuanEl.value = satuan;
+    if (satuanEl && item?.satuan) satuanEl.value = item.satuan;
   }
 
   async function submitRequest() {
-    const sel    = document.getElementById('req-item-sel');
-    const itemId = sel?.value || '';
-    const opt    = sel?.options[sel?.selectedIndex];
-    const itemNama = opt?.dataset?.nama || '';
+    const namaTxt = (document.getElementById('req-item-txt')?.value || '').trim();
+    if (!namaTxt) { Notify.warning('Nama barang wajib diisi'); return; }
+    const item = _items.find(i => (i.nama||'').toLowerCase() === namaTxt.toLowerCase());
+    if (!item) { Notify.warning('Barang "' + namaTxt + '" tidak ditemukan di inventory. Pilih dari daftar yang tersedia.'); return; }
+    const itemId   = item.id;
+    const itemNama = item.nama;
     const jumlah = parseFloat(document.getElementById('req-jumlah')?.value)||0;
     const catatan= (document.getElementById('req-catatan')?.value||'').trim();
-    const satuan = (document.getElementById('req-satuan')?.value||'').trim();
-    if (!itemId) { Notify.warning('Nama barang wajib dipilih'); return; }
+    const satuan = (document.getElementById('req-satuan')?.value||'').trim() || item.satuan || '';
     if (jumlah <= 0) { Notify.warning('Jumlah wajib diisi'); return; }
     const _user = (typeof Auth!=='undefined'&&Auth.currentUser()) ? (Auth.currentUser().nama||Auth.currentUser().username||'') : '';
     const req = {
@@ -4533,7 +4533,7 @@ const InventoryModule = (() => {
     renderLaporanBulanan,
     _toggleSyncInfo, _toggleBPSyncInfo,
     renderSummary,
-    renderRequestTab, submitRequest, _reqItemSelect, _updateReqStatus, _deleteRequest, _acknowledgeRejection,
+    renderRequestTab, submitRequest, _reqItemInput, _updateReqStatus, _deleteRequest, _acknowledgeRejection,
     setLogFilterNama, setLogFilterTgl, clearLogFilter, reArrangeInv,
     syncFormProduksi, _toggleSyncCheck, _confirmSync, _updateSyncTotals, _toggleSyncInfo,
     syncBelanjaPasar, _toggleBPSyncCheck, _confirmBPSync, deleteBPSync, _toggleBPSyncInfo,
