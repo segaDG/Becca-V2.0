@@ -270,7 +270,7 @@ else { window.POModule = (() => {
       </div>
       <div style="padding:8px 10px;background:rgba(239,68,68,.05);border-radius:7px;border-left:3px solid #ef4444">
         <div style="font-weight:700;color:#ef4444;margin-bottom:3px">✕ Tolak</div>
-        <div style="color:var(--text-2,#555)">Permintaan ditolak. Anda wajib mengisi alasan penolakan. Pemohon akan mendapat pemberitahuan di halaman mereka.</div>
+        <div style="color:var(--text-2,#555)">Permintaan ditolak. Anda wajib mengisi alasan penolakan. Pemohon akan mendapat pemberitahuan di <strong>Form Produksi</strong> dan tab <strong>Ajukan Request</strong> pada halaman Inventory.</div>
       </div>`;
     document.body.appendChild(pop);
     setTimeout(() => {
