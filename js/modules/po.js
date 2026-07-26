@@ -281,6 +281,39 @@ else { window.POModule = (() => {
     }, 0);
   }
 
+  function _toggleSupplierInfo(btn) {
+    const existing = document.getElementById('po-supplier-info-pop');
+    if (existing) { existing.remove(); if (existing._srcBtn === btn) return; }
+    const rect = btn.getBoundingClientRect();
+    const pop = document.createElement('div');
+    pop.id = 'po-supplier-info-pop';
+    pop._srcBtn = btn;
+    pop.style.cssText = `position:fixed;z-index:9990;top:${rect.bottom+6}px;left:${Math.min(rect.left,window.innerWidth-280)}px;width:264px;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:14px 16px;box-shadow:0 4px 20px rgba(0,0,0,.14);font-size:12px;line-height:1.6`;
+    pop.innerHTML = `
+      <div style="font-weight:700;color:var(--text,#111);font-size:13px;margin-bottom:10px">Panduan Supplier dari Belanja Pasar</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="padding:8px 10px;background:rgba(245,158,11,.06);border-radius:7px;border-left:3px solid #f59e0b">
+          <div style="font-weight:700;color:#d97706;margin-bottom:3px">Mengapa card ini muncul?</div>
+          <div style="color:var(--text-2,#555)">Ada item di Belanja Pasar yang memiliki Qty Supplier > 0 dan belum di-import ke dalam Anggaran.</div>
+        </div>
+        <div style="padding:8px 10px;background:rgba(99,102,241,.06);border-radius:7px;border-left:3px solid #6366f1">
+          <div style="font-weight:700;color:#6366f1;margin-bottom:3px">Klik Card</div>
+          <div style="color:var(--text-2,#555)">Membuka pratinjau item supplier yang siap di-import. Pilih anggaran tujuan, lalu konfirmasi untuk mencatat item tersebut ke dalam daftar Anggaran PO.</div>
+        </div>
+        <div style="padding:8px 10px;background:rgba(16,185,129,.06);border-radius:7px;border-left:3px solid #10b981">
+          <div style="font-weight:700;color:#10b981;margin-bottom:3px">Setelah di-import</div>
+          <div style="color:var(--text-2,#555)">Card ini otomatis hilang. Item supplier yang sudah di-import tidak akan muncul kembali di sini.</div>
+        </div>
+      </div>`;
+    document.body.appendChild(pop);
+    setTimeout(() => {
+      const close = (e) => {
+        if (!pop.contains(e.target) && e.target !== btn) { pop.remove(); document.removeEventListener('click', close); }
+      };
+      document.addEventListener('click', close);
+    }, 0);
+  }
+
   async function _rejectRequestModal(reqId) {
     let logs = [];
     try { logs = await DB.getInventory(); } catch {}
@@ -410,6 +443,8 @@ else { window.POModule = (() => {
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <span style="font-size:13px;font-weight:700;color:var(--text)">📦 Supplier dari Belanja Pasar</span>
         <span style="font-size:11px;color:var(--text-3)">${cards.length} dokumen siap di-import ke Anggaran</span>
+        <button onclick="POModule._toggleSupplierInfo(this)" title="Informasi Supplier"
+          style="width:17px;height:17px;border-radius:50%;border:1.5px solid rgba(217,119,6,.55);background:transparent;color:#d97706;font-size:10px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;font-style:italic;line-height:1">i</button>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         ${cards.map(c => `
@@ -1580,5 +1615,6 @@ else { window.POModule = (() => {
     flushPendingEdit,
     _openSupplierImport, _supImpToggleAll, _supImpConfirm,
     _renderRequestCards, _approveRequestModal, _approveRequestDo,
-    _rejectRequestModal, _rejectRequestDo, _toggleReqInfo };
+    _rejectRequestModal, _rejectRequestDo, _toggleReqInfo,
+    _toggleSupplierInfo };
 })(); }

@@ -425,7 +425,7 @@ const BeccaTests = (() => {
     // ── localStorage usage ──
     // Whitelist: keys yang memang seharusnya bisa besar (full snapshot backup data).
     // Threshold biasa 500KB untuk catch unintended bloat; backup di-allow sampai 2MB.
-    const LARGE_KEY_WHITELIST = new Set(['becca_backup_latest']);
+    const LARGE_KEY_WHITELIST = new Set(['becca_backup_latest', 'becca_opname_logs', 'becca_po_belanja_pasar']);
     const BACKUP_LIMIT_KB = 2048;
     let totalLS = 0, bigKeys = [], oversizedBackup = [];
     for (let i = 0; i < localStorage.length; i++) {

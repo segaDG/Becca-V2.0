@@ -3213,6 +3213,8 @@ const KasModule = (() => {
       <div style="background:var(--surface);border:1px solid rgba(8,145,178,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#0891b2;margin-bottom:8px;display:flex;align-items:center;gap:6px">
           🛒 Belanja Pasar
+          <button onclick="KasModule._toggleBPInfo(this)" title="Informasi"
+            style="width:15px;height:15px;border-radius:50%;border:1.5px solid rgba(8,145,178,.6);background:transparent;color:#0891b2;font-size:9px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;font-style:italic;line-height:1">i</button>
           ${totalPending > 0
             ? `<button onclick="KasModule._bpToggleFilter()" style="border:none;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;cursor:pointer;
                 background:${_bpFilterPending?'#dc2626':'rgba(220,38,38,.12)'};color:${_bpFilterPending?'#fff':'#dc2626'}"
@@ -3963,6 +3965,39 @@ const KasModule = (() => {
     _updateBPBadge();
   }
 
-  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, resetBPSection, _resetSectionsExcept, _bpCellChange, _bpFocusNextAktHarga, _bpItemChange, _bpAddItem, _bpDeleteItem, deleteBPKas, _bpToggleFilter, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _applySuggestedAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
+  function _toggleBPInfo(btn) {
+    const existing = document.getElementById('kas-bp-info-pop');
+    if (existing) { existing.remove(); if (existing._srcBtn === btn) return; }
+    const rect = btn.getBoundingClientRect();
+    const pop = document.createElement('div');
+    pop.id = 'kas-bp-info-pop';
+    pop._srcBtn = btn;
+    pop.style.cssText = `position:fixed;z-index:9990;top:${rect.bottom+6}px;left:${Math.min(rect.left,window.innerWidth-280)}px;width:264px;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:14px 16px;box-shadow:0 4px 20px rgba(0,0,0,.14);font-size:12px;line-height:1.6`;
+    pop.innerHTML = `
+      <div style="font-weight:700;color:var(--text,#111);font-size:13px;margin-bottom:10px">Panduan Belanja Pasar</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="padding:8px 10px;background:rgba(8,145,178,.06);border-radius:7px;border-left:3px solid #0891b2">
+          <div style="font-weight:700;color:#0891b2;margin-bottom:2px">Klik Card</div>
+          <div style="color:var(--text-2,#555)">Membuka detail belanja pasar untuk mengisi harga aktual dan mengkonfirmasi pengeluaran per destinasi.</div>
+        </div>
+        <div style="padding:8px 10px;background:rgba(239,68,68,.05);border-radius:7px;border-left:3px solid #ef4444">
+          <div style="font-weight:700;color:#ef4444;margin-bottom:2px">Belum</div>
+          <div style="color:var(--text-2,#555)">Belanja pasar selesai namun belum dikonfirmasi ke Kas Kecil. Segera konfirmasi agar pencatatan keuangan tetap akurat.</div>
+        </div>
+        <div style="padding:8px 10px;background:rgba(16,185,129,.06);border-radius:7px;border-left:3px solid #10b981">
+          <div style="font-weight:700;color:#10b981;margin-bottom:2px">Terkonfirmasi</div>
+          <div style="color:var(--text-2,#555)">Data sudah masuk ke Kas Kecil. Card Supplier yang dicentang AP juga otomatis tercatat di halaman Account Payable.</div>
+        </div>
+      </div>`;
+    document.body.appendChild(pop);
+    setTimeout(() => {
+      const close = (e) => {
+        if (!pop.contains(e.target) && e.target !== btn) { pop.remove(); document.removeEventListener('click', close); }
+      };
+      document.addEventListener('click', close);
+    }, 0);
+  }
+
+  return { init, switchTab, setFilter, resetFilter, getCurrentFilter, applySavedFilter, toggleSearch, goPage, setPerPage, addRow, startEdit, commitEdit, commitAndAddRow, cancelEdit, _rowKeyDown, unlockKasRow, _onNamaInput, _selectNamaSuggestion, _calcTotal, deleteRow, _bulkToggle, _bulkToggleAll, _bulkDelete, _bulkClear, reArrange, reClassifyTypes, renderSummary, renderMonthlyTable, importExcel, exportCSV, printPDF, printMonthly, toggleAnomalyDetail, goToAnomaly, _renderBalanceCards, openKasMasukModal, _filterKasMasuk, filterKasMasukType, filterByStatus, editSaldoAwal, _saveSaldoAwalModal, openSaldoAwalSnapshot, _saveSaldoAwalSnapshot: _saveSaldoAwalSnapshotHandler, _resetSaldoAwalSnapshot: _resetSaldoAwalSnapshotHandler, flushPendingEdit, openBPDetail, confirmBelanjaPasar, confirmBPSection, resetBPSection, _resetSectionsExcept, _bpCellChange, _bpFocusNextAktHarga, _bpItemChange, _bpAddItem, _bpDeleteItem, deleteBPKas, _bpToggleFilter, _toggleBPInfo, _openAnggaranPicker, _selectAnggaran, _unlinkAnggaran, _applySuggestedAnggaran, _setSearchDebounced, _onSearchTyping, _openCategoryDetail };
 })();
 window.KasModule = KasModule;

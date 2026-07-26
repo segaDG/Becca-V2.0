@@ -804,6 +804,8 @@ const InventoryModule = (() => {
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:8px;display:flex;align-items:center;gap:6px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
           Sync Form Produksi
+          <button onclick="InventoryModule._toggleSyncInfo(this)" title="Informasi"
+            style="width:15px;height:15px;border-radius:50%;border:1.5px solid rgba(100,116,139,.5);background:transparent;color:var(--text-3);font-size:9px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;font-style:italic;line-height:1">i</button>
           ${pendingCount>0?'<span style="background:#ef4444;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700">'+pendingCount+' pending</span>':''}
         </div>
         <div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px">${cards}</div>
@@ -841,6 +843,8 @@ const InventoryModule = (() => {
         <div style="background:var(--surface);border:1px solid rgba(8,145,178,.2);border-radius:10px;padding:10px 14px;margin-top:8px">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#0891b2;margin-bottom:8px;display:flex;align-items:center;gap:6px">
             🛒 Sync Belanja Pasar → Inventory (MASUK)
+            <button onclick="InventoryModule._toggleBPSyncInfo(this)" title="Informasi"
+              style="width:15px;height:15px;border-radius:50%;border:1.5px solid rgba(8,145,178,.5);background:transparent;color:#0891b2;font-size:9px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;font-style:italic;line-height:1">i</button>
           </div>
           <div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px">${bpCards}</div>
         </div>`;
@@ -4397,6 +4401,80 @@ const InventoryModule = (() => {
     _invCommit(id, true); // skipValidation = true
   }
 
+  function _toggleBPSyncInfo(btn) {
+    const existing = document.getElementById('inv-bpsync-info-pop');
+    if (existing) { existing.remove(); if (existing._srcBtn === btn) return; }
+    const rect = btn.getBoundingClientRect();
+    const pop = document.createElement('div');
+    pop.id = 'inv-bpsync-info-pop';
+    pop._srcBtn = btn;
+    pop.style.cssText = `position:fixed;z-index:9990;top:${rect.bottom+6}px;left:${Math.min(rect.left,window.innerWidth-280)}px;width:264px;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:14px 16px;box-shadow:0 4px 20px rgba(0,0,0,.14);font-size:12px;line-height:1.6`;
+    pop.innerHTML = `
+      <div style="font-weight:700;color:var(--text,#111);font-size:13px;margin-bottom:10px">Panduan Sync Belanja Pasar</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="padding:8px 10px;background:rgba(8,145,178,.06);border-radius:7px;border-left:3px solid #0891b2">
+          <div style="font-weight:700;color:#0891b2;margin-bottom:2px">Klik Card</div>
+          <div style="color:var(--text-2,#555)">Membuka pratinjau item dari Belanja Pasar yang sudah terkonfirmasi. Item yang dicentang akan dicatat sebagai MASUK di Activity Line (menambah stok inventory).</div>
+        </div>
+        <div style="padding:8px 10px;background:rgba(239,68,68,.05);border-radius:7px;border-left:3px solid #ef4444">
+          <div style="font-weight:700;color:#ef4444;margin-bottom:2px">Belum</div>
+          <div style="color:var(--text-2,#555)">Belanja pasar sudah terkonfirmasi, namun belum ada item yang disinkronisasi ke Activity Line.</div>
+        </div>
+        <div style="padding:8px 10px;background:rgba(245,158,11,.06);border-radius:7px;border-left:3px solid #f59e0b">
+          <div style="font-weight:700;color:#d97706;margin-bottom:2px">Partial</div>
+          <div style="color:var(--text-2,#555)">Sebagian item sudah tercatat sebagai MASUK. Mungkin ada item baru atau yang belum disinkronisasi.</div>
+        </div>
+        <div style="padding:8px 10px;background:rgba(8,145,178,.06);border-radius:7px;border-left:3px solid #0891b2">
+          <div style="font-weight:700;color:#0891b2;margin-bottom:2px">Synced</div>
+          <div style="color:var(--text-2,#555)">Semua item dari Belanja Pasar sudah tercatat sebagai MASUK di Activity Line. Stok inventory sudah diperbarui.</div>
+        </div>
+      </div>`;
+    document.body.appendChild(pop);
+    setTimeout(() => {
+      const close = (e) => {
+        if (!pop.contains(e.target) && e.target !== btn) { pop.remove(); document.removeEventListener('click', close); }
+      };
+      document.addEventListener('click', close);
+    }, 0);
+  }
+
+  function _toggleSyncInfo(btn) {
+    const existing = document.getElementById('inv-sync-info-pop');
+    if (existing) { existing.remove(); if (existing._srcBtn === btn) return; }
+    const rect = btn.getBoundingClientRect();
+    const pop = document.createElement('div');
+    pop.id = 'inv-sync-info-pop';
+    pop._srcBtn = btn;
+    pop.style.cssText = `position:fixed;z-index:9990;top:${rect.bottom+6}px;left:${Math.min(rect.left,window.innerWidth-280)}px;width:264px;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:14px 16px;box-shadow:0 4px 20px rgba(0,0,0,.14);font-size:12px;line-height:1.6`;
+    pop.innerHTML = `
+      <div style="font-weight:700;color:var(--text,#111);font-size:13px;margin-bottom:10px">Panduan Sync Form Produksi</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="padding:8px 10px;background:rgba(99,102,241,.06);border-radius:7px;border-left:3px solid #6366f1">
+          <div style="font-weight:700;color:#6366f1;margin-bottom:2px">Klik Card</div>
+          <div style="color:var(--text-2,#555)">Membuka pratinjau data Form Produksi yang akan disinkronisasi ke Activity Line (pencatatan pemakaian bahan di Inventory).</div>
+        </div>
+        <div style="padding:8px 10px;background:rgba(239,68,68,.05);border-radius:7px;border-left:3px solid #ef4444">
+          <div style="font-weight:700;color:#ef4444;margin-bottom:2px">Belum</div>
+          <div style="color:var(--text-2,#555)">Form produksi ini belum pernah disinkronisasi. Data pemakaian bahan belum tercatat di Activity Line.</div>
+        </div>
+        <div style="padding:8px 10px;background:rgba(245,158,11,.06);border-radius:7px;border-left:3px solid #f59e0b">
+          <div style="font-weight:700;color:#d97706;margin-bottom:2px">Partial / Update</div>
+          <div style="color:var(--text-2,#555)">Sebagian item sudah tersinkron, atau ada perubahan qty yang perlu diperbarui di Activity Line.</div>
+        </div>
+        <div style="padding:8px 10px;background:rgba(16,185,129,.06);border-radius:7px;border-left:3px solid #10b981">
+          <div style="font-weight:700;color:#10b981;margin-bottom:2px">Synced</div>
+          <div style="color:var(--text-2,#555)">Semua item dari Form Produksi sudah tercatat di Activity Line. Tidak ada tindakan lebih lanjut yang diperlukan.</div>
+        </div>
+      </div>`;
+    document.body.appendChild(pop);
+    setTimeout(() => {
+      const close = (e) => {
+        if (!pop.contains(e.target) && e.target !== btn) { pop.remove(); document.removeEventListener('click', close); }
+      };
+      document.addEventListener('click', close);
+    }, 0);
+  }
+
   return {
     init,
     switchTab,
@@ -4453,11 +4531,12 @@ const InventoryModule = (() => {
     hppAIReset,
     _showHPPAIInfo,
     renderLaporanBulanan,
+    _toggleSyncInfo, _toggleBPSyncInfo,
     renderSummary,
     renderRequestTab, submitRequest, _reqItemSelect, _updateReqStatus, _deleteRequest, _acknowledgeRejection,
     setLogFilterNama, setLogFilterTgl, clearLogFilter, reArrangeInv,
-    syncFormProduksi, _toggleSyncCheck, _confirmSync, _updateSyncTotals,
-    syncBelanjaPasar, _toggleBPSyncCheck, _confirmBPSync, deleteBPSync,
+    syncFormProduksi, _toggleSyncCheck, _confirmSync, _updateSyncTotals, _toggleSyncInfo,
+    syncBelanjaPasar, _toggleBPSyncCheck, _confirmBPSync, deleteBPSync, _toggleBPSyncInfo,
     get _invEditId() { return _invEditId; },
   };
 

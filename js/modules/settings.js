@@ -1746,7 +1746,7 @@ else { window.SettingsModule = (() => {
       if (typeof BeccaTests === 'undefined') {
         await new Promise((resolve, reject) => {
           const s = document.createElement('script');
-          s.src = 'js/tests.js?v=20260516x';
+          s.src = 'js/tests.js?v=20260726d';
           s.onload = resolve;
           s.onerror = () => reject(new Error('Gagal memuat tests.js'));
           document.head.appendChild(s);
