@@ -438,13 +438,14 @@ const MenuModule = (() => {
                   ${DAYS.map((_,di) => {
                     const dayData = (planData[shift]||{})[di] || {};
                     const val = (dayData.menu||{})[komp] || '';
+                    const dlId = 'menu-dl-' + komp.toLowerCase().replace(/\s+/g,'-');
                     return `<td style="padding:2px 4px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)">
                       <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">${komp}</div>
                       <input type="text" value="${_esc(val)}" placeholder="-"
                         style="width:100%;border:none;background:transparent;padding:2px 4px;font-size:11px;color:var(--text);outline:none;font-family:var(--font)"
                         onfocus="this.style.background='var(--surface2)'" onblur="this.style.background='transparent'"
                         onchange="MenuModule._genSetCell('${custId}','${shift}',${di},'${komp}',this.value)"
-                        list="menu-suggestions">
+                        list="${dlId}">
                     </td>`;
                   }).join('')}
                 </tr>`).join('')}
@@ -453,11 +454,28 @@ const MenuModule = (() => {
           </tbody>
         </table>
       </div>
-      <!-- Datalist for autocomplete from library -->
-      <datalist id="menu-suggestions">
-        ${_library.slice(0,500).map(m=>`<option value="${_esc(m.nama)}">`).join('')}
-      </datalist>
+      <!-- Datalist per komposisi untuk autocomplete yang terfilter -->
+      ${[...new Set(komposisi)].map(komp => {
+        const dlId = 'menu-dl-' + komp.toLowerCase().replace(/\s+/g,'-');
+        const matches = _library.filter(m => !m.archived && _kompMatchKlas(komp, m.klasifikasi));
+        return `<datalist id="${dlId}">${matches.map(m=>`<option value="${_esc(m.nama)}">`).join('')}</datalist>`;
+      }).join('')}
     </div>`;
+  }
+
+  function _kompMatchKlas(komp, klasifikasi) {
+    const k = (komp || '').toLowerCase();
+    const kl = (klasifikasi || '').toLowerCase();
+    if (k === 'lauk') return kl === 'lauk kering' || kl === 'lauk kuah';
+    if (k === 'karbo') return kl === 'karbo';
+    if (k === 'pendamping') return kl === 'pendamping';
+    if (k === 'sayur') return kl === 'sayur';
+    if (k === 'sambel') return kl === 'sambel';
+    if (k === 'buah') return kl === 'buah';
+    if (k === 'minuman') return kl === 'minuman';
+    if (k === 'paketan') return kl === 'paketan';
+    // Fallback untuk komposisi custom: coba exact match klasifikasi
+    return kl === k || kl.startsWith(k);
   }
 
   // Cell edit + auto-save
