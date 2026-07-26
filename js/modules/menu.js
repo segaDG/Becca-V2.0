@@ -14,6 +14,7 @@ const MenuModule = (() => {
   const SHIFTS = ['S1','S2','S3'];
   const DEFAULT_KOMPOSISI = ['Karbo','Lauk','Pendamping','Sayur','Sambel','Buah'];
   const KATEGORI = ['Karbo','Lauk Kering','Lauk Kuah','Pendamping','Sayur','Sambel','Buah','Minuman','Paketan'];
+  const KOMP_OPTIONS = ['Karbo','Lauk','Lauk Kering','Lauk Kuah','Pendamping','Sayur','Sambel','Buah','Minuman','Paketan'];
   const CATEGORY = ['Indonesia','Western','Jepang','Thailand'];
   const TEMA = ['Padang','Sunda','Jawa','Betawi','Makassar','Manado','Bali','Medan','Kalimantan','Aceh','Umum'];
   const JENIS = ['Regular','Paketan'];
@@ -438,7 +439,7 @@ const MenuModule = (() => {
                   ${DAYS.map((_,di) => {
                     const dayData = (planData[shift]||{})[di] || {};
                     const val = (dayData.menu||{})[komp] || '';
-                    const dlId = 'menu-dl-' + komp.toLowerCase().replace(/\s+/g,'-');
+                    const dlId = 'menu-dl-' + komp.toLowerCase().replace(/\s+\d+$/,'').replace(/\s+/g,'-');
                     return `<td style="padding:2px 4px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)">
                       <div style="font-size:8px;color:var(--text-3);margin-bottom:1px">${komp}</div>
                       <input type="text" value="${_esc(val)}" placeholder="-"
@@ -455,16 +456,16 @@ const MenuModule = (() => {
         </table>
       </div>
       <!-- Datalist per komposisi untuk autocomplete yang terfilter -->
-      ${[...new Set(komposisi)].map(komp => {
-        const dlId = 'menu-dl-' + komp.toLowerCase().replace(/\s+/g,'-');
-        const matches = _library.filter(m => !m.archived && _kompMatchKlas(komp, m.klasifikasi));
+      ${[...new Set(komposisi.map(k=>k.replace(/\s+\d+$/,'')))].map(base => {
+        const dlId = 'menu-dl-' + base.toLowerCase().replace(/\s+/g,'-');
+        const matches = _library.filter(m => !m.archived && _kompMatchKlas(base, m.klasifikasi));
         return `<datalist id="${dlId}">${matches.map(m=>`<option value="${_esc(m.nama)}">`).join('')}</datalist>`;
       }).join('')}
     </div>`;
   }
 
   function _kompMatchKlas(komp, klasifikasi) {
-    const k = (komp || '').toLowerCase();
+    const k = (komp || '').toLowerCase().replace(/\s+\d+$/, '').trim();
     const kl = (klasifikasi || '').toLowerCase();
     if (k === 'lauk') return kl === 'lauk kering' || kl === 'lauk kuah';
     if (k === 'karbo') return kl === 'karbo';
@@ -893,11 +894,14 @@ const MenuModule = (() => {
         </style>
         <p style="font-size:12px;color:var(--text-2);margin-bottom:var(--s3)">Drag untuk ubah urutan. Tambah/hapus sesuai kebutuhan.</p>
         <div id="komp-list">
-          ${current.map((k,i)=>`<div class="komp-row" draggable="true" ondragstart="MenuModule._kompDragStart(event,this)" ondragover="MenuModule._kompDragOver(event,this)" ondragleave="this.classList.remove('drag-over')" ondrop="MenuModule._kompDrop(event,this)" ondragend="MenuModule._kompDragEnd()">
+          ${current.map(k => { const base = k.replace(/\s+\d+$/,''); const inOpts = KOMP_OPTIONS.includes(base); return `<div class="komp-row" draggable="true" ondragstart="MenuModule._kompDragStart(event,this)" ondragover="MenuModule._kompDragOver(event,this)" ondragleave="this.classList.remove('drag-over')" ondrop="MenuModule._kompDrop(event,this)" ondragend="MenuModule._kompDragEnd()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0;opacity:.3"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg>
-            <input type="text" class="form-control komp-input" value="${_esc(k)}" style="flex:1;min-height:30px;font-size:13px;background:transparent;border:none;padding:2px 6px">
+            <select class="form-control komp-input" style="flex:1;min-height:30px;font-size:13px">
+              ${KOMP_OPTIONS.map(o=>`<option value="${o}"${base===o?' selected':''}>${o}</option>`).join('')}
+              ${!inOpts?`<option value="${_esc(base)}" selected>${_esc(base)}</option>`:''}
+            </select>
             <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;flex-shrink:0">\u00d7</button>
-          </div>`).join('')}
+          </div>`; }).join('')}
         </div>
         <button class="btn btn-ghost btn-sm" style="margin-top:var(--s2)" onclick="MenuModule._kompAdd()">+ Tambah Komponen</button>`,
       footer:`<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
@@ -905,9 +909,21 @@ const MenuModule = (() => {
     });
   }
 
+  function _autoNumberKomposisi(arr) {
+    const count = {};
+    arr.forEach(v => { count[v] = (count[v]||0)+1; });
+    const seen = {};
+    return arr.map(v => {
+      if (count[v] <= 1) return v;
+      seen[v] = (seen[v]||0)+1;
+      return v + ' ' + seen[v];
+    });
+  }
+
   async function _saveKomposisi(custId, modalId) {
     const inputs = document.querySelectorAll('.komp-input');
-    const komposisi = [...inputs].map(i=>i.value.trim()).filter(Boolean);
+    const raw = [...inputs].map(i=>(i.value||'').trim()).filter(Boolean);
+    const komposisi = _autoNumberKomposisi(raw);
     const cust = _customers.find(c=>c.id===custId);
     if (cust) {
       cust.menuKomposisi = komposisi;
@@ -935,10 +951,13 @@ const MenuModule = (() => {
     div.setAttribute('ondrop','MenuModule._kompDrop(event,this)');
     div.setAttribute('ondragend','MenuModule._kompDragEnd()');
     div.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0;opacity:.3"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg>
-      <input type="text" class="form-control komp-input" placeholder="Nama komponen..." style="flex:1;min-height:30px;font-size:13px;background:transparent;border:none;padding:2px 6px">
+      <select class="form-control komp-input" style="flex:1;min-height:30px;font-size:13px">
+        <option value="">-- Pilih komponen --</option>
+        ${KOMP_OPTIONS.map(o=>`<option value="${o}">${o}</option>`).join('')}
+      </select>
       <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;flex-shrink:0">\u00d7</button>`;
     list.appendChild(div);
-    div.querySelector('input').focus();
+    div.querySelector('select').focus();
   }
 
   /* ═══ AI INTEGRATION — Google Gemini API ═══ */
