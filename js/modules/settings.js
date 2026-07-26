@@ -855,6 +855,22 @@ else { window.SettingsModule = (() => {
       const settings = await DB.getSettings();
       if (settings?._customRoles) localStorage.setItem('becca_custom_roles', JSON.stringify(settings._customRoles));
     } catch(e) { console.warn('[Settings] sync privileges:', e); }
+
+    // Auto-deteksi role dari daftar user — pastikan semua role yang dipakai muncul di tabel
+    try {
+      const users = _usersCache.length ? _usersCache : await DB.getUsers().catch(()=>[]);
+      const userRoles = [...new Set(users.map(u=>u.role).filter(Boolean))];
+      let customRoles = [];
+      try { customRoles = JSON.parse(localStorage.getItem('becca_custom_roles') || '[]'); } catch {}
+      const allKnown = new Set([..._DEFAULT_ROLES, ...customRoles]);
+      const newRoles = userRoles.filter(r => !allKnown.has(r));
+      if (newRoles.length) {
+        const merged = [...customRoles, ...newRoles];
+        localStorage.setItem('becca_custom_roles', JSON.stringify(merged));
+        try { await DB.saveSettings({ _customRoles: merged }); } catch {}
+      }
+    } catch {}
+
     if (Auth._bustPrivCache) Auth._bustPrivCache();
     let custom = {};
     try { custom = JSON.parse(localStorage.getItem('becca_privileges') || '{}'); } catch {}
@@ -934,8 +950,9 @@ else { window.SettingsModule = (() => {
   function _featLabel(f) {
     const m = {dashboard:'📊 Dashboard',order:'📋 Order',invoice:'🧾 Invoice',customer:'👥 Customer',
                employee:'👷 Karyawan',emp_finance:'💰 Gaji & Hutang Karyawan',inventory:'📦 Inventory',
-               kas:'💰 Kas Kecil',ap:'💳 Account Payable',po:'🛒 Purchase Order',task:'✅ Task','daily-order':'📅 Daily Order',
-               report:'📈 Laporan',settings:'⚙️ Pengaturan',news:'📢 News & Pengumuman'};
+               kas:'💰 Kas Kecil',ap:'💳 Account Payable',po:'🛒 Purchase Order',task:'✅ Task',
+               'daily-order':'📅 Daily Order',delivery:'🚚 Delivery',menu:'🍽️ Menu',haccp:'🧪 HACCP',
+               chat:'💬 Chat',personal:'👤 Personal',report:'📈 Laporan',settings:'⚙️ Pengaturan',news:'📢 News'};
     return m[f]||f;
   }
 
