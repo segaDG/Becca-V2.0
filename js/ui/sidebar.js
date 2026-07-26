@@ -153,24 +153,14 @@ const Sidebar = {
     sidebar.innerHTML = this._buildHtml(user, cached);
     this._updateNewsBadge(user);
 
-    // ── 2. Fetch fresh dari DB di background; update jika ada perbedaan ───
-    let privTsBefore = '';
-    try { privTsBefore = JSON.parse(localStorage.getItem('becca_privileges') || '{}')._savedAt || ''; } catch {}
+    // ── 2. Fetch fresh dari DB di background; selalu re-render untuk sync privileges ───
     DB.getSettings().then(fresh => {
       if (!fresh) return;
-      let privTsAfter = '';
-      try { privTsAfter = JSON.parse(localStorage.getItem('becca_privileges') || '{}')._savedAt || ''; } catch {}
-      const privChanged = privTsAfter && privTsAfter !== privTsBefore;
-      if (privChanged && Auth._bustPrivCache) Auth._bustPrivCache();
-      if (fresh.namaPerusahaan !== cached.namaPerusahaan ||
-          fresh.logoUrl        !== cached.logoUrl        ||
-          fresh.tagline        !== cached.tagline        ||
-          privChanged) {
-        const activePage = typeof App !== 'undefined' ? App._currentPage : null;
-        sidebar.innerHTML = this._buildHtml(user, fresh);
-        this._updateNewsBadge(user);
-        if (activePage) this.setActive(activePage);
-      }
+      if (Auth._bustPrivCache) Auth._bustPrivCache();
+      const activePage = typeof App !== 'undefined' ? App._currentPage : null;
+      sidebar.innerHTML = this._buildHtml(user, fresh);
+      this._updateNewsBadge(user);
+      if (activePage) this.setActive(activePage);
     }).catch(() => {});
   },
 
