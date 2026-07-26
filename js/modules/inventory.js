@@ -3359,7 +3359,7 @@ const InventoryModule = (() => {
     const requests = _logs.filter(l => l.jenis === 'REQUEST').sort((a,b) => (b.tgl||'').localeCompare(a.tgl||''));
     const canEdit  = Auth.can('inventory','edit');
     const canApprove = Auth.isSuperAdmin?.() || Auth.currentUser()?.role === 'admin' || Auth.currentUser()?.role === 'purchaser';
-    const statusMap = { pending:{label:'Pending',bg:'var(--warning-bg)',color:'var(--warning)'}, fulfilled:{label:'Terpenuhi',bg:'var(--success-bg)',color:'var(--success)'}, rejected:{label:'Ditolak',bg:'var(--danger-bg)',color:'var(--danger)'} };
+    const statusMap = { pending:{label:'Pending',bg:'var(--warning-bg)',color:'var(--warning)'}, fulfilled:{label:'Disetujui',bg:'var(--success-bg)',color:'var(--success)'}, rejected:{label:'Ditolak',bg:'var(--danger-bg)',color:'var(--danger)'} };
     const rejectedUnack = requests.filter(r => r.reqStatus === 'rejected' && !r.reqAcknowledged);
     el.innerHTML = `
       ${rejectedUnack.length ? `
@@ -3417,7 +3417,7 @@ const InventoryModule = (() => {
         </div>
         <!-- Stats -->
         <div style="display:flex;flex-direction:column;gap:var(--s3)">
-          ${[{k:'pending',label:'Pending'},{k:'fulfilled',label:'Terpenuhi'},{k:'rejected',label:'Ditolak'}].map(s=>{
+          ${[{k:'pending',label:'Pending'},{k:'fulfilled',label:'Disetujui'},{k:'rejected',label:'Ditolak'}].map(s=>{
             const cnt = requests.filter(r=>(r.reqStatus||'pending')===s.k).length;
             const st = statusMap[s.k];
             return `<div style="background:${st.bg};border:1px solid ${st.color}30;border-radius:var(--r-md);padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
@@ -3448,7 +3448,7 @@ const InventoryModule = (() => {
                   <td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:var(--r-full);background:${st.bg};color:${st.color}">${st.label}</span></td>
                   <td style="white-space:nowrap">
                     ${(r.reqStatus||'pending')==='pending' && canApprove ? `
-                      <button class="btn-icon" title="Tandai Terpenuhi" style="color:var(--success)" onclick="InventoryModule._updateReqStatus('${r.id}','fulfilled')">✓</button>
+                      <button class="btn-icon" title="Tandai Disetujui" style="color:var(--success)" onclick="InventoryModule._updateReqStatus('${r.id}','fulfilled')">✓</button>
                       <button class="btn-icon" title="Tolak" style="color:var(--danger)" onclick="InventoryModule._updateReqStatus('${r.id}','rejected')">✕</button>` : ''}
                     ${canEdit ? `<button class="btn-icon" title="Hapus" style="color:var(--text-3)" onclick="InventoryModule._deleteRequest('${r.id}')">🗑</button>` : ''}
                   </td>
@@ -3520,7 +3520,7 @@ const InventoryModule = (() => {
     const r = _logs.find(l => l.id === id); if (!r) return;
     r.reqStatus = status;
     r.penanggungJawab = (typeof Auth!=='undefined'&&Auth.currentUser()) ? (Auth.currentUser().nama||Auth.currentUser().username||'') : '';
-    try { await DB.saveInventoryLog(r); renderRequestTab(); Notify.success(status==='fulfilled'?'Request ditandai terpenuhi':'Request ditolak'); }
+    try { await DB.saveInventoryLog(r); renderRequestTab(); Notify.success(status==='fulfilled'?'Request disetujui':'Request ditolak'); }
     catch(e) { Notify.error('Gagal: '+e.message); }
   }
 
