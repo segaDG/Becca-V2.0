@@ -13,7 +13,7 @@ const MenuModule = (() => {
   const DAYS = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
   const SHIFTS = ['S1','S2','S3'];
   const DEFAULT_KOMPOSISI = ['Karbo','Lauk','Pendamping','Sayur','Sambel','Buah'];
-  const KATEGORI = ['Nasi','Lauk Kering','Lauk Kuah','Pendamping','Sayur','Sambel','Buah','Minuman','Paketan'];
+  const KATEGORI = ['Karbo','Lauk Kering','Lauk Kuah','Pendamping','Sayur','Sambel','Buah','Minuman','Paketan'];
   const CATEGORY = ['Indonesia','Western','Jepang','Thailand'];
   const TEMA = ['Padang','Sunda','Jawa','Betawi','Makassar','Manado','Bali','Medan','Kalimantan','Aceh','Umum'];
   const JENIS = ['Regular','Paketan'];
@@ -42,6 +42,7 @@ const MenuModule = (() => {
       localStorage.setItem(SEED_VER, '1');
       _library = await DB.getMenuLibrary().catch(()=>[]);
     }
+    await _migrateNasiToKarbo();
     _renderFull(page);
   }
 
@@ -98,7 +99,7 @@ const MenuModule = (() => {
       // Also count Paketan by jenis (if klasifikasi is different like Nasi)
       if(m.jenis==='Paketan' && m.klasifikasi!=='Paketan') katCounts['Paketan']++;
     });
-    const katColors = {'Nasi':'#f59e0b','Lauk Kering':'#ef4444','Lauk Kuah':'#f97316','Pendamping':'#8b5cf6','Sayur':'#10b981','Sambel':'#ec4899','Buah':'#06b6d4','Minuman':'#3b82f6','Paketan':'#6366f1'};
+    const katColors = {'Karbo':'#f59e0b','Lauk Kering':'#ef4444','Lauk Kuah':'#f97316','Pendamping':'#8b5cf6','Sayur':'#10b981','Sambel':'#ec4899','Buah':'#06b6d4','Minuman':'#3b82f6','Paketan':'#6366f1'};
 
     el.innerHTML = `
       <!-- Kategori cards -->
@@ -177,7 +178,7 @@ const MenuModule = (() => {
   }
 
   function _menuCard(m) {
-    const katColor = {'Nasi':'#f59e0b','Lauk Kering':'#ef4444','Lauk Kuah':'#f97316','Pendamping':'#8b5cf6','Sayur':'#10b981','Sambel':'#ec4899','Buah':'#06b6d4','Minuman':'#3b82f6','Paketan':'#6366f1'}[m.klasifikasi]||'var(--text-3)';
+    const katColor = {'Karbo':'#f59e0b','Lauk Kering':'#ef4444','Lauk Kuah':'#f97316','Pendamping':'#8b5cf6','Sayur':'#10b981','Sambel':'#ec4899','Buah':'#06b6d4','Minuman':'#3b82f6','Paketan':'#6366f1'}[m.klasifikasi]||'var(--text-3)';
     const hasResep = !!m.resep;
     const isPaketan = m.jenis==='Paketan' || m.klasifikasi==='Paketan';
     const hpp = _extractHpp(m);
@@ -1067,6 +1068,31 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     }
   }
 
+  /* ─── Migration: Nasi → Karbo / Paketan ─── */
+  async function _migrateNasiToKarbo() {
+    const FLAG = 'becca_menu_nasi_to_karbo_v1';
+    if (localStorage.getItem(FLAG)) return;
+    const KARBO_NAMES = new Set([
+      'nasi putih','nasi uduk','nasi kuning','nasi merah','nasi jagung',
+      'nasi gurih','nasi tutug oncom','lontong','ketupat'
+    ]);
+    const toUpdate = _library.filter(m =>
+      m.klasifikasi === 'Nasi' ||
+      ((m.nama||'').toLowerCase() === 'omurice' && m.klasifikasi === 'Lauk Kering')
+    );
+    if (!toUpdate.length) { localStorage.setItem(FLAG, '1'); return; }
+    const updated = toUpdate.map(m => {
+      const nm = (m.nama || '').toLowerCase().trim();
+      const newKlas = KARBO_NAMES.has(nm) ? 'Karbo' : 'Paketan';
+      return { ...m, klasifikasi: newKlas };
+    });
+    for (const item of updated) {
+      try { await DB.saveMenuItem(item); } catch {}
+    }
+    updated.forEach(u => { const i = _library.findIndex(m => m.id === u.id); if (i >= 0) _library[i] = u; });
+    localStorage.setItem(FLAG, '1');
+  }
+
   /* ═══════════════════════════════════════════
      SEED LIBRARY — 1500+ menu items
      ═══════════════════════════════════════════ */
@@ -1079,11 +1105,13 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
       items.push({id:Utils.uid(),nama,klasifikasi,category,tema,jenis:jenis||'Regular',bahan:bahan||'',resep:'',archived:false});
     };
 
-    // === NASI ===
-    ['Nasi Putih','Nasi Uduk','Nasi Kuning','Nasi Liwet','Nasi Goreng','Nasi Kebuli','Nasi Jagung','Nasi Merah','Nasi Tim','Nasi Bakar','Nasi Tutug Oncom','Nasi Gurih','Lontong','Ketupat','Bubur Ayam'].forEach(n=>_m(n,'Nasi','Indonesia','Umum'));
-    ['Nasi Goreng Jawa','Nasi Goreng Kampung','Nasi Goreng Seafood','Nasi Goreng Pete','Nasi Goreng Teri'].forEach(n=>_m(n,'Nasi','Indonesia','Jawa'));
-    ['Nasi Padang','Nasi Kapau'].forEach(n=>_m(n,'Nasi','Indonesia','Padang'));
-    ['Onigiri','Nasi Jepang','Sushi Rice'].forEach(n=>_m(n,'Nasi','Jepang','Umum'));
+    // === KARBO (karbohidrat pokok) ===
+    ['Nasi Putih','Nasi Uduk','Nasi Kuning','Nasi Merah','Nasi Jagung','Nasi Tutug Oncom','Nasi Gurih','Lontong','Ketupat'].forEach(n=>_m(n,'Karbo','Indonesia','Umum'));
+    // === PAKETAN (nasi/karbo yang sudah jadi hidangan lengkap) ===
+    ['Nasi Goreng','Nasi Liwet','Nasi Kebuli','Nasi Tim','Nasi Bakar','Bubur Ayam'].forEach(n=>_m(n,'Paketan','Indonesia','Umum','Paketan'));
+    ['Nasi Goreng Jawa','Nasi Goreng Kampung','Nasi Goreng Seafood','Nasi Goreng Pete','Nasi Goreng Teri'].forEach(n=>_m(n,'Paketan','Indonesia','Jawa','Paketan'));
+    ['Nasi Padang','Nasi Kapau'].forEach(n=>_m(n,'Paketan','Indonesia','Padang','Paketan'));
+    ['Onigiri','Nasi Jepang','Sushi Rice'].forEach(n=>_m(n,'Paketan','Jepang','Umum','Paketan'));
 
     // === LAUK KERING ===
     const laukKering = [
@@ -1239,8 +1267,9 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
      ['Telur Mata Sapi Sambal','Telur ceplok + sambal bawang','Umum'],['Telur Saus Tiram','Telur goreng saus tiram','Umum'],
      ['Telur Puyuh Balado','Telur puyuh goreng balado','Padang'],['Telur Puyuh Kecap','Telur puyuh semur kecap','Jawa'],
      ['Telur Puyuh Bacem','Telur puyuh bacem manis','Jawa'],['Telur Dadar Gulung','Telur dadar gulung isi','Umum'],
-     ['Fuyunghai','Telur fuyunghai saus asam manis','Umum'],['Omurice','Nasi goreng bungkus telur dadar','Jepang'],
+     ['Fuyunghai','Telur fuyunghai saus asam manis','Umum'],
     ].forEach(([n,b,t])=>_m(n,'Lauk Kering','Indonesia',t,'Regular',b));
+    _m('Omurice','Paketan','Jepang','Umum','Paketan','Nasi goreng bungkus telur dadar');
 
     // === BUAH ===
     ['Semangka','Melon','Pepaya','Pisang','Jeruk','Apel','Pir','Mangga','Salak','Jambu Biji','Nanas','Buah Naga'].forEach(n=>_m(n,'Buah','Indonesia','Umum'));
