@@ -195,6 +195,19 @@ else { window.POModule = (() => {
     });
   }
 
+  async function _notifyInvUsers(title, body, data) {
+    if (!window.PushModule) return;
+    try {
+      const allTokens = await DB.getPushTokens({});
+      const invTokens = (allTokens || []).filter(t => {
+        const priv = Auth._getPrivileges?.(t.role) || {};
+        return priv.inventory === 'all' || priv.inventory === 'view';
+      });
+      const tokens = invTokens.map(t => t.token).filter(Boolean);
+      if (tokens.length) await PushModule._send?.({ tokens, title, body, data });
+    } catch {}
+  }
+
   async function _approveRequestDo(reqId) {
     const targetId = document.getElementById('req-bp-target')?.value;
     if (!targetId) { Notify.error('Pilih Belanja Pasar terlebih dahulu'); return; }
@@ -251,6 +264,8 @@ else { window.POModule = (() => {
       Notify.success(`${Utils.esc(req.itemNama)} ditambahkan ke Belanja Pasar (kolom Supplier)`);
       _renderRequestCards();
       DB.logActivity?.({ type: 'approve_request', detail: `Approve request: ${req.itemNama} ${jumlah} ${req.kodeAktivitas || ''} → BP ${bp.periode || ''}`, rowId: req.id });
+      const actor = Auth.currentUser()?.nama || Auth.currentUser()?.username || '';
+      _notifyInvUsers('✅ Request Disetujui', `${req.itemNama} ${jumlah} ${req.kodeAktivitas || ''} — disetujui oleh ${actor}`, { type: 'request_approved', reqId: req.id });
     } catch(e) { Notify.error('Gagal: ' + e.message); }
   }
 
@@ -359,6 +374,8 @@ else { window.POModule = (() => {
       Notify.success(`Request ${Utils.esc(req.itemNama)} ditolak`);
       _renderRequestCards();
       DB.logActivity?.({ type: 'reject_request', detail: `Tolak request: ${req.itemNama} — ${alasan}`, rowId: req.id });
+      const actor = Auth.currentUser()?.nama || Auth.currentUser()?.username || '';
+      _notifyInvUsers('❌ Request Ditolak', `${req.itemNama} — ditolak oleh ${actor}. Alasan: ${alasan}`, { type: 'request_rejected', reqId: req.id });
     } catch(e) { Notify.error('Gagal: ' + e.message); }
   }
 

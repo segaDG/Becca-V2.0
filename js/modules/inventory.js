@@ -3520,7 +3520,29 @@ const InventoryModule = (() => {
     const r = _logs.find(l => l.id === id); if (!r) return;
     r.reqStatus = status;
     r.penanggungJawab = (typeof Auth!=='undefined'&&Auth.currentUser()) ? (Auth.currentUser().nama||Auth.currentUser().username||'') : '';
-    try { await DB.saveInventoryLog(r); renderRequestTab(); Notify.success(status==='fulfilled'?'Request disetujui':'Request ditolak'); }
+    try {
+      await DB.saveInventoryLog(r);
+      renderRequestTab();
+      Notify.success(status==='fulfilled'?'Request disetujui':'Request ditolak');
+      if (window.PushModule) {
+        try {
+          const allTokens = await DB.getPushTokens({});
+          const invTokens = (allTokens || []).filter(t => {
+            const priv = (typeof Auth!=='undefined'&&Auth._getPrivileges?.(t.role)) || {};
+            return priv.inventory === 'all' || priv.inventory === 'view';
+          });
+          const tokens = invTokens.map(t => t.token).filter(Boolean);
+          if (tokens.length) {
+            const actor = r.penanggungJawab || '';
+            if (status === 'fulfilled') {
+              PushModule._send?.({ tokens, title: '✅ Request Disetujui', body: `${r.itemNama} ${r.jumlah||''} ${r.kodeAktivitas||''} — disetujui oleh ${actor}`, data: { type:'request_approved', reqId: r.id } });
+            } else {
+              PushModule._send?.({ tokens, title: '❌ Request Ditolak', body: `${r.itemNama} — ditolak oleh ${actor}`, data: { type:'request_rejected', reqId: r.id } });
+            }
+          }
+        } catch {}
+      }
+    }
     catch(e) { Notify.error('Gagal: '+e.message); }
   }
 

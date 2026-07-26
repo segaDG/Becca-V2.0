@@ -154,12 +154,18 @@ const Sidebar = {
     this._updateNewsBadge(user);
 
     // ── 2. Fetch fresh dari DB di background; update jika ada perbedaan ───
+    let privTsBefore = '';
+    try { privTsBefore = JSON.parse(localStorage.getItem('becca_privileges') || '{}')._savedAt || ''; } catch {}
     DB.getSettings().then(fresh => {
       if (!fresh) return;
-      // Hanya re-render jika brand berubah (nama/logo/tagline)
+      let privTsAfter = '';
+      try { privTsAfter = JSON.parse(localStorage.getItem('becca_privileges') || '{}')._savedAt || ''; } catch {}
+      const privChanged = privTsAfter && privTsAfter !== privTsBefore;
+      if (privChanged && Auth._bustPrivCache) Auth._bustPrivCache();
       if (fresh.namaPerusahaan !== cached.namaPerusahaan ||
           fresh.logoUrl        !== cached.logoUrl        ||
-          fresh.tagline        !== cached.tagline) {
+          fresh.tagline        !== cached.tagline        ||
+          privChanged) {
         const activePage = typeof App !== 'undefined' ? App._currentPage : null;
         sidebar.innerHTML = this._buildHtml(user, fresh);
         this._updateNewsBadge(user);
