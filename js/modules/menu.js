@@ -86,7 +86,14 @@ const MenuModule = (() => {
     });
     if (tab==='generator') _renderGenerator();
     else if (tab==='library') _renderLibrary();
-    else _renderGroups();
+    else {
+      _renderGroups();
+      DB.getCustomers().catch(()=>null).then(fresh => {
+        if (!fresh) return;
+        _customers = fresh.filter(c=>(c.status||'AKTIF')==='AKTIF').sort((a,b)=>(a.nama||'').localeCompare(b.nama||''));
+        _renderGroups();
+      });
+    }
   }
 
   /* ═══════════════════════════════════════════
@@ -1677,9 +1684,11 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     return L + 'L' + P + 'P';
   }
 
-  function _addCustToGroup(gid) {
+  async function _addCustToGroup(gid) {
     const g = _groups.find(x => x.id === gid);
     if (!g) return;
+    const fresh = await DB.getCustomers().catch(()=>null);
+    if (fresh) _customers = fresh.filter(c=>(c.status||'AKTIF')==='AKTIF').sort((a,b)=>(a.nama||'').localeCompare(b.nama||''));
     const assignedCusts = new Set(_groups.flatMap(x => x.customers || []));
     const available = _customers.filter(c => !assignedCusts.has(c.id));
     if (!available.length) { Notify.info('Semua customer sudah tergabung dalam grup'); return; }
@@ -1745,7 +1754,7 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
   function _filterCustGroupList(q) {
     q = (q||'').toLowerCase();
     document.querySelectorAll('.acg-item').forEach(el => {
-      el.style.display = (!q || el.dataset.nama.includes(q)) ? '' : 'none';
+      el.style.display = (!q || el.dataset.nama.includes(q)) ? 'flex' : 'none';
     });
     _onCustGroupCheck();
   }
