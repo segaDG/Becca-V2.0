@@ -212,6 +212,7 @@ const DB = (() => {
   const _CACHE_TTL_SHORT = 600000; // 10 menit — volatile tables, still Realtime-backed
   const _SHORT_CACHE_TABLES = new Set(['kas','orders','inv_activities','daily_order_forms','delivery_tracking_logs']);
   let _settingsCache = null, _settingsCacheTs = 0;
+  let _settingsRealtimeSetup = false;
   const _realtimeActive = new Set(); // tables with active Realtime subscription
   const _realtimeListeners = {}; // table → [callback, ...] for UI re-render
 
@@ -775,6 +776,33 @@ const DB = (() => {
   const deleteHaccpReceiving = (id)  => _delete('haccp_receiving', id);
 
   // ── SETTINGS (with memory cache) ───────────────────────────
+  // Realtime subscription untuk tabel settings — dipanggil sekali setelah fetch pertama berhasil.
+  // Saat admin simpan privileges, SEMUA device langsung sync becca_privileges dan re-render sidebar.
+  function _setupSettingsRealtime() {
+    if (_settingsRealtimeSetup) return;
+    _settingsRealtimeSetup = true;
+    _initClient().then(sb => {
+      if (!sb) { _settingsRealtimeSetup = false; return; }
+      const sub = sb.channel('becca_settings_sync')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'settings' }, payload => {
+          try {
+            const raw = payload.new?.data;
+            if (!raw) return;
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            _settingsCache = { ...parsed, id: 'main' };
+            _settingsCacheTs = Date.now();
+            if (parsed._privileges) {
+              localStorage.setItem('becca_privileges', JSON.stringify(parsed._privileges));
+              if (typeof Auth !== 'undefined' && Auth._bustPrivCache) Auth._bustPrivCache();
+              if (typeof Sidebar !== 'undefined') Sidebar.render().catch?.(() => {});
+            }
+          } catch {}
+        })
+        .subscribe();
+      _realtimeSubs.push(sub);
+    });
+  }
+
   const getSettings  = async () => {
     // Return cached if fresh (5 min)
     if (_settingsCache && (Date.now() - _settingsCacheTs) < _CACHE_TTL) return _settingsCache;
@@ -816,6 +844,7 @@ const DB = (() => {
             }
             const result = { ...parsed, id: 'main' };
             _settingsCache = result; _settingsCacheTs = Date.now();
+            _setupSettingsRealtime();
             return result;
           }
           console.warn('[DB] Settings Supabase korup (char-indexed) — pakai localStorage');
