@@ -59,6 +59,7 @@ else { window.POModule = (() => {
     _data.sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
     _render(page);
     _updateBadge();
+    _updateTabBadges();
   }
 
   /* ── Main render ───────────────────────────── */
@@ -81,9 +82,9 @@ else { window.POModule = (() => {
         </div>
       </div>
       <div class="tabs" style="margin-bottom:var(--s4)">
-        <button class="tab-btn active" onclick="POModule.switchTab('belanja-pasar')">Belanja Pasar</button>
-        <button class="tab-btn" onclick="POModule.switchTab('active')">Anggaran</button>
-        <button class="tab-btn" onclick="POModule.switchTab('arsip')">Arsip</button>
+        <button id="po-tab-bp"     class="tab-btn active" onclick="POModule.switchTab('belanja-pasar')" style="position:relative">Belanja Pasar<span id="po-tab-bp-badge"     style="display:none;position:absolute;top:3px;right:3px;background:#ef4444;color:#fff;border-radius:999px;font-size:9px;font-weight:700;min-width:15px;height:15px;line-height:15px;text-align:center;padding:0 3px"></span></button>
+        <button id="po-tab-active" class="tab-btn"        onclick="POModule.switchTab('active')"        style="position:relative">Anggaran<span      id="po-tab-active-badge" style="display:none;position:absolute;top:3px;right:3px;background:#ef4444;color:#fff;border-radius:999px;font-size:9px;font-weight:700;min-width:15px;height:15px;line-height:15px;text-align:center;padding:0 3px"></span></button>
+        <button id="po-tab-arsip"  class="tab-btn"        onclick="POModule.switchTab('arsip')"         style="position:relative">Arsip<span          id="po-tab-arsip-badge"  style="display:none;position:absolute;top:3px;right:3px;background:#ef4444;color:#fff;border-radius:999px;font-size:9px;font-weight:700;min-width:15px;height:15px;line-height:15px;text-align:center;padding:0 3px"></span></button>
       </div>
       <div id="po-content"></div>`;
     // Default landing tab: Belanja Pasar (paling sering dipakai operator harian)
@@ -262,7 +263,7 @@ else { window.POModule = (() => {
       await DB.saveInventoryLog(req);
       Modal.close(window._reqApproveMid);
       Notify.success(`${Utils.esc(req.itemNama)} ditambahkan ke Belanja Pasar (kolom Supplier)`);
-      _renderRequestCards();
+      _renderRequestCards(); _updateTabBadges();
       DB.logActivity?.({ type: 'approve_request', detail: `Approve request: ${req.itemNama} ${jumlah} ${req.kodeAktivitas || ''} → BP ${bp.periode || ''}`, rowId: req.id });
       const actor = Auth.currentUser()?.nama || Auth.currentUser()?.username || '';
       _notifyInvUsers('✅ Request Disetujui', `${req.itemNama} ${jumlah} ${req.kodeAktivitas || ''} — disetujui oleh ${actor}`, { type: 'request_approved', reqId: req.id });
@@ -372,7 +373,7 @@ else { window.POModule = (() => {
       await DB.saveInventoryLog(req);
       Modal.close(window._reqRejectMid);
       Notify.success(`Request ${Utils.esc(req.itemNama)} ditolak`);
-      _renderRequestCards();
+      _renderRequestCards(); _updateTabBadges();
       DB.logActivity?.({ type: 'reject_request', detail: `Tolak request: ${req.itemNama} — ${alasan}`, rowId: req.id });
       const actor = Auth.currentUser()?.nama || Auth.currentUser()?.username || '';
       _notifyInvUsers('❌ Request Ditolak', `${req.itemNama} — ditolak oleh ${actor}. Alasan: ${alasan}`, { type: 'request_rejected', reqId: req.id });
@@ -588,6 +589,7 @@ else { window.POModule = (() => {
       DB.logActivity?.({ type: 'import_supplier_to_po', detail: `${added} item supplier dari BP ${bp.periode||''} → ${target.nomorEstimasi||''}`, rowId: target.id });
       if (window._supImpMid) Modal.close(window._supImpMid);
       Notify.success(`${added} item supplier diimport ke ${target.nomorEstimasi || 'anggaran'}`);
+      _updateTabBadges();
       _renderList('active');
     } catch (e) {
       Notify.error('Gagal import: ' + (e.message || ''));
@@ -1281,7 +1283,7 @@ else { window.POModule = (() => {
     doc.pendingFinance = false;
     await DB.savePO(doc);
     DB.logActivity?.({ type: 'po_anggaran_confirm', detail: `Konfirmasi finance: ${doc.nomorEstimasi||''} oleh ${nama}`, rowId: id });
-    _updateBadge();
+    _updateBadge(); _updateTabBadges();
     Notify.success('Anggaran dikonfirmasi oleh ' + nama);
     // Push notif ke pembuat anggaran bahwa sudah dikonfirmasi
     if (window.Push && doc.namaPetugas) {
@@ -1305,7 +1307,7 @@ else { window.POModule = (() => {
     doc.pendingAt = new Date().toISOString();
     await DB.savePO(doc);
     DB.logActivity?.({ type: 'po_anggaran_pending', detail: `Ajukan ke finance: ${doc.nomorEstimasi||''} oleh ${pengaju}`, rowId: id });
-    _updateBadge();
+    _updateBadge(); _updateTabBadges();
 
     // Push notification ke semua user role finance
     if (window.Push) {
@@ -1333,6 +1335,37 @@ else { window.POModule = (() => {
     } else {
       badge.style.display = 'none';
     }
+  }
+
+  function _setBadge(id, count) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (count > 0) { el.textContent = count > 9 ? '9+' : String(count); el.style.display = 'inline-block'; }
+    else { el.style.display = 'none'; }
+  }
+
+  async function _updateTabBadges() {
+    const role = Auth.currentUser()?.role;
+    const canApprovReq = role === 'superadmin' || role === 'admin' || role === 'purchaser';
+
+    // Belanja Pasar: pending REQUEST barang (hanya tampil ke yang bisa approve)
+    if (canApprovReq) {
+      try {
+        const logs = await DB.getInventory();
+        const pendingReqs = (logs || []).filter(l => l.jenis === 'REQUEST' && (l.reqStatus || 'pending') === 'pending').length;
+        _setBadge('po-tab-bp-badge', pendingReqs);
+      } catch { _setBadge('po-tab-bp-badge', 0); }
+    }
+
+    // Anggaran: supplier BP docs belum di-import + anggaran pendingFinance (untuk finance)
+    try {
+      const bpDocs = await DB.getBelanjaPasar();
+      const supplierPending = (bpDocs || []).filter(bp =>
+        (bp.items || []).some(it => (it.qtySupplier || 0) > 0 && !it.supplierImportedTo)
+      ).length;
+      const financePending = _isFinance() ? _data.filter(d => d.pendingFinance && !d.confirmedBy).length : 0;
+      _setBadge('po-tab-active-badge', supplierPending + financePending);
+    } catch { _setBadge('po-tab-active-badge', 0); }
   }
 
   /* ── Import dari Belanja Pasar ──────────────── */
@@ -1633,5 +1666,5 @@ else { window.POModule = (() => {
     _openSupplierImport, _supImpToggleAll, _supImpConfirm,
     _renderRequestCards, _approveRequestModal, _approveRequestDo,
     _rejectRequestModal, _rejectRequestDo, _toggleReqInfo,
-    _toggleSupplierInfo };
+    _toggleSupplierInfo, _updateTabBadges };
 })(); }
