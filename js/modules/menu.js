@@ -37,7 +37,7 @@ const MenuModule = (() => {
     _library = library; _plans = plans; _orders = orders;
     _groups = settings._menuGroups || [];
     try { if (!_groups.length) _groups = JSON.parse(localStorage.getItem('becca_menu_groups')||'[]'); } catch {}
-    _customers = customers.filter(c=>(c.status||'AKTIF')==='AKTIF').sort((a,b)=>(a.nama||'').localeCompare(b.nama||''));
+    _customers = _dedupeCustomers(customers.filter(c=>(c.status||'AKTIF')==='AKTIF'));
     // Seed library if empty
     // Seed v2: adds new items not yet in library (checks by name, skips existing)
     const SEED_VER = 'becca_menu_seed_v3';
@@ -1673,6 +1673,21 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     _renderGroups();
   }
 
+  function _dedupeCustomers(list) {
+    const seen = new Set();
+    return list
+      .filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; })
+      .sort((a,b) => (_custName(a)).localeCompare(_custName(b)));
+  }
+
+  function _custName(c) {
+    return c.namaShort || c.nama_singkat || c.namaPerusahaan || c.nama || '';
+  }
+
+  function _custDisplayName(c) {
+    return _esc(_custName(c));
+  }
+
   function _getLaukPendCode(cust) {
     // Prioritas: field eksplisit qty_lauk/qty_pendamping dari tabel customers
     const L = cust.qtyLauk ?? cust.qty_lauk;
@@ -1689,17 +1704,13 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     return l + 'L' + p + 'P';
   }
 
-  function _custDisplayName(c) {
-    const nama = c.namaPerusahaan || c.nama || '';
-    const short = c.namaShort || c.nama_singkat || '';
-    return short && short !== nama ? nama + ' <span style="color:var(--text-3);font-size:11px">(' + _esc(short) + ')</span>' : _esc(nama);
-  }
+
 
   async function _addCustToGroup(gid) {
     const g = _groups.find(x => x.id === gid);
     if (!g) return;
     const fresh = await DB.getCustomers().catch(()=>null);
-    if (fresh) _customers = fresh.filter(c=>(c.status||'AKTIF')==='AKTIF').sort((a,b)=>(a.nama||'').localeCompare(b.nama||''));
+    if (fresh) _customers = _dedupeCustomers(fresh.filter(c=>(c.status||'AKTIF')==='AKTIF'));
     const assignedCusts = new Set(_groups.flatMap(x => x.customers || []));
     const available = _customers.filter(c => !assignedCusts.has(c.id));
     if (!available.length) { Notify.info('Semua customer sudah tergabung dalam grup'); return; }
@@ -1831,7 +1842,7 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     _aiGenerateMenu, _aiResep,
     _renderGroups, _addGroup, _doAddGroup, _deleteGroup, _renameGroup,
     _editGroupKomp, _saveKomposisiGrup,
-    _getLaukPendCode, _addCustToGroup, _filterCustGroupList, _toggleAllCustGroup,
+    _dedupeCustomers, _getLaukPendCode, _addCustToGroup, _filterCustGroupList, _toggleAllCustGroup,
     _selectBySuggestion, _onCustGroupCheck, _doAddMultiCustToGroup, _removeCustFromGroup,
   };
 })();
