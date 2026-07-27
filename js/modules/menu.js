@@ -282,6 +282,8 @@ const MenuModule = (() => {
   let _genGroups = [];      // [[custId,...], ...] — tiap inner array = 1 tab
   let _genActiveGroup = 0;  // index tab aktif
   let _genPendingCusts = []; // pilihan sementara di dropdown sebelum diklik Tambah
+  let _copyDestWeek = '';   // minggu tujuan di modal Salin ke...
+  let _copySrcId = '';      // customer sumber di modal Salin ke...
 
   function _genAllCusts() { return _genGroups.flat(); }
   function _genGroupLabel(gi) {
@@ -294,6 +296,14 @@ const MenuModule = (() => {
     const day = dt.getDay();
     dt.setDate(dt.getDate() + (day===0?-6:1-day));
     return dt.toISOString().slice(0,10);
+  }
+
+  function _fmtWeekPeriod(ws) {
+    const MO = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+    const fmt = s => { const d=new Date(s+'T12:00:00'); return d.getDate()+' '+MO[d.getMonth()]; };
+    const we = new Date(new Date(ws+'T12:00:00').getTime()+6*86400000);
+    const weStr = we.getFullYear()+'-'+String(we.getMonth()+1).padStart(2,'0')+'-'+String(we.getDate()).padStart(2,'0');
+    return fmt(ws)+' — '+fmt(weStr)+' '+new Date(ws+'T12:00:00').getFullYear();
   }
 
   function _renderGenerator() {
@@ -784,27 +794,25 @@ const MenuModule = (() => {
     const srcData = activePlan?.data?.[srcId];
     if (!srcData) { Notify.warning('Menu '+srcName+' belum ada isi. Isi dulu sebelum menyalin.'); return; }
 
-    const others = _customers.filter(c=>c.id!==srcId);
-    if (!others.length) { Notify.info('Tidak ada customer lain.'); return; }
+    _copyDestWeek = _genWeekStart;
+    _copySrcId = srcId;
 
     const mid = 'copy-menu-'+Date.now();
-    Modal.open({ id:mid, title:'Salin Menu '+_esc(srcName)+' ke Customer Lain', size:'modal-md',
+    Modal.open({ id:mid, title:'Salin Menu — '+_esc(srcName), size:'modal-md',
       body:`
-        <p style="font-size:12px;color:var(--text-2);margin-bottom:var(--s3)">Menu <strong>${_esc(srcName)}</strong> minggu ini akan disalin ke customer yang dipilih di bawah.</p>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s2)">
-          <span style="font-size:11px;font-weight:600;color:var(--text-2)">${others.length} customer tersedia</span>
-          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._copyCheckAll('${mid}',true)">Pilih Semua</button>
-          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._copyCheckAll('${mid}',false)">Batal Semua</button>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:var(--s3);padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm)">
+          <button class="btn btn-ghost btn-sm" onclick="MenuModule._copyWeekNav(-1,'${mid}')" style="flex-shrink:0">‹</button>
+          <span id="copy-week-lbl" style="flex:1;text-align:center;font-size:12px;font-weight:600;color:var(--text)"></span>
+          <button class="btn btn-ghost btn-sm" onclick="MenuModule._copyWeekNav(1,'${mid}')" style="flex-shrink:0">›</button>
         </div>
-        <div id="copy-cust-list" style="display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto">
-          ${others.map(c=>`
-            <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;transition:.1s"
-              onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-              <input type="checkbox" class="copy-cust-cb" value="${c.id}" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
-              <span style="font-size:13px;font-weight:600;color:var(--text)">${_esc(c.namaShort||c.nama)}</span>
-              ${c.namaShort&&c.nama!==c.namaShort?`<span style="font-size:10px;color:var(--text-3)">${_esc(c.nama)}</span>`:''}
-            </label>`).join('')}
-        </div>`,
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s2)">
+          <span id="copy-cust-avail" style="font-size:11px;font-weight:600;color:var(--text-2)"></span>
+          <div style="display:flex;gap:4px">
+            <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._copyCheckAll('${mid}',true)">Pilih Semua</button>
+            <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._copyCheckAll('${mid}',false)">Batal Semua</button>
+          </div>
+        </div>
+        <div id="copy-cust-list" style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto"></div>`,
       footer:`<div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;width:100%">
         <span id="copy-count" style="font-size:11px;color:var(--text-3)">0 dipilih</span>
         <label id="copy-merge-wrap" style="display:none;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text-2);padding:4px 10px;border:1px solid var(--border);border-radius:var(--r-full);background:var(--surface2)">
@@ -815,68 +823,112 @@ const MenuModule = (() => {
         <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
         <button class="btn btn-primary" onclick="MenuModule._doCopyMenu('${srcId}','${mid}')">Salin</button>
       </div>`,
-      onOpen: () => {
-        const _updateCopyFooter = () => {
-          const n = document.querySelectorAll('.copy-cust-cb:checked').length;
-          const countEl = document.getElementById('copy-count');
-          const mergeWrap = document.getElementById('copy-merge-wrap');
-          if (countEl) countEl.textContent = n + ' dipilih';
-          if (mergeWrap) mergeWrap.style.display = n >= 2 ? 'flex' : 'none';
-        };
-        document.querySelectorAll('.copy-cust-cb').forEach(cb => {
-          cb.addEventListener('change', _updateCopyFooter);
-        });
-      },
+      onOpen: () => _renderCopyList(mid),
     });
+  }
+
+  function _renderCopyList(mid) {
+    const lbl = document.getElementById('copy-week-lbl');
+    if (lbl) lbl.textContent = _fmtWeekPeriod(_copyDestWeek);
+
+    const we = new Date(new Date(_copyDestWeek+'T12:00:00').getTime()+6*86400000);
+    const weStr = we.getFullYear()+'-'+String(we.getMonth()+1).padStart(2,'0')+'-'+String(we.getDate()).padStart(2,'0');
+    const orderNames = new Set(
+      _orders.filter(o=>o.tglOrder>=_copyDestWeek&&o.tglOrder<=weStr)
+             .map(o=>(o.namaPerusahaan||'').toLowerCase())
+    );
+    const eligible = _customers.filter(c =>
+      c.id !== _copySrcId &&
+      (orderNames.size===0 || orderNames.has((c.nama||'').toLowerCase()) || orderNames.has((c.namaShort||'').toLowerCase()))
+    );
+
+    const avail = document.getElementById('copy-cust-avail');
+    if (avail) avail.textContent = eligible.length ? eligible.length+' customer ada orderan' : 'Tidak ada customer dengan orderan';
+
+    const el = document.getElementById('copy-cust-list');
+    if (!el) return;
+    if (!eligible.length) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Tidak ada customer dengan orderan di periode ini</div>';
+      const countEl=document.getElementById('copy-count'); if(countEl) countEl.textContent='0 dipilih';
+      const mw=document.getElementById('copy-merge-wrap'); if(mw) mw.style.display='none';
+      return;
+    }
+    el.innerHTML = eligible.map(c=>`
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;transition:.1s"
+        onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <input type="checkbox" class="copy-cust-cb" value="${c.id}" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
+        <span style="font-size:13px;font-weight:600;color:var(--text)">${_esc(c.namaShort||c.nama)}</span>
+        ${c.namaShort&&c.nama!==c.namaShort?`<span style="font-size:10px;color:var(--text-3)">${_esc(c.nama)}</span>`:''}
+      </label>`).join('');
+    const _upd = () => {
+      const n=document.querySelectorAll('.copy-cust-cb:checked').length;
+      const ce=document.getElementById('copy-count'); if(ce) ce.textContent=n+' dipilih';
+      const mw=document.getElementById('copy-merge-wrap'); if(mw) mw.style.display=n>=2?'flex':'none';
+    };
+    document.querySelectorAll('.copy-cust-cb').forEach(cb=>cb.addEventListener('change',_upd));
+    const ce=document.getElementById('copy-count'); if(ce) ce.textContent='0 dipilih';
+    const mw=document.getElementById('copy-merge-wrap'); if(mw) mw.style.display='none';
+  }
+
+  function _copyWeekNav(dir, mid) {
+    const d=new Date(_copyDestWeek+'T12:00:00'); d.setDate(d.getDate()+dir*7);
+    _copyDestWeek=d.toISOString().slice(0,10);
+    _renderCopyList(mid);
   }
 
   function _copyCheckAll(mid, check) {
-    document.querySelectorAll('.copy-cust-cb').forEach(cb => { cb.checked = check; });
-    const n = check ? document.querySelectorAll('.copy-cust-cb').length : 0;
-    const el = document.getElementById('copy-count');
-    if (el) el.textContent = n + ' dipilih';
-    const mergeWrap = document.getElementById('copy-merge-wrap');
-    if (mergeWrap) mergeWrap.style.display = n >= 2 ? 'flex' : 'none';
+    document.querySelectorAll('.copy-cust-cb').forEach(cb=>{cb.checked=check;});
+    const n=check?document.querySelectorAll('.copy-cust-cb').length:0;
+    const el=document.getElementById('copy-count'); if(el) el.textContent=n+' dipilih';
+    const mw=document.getElementById('copy-merge-wrap'); if(mw) mw.style.display=n>=2?'flex':'none';
   }
 
   async function _doCopyMenu(srcId, modalId) {
-    const destIds = [...document.querySelectorAll('.copy-cust-cb:checked')].map(cb=>cb.value);
+    const destIds=[...document.querySelectorAll('.copy-cust-cb:checked')].map(cb=>cb.value);
     if (!destIds.length) { Notify.warning('Pilih minimal satu customer tujuan.'); return; }
 
-    const savedPlan = _plans.find(p=>p.weekStart===_genWeekStart);
-    const activePlan = (_pendingPlan?.weekStart===_genWeekStart) ? _pendingPlan : savedPlan;
-    const srcData = activePlan?.data?.[srcId];
+    const savedPlan=_plans.find(p=>p.weekStart===_genWeekStart);
+    const activePlan=(_pendingPlan?.weekStart===_genWeekStart)?_pendingPlan:savedPlan;
+    const srcData=activePlan?.data?.[srcId];
     if (!srcData) { Notify.warning('Data menu sumber tidak ditemukan.'); return; }
 
+    const names=destIds.map(id=>{const c=_customers.find(x=>x.id===id);return c?.namaShort||c?.nama||id;}).join(', ');
+    const gabung=document.getElementById('copy-merge')?.checked&&destIds.length>=2;
+
+    // Salin ke minggu berbeda — simpan langsung ke DB
+    if (_copyDestWeek !== _genWeekStart) {
+      let destPlan=_plans.find(p=>p.weekStart===_copyDestWeek);
+      destPlan=destPlan?{...destPlan,data:{...destPlan.data}}:{id:Utils.uid(),weekStart:_copyDestWeek,groups:[],customers:[],data:{}};
+      destIds.forEach(dId=>{destPlan.data[dId]=JSON.parse(JSON.stringify(srcData));});
+      const existing=destPlan.groups.flat();
+      const newIds=destIds.filter(id=>!existing.includes(id));
+      if (gabung&&newIds.length) destPlan.groups.push(newIds);
+      else newIds.forEach(dId=>destPlan.groups.push([dId]));
+      destPlan.customers=destPlan.groups.flat();
+      try {
+        await DB.saveMenuPlan(destPlan);
+        const idx=_plans.findIndex(p=>p.weekStart===_copyDestWeek);
+        if (idx>=0) _plans[idx]=destPlan; else _plans.push(destPlan);
+        Modal.close(modalId);
+        Notify.success('Menu disalin ke '+names+' ('+_fmtWeekPeriod(_copyDestWeek)+'). Tersimpan.');
+      } catch(e) { Notify.error('Gagal menyimpan: '+(e.message||'')); }
+      return;
+    }
+
+    // Salin ke minggu yang sama — gunakan _pendingPlan
     if (!_pendingPlan) {
-      _pendingPlan = activePlan
-        ? {...activePlan, data:{...activePlan.data}}
-        : {id:Utils.uid(), weekStart:_genWeekStart, groups:_genGroups, customers:_genAllCusts(), data:{}};
+      _pendingPlan=activePlan?{...activePlan,data:{...activePlan.data}}:{id:Utils.uid(),weekStart:_genWeekStart,groups:_genGroups,customers:_genAllCusts(),data:{}};
     }
-
-    const gabung = document.getElementById('copy-merge')?.checked && destIds.length >= 2;
-    const allExisting = _genAllCusts();
-    const newIds = destIds.filter(id => !allExisting.includes(id));
-
-    destIds.forEach(dId => {
-      _pendingPlan.data[dId] = JSON.parse(JSON.stringify(srcData));
-    });
-
-    if (gabung) {
-      // Semua customer tujuan yang baru digabung jadi 1 group
-      if (newIds.length) _genGroups.push(newIds);
-      // Customer tujuan yang sudah ada di group lain — biarkan di group masing-masing
-    } else {
-      // Tiap customer tujuan yang baru jadi solo group
-      newIds.forEach(dId => _genGroups.push([dId]));
-    }
-    _pendingPlan.groups = _genGroups;
-    _pendingPlan.customers = _genAllCusts();
-
+    const allExisting=_genAllCusts();
+    const newIds=destIds.filter(id=>!allExisting.includes(id));
+    destIds.forEach(dId=>{_pendingPlan.data[dId]=JSON.parse(JSON.stringify(srcData));});
+    if (gabung) { if (newIds.length) _genGroups.push(newIds); }
+    else { newIds.forEach(dId=>_genGroups.push([dId])); }
+    _pendingPlan.groups=_genGroups;
+    _pendingPlan.customers=_genAllCusts();
     Modal.close(modalId);
     _renderGenerator();
-    const names = destIds.map(id=>{ const c=_customers.find(x=>x.id===id); return c?.namaShort||c?.nama||id; }).join(', ');
-    const info = gabung && newIds.length >= 2 ? ' (digabung 1 tab)' : '';
+    const info=gabung&&newIds.length>=2?' (digabung 1 tab)':'';
     Notify.success('Menu disalin ke: '+names+info+'. Klik Simpan untuk menyimpan.');
   }
 
@@ -1449,7 +1501,7 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     _genAddCustomer, _genRemoveGroup, _doRemoveGroup, _genSetCell, _genSave, _genAutoSave,
     _genPrevWeek, _genNextWeek, _genThisWeek, _genSwitchTab,
     _genToggleDrop, _genToggleAllCust, _genUpdateDropLabel, _genCbChange,
-    _printMenuPDF, _openCopyModal, _copyCheckAll, _doCopyMenu,
+    _printMenuPDF, _openCopyModal, _copyCheckAll, _doCopyMenu, _copyWeekNav, _renderCopyList,
     _editKomposisi, _saveKomposisi,
     _kompDragStart, _kompDragOver, _kompDrop, _kompDragEnd, _kompAdd,
     _aiGenerateMenu, _aiResep,
