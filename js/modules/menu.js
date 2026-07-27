@@ -409,7 +409,7 @@ const MenuModule = (() => {
       <div style="padding:var(--s3) var(--s4);background:var(--thead-bg);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
         <span style="font-size:14px;font-weight:700;color:var(--thead-text)">${_esc(displayName)}</span>
         <div style="display:flex;gap:var(--s2);flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._editKomposisi('${custId}')">Komposisi: ${komposisi.join(', ')}</button>
+          <button class="btn btn-sm" style="font-size:10px;background:rgba(99,102,241,.12);color:#6366f1;border:1px solid rgba(99,102,241,.3)" onclick="MenuModule._editKomposisi('${custId}')">Komposisi</button>
           <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._openCopyModal('${custId}')">Salin ke...</button>
           <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="MenuModule._printMenuPDF('${custId}')">PDF</button>
           <button class="btn btn-primary btn-sm" style="font-size:10px" onclick="MenuModule._aiGenerateMenu('${custId}')">AI Generate</button>
