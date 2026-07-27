@@ -1541,10 +1541,13 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
   function _renderGroupCard(g, assignedCusts) {
     const custList = (g.customers || []).map(cid => {
       const c = _customers.find(x => x.id === cid);
-      return c ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:4px">
-        <span style="font-size:13px">${_esc(c.nama)}</span>
-        <button class="btn btn-ghost btn-sm" style="color:var(--danger);padding:2px 6px;font-size:11px;min-width:0" onclick="MenuModule._removeCustFromGroup('${g.id}','${cid}')">&times;</button>
-      </div>` : '';
+      if (!c) return '';
+      const code = _getLaukPendCode(c);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:4px">
+        <span style="font-size:13px;flex:1">${_esc(c.nama)}</span>
+        <span style="font-size:10px;font-weight:700;color:#6366f1;background:rgba(99,102,241,.1);padding:1px 7px;border-radius:var(--r-full);flex-shrink:0">${_esc(code)}</span>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger);padding:2px 6px;font-size:11px;min-width:0;flex-shrink:0" onclick="MenuModule._removeCustFromGroup('${g.id}','${cid}')">&times;</button>
+      </div>`;
     }).join('');
     const unassigned = _customers.filter(c => !assignedCusts.has(c.id));
     return `
@@ -1663,12 +1666,35 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     _renderGroups();
   }
 
+  function _getLaukPendCode(cust) {
+    const komp = cust.menuKomposisi || DEFAULT_KOMPOSISI;
+    let L = 0, P = 0;
+    komp.forEach(k => {
+      const base = k.replace(/\s+\d+$/, '');
+      if (base === 'Lauk' || base === 'Lauk Kering' || base === 'Lauk Kuah') L++;
+      else if (base === 'Pendamping') P++;
+    });
+    return L + 'L' + P + 'P';
+  }
+
   function _addCustToGroup(gid) {
     const g = _groups.find(x => x.id === gid);
     if (!g) return;
     const assignedCusts = new Set(_groups.flatMap(x => x.customers || []));
     const available = _customers.filter(c => !assignedCusts.has(c.id));
     if (!available.length) { Notify.info('Semua customer sudah tergabung dalam grup'); return; }
+
+    // Build suggestion groups by L+P code
+    const byCode = {};
+    available.forEach(c => {
+      const code = _getLaukPendCode(c);
+      if (!byCode[code]) byCode[code] = [];
+      byCode[code].push(c.id);
+    });
+    const suggestions = Object.entries(byCode)
+      .filter(([, ids]) => ids.length > 1)
+      .sort((a, b) => b[1].length - a[1].length);
+
     const mid = 'modal-add-cust-grp';
     Modal.open({
       id: mid,
@@ -1683,15 +1709,29 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
             Pilih semua
           </label>
         </div>
-        <div id="acg-list" style="max-height:320px;overflow-y:auto">
-          ${available.map(c=>`
-            <label class="acg-item" data-nama="${_esc(c.nama).toLowerCase()}"
-              style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);cursor:pointer">
+        ${suggestions.length ? `
+        <div style="margin-bottom:var(--s3)">
+          <p style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Saran pengelompokan</p>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${suggestions.map(([code, ids]) => `
+              <button onclick="MenuModule._selectBySuggestion('${code}')"
+                style="padding:4px 10px;border-radius:var(--r-full);border:1px solid rgba(99,102,241,.4);background:rgba(99,102,241,.08);color:#6366f1;font-size:12px;font-weight:600;cursor:pointer">
+                ${_esc(code)} <span style="opacity:.7;font-weight:400">(${ids.length})</span>
+              </button>`).join('')}
+          </div>
+        </div>` : ''}
+        <div id="acg-list" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-sm)">
+          ${available.map(c => {
+            const code = _getLaukPendCode(c);
+            return `<label class="acg-item" data-nama="${_esc(c.nama).toLowerCase()}" data-code="${_esc(code)}"
+              style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer">
               <input type="checkbox" value="${c.id}"
                 style="width:16px;height:16px;accent-color:var(--primary);flex-shrink:0"
                 onchange="MenuModule._onCustGroupCheck()">
-              <span style="font-size:14px">${_esc(c.nama)}</span>
-            </label>`).join('')}
+              <span style="font-size:13px;flex:1">${_esc(c.nama)}</span>
+              <span style="font-size:11px;font-weight:700;color:#6366f1;background:rgba(99,102,241,.1);padding:2px 8px;border-radius:var(--r-full);flex-shrink:0">${_esc(code)}</span>
+            </label>`;
+          }).join('')}
         </div>`,
       footer: `
         <span id="acg-count" style="font-size:12px;color:var(--text-3);align-self:center">0 dipilih</span>
@@ -1715,6 +1755,14 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
       if (el.style.display === 'none') return;
       const cb = el.querySelector('input[type=checkbox]');
       if (cb) cb.checked = checked;
+    });
+    _onCustGroupCheck();
+  }
+
+  function _selectBySuggestion(code) {
+    document.querySelectorAll('#acg-list .acg-item').forEach(el => {
+      const cb = el.querySelector('input[type=checkbox]');
+      if (cb) cb.checked = el.dataset.code === code;
     });
     _onCustGroupCheck();
   }
@@ -1762,8 +1810,8 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     _aiGenerateMenu, _aiResep,
     _renderGroups, _addGroup, _doAddGroup, _deleteGroup, _renameGroup,
     _editGroupKomp, _saveKomposisiGrup,
-    _addCustToGroup, _filterCustGroupList, _toggleAllCustGroup, _onCustGroupCheck,
-    _doAddMultiCustToGroup, _removeCustFromGroup,
+    _getLaukPendCode, _addCustToGroup, _filterCustGroupList, _toggleAllCustGroup,
+    _selectBySuggestion, _onCustGroupCheck, _doAddMultiCustToGroup, _removeCustFromGroup,
   };
 })();
 window.MenuModule = MenuModule;
