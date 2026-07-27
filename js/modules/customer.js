@@ -431,7 +431,7 @@ const CustomerModule = (() => {
               const bagianBg = isBagian ? 'var(--surface2,#f5f5fb)' : '';
               return `<tr style="border-bottom:1px solid var(--border);background:${bagianBg};${isBagian?'border-left:3px solid rgba(99,102,241,.4)':''}"
                 onmouseover="this.style.background='var(--surface-hover,#eef0fb)'"
-                onmouseout="this.style.background='${bagianBg}'">`
+                onmouseout="this.style.background='${bagianBg}'">
                 <td class="cst-s0" style="padding:8px 10px;text-align:center;font-size:${isBagian?'13px':'10px'};color:${isBagian?'rgba(99,102,241,.5)':'var(--text-3)'};white-space:nowrap">${isBagian?'↳':(i+1)}</td>
                 <td class="cst-s1" style="padding:4px 6px;text-align:center;white-space:nowrap">
                   <span onclick="CustomerModule.editCustomerId('${c.id}')" title="Klik untuk edit ID"
@@ -819,7 +819,7 @@ const CustomerModule = (() => {
             '<strong style="color:#10b981">Invoice Digabung</strong> — semua Bagian dalam 1 invoice perusahaan.'}
         </div>
         <p style="font-size:11px;color:var(--text-3);margin-top:4px">Tambah Bagian tersedia setelah customer disimpan pertama kali.</p>
-        `}
+        `}`}
 
         <div class="cf-section">Catatan</div>
         <div class="form-group">
