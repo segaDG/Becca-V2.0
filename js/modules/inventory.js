@@ -24,6 +24,7 @@ const InventoryModule = (() => {
   let _logsLoaded  = false; // false = first paint, show skeleton; true = data fetched (even if empty)
   let _laporanBulan = null; // selected month for laporan tab
   let _opnamePeriod = new Date().toISOString().slice(0,7); // period filter for opname
+  let _opnameSearch = ''; // live search query on opname table
   let _opnameDraft  = {}; // itemId → value (string, as typed) — live draft state
   let _opnameTgl    = new Date().toISOString().slice(0,10);  // tanggal opname
   let _opnameSaveTimer = null;
@@ -2627,6 +2628,24 @@ const InventoryModule = (() => {
         </div>
       </div>
 
+      <!-- Search bar -->
+      <div style="margin-bottom:var(--s3)">
+        <div style="position:relative;max-width:360px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"
+            style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-3);pointer-events:none">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input id="opname-search-inp" type="text" placeholder="Cari nama barang atau kategori…"
+            value="${Utils.esc(_opnameSearch)}"
+            oninput="InventoryModule._filterOpname(this.value)"
+            style="width:100%;padding:7px 32px 7px 32px;border:1px solid var(--border);border-radius:8px;
+              background:var(--surface2);color:var(--text);font-size:13px;box-sizing:border-box;outline:none">
+          ${_opnameSearch ? `<button onclick="InventoryModule._filterOpname('');document.getElementById('opname-search-inp').value=''"
+            style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;
+              cursor:pointer;color:var(--text-3);font-size:16px;line-height:1;padding:0">×</button>` : ''}
+        </div>
+      </div>
+
       <!-- Spreadsheet grid -->
       <div class="table-wrapper">
         <div class="table-scroll">
@@ -2735,6 +2754,25 @@ const InventoryModule = (() => {
           </div>
         </div>` : ''}
     `;
+    if (_opnameSearch) _applyOpnameFilter();
+  }
+
+  function _filterOpname(q) {
+    _opnameSearch = (q || '').trim();
+    const inp = document.getElementById('opname-search-inp');
+    const btn = inp?.parentElement?.querySelector('button');
+    if (btn) btn.style.display = _opnameSearch ? '' : 'none';
+    _applyOpnameFilter();
+  }
+
+  function _applyOpnameFilter() {
+    const q = _opnameSearch.toLowerCase();
+    document.querySelectorAll('[id^="op-row-"]').forEach(row => {
+      if (!q) { row.style.display = ''; return; }
+      const nama = (row.cells[1]?.textContent || '').toLowerCase();
+      const kat  = (row.cells[2]?.textContent || '').toLowerCase();
+      row.style.display = (nama.includes(q) || kat.includes(q)) ? '' : 'none';
+    });
   }
 
   async function deleteOpnameRow(id) {
@@ -4535,6 +4573,7 @@ const InventoryModule = (() => {
     _openHPPItemDetail,
     _bulkApproveOpname,
     renderOpnameTab,
+    _filterOpname,
     _onOpnameInput,
     _onOpnameKey,
     _adjOpnamePeriod,
