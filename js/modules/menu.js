@@ -839,7 +839,7 @@ const MenuModule = (() => {
     );
     const eligible = _customers.filter(c =>
       c.id !== _copySrcId &&
-      (orderNames.size===0 || orderNames.has((c.nama||'').toLowerCase()) || orderNames.has((c.namaShort||'').toLowerCase()))
+      (orderNames.has((c.nama||'').toLowerCase()) || orderNames.has((c.namaShort||'').toLowerCase()))
     );
 
     const avail = document.getElementById('copy-cust-avail');
