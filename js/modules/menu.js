@@ -1674,17 +1674,30 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
       id: mid,
       title: 'Tambah Customer ke '+_esc(g.nama),
       body: `
-        <input type="text" id="acg-search" class="form-control" placeholder="Cari nama customer..." style="margin-bottom:var(--s3)" oninput="MenuModule._filterCustGroupList(this.value)" autocomplete="off">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:var(--s3)">
+          <input type="text" id="acg-search" class="form-control" placeholder="Cari nama customer..."
+            style="flex:1" oninput="MenuModule._filterCustGroupList(this.value)" autocomplete="off">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;cursor:pointer;flex-shrink:0">
+            <input type="checkbox" id="acg-all" style="width:15px;height:15px;accent-color:var(--primary)"
+              onchange="MenuModule._toggleAllCustGroup(this.checked)">
+            Pilih semua
+          </label>
+        </div>
         <div id="acg-list" style="max-height:320px;overflow-y:auto">
           ${available.map(c=>`
-            <div class="acg-item" data-nama="${_esc(c.nama).toLowerCase()}"
-              style="display:flex;align-items:center;justify-content:space-between;padding:10px 4px;border-bottom:1px solid var(--border);cursor:pointer"
-              onclick="MenuModule._doCustToGroup('${gid}','${c.id}','${mid}')">
+            <label class="acg-item" data-nama="${_esc(c.nama).toLowerCase()}"
+              style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);cursor:pointer">
+              <input type="checkbox" value="${c.id}"
+                style="width:16px;height:16px;accent-color:var(--primary);flex-shrink:0"
+                onchange="MenuModule._onCustGroupCheck()">
               <span style="font-size:14px">${_esc(c.nama)}</span>
-              <button class="btn btn-primary btn-sm" style="pointer-events:none;font-size:11px">Tambah</button>
-            </div>`).join('')}
+            </label>`).join('')}
         </div>`,
-      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+      footer: `
+        <span id="acg-count" style="font-size:12px;color:var(--text-3);align-self:center">0 dipilih</span>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" id="acg-submit" disabled onclick="MenuModule._doAddMultiCustToGroup('${gid}','${mid}')">Tambah</button>`,
     });
     setTimeout(() => document.getElementById('acg-search')?.focus(), 100);
   }
@@ -1694,13 +1707,36 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     document.querySelectorAll('.acg-item').forEach(el => {
       el.style.display = (!q || el.dataset.nama.includes(q)) ? '' : 'none';
     });
+    _onCustGroupCheck();
   }
 
-  function _doCustToGroup(gid, custId, modalId) {
+  function _toggleAllCustGroup(checked) {
+    document.querySelectorAll('#acg-list .acg-item').forEach(el => {
+      if (el.style.display === 'none') return;
+      const cb = el.querySelector('input[type=checkbox]');
+      if (cb) cb.checked = checked;
+    });
+    _onCustGroupCheck();
+  }
+
+  function _onCustGroupCheck() {
+    const allItems = Array.from(document.querySelectorAll('#acg-list .acg-item')).filter(el => el.style.display !== 'none');
+    const checkedCount = allItems.filter(el => el.querySelector('input[type=checkbox]')?.checked).length;
+    const countEl = document.getElementById('acg-count');
+    const submitEl = document.getElementById('acg-submit');
+    const allCb = document.getElementById('acg-all');
+    if (countEl) countEl.textContent = checkedCount + ' dipilih';
+    if (submitEl) submitEl.disabled = checkedCount === 0;
+    if (allCb) allCb.checked = allItems.length > 0 && checkedCount === allItems.length;
+  }
+
+  function _doAddMultiCustToGroup(gid, modalId) {
     const g = _groups.find(x => x.id === gid);
     if (!g) return;
+    const ids = Array.from(document.querySelectorAll('#acg-list input[type=checkbox]:checked')).map(c => c.value);
+    if (!ids.length) return;
     if (!g.customers) g.customers = [];
-    if (!g.customers.includes(custId)) g.customers.push(custId);
+    ids.forEach(cid => { if (!g.customers.includes(cid)) g.customers.push(cid); });
     Modal.close(modalId);
     _saveGroups();
     _renderGroups();
@@ -1726,7 +1762,8 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     _aiGenerateMenu, _aiResep,
     _renderGroups, _addGroup, _doAddGroup, _deleteGroup, _renameGroup,
     _editGroupKomp, _saveKomposisiGrup,
-    _addCustToGroup, _filterCustGroupList, _doCustToGroup, _removeCustFromGroup,
+    _addCustToGroup, _filterCustGroupList, _toggleAllCustGroup, _onCustGroupCheck,
+    _doAddMultiCustToGroup, _removeCustFromGroup,
   };
 })();
 window.MenuModule = MenuModule;
