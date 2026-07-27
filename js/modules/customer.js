@@ -161,9 +161,10 @@ const CustomerModule = (() => {
       if (!c.customerId && _ID_MAP[c.nama]) c.customerId = _ID_MAP[c.nama];
     });
     // De-duplicate: DISPLAY only (tidak hapus dari DB)
+    // Bagian dengan namaShort berbeda TIDAK didedup meski nama perusahaan sama
     const _seen = {};
     _data = _data.filter(c => {
-      const key = c.nama.trim().toLowerCase();
+      const key = (c.nama.trim() + '||' + (c.namaShort||'') + '||' + (c.parentId||'')).toLowerCase();
       if (!_seen[key]) { _seen[key] = c; return true; }
       const existing = _seen[key];
       if (!existing.customerId && c.customerId) { _seen[key] = c; return true; }
@@ -254,6 +255,20 @@ const CustomerModule = (() => {
           ? (av-bv)*_sortDir
           : String(av).localeCompare(String(bv))*_sortDir;
       });
+    }
+
+    // Group bagian under parent — inject after each parent row
+    if (!_sortCol && !q) {
+      const parents = list.filter(c => !c.parentId);
+      const grouped = [];
+      parents.forEach(p => {
+        grouped.push(p);
+        list.filter(b => b.parentId === p.id).forEach(b => grouped.push(b));
+      });
+      // Orphaned bagian (parent not in list / different tab)
+      const inList = new Set(parents.map(p => p.id));
+      list.filter(b => b.parentId && !inList.has(b.parentId)).forEach(b => grouped.push(b));
+      list.length = 0; grouped.forEach(x => list.push(x));
     }
 
     const aktif = _data.filter(c=>(c.status||'AKTIF')==='AKTIF').length;
@@ -412,10 +427,12 @@ const CustomerModule = (() => {
                 : 'background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25)';
               // Sticky cell bg must be solid — use actual computed color per row
               // sticky handled by CSS .cst-s0/s1/s2
-              return `<tr style="border-bottom:1px solid var(--border);"
+              const isBagian = !!c.parentId;
+              const bagianBg = isBagian ? 'var(--surface2,#f5f5fb)' : '';
+              return `<tr style="border-bottom:1px solid var(--border);background:${bagianBg};${isBagian?'border-left:3px solid rgba(99,102,241,.4)':''}"
                 onmouseover="this.style.background='var(--surface-hover,#eef0fb)'"
-                onmouseout="this.style.background=''">
-                <td class="cst-s0" style="padding:8px 10px;text-align:center;font-size:10px;color:var(--text-3);white-space:nowrap">${i+1}</td>
+                onmouseout="this.style.background='${bagianBg}'">`
+                <td class="cst-s0" style="padding:8px 10px;text-align:center;font-size:${isBagian?'13px':'10px'};color:${isBagian?'rgba(99,102,241,.5)':'var(--text-3)'};white-space:nowrap">${isBagian?'↳':(i+1)}</td>
                 <td class="cst-s1" style="padding:4px 6px;text-align:center;white-space:nowrap">
                   <span onclick="CustomerModule.editCustomerId('${c.id}')" title="Klik untuk edit ID"
                     style="cursor:pointer;display:inline-flex;align-items:center;gap:3px;
@@ -434,8 +451,8 @@ const CustomerModule = (() => {
                     </svg>
                   </span>
                 </td>
-                <td class="cst-s2" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap">
-                  <span class="cst-full">${c.nama||'-'}</span>
+                <td class="cst-s2" style="padding:8px 12px;font-weight:700;font-size:12px;white-space:nowrap;${isBagian?'padding-left:24px;':''}">
+                  <span class="cst-full">${c.nama||'-'}${isBagian&&c.namaShort?` <span style="font-size:10px;font-weight:600;color:#6366f1;background:rgba(99,102,241,.1);padding:1px 6px;border-radius:4px;margin-left:4px">${c.namaShort}</span>`:''}</span>
                   <span class="cst-short">${c.namaShort||c.nama||'-'}</span>
                 </td>
                 <td style="padding:8px 10px;font-size:11px;color:var(--text-2);white-space:nowrap">${c.namaShort||'-'}</td>
@@ -636,8 +653,9 @@ const CustomerModule = (() => {
   }
 
   /* ── MODAL ── */
-  function openModal(id) {
-    const c = id ? (_data.find(x=>x.id===id) || _data.find(x=>String(x.id)===String(id))) : null;
+  function openModal(id, fromParentId) {
+    const parent = fromParentId ? (_data.find(x=>x.id===fromParentId)||null) : null;
+    const c = id ? (_data.find(x=>x.id===id) || _data.find(x=>String(x.id)===String(id))) : parent ? {...parent, id:null, parentId:fromParentId, namaShort:'', customerId:_nextBagianId(parent)} : null;
     const fv = (f) => c?.[f] ?? '';
     const nv = (f) => c?.[f] ?? 0;
 
@@ -757,6 +775,26 @@ const CustomerModule = (() => {
           <div class="form-group"><label class="form-label" style="color:#ef4444">Snack Berat</label><input class="form-control" id="cf-hargaSnackBerat" type="number" min="0" value="${nv('hargaSnackBerat')}" style="text-align:right;font-family:var(--font-mono)"></div>
         </div>
 
+        <input type="hidden" id="cf-parentId" value="${fv('parentId')}">
+
+        ${fv('parentId') ? `
+        <div class="cf-section">Info Bagian</div>
+        <div style="padding:10px 12px;background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.2);border-radius:var(--r-sm);font-size:13px">
+          Bagian dari: <strong>${_data.find(p=>p.id===fv('parentId'))?.nama||'(induk tidak ditemukan)'}</strong>
+        </div>` : (id ? `
+        <div class="cf-section">Bagian Perusahaan</div>
+        <div id="cf-bagian-list" style="margin-bottom:var(--s2)">
+          ${_data.filter(b=>b.parentId===id).map(b=>`
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:4px">
+              <span style="font-size:11px;font-weight:700;color:#6366f1;background:rgba(99,102,241,.1);padding:1px 8px;border-radius:var(--r-full)">${b.customerId||'–'}</span>
+              <span style="font-size:13px;flex:1">${b.namaShort||b.nama||'–'}</span>
+              <button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="Modal.close(window._beccaCustModalId);CustomerModule.openModal('${b.id}')">Edit</button>
+            </div>`).join('')}
+          ${_data.filter(b=>b.parentId===id).length===0?'<p style="font-size:12px;color:var(--text-3);margin:0">Belum ada bagian. Tambah bagian jika perusahaan ini memiliki beberapa plant/divisi.</p>':''}
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="Modal.close(window._beccaCustModalId);CustomerModule._openBagianModal('${id}')">+ Tambah Bagian</button>
+        ` : '')}
+
         <div class="cf-section">Catatan</div>
         <div class="form-group">
           <input class="form-control" id="cf-catatan" value="${fv('catatan')}" placeholder="Catatan tambahan...">
@@ -807,6 +845,7 @@ const CustomerModule = (() => {
     const obj = {
       id: id || Utils.uid(),
       nama, namaShort: g('cf-namaShort'),
+      parentId: document.getElementById('cf-parentId')?.value || null,
       pic: g('cf-pic'), noHp: g('cf-noHp'), kota: g('cf-kota'),
       status: g('cf-status'), alamat: g('cf-alamat'), email: g('cf-email'),
       lat: parseFloat(document.getElementById('cf-lat')?.value)||null,
@@ -844,6 +883,17 @@ const CustomerModule = (() => {
     Notify.success(id?'Customer diperbarui':'Customer berhasil ditambahkan');
     if (!id) Utils.formDraft?.clear('customer-add'); // hapus draft setelah sukses
     _render();
+  }
+
+  /* ── BAGIAN (PLANT/DIVISI) ── */
+  function _nextBagianId(parent) {
+    const suffix = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const existing = _data.filter(c => c.parentId === parent.id).length;
+    return (parent.customerId || '') + (suffix[existing] || (existing+1));
+  }
+
+  function _openBagianModal(parentId) {
+    openModal(null, parentId);
   }
 
   /* ── TRASH BIN SYSTEM ── */
@@ -1081,7 +1131,7 @@ const CustomerModule = (() => {
     Notify.success(`Koordinat berhasil diambil: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
   }
 
-  return { init, switchTab, setSearch, _setSearchDebounced, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, openTrash, _restoreFromTrash, _permanentDelete, _previewLoc, _useMyLocation, _parseMapLink };
+  return { init, switchTab, setSearch, _setSearchDebounced, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, openTrash, _restoreFromTrash, _permanentDelete, _previewLoc, _useMyLocation, _parseMapLink, _openBagianModal };
 })();
 
 window.CustomerModule = CustomerModule;
