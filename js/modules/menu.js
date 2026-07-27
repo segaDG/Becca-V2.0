@@ -680,9 +680,9 @@ const MenuModule = (() => {
     _genActiveGroup = gi;
     _renderGenerator();
   }
-  function _genPrevWeek() { clearTimeout(_autoSaveTimer); const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()-7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _renderGenerator(); }
-  function _genNextWeek() { clearTimeout(_autoSaveTimer); const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()+7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _renderGenerator(); }
-  function _genThisWeek() { clearTimeout(_autoSaveTimer); _genWeekStart=_getMonday(); _pendingPlan=null; _renderGenerator(); }
+  function _genPrevWeek() { clearTimeout(_autoSaveTimer); const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()-7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _genGroups=[]; _genActiveGroup=0; _renderGenerator(); }
+  function _genNextWeek() { clearTimeout(_autoSaveTimer); const d=new Date(_genWeekStart+'T12:00:00'); d.setDate(d.getDate()+7); _genWeekStart=d.toISOString().slice(0,10); _pendingPlan=null; _genGroups=[]; _genActiveGroup=0; _renderGenerator(); }
+  function _genThisWeek() { clearTimeout(_autoSaveTimer); _genWeekStart=_getMonday(); _pendingPlan=null; _genGroups=[]; _genActiveGroup=0; _renderGenerator(); }
 
   /* ═══ PDF PRINT ═══ */
   function _printMenuPDF(custId) {
