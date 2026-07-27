@@ -430,8 +430,8 @@ const CustomerModule = (() => {
               const isBagian = !!c.parentId;
               const bagianBg = isBagian ? 'var(--surface2,#f5f5fb)' : '';
               return `<tr style="border-bottom:1px solid var(--border);background:${bagianBg};${isBagian?'border-left:3px solid rgba(99,102,241,.4)':''}"
-                onmouseover="this.style.background='var(--surface-hover,#eef0fb)'"
-                onmouseout="this.style.background='${bagianBg}'">
+                onmouseenter="this.style.background='var(--surface-hover,#eef0fb)'"
+                onmouseleave="this.style.background='${bagianBg}'">
                 <td class="cst-s0" style="padding:8px 10px;text-align:center;font-size:${isBagian?'13px':'10px'};color:${isBagian?'rgba(99,102,241,.5)':'var(--text-3)'};white-space:nowrap">${isBagian?'↳':(i+1)}</td>
                 <td class="cst-s1" style="padding:4px 6px;text-align:center;white-space:nowrap">
                   <span onclick="CustomerModule.editCustomerId('${c.id}')" title="Klik untuk edit ID"
@@ -619,22 +619,19 @@ const CustomerModule = (() => {
         tbl = tbl.closest('table');
         if (!tbl) return;
         // Proses tiap ROW secara terpisah — TH dan TD bisa punya lebar berbeda
-        var rows = Array.from(tbl.querySelectorAll('tr'));
-        rows.forEach(function(row) {
-          var c0 = row.querySelector('.cst-s0');
+        // Ukur lebar dari header row saja (satu kali) — semua body row pakai nilai sama
+        var hdr = tbl.querySelector('thead tr');
+        if (!hdr) return;
+        var h0 = hdr.querySelector('.cst-s0');
+        var h1 = hdr.querySelector('.cst-s1');
+        if (!h0 || !h1) return;
+        var w0 = h0.getBoundingClientRect().width;
+        var w1 = h1.getBoundingClientRect().width;
+        tbl.querySelectorAll('tr').forEach(function(row) {
           var c1 = row.querySelector('.cst-s1');
           var c2 = row.querySelector('.cst-s2');
-          if (!c0 || !c1 || !c2) return;
-          // Set left:0 dulu agar width measurement akurat
-          c0.style.setProperty('left','0px','important');
-          c1.style.setProperty('left','0px','important');
-          c2.style.setProperty('left','0px','important');
-          // Ukur lebar exact setelah reset
-          var w0 = c0.getBoundingClientRect().width;
-          var w1 = c1.getBoundingClientRect().width;
-          // Set dengan float precision
-          c1.style.setProperty('left', w0+'px', 'important');
-          c2.style.setProperty('left', (w0+w1)+'px', 'important');
+          if (c1) c1.style.setProperty('left', w0+'px', 'important');
+          if (c2) c2.style.setProperty('left', (w0+w1)+'px', 'important');
         });
       });
     });
