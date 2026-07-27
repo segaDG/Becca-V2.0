@@ -7,7 +7,7 @@ if(window.BECCA_DEBUG) console.log('[BECCA] MenuModule v20260404a loaded');
 
 const MenuModule = (() => {
   'use strict';
-  let _library = [], _plans = [], _customers = [], _orders = [];
+  let _library = [], _plans = [], _customers = [], _orders = [], _groups = [];
   let _activeTab = 'generator';
 
   const DAYS = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
@@ -27,13 +27,16 @@ const MenuModule = (() => {
     const page = document.getElementById('page-menu');
     if (!page) return;
     page.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:40vh;color:var(--text-3)">Memuat menu...</div>';
-    const [library, plans, customers, orders] = await Promise.all([
+    const [library, plans, customers, orders, settings] = await Promise.all([
       DB.getMenuLibrary().catch(()=>[]),
       DB.getMenuPlans().catch(()=>[]),
       DB.getCustomers().catch(()=>[]),
       DB.getOrders().catch(()=>[]),
+      DB.getSettings().catch(()=>({})),
     ]);
     _library = library; _plans = plans; _orders = orders;
+    _groups = settings._menuGroups || [];
+    try { if (!_groups.length) _groups = JSON.parse(localStorage.getItem('becca_menu_groups')||'[]'); } catch {}
     _customers = customers.filter(c=>(c.status||'AKTIF')==='AKTIF').sort((a,b)=>(a.nama||'').localeCompare(b.nama||''));
     // Seed library if empty
     // Seed v2: adds new items not yet in library (checks by name, skips existing)
@@ -57,23 +60,33 @@ const MenuModule = (() => {
       <div class="tabs" style="margin-bottom:var(--s4)">
         <button class="tab-btn ${_activeTab==='generator'?'active':''}" onclick="MenuModule.switchTab('generator')">\ud83c\udf73 Menu Generator</button>
         <button class="tab-btn ${_activeTab==='library'?'active':''}" onclick="MenuModule.switchTab('library')">\ud83d\udcda Menu Library</button>
+        <button class="tab-btn ${_activeTab==='grup'?'active':''}" onclick="MenuModule.switchTab('grup')">\ud83d\udc65 Grup Menu</button>
       </div>
       <div id="menu-tab-generator" ${_activeTab!=='generator'?'class="hidden"':''}></div>
       <div id="menu-tab-library" ${_activeTab!=='library'?'class="hidden"':''}></div>
+      <div id="menu-tab-grup" ${_activeTab!=='grup'?'class="hidden"':''}></div>
     `;
     if (_activeTab==='generator') _renderGenerator();
-    else _renderLibrary();
+    else if (_activeTab==='library') _renderLibrary();
+    else _renderGroups();
   }
 
   function switchTab(tab) {
     _activeTab = tab;
-    document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.toggle('active', b.textContent.includes(tab==='generator'?'Generator':'Library')));
-    ['generator','library'].forEach(t => {
+    document.querySelectorAll('.tabs .tab-btn').forEach(b => {
+      const isActive =
+        (tab==='generator' && b.textContent.includes('Generator')) ||
+        (tab==='library' && b.textContent.includes('Library')) ||
+        (tab==='grup' && b.textContent.includes('Grup'));
+      b.classList.toggle('active', isActive);
+    });
+    ['generator','library','grup'].forEach(t => {
       const el = document.getElementById('menu-tab-'+t);
       if (el) el.classList.toggle('hidden', t!==tab);
     });
     if (tab==='generator') _renderGenerator();
-    else _renderLibrary();
+    else if (tab==='library') _renderLibrary();
+    else _renderGroups();
   }
 
   /* ═══════════════════════════════════════════
@@ -1495,6 +1508,212 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     _renderLibrary();
   }
 
+  /* ═══════════════════════════════════════════
+     GRUP MENU
+     ═══════════════════════════════════════════ */
+
+  async function _saveGroups() {
+    try {
+      localStorage.setItem('becca_menu_groups', JSON.stringify(_groups));
+      await DB.saveSettings({ _menuGroups: _groups });
+    } catch(e) { Notify.error('Gagal menyimpan grup: '+e.message); }
+  }
+
+  function _renderGroups() {
+    const el = document.getElementById('menu-tab-grup');
+    if (!el) return;
+    const assignedCusts = new Set(_groups.flatMap(g => g.customers || []));
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s4)">
+        <p style="color:var(--text-3);font-size:13px">Kelompokan customer dengan komposisi yang sama untuk mengurangi human error</p>
+        <button class="btn btn-primary btn-sm" onclick="MenuModule._addGroup()">+ Tambah Grup</button>
+      </div>
+      ${_groups.length === 0 ? `
+        <div style="text-align:center;padding:48px 24px;color:var(--text-3)">
+          <div style="font-size:36px;margin-bottom:12px">&#128101;</div>
+          <p style="font-weight:600;margin-bottom:4px">Belum ada grup menu</p>
+          <p style="font-size:12px">Buat grup untuk mengelompokkan customer dengan komposisi yang sama.</p>
+        </div>
+      ` : _groups.map(g => _renderGroupCard(g, assignedCusts)).join('')}
+    `;
+  }
+
+  function _renderGroupCard(g, assignedCusts) {
+    const custList = (g.customers || []).map(cid => {
+      const c = _customers.find(x => x.id === cid);
+      return c ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:4px">
+        <span style="font-size:13px">${_esc(c.nama)}</span>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger);padding:2px 6px;font-size:11px;min-width:0" onclick="MenuModule._removeCustFromGroup('${g.id}','${cid}')">&times;</button>
+      </div>` : '';
+    }).join('');
+    const unassigned = _customers.filter(c => !assignedCusts.has(c.id));
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:var(--s4);margin-bottom:var(--s3)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s3)">
+          <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+            <span style="font-size:16px">&#128101;</span>
+            <input type="text" value="${_esc(g.nama)}"
+              style="font-weight:600;font-size:15px;background:transparent;border:none;border-bottom:1px solid transparent;padding:2px 4px;color:var(--text);outline:none;width:100%;max-width:220px"
+              onfocus="this.style.borderBottomColor='var(--primary)'"
+              onblur="this.style.borderBottomColor='transparent';MenuModule._renameGroup('${g.id}',this.value)"
+              onkeydown="if(event.key==='Enter')this.blur()">
+          </div>
+          <button class="btn btn-ghost btn-sm" style="color:var(--danger);flex-shrink:0" onclick="MenuModule._deleteGroup('${g.id}')">Hapus Grup</button>
+        </div>
+        <div style="margin-bottom:var(--s3)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Komposisi</span>
+            <button class="btn btn-sm" style="font-size:10px;background:rgba(99,102,241,.12);color:#6366f1;border:1px solid rgba(99,102,241,.3)" onclick="MenuModule._editGroupKomp('${g.id}')">Komposisi</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">
+            ${(g.komposisi||DEFAULT_KOMPOSISI).map(k=>`<span style="padding:2px 10px;border-radius:var(--r-full);background:rgba(99,102,241,.1);color:#6366f1;font-size:11px;font-weight:600">${_esc(k)}</span>`).join('')}
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Customer (${(g.customers||[]).length})</span>
+            ${unassigned.length > 0
+              ? `<button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="MenuModule._addCustToGroup('${g.id}')">+ Tambah</button>`
+              : `<span style="font-size:11px;color:var(--text-3)">Semua customer sudah di grup</span>`}
+          </div>
+          ${custList || '<p style="font-size:12px;color:var(--text-3);text-align:center;padding:8px 0">Belum ada customer di grup ini</p>'}
+        </div>
+      </div>
+    `;
+  }
+
+  function _addGroup() {
+    const mid = 'modal-add-group';
+    Modal.open({
+      id: mid,
+      title: 'Tambah Grup Menu',
+      body: `
+        <div class="form-group">
+          <label class="form-label">Nama Grup</label>
+          <input id="ag-nama" type="text" class="form-control" placeholder="Contoh: Grup A, Grup Direksi..." autocomplete="off">
+        </div>`,
+      footer: `
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="MenuModule._doAddGroup('${mid}')">Tambah</button>`,
+    });
+    setTimeout(() => document.getElementById('ag-nama')?.focus(), 100);
+  }
+
+  function _doAddGroup(modalId) {
+    const nama = (document.getElementById('ag-nama')?.value||'').trim();
+    if (!nama) { Notify.warning('Nama grup wajib diisi'); return; }
+    _groups.push({ id: 'grp_'+Utils.uid(), nama, komposisi: [...DEFAULT_KOMPOSISI], customers: [] });
+    Modal.close(modalId);
+    _saveGroups();
+    _renderGroups();
+  }
+
+  function _deleteGroup(gid) {
+    const g = _groups.find(x => x.id === gid);
+    if (!g) return;
+    if (!confirm('Hapus grup "'+g.nama+'"?')) return;
+    _groups = _groups.filter(x => x.id !== gid);
+    _saveGroups();
+    _renderGroups();
+  }
+
+  function _renameGroup(gid, nama) {
+    nama = (nama||'').trim();
+    if (!nama) return;
+    const g = _groups.find(x => x.id === gid);
+    if (!g || g.nama === nama) return;
+    g.nama = nama;
+    _saveGroups();
+  }
+
+  function _editGroupKomp(gid) {
+    const g = _groups.find(x => x.id === gid);
+    if (!g) return;
+    const komp = g.komposisi || [...DEFAULT_KOMPOSISI];
+    const mid = 'modal-group-komp';
+    Modal.open({
+      id: mid,
+      title: 'Komposisi — '+_esc(g.nama),
+      body: `
+        <p style="font-size:12px;color:var(--text-3);margin-bottom:var(--s3)">Centang komponen yang termasuk dalam komposisi grup ini:</p>
+        <div id="gkomp-list">
+          ${KOMP_OPTIONS.map(k=>`
+            <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer">
+              <input type="checkbox" value="${_esc(k)}" ${komp.includes(k)?'checked':''} style="width:16px;height:16px;accent-color:var(--primary)">
+              <span style="font-size:14px">${_esc(k)}</span>
+            </label>`).join('')}
+        </div>`,
+      footer: `
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-primary" onclick="MenuModule._saveKomposisiGrup('${gid}','${mid}')">Simpan</button>`,
+    });
+  }
+
+  function _saveKomposisiGrup(gid, modalId) {
+    const g = _groups.find(x => x.id === gid);
+    if (!g) return;
+    const checks = document.querySelectorAll('#gkomp-list input[type=checkbox]:checked');
+    const komp = Array.from(checks).map(c => c.value);
+    if (!komp.length) { Notify.warning('Pilih minimal 1 komponen'); return; }
+    g.komposisi = komp;
+    Modal.close(modalId);
+    _saveGroups();
+    _renderGroups();
+  }
+
+  function _addCustToGroup(gid) {
+    const g = _groups.find(x => x.id === gid);
+    if (!g) return;
+    const assignedCusts = new Set(_groups.flatMap(x => x.customers || []));
+    const available = _customers.filter(c => !assignedCusts.has(c.id));
+    if (!available.length) { Notify.info('Semua customer sudah tergabung dalam grup'); return; }
+    const mid = 'modal-add-cust-grp';
+    Modal.open({
+      id: mid,
+      title: 'Tambah Customer ke '+_esc(g.nama),
+      body: `
+        <input type="text" id="acg-search" class="form-control" placeholder="Cari nama customer..." style="margin-bottom:var(--s3)" oninput="MenuModule._filterCustGroupList(this.value)" autocomplete="off">
+        <div id="acg-list" style="max-height:320px;overflow-y:auto">
+          ${available.map(c=>`
+            <div class="acg-item" data-nama="${_esc(c.nama).toLowerCase()}"
+              style="display:flex;align-items:center;justify-content:space-between;padding:10px 4px;border-bottom:1px solid var(--border);cursor:pointer"
+              onclick="MenuModule._doCustToGroup('${gid}','${c.id}','${mid}')">
+              <span style="font-size:14px">${_esc(c.nama)}</span>
+              <button class="btn btn-primary btn-sm" style="pointer-events:none;font-size:11px">Tambah</button>
+            </div>`).join('')}
+        </div>`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Tutup</button>`,
+    });
+    setTimeout(() => document.getElementById('acg-search')?.focus(), 100);
+  }
+
+  function _filterCustGroupList(q) {
+    q = (q||'').toLowerCase();
+    document.querySelectorAll('.acg-item').forEach(el => {
+      el.style.display = (!q || el.dataset.nama.includes(q)) ? '' : 'none';
+    });
+  }
+
+  function _doCustToGroup(gid, custId, modalId) {
+    const g = _groups.find(x => x.id === gid);
+    if (!g) return;
+    if (!g.customers) g.customers = [];
+    if (!g.customers.includes(custId)) g.customers.push(custId);
+    Modal.close(modalId);
+    _saveGroups();
+    _renderGroups();
+  }
+
+  function _removeCustFromGroup(gid, custId) {
+    const g = _groups.find(x => x.id === gid);
+    if (!g) return;
+    g.customers = (g.customers||[]).filter(c => c !== custId);
+    _saveGroups();
+    _renderGroups();
+  }
+
   return {
     init, switchTab,
     _libFilter, openMenuDetail, openMenuForm, _saveMenu, deleteMenu,
@@ -1505,6 +1724,9 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
     _editKomposisi, _saveKomposisi,
     _kompDragStart, _kompDragOver, _kompDrop, _kompDragEnd, _kompAdd,
     _aiGenerateMenu, _aiResep,
+    _renderGroups, _addGroup, _doAddGroup, _deleteGroup, _renameGroup,
+    _editGroupKomp, _saveKomposisiGrup,
+    _addCustToGroup, _filterCustGroupList, _doCustToGroup, _removeCustFromGroup,
   };
 })();
 window.MenuModule = MenuModule;
