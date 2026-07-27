@@ -1551,7 +1551,7 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
       if (!c) return '';
       const code = _getLaukPendCode(c);
       return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:4px">
-        <span style="font-size:13px;flex:1">${_esc(c.nama)}</span>
+        <span style="font-size:13px;flex:1">${_custDisplayName(c)}</span>
         <span style="font-size:10px;font-weight:700;color:#6366f1;background:rgba(99,102,241,.1);padding:1px 7px;border-radius:var(--r-full);flex-shrink:0">${_esc(code)}</span>
         <button class="btn btn-ghost btn-sm" style="color:var(--danger);padding:2px 6px;font-size:11px;min-width:0;flex-shrink:0" onclick="MenuModule._removeCustFromGroup('${g.id}','${cid}')">&times;</button>
       </div>`;
@@ -1674,14 +1674,25 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
   }
 
   function _getLaukPendCode(cust) {
+    // Prioritas: field eksplisit qty_lauk/qty_pendamping dari tabel customers
+    const L = cust.qtyLauk ?? cust.qty_lauk;
+    const P = cust.qtyPendamping ?? cust.qty_pendamping;
+    if (L !== undefined && L !== null) return (L||0)+'L'+(P||0)+'P';
+    // Fallback: hitung dari menuKomposisi
     const komp = cust.menuKomposisi || DEFAULT_KOMPOSISI;
-    let L = 0, P = 0;
+    let l = 0, p = 0;
     komp.forEach(k => {
       const base = k.replace(/\s+\d+$/, '');
-      if (base === 'Lauk' || base === 'Lauk Kering' || base === 'Lauk Kuah') L++;
-      else if (base === 'Pendamping') P++;
+      if (base === 'Lauk' || base === 'Lauk Kering' || base === 'Lauk Kuah') l++;
+      else if (base === 'Pendamping') p++;
     });
-    return L + 'L' + P + 'P';
+    return l + 'L' + p + 'P';
+  }
+
+  function _custDisplayName(c) {
+    const nama = c.namaPerusahaan || c.nama || '';
+    const short = c.namaShort || c.nama_singkat || '';
+    return short && short !== nama ? nama + ' <span style="color:var(--text-3);font-size:11px">(' + _esc(short) + ')</span>' : _esc(nama);
   }
 
   async function _addCustToGroup(gid) {
@@ -1732,12 +1743,13 @@ ESTIMASI HPP: Rp ... per porsi (harus di bawah Rp 6.000)`;
         <div id="acg-list" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-sm)">
           ${available.map(c => {
             const code = _getLaukPendCode(c);
-            return `<label class="acg-item" data-nama="${_esc(c.nama).toLowerCase()}" data-code="${_esc(code)}"
+            const searchNama = (c.namaPerusahaan||c.nama||'').toLowerCase()+' '+(c.namaShort||c.nama_singkat||'').toLowerCase();
+            return `<label class="acg-item" data-nama="${_esc(searchNama)}" data-code="${_esc(code)}"
               style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer">
               <input type="checkbox" value="${c.id}"
                 style="width:16px;height:16px;accent-color:var(--primary);flex-shrink:0"
                 onchange="MenuModule._onCustGroupCheck()">
-              <span style="font-size:13px;flex:1">${_esc(c.nama)}</span>
+              <span style="font-size:13px;flex:1">${_custDisplayName(c)}</span>
               <span style="font-size:11px;font-weight:700;color:#6366f1;background:rgba(99,102,241,.1);padding:2px 8px;border-radius:var(--r-full);flex-shrink:0">${_esc(code)}</span>
             </label>`;
           }).join('')}
