@@ -653,9 +653,15 @@ const CustomerModule = (() => {
   }
 
   /* ── MODAL ── */
-  function openModal(id, fromParentId) {
+  function openModal(id, fromParentId, invoiceMode) {
+    // New customer (bukan edit, bukan Bagian) — tanya dulu soal struktur
+    if (!id && !fromParentId && invoiceMode === undefined) {
+      _openPreQuestion();
+      return;
+    }
     const parent = fromParentId ? (_data.find(x=>x.id===fromParentId)||null) : null;
     const c = id ? (_data.find(x=>x.id===id) || _data.find(x=>String(x.id)===String(id))) : parent ? {...parent, id:null, parentId:fromParentId, namaShort:'', customerId:_nextBagianId(parent)} : null;
+    const _invoiceMode = invoiceMode || c?.invoiceBagian || 'single';
     const fv = (f) => c?.[f] ?? '';
     const nv = (f) => c?.[f] ?? 0;
 
@@ -776,13 +782,28 @@ const CustomerModule = (() => {
         </div>
 
         <input type="hidden" id="cf-parentId" value="${fv('parentId')}">
+        <input type="hidden" id="cf-invoiceBagian" value="${_invoiceMode}">
 
         ${fv('parentId') ? `
         <div class="cf-section">Info Bagian</div>
-        <div style="padding:10px 12px;background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.2);border-radius:var(--r-sm);font-size:13px">
+        <div style="padding:10px 14px;background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.2);border-radius:var(--r-sm);font-size:13px">
           Bagian dari: <strong>${_data.find(p=>p.id===fv('parentId'))?.nama||'(induk tidak ditemukan)'}</strong>
-        </div>` : (id ? `
+          ${(() => { const p = _data.find(x=>x.id===fv('parentId')); const m = p?.invoiceBagian||'single'; return m!=='single'?`<span style="margin-left:10px;font-size:11px;padding:2px 8px;border-radius:var(--r-full);font-weight:600;${m==='gabung'?'background:rgba(16,185,129,.12);color:#10b981':'background:rgba(245,158,11,.12);color:#f59e0b'}">${m==='gabung'?'Invoice Digabung':'Invoice Terpisah'}</span>`:''; })()}
+        </div>` : `
         <div class="cf-section">Bagian Perusahaan</div>
+        ${id ? `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s3)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;color:var(--text-2)">Mode Invoice:</span>
+            <select id="cf-invoiceBagian-sel" class="form-control" style="width:auto;font-size:12px;padding:3px 8px;height:28px"
+              onchange="document.getElementById('cf-invoiceBagian').value=this.value">
+              <option value="single"   ${_invoiceMode==='single'  ?'selected':''}>Tidak ada Bagian</option>
+              <option value="terpisah" ${_invoiceMode==='terpisah'?'selected':''}>Invoice Terpisah per Bagian</option>
+              <option value="gabung"   ${_invoiceMode==='gabung'  ?'selected':''}>Invoice Digabung</option>
+            </select>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="Modal.close(window._beccaCustModalId);CustomerModule._openBagianModal('${id}')">+ Tambah Bagian</button>
+        </div>
         <div id="cf-bagian-list" style="margin-bottom:var(--s2)">
           ${_data.filter(b=>b.parentId===id).map(b=>`
             <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:4px">
@@ -790,10 +811,15 @@ const CustomerModule = (() => {
               <span style="font-size:13px;flex:1">${b.namaShort||b.nama||'–'}</span>
               <button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="Modal.close(window._beccaCustModalId);CustomerModule.openModal('${b.id}')">Edit</button>
             </div>`).join('')}
-          ${_data.filter(b=>b.parentId===id).length===0?'<p style="font-size:12px;color:var(--text-3);margin:0">Belum ada bagian. Tambah bagian jika perusahaan ini memiliki beberapa plant/divisi.</p>':''}
+          ${_data.filter(b=>b.parentId===id).length===0?'<p style="font-size:12px;color:var(--text-3);margin:0;padding:4px 0">Belum ada bagian.</p>':''}
+        </div>` : `
+        <div style="padding:12px 14px;background:var(--surface2);border-radius:var(--r-sm);font-size:13px">
+          ${_invoiceMode==='single' ? 'Perusahaan tanpa Bagian/Plant — invoice langsung ke induk.' :
+            _invoiceMode==='terpisah' ? '<strong style="color:#f59e0b">Invoice Terpisah</strong> — setiap Bagian mendapat invoice sendiri.' :
+            '<strong style="color:#10b981">Invoice Digabung</strong> — semua Bagian dalam 1 invoice perusahaan.'}
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="Modal.close(window._beccaCustModalId);CustomerModule._openBagianModal('${id}')">+ Tambah Bagian</button>
-        ` : '')}
+        <p style="font-size:11px;color:var(--text-3);margin-top:4px">Tambah Bagian tersedia setelah customer disimpan pertama kali.</p>
+        `}
 
         <div class="cf-section">Catatan</div>
         <div class="form-group">
@@ -846,6 +872,7 @@ const CustomerModule = (() => {
       id: id || Utils.uid(),
       nama, namaShort: g('cf-namaShort'),
       parentId: document.getElementById('cf-parentId')?.value || null,
+      invoiceBagian: document.getElementById('cf-invoiceBagian')?.value || null,
       pic: g('cf-pic'), noHp: g('cf-noHp'), kota: g('cf-kota'),
       status: g('cf-status'), alamat: g('cf-alamat'), email: g('cf-email'),
       lat: parseFloat(document.getElementById('cf-lat')?.value)||null,
@@ -892,8 +919,61 @@ const CustomerModule = (() => {
     return (parent.customerId || '') + (suffix[existing] || (existing+1));
   }
 
+  function _openPreQuestion(context) {
+    const mid = 'modal-pre-cust-'+Date.now();
+    const _card = (icon, title, desc, color, mode) =>
+      `<div onclick="Modal.close('${mid}');CustomerModule._continueFromPreQ('${mode}','${context||''}',null)"
+        style="cursor:pointer;display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1.5px solid var(--border);border-radius:var(--r);margin-bottom:var(--s2);transition:border-color .15s,background .15s"
+        onmouseover="this.style.borderColor='${color}';this.style.background='${color}14'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.background=''">
+        <div style="width:38px;height:38px;border-radius:var(--r-sm);background:${color}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px">${icon}</div>
+        <div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:3px">${title}</div>
+          <div style="font-size:12px;color:var(--text-3)">${desc}</div>
+        </div>
+      </div>`;
+    Modal.open({
+      id: mid,
+      title: context ? 'Tambah Bagian — Pilih Mode Invoice' : 'Tambah Customer Baru',
+      body: `
+        <p style="font-size:13px;color:var(--text-2);margin-bottom:var(--s4)">
+          ${context ? 'Customer ini belum punya pengaturan invoice Bagian. Pilih terlebih dahulu:' : 'Apakah perusahaan ini memiliki beberapa <strong>Bagian / Plant</strong> yang berbeda?'}
+        </p>
+        ${_card('🏢', 'Tidak — 1 Perusahaan Biasa', 'Invoice langsung ke perusahaan, tidak ada Bagian/Plant terpisah.', '#6366f1', 'single')}
+        ${_card('📄', 'Ya — Invoice Terpisah per Bagian', 'Setiap Bagian/Plant mendapat invoice sendiri dengan nominal masing-masing.', '#f59e0b', 'terpisah')}
+        ${_card('📋', 'Ya — Invoice Digabung', 'Semua Bagian/Plant dirangkum dalam 1 invoice atas nama perusahaan induk.', '#10b981', 'gabung')}`,
+      footer: `<button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>`,
+    });
+  }
+
+  function _continueFromPreQ(invoiceMode, parentId, _unused) {
+    if (parentId) {
+      if (invoiceMode === 'single') {
+        // User chose "no Bagian" from existing customer — nothing to do
+        return;
+      }
+      // Existing customer adding first Bagian — save invoiceBagian to parent first
+      const parent = _data.find(x => x.id === parentId);
+      if (parent && !parent.invoiceBagian) {
+        parent.invoiceBagian = invoiceMode;
+        DB.saveCustomer({...parent}).catch(()=>{});
+        localStorage.setItem('becca_customers', JSON.stringify(_data));
+      }
+      openModal(null, parentId);
+    } else {
+      openModal(null, null, invoiceMode);
+    }
+  }
+
   function _openBagianModal(parentId) {
-    openModal(null, parentId);
+    const parent = _data.find(x => x.id === parentId);
+    const hasBagian = _data.some(c => c.parentId === parentId);
+    // If parent has no invoiceBagian yet and no existing bagian, ask first
+    if (parent && !parent.invoiceBagian && !hasBagian) {
+      _openPreQuestion(parentId);
+    } else {
+      openModal(null, parentId);
+    }
   }
 
   /* ── TRASH BIN SYSTEM ── */
@@ -1131,7 +1211,7 @@ const CustomerModule = (() => {
     Notify.success(`Koordinat berhasil diambil: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
   }
 
-  return { init, switchTab, setSearch, _setSearchDebounced, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, openTrash, _restoreFromTrash, _permanentDelete, _previewLoc, _useMyLocation, _parseMapLink, _openBagianModal };
+  return { init, switchTab, setSearch, _setSearchDebounced, sortBy, openModal, _submit, _fillAllShifts, _bulkUpdateTax, _bulkRecalcPrices, _fixSticky, editCustomerId, _saveCustomerId, deleteCustomer, openTrash, _restoreFromTrash, _permanentDelete, _previewLoc, _useMyLocation, _parseMapLink, _openBagianModal, _openPreQuestion, _continueFromPreQ };
 })();
 
 window.CustomerModule = CustomerModule;
