@@ -70,6 +70,12 @@ const OrderModule = (() => {
   function _getCustomers() {
     try { return JSON.parse(localStorage.getItem('becca_customers')||'[]'); } catch(e) { return []; }
   }
+  // Customers yang bisa diorder: exclude induk yang punya bagian
+  function _getOrderableCustomers() {
+    const all = _getCustomers();
+    const parentIds = new Set(all.filter(c => c.parentId).map(c => c.parentId));
+    return all.filter(c => !parentIds.has(c.id));
+  }
   function _custNames() {
     return [...new Set(_data.map(o=>o.namaPerusahaan).filter(Boolean))].sort();
   }
@@ -322,10 +328,10 @@ const OrderModule = (() => {
       cell.ondblclick = () => startEdit(ordId, key, cell);
     };
     if (key === 'namaPerusahaan') {
-      const custs = _getCustomers();
+      const custs = _getOrderableCustomers();
       if (custs.length) {
         cell.innerHTML = `<select style="width:100%;border:2px solid #6366f1;border-radius:3px;background:var(--surface);color:var(--text);font-size:11px;outline:none">
-          ${custs.map(c=>`<option value="${c.nama}" ${c.nama===cur?'selected':''}>${c.nama}</option>`).join('')}
+          ${custs.map(c=>`<option value="${c.nama}" ${c.nama===cur?'selected':''}>${c.customerId ? c.customerId+' — ' : ''}${c.namaShort ? c.namaShort+' / ' : ''}${c.nama}</option>`).join('')}
         </select>`;
         const sel = cell.querySelector('select');
         sel.focus();
@@ -641,18 +647,27 @@ const OrderModule = (() => {
     if (hid) hid.value = '';
     _ofCheck(mid);
     const q = inp.value.toLowerCase();
-    const custs = _getCustomers();
-    const filtered = q ? custs.filter(c => c.nama.toLowerCase().includes(q) || (c.namaShort||'').toLowerCase().includes(q)) : custs;
+    const custs = _getOrderableCustomers();
+    const filtered = q ? custs.filter(c =>
+      c.nama.toLowerCase().includes(q) ||
+      (c.namaShort||'').toLowerCase().includes(q) ||
+      (c.customerId||'').toLowerCase().includes(q)
+    ) : custs;
     dd.innerHTML = filtered.length
       ? filtered.map(c => {
           const safe = c.nama.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-          const short = c.namaShort || '';
+          const isBagian = !!c.parentId;
+          const badge = isBagian && c.customerId
+            ? `<span style="font-size:11px;font-weight:700;color:#6366f1;background:rgba(99,102,241,.1);padding:1px 7px;border-radius:var(--r-full);font-family:monospace;flex-shrink:0">${c.customerId}</span>`
+            : '';
+          const label = isBagian && c.namaShort
+            ? `<span style="font-size:12px;color:var(--text);font-weight:600">${c.namaShort}</span><span style="font-size:11px;color:var(--text-3);margin-left:4px">${c.nama}</span>`
+            : `<span style="font-size:12px;color:var(--text)">${c.namaShort ? `<strong>${c.namaShort}</strong> — ` : ''}${c.nama}</span>`;
           return `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px"
             onmousedown="OrderModule._ofCustSelect('${mid}','${safe}')"
             onmouseover="this.style.background='var(--surface2)'"
             onmouseout="this.style.background=''">
-            ${short ? `<span style="font-size:12px;font-weight:700;color:var(--primary);min-width:50px">${short}</span>` : ''}
-            <span style="font-size:12px;color:var(--text)">${c.nama}</span>
+            ${badge}${label}
           </div>`;
         }).join('')
       : `<div style="padding:9px 12px;color:var(--text-3);font-size:14px">Tidak ada hasil</div>`;
@@ -668,9 +683,9 @@ const OrderModule = (() => {
     const inp = document.getElementById('of-cust-inp-' + mid);
     const hid = document.getElementById('of-cust');
     if (dd) dd.style.display = 'none';
-    // If typed text doesn't match any customer exactly, clear value
+    // If typed text doesn't match any orderable customer exactly, clear value
     if (inp && hid) {
-      const custs = _getCustomers();
+      const custs = _getOrderableCustomers();
       if (!custs.some(c => c.nama === inp.value)) {
         inp.value = '';
         hid.value = '';
