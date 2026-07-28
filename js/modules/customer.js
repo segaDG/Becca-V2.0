@@ -161,10 +161,11 @@ const CustomerModule = (() => {
       if (!c.customerId && _ID_MAP[c.nama]) c.customerId = _ID_MAP[c.nama];
     });
     // De-duplicate: DISPLAY only (tidak hapus dari DB)
-    // Bagian dengan namaShort berbeda TIDAK didedup meski nama perusahaan sama
+    // Bagian (parentId terisi) tidak pernah didedup — setiap bagian adalah entitas unik
     const _seen = {};
     _data = _data.filter(c => {
-      const key = (c.nama.trim() + '||' + (c.namaShort||'') + '||' + (c.parentId||'')).toLowerCase();
+      if (c.parentId) return true; // bagian selalu ditampilkan
+      const key = (c.nama.trim() + '||' + (c.namaShort||'')).toLowerCase();
       if (!_seen[key]) { _seen[key] = c; return true; }
       const existing = _seen[key];
       if (!existing.customerId && c.customerId) { _seen[key] = c; return true; }
@@ -979,7 +980,7 @@ const CustomerModule = (() => {
     });
   }
 
-  function _submitBagian(parentId, modalId) {
+  async function _submitBagian(parentId, modalId) {
     const namaShort = document.getElementById('bf-namaShort')?.value?.trim() || '';
     if (!namaShort) { Notify.warning('Nama singkat bagian wajib diisi'); return; }
     const parent = _data.find(x => x.id === parentId);
@@ -1011,15 +1012,19 @@ const CustomerModule = (() => {
       hargaSnackBerat: parent.hargaSnackBerat||0,
       pb1: parent.pb1||false, pph23: parent.pph23||false,
     };
+    // Simpan ke memory + localStorage dulu (optimistic) lalu await DB
     _data.push(obj);
-    DB.saveCustomer(obj).catch(e => console.warn('saveCustomer bagian:', e));
     localStorage.setItem('becca_customers', JSON.stringify(_data));
     Modal.close(modalId);
+    const saved = await DB.saveCustomer(obj);
+    if (saved?._syncPending) {
+      Notify.warning('Koneksi bermasalah — bagian ' + obj.customerId + ' disimpan lokal, akan sync otomatis');
+    }
     if (isFirst) {
-      Notify.success('Bagian ' + obj.customerId + ' tersimpan. Silakan pilih mode invoice.');
+      if (!saved?._syncPending) Notify.success('Bagian ' + obj.customerId + ' tersimpan. Pilih mode invoice.');
       _openInvoiceModeAfterSave(parentId);
     } else {
-      Notify.success('Bagian ' + obj.customerId + ' berhasil ditambahkan');
+      if (!saved?._syncPending) Notify.success('Bagian ' + obj.customerId + ' berhasil ditambahkan');
       _render();
       openModal(parentId);
     }
