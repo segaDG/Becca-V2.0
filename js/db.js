@@ -471,6 +471,25 @@ const DB = (() => {
       .select();
 
     if (error) {
+      // Bagian phantom-UUID conflict: same customerId—namaShort already in Supabase
+      // under a different UUID (from a previous failed/double save). Adopt that row's id.
+      if (table === 'customers' && obj.parentId && error.code === '23505' && minimal.nama) {
+        try {
+          const { data: ext } = await sb.from(table).select('id').eq('nama', minimal.nama).maybeSingle();
+          if (ext?.id) {
+            const fixedMinimal = { ...minimal, id: ext.id };
+            const { data: rows2, error: e2 } = await sb.from(table).upsert(fixedMinimal, { onConflict: 'id' }).select();
+            if (!e2) {
+              obj.id = ext.id;
+              console.warn('[DB] bagian phantom resolved, adopted id:', ext.id);
+              const result = _fromRow(rows2?.[0] || fixedMinimal);
+              const merged2 = { ...obj, ...result };
+              delete merged2._syncPending;
+              return merged2;
+            }
+          }
+        } catch {}
+      }
       console.error('[DB] save ' + table + ' FAILED:', error.message);
       if (typeof Notify !== 'undefined') Notify.error('Gagal simpan ke server: ' + (error.message||'').slice(0,80));
       obj._syncPending = true;

@@ -160,11 +160,31 @@ const CustomerModule = (() => {
       if (canon) c.nama = canon;
       if (!c.customerId && _ID_MAP[c.nama]) c.customerId = _ID_MAP[c.nama];
     });
+    // De-duplicate bagian by (parentId, namaShort) — remove phantom UUIDs from
+    // previous failed saves. Keep the Supabase version (no _ls_saved_at) over
+    // the pending localStorage version.
+    {
+      const _bagianSeen = new Map();
+      const _phantomIds = new Set();
+      _data.forEach(c => {
+        if (!c.parentId) return;
+        const key = c.parentId + '||' + (c.namaShort||'').trim().toLowerCase();
+        const prev = _bagianSeen.get(key);
+        if (!prev) { _bagianSeen.set(key, c); return; }
+        // Prefer the one from Supabase (no _ls_saved_at) over the LS-pending one
+        if (prev._ls_saved_at && !c._ls_saved_at) {
+          _phantomIds.add(prev.id); _bagianSeen.set(key, c);
+        } else {
+          _phantomIds.add(c.id);
+        }
+      });
+      if (_phantomIds.size) _data = _data.filter(c => !_phantomIds.has(c.id));
+    }
+
     // De-duplicate: DISPLAY only (tidak hapus dari DB)
-    // Bagian (parentId terisi) tidak pernah didedup — setiap bagian adalah entitas unik
     const _seen = {};
     _data = _data.filter(c => {
-      if (c.parentId) return true; // bagian selalu ditampilkan
+      if (c.parentId) return true; // bagian sudah didedup di atas
       const key = (c.nama.trim() + '||' + (c.namaShort||'')).toLowerCase();
       if (!_seen[key]) { _seen[key] = c; return true; }
       const existing = _seen[key];
@@ -984,6 +1004,12 @@ const CustomerModule = (() => {
     if (!namaShort) { Notify.warning('Nama singkat bagian wajib diisi'); return; }
     const parent = _data.find(x => x.id === parentId);
     if (!parent) return;
+    // Cegah duplikat namaShort untuk parent yang sama
+    const dupBagian = _data.find(c =>
+      c.parentId === parentId &&
+      (c.namaShort||'').trim().toLowerCase() === namaShort.toLowerCase()
+    );
+    if (dupBagian) { Notify.warning(`Bagian "${namaShort}" sudah ada`); return; }
     const isFirst = !_data.some(c => c.parentId === parentId);
     const obj = {
       id: Utils.uid(),
