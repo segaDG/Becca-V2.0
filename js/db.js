@@ -182,7 +182,13 @@ const DB = (() => {
   const REQUIRED_COLS = {
     tasks:          (obj) => ({ title:       obj.judul       || obj.title       || '' }),
     ap:             (obj) => ({ supplier_id: obj.supplier_id || obj.supplier    || obj.vendor || '' }),
-    customers:      (obj) => ({ nama:        obj.nama        || obj.namaPerusahaan || '' }),
+    customers:      (obj) => ({
+      // Bagian punya nama sama dengan induk → pakai customerId+namaShort agar unik di kolom Supabase.
+      // Kolom ini hanya untuk constraint; display tetap dari JSONB data.nama via _fromRow.
+      nama: obj.parentId
+        ? ((obj.customerId || '') + (obj.namaShort ? ' — ' + obj.namaShort : '') || obj.nama || '')
+        : (obj.nama || obj.namaPerusahaan || ''),
+    }),
     suppliers:      (obj) => ({ nama:        obj.nama        || obj.namaPerusahaan || '' }),
     employees:      (obj) => ({ nama:        obj.nama        || '' }),
     inv_activities: (obj) => ({ nama:        obj.itemNama    || obj.nama          || '' }),
