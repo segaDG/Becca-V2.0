@@ -653,9 +653,8 @@ const CustomerModule = (() => {
   /* ── BAGIAN HELPERS ── */
   function _renderBagianBadge(parentId, invoiceMode) {
     const hasBagian = _data.some(b => b.parentId === parentId);
-    if (!invoiceMode || invoiceMode === 'single') {
-      return hasBagian ? '' : '<span style="font-size:12px;color:var(--text-3)">Belum ada Bagian</span>';
-    }
+    if (!hasBagian) return '<span style="font-size:12px;color:var(--text-3)">Belum ada Bagian</span>';
+    if (!invoiceMode || invoiceMode === 'single') return '';
     const color = invoiceMode === 'gabung' ? '#10b981' : '#f59e0b';
     const bg    = invoiceMode === 'gabung' ? 'rgba(16,185,129,.12)' : 'rgba(245,158,11,.12)';
     const label = invoiceMode === 'gabung' ? 'Invoice Digabung' : 'Invoice Terpisah';
