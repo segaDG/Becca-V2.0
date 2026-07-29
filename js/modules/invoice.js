@@ -1703,7 +1703,24 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     if (sampai) list = list.filter(o => o.tglOrder <= sampai);
     list.sort((a,b) => a.tglOrder.localeCompare(b.tglOrder));
 
-    if (!list.length) {
+    // Cari order dengan customerId yang sama tapi namaPerusahaan berbeda
+    const _custs = _getCustomers();
+    const _selC  = _custs.find(x => x.nama === cust);
+    const _selId = _selC?.customerId;
+    let extraList = [];
+    if (_selId) {
+      const _otherNames = new Set(
+        _custs.filter(x => String(x.customerId||'') === String(_selId) && x.nama !== cust).map(x => x.nama)
+      );
+      if (_otherNames.size) {
+        extraList = orders.filter(o => !o.invoiced && _otherNames.has(o.namaPerusahaan));
+        if (dari)   extraList = extraList.filter(o => o.tglOrder >= dari);
+        if (sampai) extraList = extraList.filter(o => o.tglOrder <= sampai);
+        extraList.sort((a,b) => a.tglOrder.localeCompare(b.tglOrder));
+      }
+    }
+
+    if (!list.length && !extraList.length) {
       area.innerHTML = '<div style="color:#f59e0b;text-align:center;padding:20px">⚠ Tidak ada order yang belum di-invoice untuk filter ini</div>';
       return;
     }
@@ -1746,6 +1763,37 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
           </tbody>
         </table>
       </div>`;
+
+    // Section konfirmasi order nama lain (ganti nama customer)
+    if (extraList.length) {
+      const _extraEl = document.createElement('div');
+      _extraEl.id = 'ic-extra-section';
+      _extraEl.style.cssText = 'margin-top:12px;padding:12px 14px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.3);border-radius:8px';
+      _extraEl.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+        + '<div style="font-size:12px;font-weight:700;color:#d97706">&#9888; ' + extraList.length + ' order dengan nama lain (ID: ' + _selId + ') — centang untuk dimasukkan ke invoice ini</div>'
+        + '<label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;font-weight:600;white-space:nowrap;margin-left:12px">'
+        + '<input type="checkbox" id="ic-extra-all" onchange="InvoiceModule._toggleExtraAll(this.checked)" style="width:14px;height:14px;accent-color:#6366f1;cursor:pointer">'
+        + ' Centang Semua</label></div>'
+        + '<div style="overflow-x:auto;border-radius:6px;border:1px solid rgba(245,158,11,.25)">'
+        + '<table style="width:100%;border-collapse:collapse;font-size:10px">'
+        + '<thead><tr style="background:rgba(245,158,11,.12)">'
+        + '<th style="padding:6px 8px;width:32px;text-align:center"></th>'
+        + '<th style="padding:6px 8px;text-align:left;font-weight:700">Nama</th>'
+        + '<th style="padding:6px 8px;text-align:left;font-weight:700">Tgl Order</th>'
+        + visibleCols.map(c=>'<th style="padding:6px 5px;font-weight:700;text-align:center">'+c.label+'</th>').join('')
+        + '</tr></thead><tbody>'
+        + extraList.map(function(o,i){
+            return '<tr style="background:'+(i%2===0?'var(--surface)':'var(--surface2)')+';border-bottom:1px solid var(--border)">'
+              + '<td style="padding:5px 8px;text-align:center"><input type="checkbox" class="ic-extra-chk" data-id="'+o.id+'" style="width:14px;height:14px;accent-color:#6366f1;cursor:pointer"></td>'
+              + '<td style="padding:5px 8px;font-size:11px;color:var(--text-3);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+o.namaPerusahaan+'">'+o.namaPerusahaan+'</td>'
+              + '<td style="padding:5px 8px;font-weight:600;white-space:nowrap">'+_fmtDate(o.tglOrder)+'</td>'
+              + visibleCols.map(c=>'<td style="padding:5px;text-align:center">'+((o[c.key]||0)>0?'<b>'+o[c.key]+'</b>':'<span style="color:var(--border2)">-</span>')+'</td>').join('')
+              + '</tr>';
+          }).join('')
+        + '</tbody></table></div>';
+      area.appendChild(_extraEl);
+    }
   }
 
   function _toggleAdditional(checked) {
@@ -1831,6 +1879,13 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     let list = allOrders.filter(o => o.namaPerusahaan===cust && !o.invoiced);
     if (dari)   list = list.filter(o => o.tglOrder >= dari);
     if (sampai) list = list.filter(o => o.tglOrder <= sampai);
+    // Merge order ekstra yang di-centang (nama berbeda, customer ID sama)
+    const _extraChk = [...document.querySelectorAll('.ic-extra-chk:checked')].map(el => el.dataset.id);
+    if (_extraChk.length) {
+      const _extraIds = new Set(_extraChk);
+      const _extraOrd = allOrders.filter(o => _extraIds.has(o.id) && !o.invoiced);
+      list = [...list, ..._extraOrd];
+    }
     list.sort((a,b) => a.tglOrder.localeCompare(b.tglOrder));
 
     if (!list.length) { Notify.warning('Tidak ada order untuk di-invoice'); return; }
@@ -1914,6 +1969,13 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     let list = allOrders.filter(o => o.namaPerusahaan===cust && !o.invoiced);
     if (dari)   list = list.filter(o => o.tglOrder >= dari);
     if (sampai) list = list.filter(o => o.tglOrder <= sampai);
+    // Merge order ekstra yang di-centang
+    const _extraChk2 = [...document.querySelectorAll('.ic-extra-chk:checked')].map(el => el.dataset.id);
+    if (_extraChk2.length) {
+      const _extraIds2 = new Set(_extraChk2);
+      const _extraOrd2 = allOrders.filter(o => _extraIds2.has(o.id) && !o.invoiced);
+      list = [...list, ..._extraOrd2];
+    }
     list.sort((a,b) => a.tglOrder.localeCompare(b.tglOrder));
 
     if (!list.length) { Notify.warning('Tidak ada order untuk di-invoice'); return; }
@@ -2062,7 +2124,11 @@ Telp: 0267-8407252 | admin@pangansentosa.com`
     if (el) el.innerHTML = _renderTabContent();
   }
 
-  return { init, switchTab, setSearch, _setSearchDebounced, setFilter, reArrangeAR, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _sendWA, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _showConfirmPreview, _createInvoice, _toggleAdditional, _addAdditionalRow, _calcAddRowTotal };
+  function _toggleExtraAll(checked) {
+    document.querySelectorAll('.ic-extra-chk').forEach(el => { el.checked = checked; });
+  }
+
+  return { init, switchTab, setSearch, _setSearchDebounced, setFilter, reArrangeAR, openInvDetail, reviseInv, savePayment, _printFromDetail, _markChanged, _sendEmail, _sendWA, _doSendEmail, deleteInv, openCreateModal, _previewCreate, _showConfirmPreview, _createInvoice, _toggleAdditional, _addAdditionalRow, _calcAddRowTotal, _toggleExtraAll };
 })();
 
 window.InvoiceModule = InvoiceModule;
