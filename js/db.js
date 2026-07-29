@@ -471,9 +471,10 @@ const DB = (() => {
       .select();
 
     if (error) {
-      // Bagian phantom-UUID conflict: same customerId—namaShort already in Supabase
-      // under a different UUID (from a previous failed/double save). Adopt that row's id.
-      if (table === 'customers' && obj.parentId && error.code === '23505' && minimal.nama) {
+      // customers_nama_key conflict: a row with this nama already exists under a
+      // different UUID (phantom, rename collision, or duplicate). Adopt that row's id
+      // so the upsert becomes an UPDATE instead of a failing INSERT.
+      if (table === 'customers' && error.code === '23505' && minimal.nama) {
         try {
           const { data: ext } = await sb.from(table).select('id').eq('nama', minimal.nama).maybeSingle();
           if (ext?.id) {
@@ -481,7 +482,7 @@ const DB = (() => {
             const { data: rows2, error: e2 } = await sb.from(table).upsert(fixedMinimal, { onConflict: 'id' }).select();
             if (!e2) {
               obj.id = ext.id;
-              console.warn('[DB] bagian phantom resolved, adopted id:', ext.id);
+              console.warn('[DB] customers 409 resolved, adopted id:', ext.id);
               const result = _fromRow(rows2?.[0] || fixedMinimal);
               const merged2 = { ...obj, ...result };
               delete merged2._syncPending;
