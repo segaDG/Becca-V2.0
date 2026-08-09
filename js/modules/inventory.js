@@ -370,8 +370,6 @@ const InventoryModule = (() => {
           item._weightedAvgPrice = masukLogs[masukLogs.length - 1]?.harga || 0;
         }
 
-        // Update hargaSatuan = weighted average price
-        item.hargaSatuan = item._weightedAvgPrice;
       }
     });
     // Rebuild lookup map so openItemModal can find items by String(id) regardless of type

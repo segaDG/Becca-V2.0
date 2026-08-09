@@ -14,7 +14,7 @@ else { window.SettingsModule = (() => {
   let _pendingImportFile  = null;
 
   // ROLES - default + custom yang ditambah user
-  const _DEFAULT_ROLES = ['superadmin','admin','operator','viewer'];
+  const _DEFAULT_ROLES = ['superadmin','admin','finance','operator','viewer'];
   function _getRoles() {
     let extra = [];
     try {
