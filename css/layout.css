@@ -687,7 +687,6 @@
 
 /* iOS safe area insets for bottom-anchored elements */
 #chat-fab,
-#notes-fab,
-#toast-container {
+#notes-fab {
   margin-bottom: env(safe-area-inset-bottom, 0px);
 }
