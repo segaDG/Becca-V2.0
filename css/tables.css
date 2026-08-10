@@ -10,7 +10,7 @@
   /* overflow:clip — preserves border-radius clipping tapi TIDAK membuat
      scroll container, sehingga child overflow-x:auto tetap bisa swipe di iOS */
   overflow: clip;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-card);
 }
 /* Fallback untuk browser lama yang tidak support clip */
 @supports not (overflow: clip) {
@@ -66,7 +66,8 @@
    tabel saat hover/edit. Membantu performa kas/inventory/ap yang
    punya 25-100 baris dengan banyak cell. */
 .table tbody tr { transition: background var(--t-fast); contain: layout style; }
-.table tbody tr:hover { background: var(--primary-bg); }
+.table tbody tr:nth-child(even) { background: rgba(99,102,241,0.03); }
+.table tbody tr:hover { background: rgba(99,102,241,0.1); }
 
 /* Number columns (right-aligned) */
 .table td.num, .table th.num { text-align: right; font-family: var(--font-mono); }

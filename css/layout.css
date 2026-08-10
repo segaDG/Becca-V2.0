@@ -125,6 +125,7 @@
   width: 3px;
   background: var(--primary);
   border-radius: 0 3px 3px 0;
+  box-shadow: 0 0 8px rgba(99,102,241,0.6);
 }
 
 .nav-item .nav-icon {
@@ -203,6 +204,7 @@
   height: var(--header-h);
   background: var(--header-bg);
   border-bottom: 1px solid var(--header-border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   display: flex;
   align-items: center;
   justify-content: space-between;

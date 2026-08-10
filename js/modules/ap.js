@@ -62,6 +62,7 @@ const APModule = (() => {
   let _apEditId   = null;
   let _apLocked   = new Set();
   const _AP_LOCK_KEY = 'becca_ap_locked_ids';
+  let _vapChecked = new Set();
 
   function switchTab(tab) {
     _activeTab = tab;
@@ -185,7 +186,7 @@ const APModule = (() => {
       <!-- TABLE -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
-          <table style="width:100%;border-collapse:collapse;min-width:900px" id="ap-main-table" data-grid-select
+          <table style="width:100%;border-collapse:collapse;min-width:960px" id="ap-main-table" data-grid-select
             <thead>
               <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
                 <th style="padding:10px 12px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:36px">#</th>
@@ -198,10 +199,11 @@ const APModule = (() => {
                 <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:100px">Total</th>
                 <th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:100px">Tgl Bayar</th>
                 <th style="padding:10px 12px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:72px">Status</th>
+                <th style="padding:10px 12px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);width:96px">Kode VAP</th>
                 ${canEdit?'<th style="padding:10px 12px;width:56px"></th>':''}
               </tr>
             </thead>
-            <tbody id="ap-tbody">${Utils.skeletonRows ? Utils.skeletonRows(11, 6) : '<tr><td colspan="11" style="text-align:center;padding:48px;color:var(--text-3)">Memuat data...</td></tr>'}</tbody>
+            <tbody id="ap-tbody">${Utils.skeletonRows ? Utils.skeletonRows(12, 6) : '<tr><td colspan="12" style="text-align:center;padding:48px;color:var(--text-3)">Memuat data...</td></tr>'}</tbody>
           </table>
         </div>
         <!-- Footer total -->
@@ -284,7 +286,7 @@ const APModule = (() => {
     if (!tbody) return;
 
     if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="12">' + UI.empty({iconKey:'money', title:'Tidak ada tagihan yang cocok', desc:'Coba reset filter (tombol ↺) atau ganti rentang tanggal. Tambah AP baru via tombol "+ Tambah AP" di pojok kanan atas.'}) + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="13">' + UI.empty({iconKey:'money', title:'Tidak ada tagihan yang cocok', desc:'Coba reset filter (tombol ↺) atau ganti rentang tanggal. Tambah AP baru via tombol "+ Tambah AP" di pojok kanan atas.'}) + '</td></tr>';
       _updateSummaryCards(data);
       return;
     }
@@ -329,6 +331,7 @@ const APModule = (() => {
         +(canEdit
           ? '<td style="'+tdC+'"><select data-ap-st="'+r.id+'" style="border:none;background:'+badgeC+'15;color:'+badgeC+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;cursor:pointer;outline:none" onchange="APModule._apQuickSave(\''+r.id+'\',\'status\',this.value,this)"><option value="BELUM"'+(st==='BELUM'?' selected':'')+'>BELUM</option><option value="LUNAS"'+(st==='LUNAS'?' selected':'')+'>LUNAS</option></select></td>'
           : '<td style="'+tdC+'">'+badge+'</td>')
+        +'<td style="'+tdC+'">'+(r.kodeAP?'<span style="font-size:9px;font-weight:700;color:#10b981;background:rgba(16,185,129,.1);padding:2px 6px;border-radius:6px;white-space:nowrap">'+r.kodeAP+'</span>':'-')+'</td>'
         +acts
         +'</tr>';
     }).join('');
@@ -1073,28 +1076,40 @@ const APModule = (() => {
   function renderVAP() {
     const el = document.getElementById('ap-tab-payment');
     if (!el) return;
-    const BL = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
-    const allMonths = [...new Set(_ap.map(r=>r.tgl?.substring(0,7)).filter(Boolean))].sort().reverse();
-    const monthOpts = ['<option value="">Semua (Belum Lunas)</option>',
-      ...allMonths.map(m=>{ const[y,mo]=m.split('-'); return '<option value="'+m+'">'+BL[parseInt(mo)]+' '+y+'</option>'; })
-    ].join('');
+    _vapChecked.clear();
+
+    // Default period: bulan ini
+    const now = new Date();
+    const defDari  = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+    const defSampai= new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().slice(0,10);
 
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap">
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);flex-wrap:wrap">
           <span style="font-size:10px;font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em">Periode</span>
-          <select id="vap-fil-bulan" class="form-control" style="width:160px;height:32px;font-size:13px;font-weight:500" onchange="APModule.applyVAPFilter()">
-            ${monthOpts}
-          </select>
+          <input type="date" id="vap-dari"   value="${defDari}"   class="form-control" style="width:140px;height:32px;font-size:13px" onchange="APModule.applyVAPFilter()">
+          <span style="color:var(--text-3);font-size:12px">–</span>
+          <input type="date" id="vap-sampai" value="${defSampai}" class="form-control" style="width:140px;height:32px;font-size:13px" onchange="APModule.applyVAPFilter()">
+          <button onclick="APModule._vapQuickPeriod('thisMonth')" class="btn btn-sm btn-ghost" style="height:32px">Bulan Ini</button>
+          <button onclick="APModule._vapQuickPeriod('lastMonth')" class="btn btn-sm btn-ghost" style="height:32px">Bulan Lalu</button>
           <select id="vap-fil-status" class="form-control" style="width:140px;height:32px;font-size:13px;font-weight:500" onchange="APModule.applyVAPFilter()">
             <option value="unpaid">Belum Lunas</option>
             <option value="all">Semua Transaksi</option>
           </select>
         </div>
-        <button onclick="APModule.printVAP()" style="margin-left:auto;height:42px;padding:0 20px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;font-size:12px;font-weight:700;color:var(--text-2);display:flex;align-items:center;gap:8px;transition:all .15s" onmouseover="this.style.background='var(--primary-h)';this.style.color='white';this.style.borderColor='var(--primary-h)'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--text-2)';this.style.borderColor='var(--border)'">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-          Cetak / Print
-        </button>
+        <div style="display:flex;align-items:center;gap:var(--s2);margin-left:auto">
+          <label class="no-print" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);cursor:pointer;user-select:none">
+            <input type="checkbox" id="vap-check-all" onchange="APModule._vapSelectAll(this.checked)" style="width:14px;height:14px;cursor:pointer">
+            Pilih Semua
+          </label>
+          <button id="vap-pay-btn" class="btn btn-success btn-sm no-print" style="display:none" onclick="APModule._vapOpenPayModal()">
+            Bayar Terpilih (<span id="vap-pay-count">0</span>)
+          </button>
+          <button onclick="APModule.printVAP()" style="height:36px;padding:0 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;font-size:12px;font-weight:700;color:var(--text-2);display:flex;align-items:center;gap:8px;transition:all .15s" onmouseover="this.style.background='var(--primary-h)';this.style.color='white';this.style.borderColor='var(--primary-h)'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--text-2)';this.style.borderColor='var(--border)'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Cetak / Print
+          </button>
+        </div>
       </div>
       <div id="vap-content"></div>
     `;
@@ -1102,18 +1117,24 @@ const APModule = (() => {
   }
 
   function applyVAPFilter() {
-    const bulan  = document.getElementById('vap-fil-bulan')?.value  || '';
+    const dari   = document.getElementById('vap-dari')?.value    || '';
+    const sampai = document.getElementById('vap-sampai')?.value  || '';
     const status = document.getElementById('vap-fil-status')?.value || 'unpaid';
     const el     = document.getElementById('vap-content');
     if (!el) return;
 
+    _vapChecked.clear();
+    const checkAllEl = document.getElementById('vap-check-all');
+    if (checkAllEl) checkAllEl.checked = false;
+    _vapUpdatePayBtn();
+
     const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-    const BL     = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'Mei',6:'Jun',7:'Jul',8:'Ags',9:'Sep',10:'Okt',11:'Nov',12:'Des'};
     const today  = new Date();
     const todayFmt = today.getDate()+' '+MONTHS[today.getMonth()]+' '+today.getFullYear();
 
     let data = [..._ap];
-    if (bulan)  data = data.filter(r=>r.tgl?.startsWith(bulan));
+    if (dari)   data = data.filter(r=>(r.tgl||'') >= dari);
+    if (sampai) data = data.filter(r=>(r.tgl||'') <= sampai);
     if (status==='unpaid') data = data.filter(r=>!_isLunas(r));
 
     const supGroups = {};
@@ -1122,8 +1143,10 @@ const APModule = (() => {
     const totalUnpaid = data.reduce((s,r)=>s+(r.total||0)-(r.terbayar||0),0);
     const vendorCount = Object.keys(supGroups).length;
 
-    let periodeLabel = 'Semua Belum Lunas';
-    if (bulan) { const[y,m]=bulan.split('-'); periodeLabel=BL[parseInt(m)]+' '+y; }
+    const fmtShort = d => { if(!d) return ''; const p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; };
+    let periodeLabel = dari||sampai
+      ? (dari?fmtShort(dari):'…')+' – '+(sampai?fmtShort(sampai):'…')
+      : 'Semua';
 
     // Bold color palette — each vendor gets a strong distinct color
     const COLORS = ['#6366f1','#0891b2','#059669','#d97706','#dc2626','#7c3aed','#0284c7','#ca8a04'];
@@ -1136,13 +1159,17 @@ const APModule = (() => {
       if (payable<=0 && status==='unpaid') return;
       const C = COLORS[vIdx % COLORS.length];
       vIdx++;
+      const vId = 'v-'+vIdx;
 
       // Vendor header — bold colored banner
       rowsHtml +=
         '<tr>'
-        +'<td colspan="5" style="padding:0">'
+        +'<td colspan="7" style="padding:0">'
           +'<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:'+C+';color:#fff;margin-top:'+(vIdx>1?'12px':'0')+';border-radius:10px 10px 0 0">'
             +'<div style="display:flex;align-items:center;gap:12px">'
+              +'<label class="no-print" style="display:flex;align-items:center;gap:6px;cursor:pointer" title="Pilih semua item '+supName+'">'
+                +'<input type="checkbox" data-vname="'+supName+'" onchange="APModule._vapSelectVendor(\''+supName+'\',this.checked)" style="width:15px;height:15px;cursor:pointer;accent-color:white">'
+              +'</label>'
               +'<div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.2);'
                 +'font-weight:900;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--font-mono)" title="Vendor #'+vIdx+'">'
                 +vIdx
@@ -1169,20 +1196,34 @@ const APModule = (() => {
 
       // Detail header
       rowsHtml += '<tr style="background:'+C+'12;border-bottom:2px solid '+C+'30">'
-        +'<td style="padding:7px 20px;font-size:9px;font-weight:800;color:'+C+';text-transform:uppercase;letter-spacing:.06em;width:35%">ITEM</td>'
-        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';width:14%">TANGGAL</td>'
-        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';width:16%">QTY</td>'
-        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';text-align:right;width:17%">HARGA SAT.</td>'
-        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';text-align:right;width:18%">TOTAL</td>'
+        +'<td class="no-print" style="padding:7px 8px;width:36px"></td>'
+        +'<td style="padding:7px 20px;font-size:9px;font-weight:800;color:'+C+';text-transform:uppercase;letter-spacing:.06em">ITEM</td>'
+        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+'">TANGGAL</td>'
+        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+'">QTY</td>'
+        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';text-align:right">HARGA SAT.</td>'
+        +'<td style="padding:7px 16px;font-size:9px;font-weight:800;color:'+C+';text-align:right">TOTAL</td>'
+        +'<td style="padding:7px 12px;font-size:9px;font-weight:800;color:'+C+';text-align:center">KODE VAP</td>'
         +'</tr>';
+
       // Detail rows — tinted with vendor color
       items.sort((a,b)=>(a.tgl||'').localeCompare(b.tgl||'')).forEach((r,ri)=>{
-        const rowTotal = (r.total||0);
-        const tglFmt = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
-        const hs    = (r.hargaSatuan||r.harga_satuan) ? Utils.formatRupiah(r.hargaSatuan||r.harga_satuan) : '-';
-        const stripe = ri%2 ? C+'0d' : C+'06';
+        const rowTotal  = (r.total||0);
+        const tglFmt    = r.tgl?r.tgl.split('-').reverse().join('/'):'-';
+        const hs        = (r.hargaSatuan||r.harga_satuan) ? Utils.formatRupiah(r.hargaSatuan||r.harga_satuan) : '-';
+        const stripe    = ri%2 ? C+'0d' : C+'06';
+        const isUnpaid  = !_isLunas(r);
+        const kodeCell  = r.kodeAP
+          ? '<span style="font-size:9px;font-weight:700;color:#10b981;background:rgba(16,185,129,.12);padding:2px 6px;border-radius:6px;white-space:nowrap">'+r.kodeAP+'</span>'
+          : '-';
         rowsHtml +=
           '<tr style="background:'+stripe+';border-bottom:1px solid '+C+'15;border-left:3px solid '+C+'">'
+          +'<td class="no-print" style="padding:8px;text-align:center;width:36px">'
+            +(isUnpaid
+              ? '<input type="checkbox" data-vid="'+r.id+'" data-vname="'+supName+'"'
+                +(_vapChecked.has(r.id)?' checked':'')
+                +' onchange="APModule._vapToggle(\''+r.id+'\',this.checked)" style="width:14px;height:14px;cursor:pointer">'
+              : '')
+          +'</td>'
           +'<td style="padding:10px 20px;font-size:12px;font-weight:600;color:var(--text)">'+(r.item||r.keterangan||'-')+'</td>'
           +'<td style="padding:10px 16px;font-size:11px;color:var(--text-2)">'+tglFmt+'</td>'
           +'<td style="padding:10px 16px;font-size:11px;color:var(--text-2);font-family:var(--font-mono)">'
@@ -1190,6 +1231,7 @@ const APModule = (() => {
           +'</td>'
           +'<td style="padding:10px 16px;font-size:11px;color:var(--text-2);text-align:right;font-family:var(--font-mono)">'+hs+'</td>'
           +'<td style="padding:10px 16px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:800;color:'+C+';white-space:nowrap">'+Utils.formatRupiah(rowTotal)+'</td>'
+          +'<td style="padding:10px 12px;text-align:center">'+kodeCell+'</td>'
           +'</tr>';
       });
     });
@@ -1197,6 +1239,7 @@ const APModule = (() => {
     // Grand total
     rowsHtml +=
       '<tr style="border-top:3px solid rgba(0,0,0,.1)">'
+      +'<td class="no-print" style="padding:18px 8px"></td>'
       +'<td colspan="4" style="padding:18px 20px">'
         +'<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2)">Total Payable</div>'
         +'<div style="font-size:11px;color:var(--text-3);margin-top:3px">'+vendorCount+' vendor · '+data.length+' transaksi · '+periodeLabel+'</div>'
@@ -1206,6 +1249,7 @@ const APModule = (() => {
           +'background:linear-gradient(135deg,#ef4444,#dc2626);-webkit-background-clip:text;'
           +'-webkit-text-fill-color:transparent;background-clip:text">'+Utils.formatRupiah(totalUnpaid)+'</div>'
       +'</td>'
+      +'<td></td>'
       +'</tr>';
 
     DB.getSettings().then(sets=>{
@@ -1249,24 +1293,26 @@ const APModule = (() => {
               <div style="display:flex;gap:20px;font-size:12px;color:rgba(255,255,255,.75);font-weight:500">
                 <span>${data.length} Tagihan</span>
                 <span>${vendorCount} Vendor</span>
-                <span>${periodeLabel}</span>
+                <span>📅 ${periodeLabel}</span>
               </div>
             </div>
           </div>
 
           <!-- TABLE -->
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain">
-            <table style="width:100%;border-collapse:collapse;min-width:680px" id="vap-table">
+            <table style="width:100%;border-collapse:collapse;min-width:720px" id="vap-table">
               <thead>
                 <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
-                  <th style="padding:11px 16px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Vendor / Supplier</th>
-                  <th style="padding:11px 16px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Nama Bank</th>
-                  <th style="padding:11px 16px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Bank Account Number</th>
-                  <th style="padding:11px 16px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Atas Nama</th>
-                  <th style="padding:11px 16px;text-align:right;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Total Payable</th>
+                  <th class="no-print" style="padding:11px 8px;width:36px"></th>
+                  <th style="padding:11px 20px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Item / Keterangan</th>
+                  <th style="padding:11px 16px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Tanggal</th>
+                  <th style="padding:11px 16px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Qty</th>
+                  <th style="padding:11px 16px;text-align:right;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Harga Sat.</th>
+                  <th style="padding:11px 16px;text-align:right;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Total</th>
+                  <th style="padding:11px 12px;text-align:center;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)">Kode VAP</th>
                 </tr>
               </thead>
-              <tbody>${rowsHtml||'<tr><td colspan="5">'+UI.empty({iconKey:'check', title:'Tidak ada tagihan belum lunas', desc:'Semua tagihan sudah lunas'})+'</td></tr>'}</tbody>
+              <tbody>${rowsHtml||'<tr><td colspan="7">'+UI.empty({iconKey:'check', title:'Tidak ada tagihan belum lunas', desc:'Semua tagihan sudah lunas'})+'</td></tr>'}</tbody>
             </table>
           </div>
 
@@ -1300,7 +1346,7 @@ const APModule = (() => {
       th { padding: 9px 14px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #555; border-bottom: 2px solid #e5e7eb; }
       td { vertical-align: middle; }
       .grad-header { background: linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#7c3aed 100%) !important; color: white !important; padding: 22px 26px; }
-      @media print { .no-print { display: none !important; } }
+      .no-print { display: none !important; }
     `;
 
     const cloneEl  = area.cloneNode(true);
@@ -1308,9 +1354,14 @@ const APModule = (() => {
     const deco = cloneEl.querySelectorAll('[style*="position:absolute"]');
     deco.forEach(d => d.remove());
 
+    const dari   = document.getElementById('vap-dari')?.value   || '';
+    const sampai = document.getElementById('vap-sampai')?.value || '';
+    const fmtShort = d => { if(!d) return ''; const p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; };
+    const periodeStr = dari||sampai ? (dari?fmtShort(dari):'…')+' – '+(sampai?fmtShort(sampai):'…') : 'Semua';
+
     const w = window.open('','_blank','width=900,height=700');
     if (!w) { Notify.error('Pop-up diblokir', 'Izinkan pop-up untuk mencetak'); return; }
-    w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>VAP — '+todayFmt+'</title><style>'+printCSS+'</style></head><body>');
+    w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>VAP '+periodeStr+' — '+todayFmt+'</title><style>'+printCSS+'</style></head><body>');
     w.document.write(cloneEl.outerHTML);
     w.document.write('<script>setTimeout(()=>{window.print();},400);<\/script></body></html>');
     w.document.close();
@@ -1513,6 +1564,7 @@ const APModule = (() => {
       +'<td style="'+p+'">'+inp('total',r.total,'number','min=0')+'</td>'
       +'<td style="'+p+'">'+inp('tglBayar',r.tglBayar||r.tgl_bayar||'','date')+'</td>'
       +'<td style="'+p+'"><select data-f="status" data-eid="'+eid+'" onkeydown="APModule._apKey(event)" style="width:100%;border:none;outline:none;background:transparent;font-size:11px;font-weight:700;padding:0 4px">'+stOpts+'</select></td>'
+      +'<td style="'+p+'"></td>'
       +'<td style="'+p+'"></td>'
       +'</tr>';
   }
@@ -2362,8 +2414,120 @@ const APModule = (() => {
     Notify.success('CSV berhasil didownload');
   }
 
+  /* ============= VAP BATCH PAYMENT ============= */
+
+  function _genVAPCode(yearMonth) {
+    const prefix = 'VAP-' + yearMonth + '-';
+    const existing = new Set(_ap.filter(r => (r.kodeAP || '').startsWith(prefix)).map(r => r.kodeAP));
+    const seq = String(existing.size + 1).padStart(3, '0');
+    return prefix + seq;
+  }
+
+  function _vapQuickPeriod(type) {
+    const now = new Date();
+    let dari, sampai;
+    if (type === 'thisMonth') {
+      dari   = new Date(now.getFullYear(), now.getMonth(), 1);
+      sampai = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    } else {
+      dari   = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      sampai = new Date(now.getFullYear(), now.getMonth(), 0);
+    }
+    const fmt = d => d.toISOString().slice(0, 10);
+    const dEl = document.getElementById('vap-dari');
+    const sEl = document.getElementById('vap-sampai');
+    if (dEl) dEl.value = fmt(dari);
+    if (sEl) sEl.value = fmt(sampai);
+    applyVAPFilter();
+  }
+
+  function _vapToggle(id, checked) {
+    if (checked) _vapChecked.add(id); else _vapChecked.delete(id);
+    _vapUpdatePayBtn();
+  }
+
+  function _vapSelectVendor(vendorName, checked) {
+    document.querySelectorAll('#vap-table input[type="checkbox"][data-vid][data-vname="'+vendorName+'"]').forEach(cb => {
+      cb.checked = checked;
+      _vapToggle(cb.dataset.vid, checked);
+    });
+  }
+
+  function _vapSelectAll(checked) {
+    document.querySelectorAll('#vap-table input[type="checkbox"][data-vid]').forEach(cb => {
+      cb.checked = checked;
+      _vapToggle(cb.dataset.vid, checked);
+    });
+    // Sync per-vendor checkboxes
+    document.querySelectorAll('#vap-table input[type="checkbox"][data-vname]').forEach(cb => {
+      cb.checked = checked;
+    });
+  }
+
+  function _vapUpdatePayBtn() {
+    const btn = document.getElementById('vap-pay-btn');
+    const cnt = document.getElementById('vap-pay-count');
+    if (!btn) return;
+    btn.style.display = _vapChecked.size > 0 ? '' : 'none';
+    if (cnt) cnt.textContent = _vapChecked.size;
+  }
+
+  function _vapOpenPayModal() {
+    const n = _vapChecked.size;
+    if (!n) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const dari  = document.getElementById('vap-dari')?.value || today;
+    const ym    = dari.slice(0, 7).replace('-', '');
+    const suggestedCode = _genVAPCode(ym);
+    Modal.html(`
+      <div style="padding:24px;min-width:320px;max-width:400px">
+        <h3 style="margin-bottom:4px;color:var(--heading);font-size:16px;font-weight:700">Tandai Lunas</h3>
+        <p style="color:var(--text-3);font-size:12px;margin-bottom:18px">${n} transaksi akan ditandai LUNAS dengan kode batch yang sama.</p>
+        <div class="form-group">
+          <label class="form-label">Tanggal Bayar <span class="req">*</span></label>
+          <input type="date" id="vap-pay-date" class="form-control" value="${today}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Kode Batch VAP</label>
+          <input type="text" id="vap-pay-code" class="form-control" value="${suggestedCode}" placeholder="VAP-YYYYMM-NNN">
+          <div class="form-hint">Kode ini akan dicatat di setiap transaksi yang dibayar.</div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+          <button class="btn btn-ghost" onclick="Modal.close()">Batal</button>
+          <button class="btn btn-success" onclick="APModule._vapPayConfirm()">Konfirmasi Bayar</button>
+        </div>
+      </div>
+    `, { closable: true });
+  }
+
+  async function _vapPayConfirm() {
+    const tglBayar = document.getElementById('vap-pay-date')?.value || '';
+    const kodeAP   = (document.getElementById('vap-pay-code')?.value || '').trim();
+    if (!tglBayar) { Notify.warning('Isi tanggal bayar terlebih dahulu'); return; }
+    if (!kodeAP)   { Notify.warning('Kode batch VAP tidak boleh kosong'); return; }
+    Modal.close();
+    const ids = [..._vapChecked];
+    let ok = 0, fail = 0;
+    for (const id of ids) {
+      const row = _ap.find(r => r.id === id);
+      if (!row) continue;
+      Object.assign(row, { status: 'LUNAS', tglBayar, tgl_bayar: tglBayar, kodeAP });
+      try {
+        await DB.saveAP({...row});
+        const cu = (typeof Auth !== 'undefined' && Auth.currentUser?.()) ? (Auth.currentUser().username || Auth.currentUser().nama) : 'me';
+        _lastEditMap[id] = { by: cu, at: new Date().toISOString(), ts: Date.now(), type: 'edit_ap' };
+        ok++;
+      } catch(e) { fail++; }
+    }
+    _vapChecked.clear();
+    Notify.success(ok+' transaksi berhasil dibayar · '+kodeAP+(fail?' ('+fail+' gagal)':''));
+    applyVAPFilter();
+    if (_activeTab === 'list') applyFilter();
+  }
+
   return { init, render, filterBelum, applyFilter, resetFilter, reArrangeAP, goApPage, setApPerPage, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _openSummaryDetail, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, _apQuickSave, apAddRow, _apKey,
     openDownloadModal, _apDlSetType, _apDownloadPDF, _apDownloadCSV,
+    _vapToggle, _vapSelectAll, _vapSelectVendor, _vapUpdatePayBtn, _vapOpenPayModal, _vapPayConfirm, _vapQuickPeriod,
     get _apEditId() { return _apEditId; } };
 })();
 window.APModule = APModule;
