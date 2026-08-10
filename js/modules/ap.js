@@ -323,8 +323,12 @@ const APModule = (() => {
         +'<td style="'+tdL+'">'+(r.satuan||'-')+'</td>'
         +'<td style="'+tdR+'">'+((r.hargaSatuan||r.harga_satuan) ? Utils.formatRupiah(r.hargaSatuan||r.harga_satuan) : '-')+'</td>'
         +'<td style="'+tdR+';font-weight:600">'+Utils.formatRupiah(r.total)+'</td>'
-        +'<td style="'+tdL+';white-space:nowrap">'+(r.tglBayar||r.tgl_bayar||'-')+'</td>'
-        +'<td style="'+tdC+'">'+badge+'</td>'
+        +(canEdit
+          ? '<td style="'+tdL+';padding:4px 16px"><input type="date" value="'+(r.tglBayar||r.tgl_bayar||'')+'" data-ap-tgl="'+r.id+'" style="border:none;background:transparent;font-size:11px;color:var(--text-2);font-family:inherit;cursor:pointer;width:110px" onchange="APModule._apQuickSave(\''+r.id+'\',\'tglBayar\',this.value)" title="Klik untuk pilih tanggal bayar"></td>'
+          : '<td style="'+tdL+';white-space:nowrap">'+(r.tglBayar||r.tgl_bayar||'-')+'</td>')
+        +(canEdit
+          ? '<td style="'+tdC+'"><select data-ap-st="'+r.id+'" style="border:none;background:'+badgeC+'15;color:'+badgeC+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;cursor:pointer;outline:none" onchange="APModule._apQuickSave(\''+r.id+'\',\'status\',this.value,this)"><option value="BELUM"'+(st==='BELUM'?' selected':'')+'>BELUM</option><option value="LUNAS"'+(st==='LUNAS'?' selected':'')+'>LUNAS</option></select></td>'
+          : '<td style="'+tdC+'">'+badge+'</td>')
         +acts
         +'</tr>';
     }).join('');
@@ -345,23 +349,26 @@ const APModule = (() => {
     const key = _AP_COL_MAP[colIdx]; if (!key) return;
     const isNum = key==='qty'||key==='hargaSatuan'||key==='total';
     const parsed = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
-    let saved = 0;
+    let saved = 0, skipped = 0;
     targetRows.forEach(ri => {
       const tr = tbody.children[ri]; if (!tr) return;
       const id = tr.id.replace('ap-row-','');
       const row = _ap.find(r=>r.id===id); if (!row) return;
+      if (key === 'status' && parsed === 'LUNAS' && !(row.tglBayar || row.tgl_bayar)) { skipped++; return; }
       row[key] = parsed;
+      if (key === 'tglBayar') row.tgl_bayar = parsed;
       if (key==='qty'||key==='hargaSatuan') row.total=(row.qty||0)*(row.hargaSatuan||0);
       DB.saveAP({...row}).catch(()=>{});
       saved++;
     });
+    if (skipped) Notify.warning(skipped+' baris dilewati \u2014 isi tanggal bayar dulu sebelum set LUNAS');
     if (saved) { Notify.success(saved+' baris diperbarui'); applyFilter(); }
   }
 
   function _onGridPaste(tblId, startRow, startCol, pasteRows) {
     const tbody = document.querySelector('#ap-main-table tbody');
     if (!tbody) return;
-    let saved = 0;
+    let saved = 0, skipped = 0;
     pasteRows.forEach((cols, ri) => {
       const tr = tbody.children[startRow+ri]; if (!tr) return;
       const id = tr.id.replace('ap-row-','');
@@ -369,12 +376,16 @@ const APModule = (() => {
       cols.forEach((val, ci) => {
         const key = _AP_COL_MAP[startCol+ci]; if (!key) return;
         const isNum = key==='qty'||key==='hargaSatuan'||key==='total';
-        row[key] = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
+        const parsed = isNum ? parseFloat(String(val).replace(/[Rp\s\u00a0.]/g,'').replace(',','.'))||0 : val;
+        if (key === 'status' && parsed === 'LUNAS' && !(row.tglBayar || row.tgl_bayar)) { skipped++; return; }
+        row[key] = parsed;
+        if (key === 'tglBayar') row.tgl_bayar = parsed;
       });
       if (row.qty && row.hargaSatuan) row.total=(row.qty||0)*(row.hargaSatuan||0);
       DB.saveAP({...row}).catch(()=>{});
       saved++;
     });
+    if (skipped) Notify.warning(skipped+' baris dilewati \u2014 isi tanggal bayar dulu sebelum set LUNAS');
     if (saved) { Notify.success(saved+' baris diperbarui'); applyFilter(); }
   }
 
@@ -1353,7 +1364,7 @@ const APModule = (() => {
     if (!tr) return;
     const row = _ap.find(r=>r.id===id);
     if (!row) return;
-    row._orig = JSON.stringify({tgl:row.tgl,supplier:row.supplier,keterangan:row.keterangan,qty:row.qty,satuan:row.satuan,hargaSatuan:row.hargaSatuan,total:row.total,terbayar:row.terbayar,status:row.status,jatuhTempo:row.jatuhTempo});
+    row._orig = JSON.stringify({tgl:row.tgl,supplier:row.supplier,keterangan:row.keterangan,qty:row.qty,satuan:row.satuan,hargaSatuan:row.hargaSatuan,total:row.total,terbayar:row.terbayar,tglBayar:row.tglBayar||row.tgl_bayar,status:row.status,jatuhTempo:row.jatuhTempo});
     tr.outerHTML = _apRowEdit(row);
     document.getElementById('ap-row-'+id)?.querySelector('input,select')?.focus();
     setTimeout(() => document.addEventListener('click', _apOutsideClick), 50);
@@ -1396,13 +1407,23 @@ const APModule = (() => {
       }
     }
 
+    const newStatus = g('status') || row.status || 'LUNAS';
+    const newTglBayar = g('tglBayar') || row.tglBayar || row.tgl_bayar || '';
+    if (newStatus === 'LUNAS' && !newTglBayar) {
+      Notify.warning('Isi tanggal bayar terlebih dahulu sebelum ubah ke LUNAS');
+      const tglEl = tr.querySelector('[data-f="tglBayar"]');
+      if (tglEl) tglEl.focus();
+      setTimeout(() => document.addEventListener('click', _apOutsideClick), 50);
+      return;
+    }
     Object.assign(row, {
       tgl: g('tgl') || row.tgl,
       supplier: g('supplier') || row.supplier,
       keterangan: ket, item: ket, qty, satuan: sat,
       hargaSatuan: hs, total: qty && hs ? qty*hs : (parseFloat(g('total') || row.total) || 0),
       terbayar: parseFloat(g('terbayar') || row.terbayar) || 0,
-      status: g('status') || row.status || 'LUNAS',
+      tglBayar: newTglBayar, tgl_bayar: newTglBayar,
+      status: newStatus,
       jatuhTempo: g('jatuhTempo') || row.jatuhTempo,
     });
     const origData = row._orig ? JSON.parse(row._orig) : null;
@@ -1447,6 +1468,30 @@ const APModule = (() => {
     applyFilter();
   }
 
+  async function _apQuickSave(id, field, value, el) {
+    const row = _ap.find(r => r.id === id);
+    if (!row) return;
+    if (field === 'status' && value === 'LUNAS' && !(row.tglBayar || row.tgl_bayar)) {
+      Notify.warning('Isi tanggal bayar terlebih dahulu sebelum ubah ke LUNAS');
+      if (el) el.value = _st(row);
+      const tr = document.getElementById('ap-row-' + id);
+      const tglInput = tr?.querySelector('input[type="date"]');
+      if (tglInput) { tglInput.focus(); tglInput.showPicker?.(); }
+      return;
+    }
+    row[field] = value;
+    if (field === 'tglBayar') row.tgl_bayar = value;
+    try {
+      await DB.saveAP({...row});
+      const _cu = (typeof Auth !== 'undefined' && Auth.currentUser?.()) ? (Auth.currentUser().username || Auth.currentUser().nama) : 'me';
+      _lastEditMap[id] = { by: _cu, at: new Date().toISOString(), ts: Date.now(), type: 'edit_ap' };
+      Notify.success('Tersimpan');
+      applyFilter();
+    } catch(e) {
+      Notify.error('Gagal', e.message);
+    }
+  }
+
   function _apRowEdit(r) {
     const supOpts = _suppliers.map(s=>'<option value="'+s.nama+'" '+(r.supplier===s.nama?'selected':'')+'>'+s.nama+'</option>').join('');
     const curSt   = _st(r);
@@ -1466,7 +1511,7 @@ const APModule = (() => {
       +'<td style="'+p+'">'+inp('satuan',r.satuan)+'</td>'
       +'<td style="'+p+'">'+inp('hargaSatuan',r.hargaSatuan,'number','min=0')+'</td>'
       +'<td style="'+p+'">'+inp('total',r.total,'number','min=0')+'</td>'
-      +'<td style="'+p+'">'+inp('terbayar',r.terbayar,'number','min=0')+'</td>'
+      +'<td style="'+p+'">'+inp('tglBayar',r.tglBayar||r.tgl_bayar||'','date')+'</td>'
       +'<td style="'+p+'"><select data-f="status" data-eid="'+eid+'" onkeydown="APModule._apKey(event)" style="width:100%;border:none;outline:none;background:transparent;font-size:11px;font-weight:700;padding:0 4px">'+stOpts+'</select></td>'
       +'<td style="'+p+'"></td>'
       +'</tr>';
@@ -2317,7 +2362,7 @@ const APModule = (() => {
     Notify.success('CSV berhasil didownload');
   }
 
-  return { init, render, filterBelum, applyFilter, resetFilter, reArrangeAP, goApPage, setApPerPage, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _openSummaryDetail, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, apAddRow, _apKey,
+  return { init, render, filterBelum, applyFilter, resetFilter, reArrangeAP, goApPage, setApPerPage, renderVAP, applyVAPFilter, printVAP, renderSummaryAP, _openSummaryDetail, _fmtJt, switchTab, renderSuppliers, showSupplierDetail, openAddSupplierModal, openEditSupplierModal, _submitSupplier, openModal, openSupplierModal, _submit, _deleteAP, _deleteSupplier, _addSupplierFull, _saveEditSupplier, apStartEdit, _apCommit, _apCommitAndAdd, _apCancel, _apQuickSave, apAddRow, _apKey,
     openDownloadModal, _apDlSetType, _apDownloadPDF, _apDownloadCSV,
     get _apEditId() { return _apEditId; } };
 })();
