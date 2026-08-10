@@ -2479,9 +2479,12 @@ const APModule = (() => {
     const dari  = document.getElementById('vap-dari')?.value || today;
     const ym    = dari.slice(0, 7).replace('-', '');
     const suggestedCode = _genVAPCode(ym);
-    Modal.html(`
-      <div style="padding:24px;min-width:320px;max-width:400px">
-        <h3 style="margin-bottom:4px;color:var(--heading);font-size:16px;font-weight:700">Tandai Lunas</h3>
+    const mid = 'vap-pay-modal';
+    Modal.open({
+      id: mid,
+      title: 'Tandai Lunas — '+n+' Transaksi',
+      closable: true,
+      body: `
         <p style="color:var(--text-3);font-size:12px;margin-bottom:18px">${n} transaksi akan ditandai LUNAS dengan kode batch yang sama.</p>
         <div class="form-group">
           <label class="form-label">Tanggal Bayar <span class="req">*</span></label>
@@ -2492,20 +2495,20 @@ const APModule = (() => {
           <input type="text" id="vap-pay-code" class="form-control" value="${suggestedCode}" placeholder="VAP-YYYYMM-NNN">
           <div class="form-hint">Kode ini akan dicatat di setiap transaksi yang dibayar.</div>
         </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
-          <button class="btn btn-ghost" onclick="Modal.close()">Batal</button>
-          <button class="btn btn-success" onclick="APModule._vapPayConfirm()">Konfirmasi Bayar</button>
-        </div>
-      </div>
-    `, { closable: true });
+      `,
+      footer: `
+        <button class="btn btn-ghost" onclick="Modal.close('${mid}')">Batal</button>
+        <button class="btn btn-success" onclick="APModule._vapPayConfirm('${mid}')">Konfirmasi Bayar</button>
+      `
+    });
   }
 
-  async function _vapPayConfirm() {
+  async function _vapPayConfirm(mid) {
     const tglBayar = document.getElementById('vap-pay-date')?.value || '';
     const kodeAP   = (document.getElementById('vap-pay-code')?.value || '').trim();
     if (!tglBayar) { Notify.warning('Isi tanggal bayar terlebih dahulu'); return; }
     if (!kodeAP)   { Notify.warning('Kode batch VAP tidak boleh kosong'); return; }
-    Modal.close();
+    Modal.close(mid || 'vap-pay-modal');
     const ids = [..._vapChecked];
     let ok = 0, fail = 0;
     for (const id of ids) {
