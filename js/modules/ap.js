@@ -314,7 +314,7 @@ const APModule = (() => {
 
       const _le = _lastEditMap[r.id];
       const _leTip = _le ? ' title="Terakhir diedit: '+_le.by+' · '+Utils.timeAgo(_le.at)+'"' : '';
-      return '<tr id="ap-row-'+r.id+'"'+_leTip+' style="border-bottom:.5px solid var(--border)">'
+      return '<tr id="ap-row-'+r.id+'"'+_leTip+' style="border-bottom:.5px solid var(--border);'+(st==='LUNAS'?'background:rgba(16,185,129,.06)':'')+'">'
         +'<td style="'+tdR+';width:36px">'+( i+1)+'</td>'
         +'<td style="'+tdL+';white-space:nowrap">'+fmtDate(r.tgl_transaksi||r.tgl)+'</td>'
         +'<td style="'+tdL+'">'+(r.vendor||r.supplier||r.supplier_nama||'-')+'</td>'
