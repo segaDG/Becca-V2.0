@@ -1337,22 +1337,32 @@ const APModule = (() => {
     const todayFmt = today.getDate()+' '+MONTHS[today.getMonth()]+' '+today.getFullYear();
 
     const printCSS = `
-      @page { margin: 12mm 14mm; size: A4; }
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
-      body { margin:0; padding:0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #111; background: white; }
-      table { width: 100%; border-collapse: collapse; }
+      @page { margin: 10mm 10mm; size: A4 landscape; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; overflow: visible !important; }
+      body { margin:0; padding:0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; color: #111; background: white; width: 100%; }
+      table { width: 100% !important; border-collapse: collapse; min-width: 0 !important; table-layout: auto; }
       .vap-vendor-row td { background: #f8f7ff !important; }
       thead tr { background: #f1f0ff !important; }
-      th { padding: 9px 14px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #555; border-bottom: 2px solid #e5e7eb; }
-      td { vertical-align: middle; }
-      .grad-header { background: linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#7c3aed 100%) !important; color: white !important; padding: 22px 26px; }
+      th { padding: 7px 10px; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #555; border-bottom: 2px solid #e5e7eb; }
+      td { vertical-align: middle; padding: 7px 10px; }
+      .grad-header { background: linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#7c3aed 100%) !important; color: white !important; padding: 16px 20px; }
       .no-print { display: none !important; }
+      div { border-radius: 0 !important; }
     `;
 
-    const cloneEl  = area.cloneNode(true);
+    const cloneEl = area.cloneNode(true);
     // Remove decorative elements that won't print well
-    const deco = cloneEl.querySelectorAll('[style*="position:absolute"]');
-    deco.forEach(d => d.remove());
+    cloneEl.querySelectorAll('[style*="position:absolute"]').forEach(d => d.remove());
+    // Hapus overflow:hidden dan overflow-x:auto agar tidak clip di print
+    cloneEl.querySelectorAll('[style]').forEach(el => {
+      el.style.overflow  = 'visible';
+      el.style.minWidth  = '';
+      el.style.maxWidth  = '';
+      el.style.borderRadius = '0';
+    });
+    // Hapus inline min-width dari table agar muat di halaman
+    const tbl = cloneEl.querySelector('table');
+    if (tbl) { tbl.style.width = '100%'; tbl.style.minWidth = '0'; }
 
     const dari   = document.getElementById('vap-dari')?.value   || '';
     const sampai = document.getElementById('vap-sampai')?.value || '';
